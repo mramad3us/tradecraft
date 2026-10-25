@@ -46,6 +46,11 @@ try {
         console.log(`  ✗ ${id} · ${v.name}`);
       }
     }
+    // Shots of views that no longer exist go (a renamed view would otherwise leave its old picture).
+    const keep = new Set(views.map(v => path.basename(v.shot)));
+    if (views.length === s.views.length) {
+      for (const f of readdirSync(shots)) if (f.endsWith('.jpg') && !keep.has(f)) rmSync(path.join(shots, f));
+    }
     byId.set(id, { id, title: s.title, about: s.about, views });
   }
 } finally {
