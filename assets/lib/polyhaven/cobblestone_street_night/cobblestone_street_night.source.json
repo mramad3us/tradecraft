@@ -1,0 +1,17 @@
+{
+ "library": "Poly Haven",
+ "id": "cobblestone_street_night",
+ "name": "Cobblestone Street Night",
+ "type": "hdri",
+ "authors": [
+  "Greg Zaal",
+  "Jenelle van Heerden"
+ ],
+ "page": "https://polyhaven.com/a/cobblestone_street_night",
+ "resolution": "1k",
+ "files": [
+  "cobblestone_street_night_1k.hdr"
+ ],
+ "licence": "CC0",
+ "fetched": "2026-10-25"
+}

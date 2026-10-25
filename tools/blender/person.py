@@ -158,12 +158,20 @@ def credits():
     return out
 
 
-def set_alpha_modes(path):
-    """Opaque skin and eyes; hair, brows, lashes and clothes cut out (MASK). MPFB's materials all wire the
-    texture's alpha, so the exporter marks every one BLEND, and a blended body hides nothing behind it:
-    the inside of the mouth and the backs of the eyes show through the face. Set in the GLB's JSON chunk."""
+def fix_materials(path):
+    """What MPFB's materials need to look right in the game, set in the GLB's JSON chunk:
+    - opacity: skin and eyes OPAQUE; hair, brows, lashes and clothes cut out (MASK). MPFB wires every
+      texture's alpha, so the exporter marks all of them BLEND, and a blended body hides nothing behind
+      it: the inside of the mouth and the backs of the eyes showed through the face;
+    - finish: MAKESKIN gives clothes, hair and brows a clear coat (car-paint varnish) and the suit a
+      glossy roughness map, so cloth shone like vinyl under an environment light. Only the eyes keep
+      the coat; cloth is matte (0.85), shoes have a little sheen (0.55), hair 0.6, skin 0.55."""
     stem = lambda p: os.path.splitext(os.path.basename(p))[0]
-    opaque = {info["name"] + ".body"} | {info["name"] + "." + stem(info["eyes"])}
+    me = lambda p: info["name"] + "." + stem(p)
+    opaque = {info["name"] + ".body"} | {me(info["eyes"])}
+    eyes = me(info["eyes"])
+    hairlike = {me(info[k]) for k in ("hair", "eyebrows", "eyelashes") if info.get(k)}
+    clothes = {me(c) for c in info["clothes"]}
     with open(path, "rb") as f:
         data = f.read()
     magic, version, _ = struct.unpack_from("<III", data, 0)
@@ -171,12 +179,32 @@ def set_alpha_modes(path):
     gltf = json.loads(data[20:20 + jlen])
     rest = data[20 + jlen:]
     for m in gltf.get("materials", []):
-        if m.get("name") in opaque:
+        n = m.get("name")
+        if n in opaque:
             m["alphaMode"] = "OPAQUE"
             m.pop("alphaCutoff", None)
         else:
             m["alphaMode"] = "MASK"
             m["alphaCutoff"] = 0.5
+        pbr = m.setdefault("pbrMetallicRoughness", {})
+        pbr["metallicFactor"] = 0.0
+        if n != eyes:
+            m.get("extensions", {}).pop("KHR_materials_clearcoat", None)
+            if not m.get("extensions"):
+                m.pop("extensions", None)
+        if n in clothes:
+            pbr.pop("metallicRoughnessTexture", None)
+            pbr["roughnessFactor"] = 0.55 if re.search(r"shoe|boot|sneaker|oxford|loafer", n) else 0.85
+        elif n in hairlike:
+            pbr["roughnessFactor"] = 0.6
+        elif n == info["name"] + ".body":
+            pbr["roughnessFactor"] = 0.55
+    if not any("KHR_materials_clearcoat" in m.get("extensions", {}) for m in gltf.get("materials", [])):
+        for k in ("extensionsUsed", "extensionsRequired"):
+            if k in gltf:
+                gltf[k] = [e for e in gltf[k] if e != "KHR_materials_clearcoat"]
+                if not gltf[k]:
+                    gltf.pop(k)
     js = json.dumps(gltf, separators=(",", ":")).encode()
     js += b" " * (-len(js) % 4)
     with open(path, "wb") as f:
@@ -190,7 +218,7 @@ if args.out:
                               export_skins=True, export_animations=bool(motions), export_animation_mode="ACTIONS",
                               export_apply=True,
                               export_image_format="JPEG", export_jpeg_quality=85)
-    set_alpha_modes(os.path.abspath(args.out))
+    fix_materials(os.path.abspath(args.out))
     if not args.raw:
         # Game-sized: textures to 1024 px WebP, meshes meshopt-compressed (the game's GLTFLoader has the
         # decoder). Through the repo's pinned gltf-transform; 13 MB becomes about 1 MB.

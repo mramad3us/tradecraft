@@ -1,0 +1,19 @@
+{
+ "library": "Poly Haven",
+ "id": "red_brick_03",
+ "name": "Red Brick 03",
+ "type": "texture",
+ "authors": [
+  "Rob Tuytel"
+ ],
+ "page": "https://polyhaven.com/a/red_brick_03",
+ "resolution": "1k",
+ "files": [
+  "red_brick_03_diff_1k.jpg",
+  "red_brick_03_nor_gl_1k.jpg",
+  "red_brick_03_rough_1k.jpg",
+  "red_brick_03_ao_1k.jpg"
+ ],
+ "licence": "CC0",
+ "fetched": "2026-10-25"
+}

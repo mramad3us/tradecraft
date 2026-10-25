@@ -64,17 +64,21 @@ Next to every asset that ships, a sidecar `.json` with the same name records how
 - **Motion:** `tools/fetch-cmu.sh --find walk` searches the index (every word must match). `tools/fetch-cmu.sh 07_01 18_08` caches clips. `person.py … --motions 07_01,18_08@0-8` bakes them on (`@start-end` in seconds takes a slice), and they come out as named animations at 30 fps.
 - **Checking motion:** `samples/001-motion/` plays the clips. `?check` reports each clip's speed, facing (feet against heading: 1 is forward) and planted-foot slide (m/s: under about 0.15 is fine at game distance). `?strip=t1,t2,…` is a filmstrip, `?orbit=deg,dist,up&focus=<bone>` a close-up.
 - **An image:** `tools/gen.sh <model> --out x.png --prompt "…" [--seed N --width W --height H --steps 9]`. Always through `gen.sh`, never mflux directly. It runs from a saved 8-bit copy of the model (made once, in `~/Library/Caches/tradecraft/models/`), and it writes `x.gen.json` (model, licence, prompt, seed, command, date). The first use of a model downloads it to `~/.cache/huggingface` (Z-Image-Turbo: about 33 GB) and saves the copy (about 10 GB).
+- **From the CC0 libraries:** `node tools/fetch-asset.mjs find polyhaven textures|models|hdris <words>`, or `find ambientcg <words>`. Then `get polyhaven <id> [--res 1k|2k]` or `get ambientcg <id> [--res 1K|2K]`. It lands in `assets/lib/<library>/<id>/` with its `.source.json`. Textures arrive as `<id>_diff|nor_gl|rough|ao_<res>.jpg`, models as one game-sized `.glb` (`--raw` keeps the original), skies as `.hdr`. `samples/002-library/` shows how to use them: tiling at real size, the sky as the environment light.
 - **A screenshot:** serve (`python3 tools/serve.py <port> .`), then `node tools/shot.mjs <url> <out.png> [--size WxH]`; kill the server afterwards. Samples take `?cam=px,py,pz,tx,ty,tz`.
 
 ## Still needed
 
 - **Motion for the game itself** (the samples can do without): loops cut from the clips, walks in place with the travel given to the game's movement, blending between them. And the hands: the `cmu_mb` skeleton has only three finger bones per hand, so a hand is a relaxed curl, not a grip.
-- **Fetching from the CC0 libraries:** a script that pulls a Poly Haven / ambientCG asset at a chosen resolution and writes its `.source.json`.
 - **A modular kit generator** in Blender: walls, floors, doors, windows, stairs, cutaway-ready.
 - **The samples gallery:** one page listing every sample with a picture, and contact sheets, so the user can pick.
 - Later: sound (effects, ambience, music), UI fonts (vendored, offline), compressed GPU textures (KTX2), portraits.
 
 ## Lessons
+
+- *2026-10-25.* MPFB's MAKESKIN materials give clothes, hair and brows a clear coat, and the suit a glossy roughness map: cloth shone like vinyl under an environment light. `person.py` keeps the coat only on the eyes, and sets cloth matte (0.85), shoes 0.55, hair 0.6, skin 0.55.
+- *2026-10-25.* Poly Haven's API terms: free for any use, commercial included. Downloaded CC0 assets need no credit, ever; only an app showing content from the live API owes a "Powered by Poly Haven" line. Calls must carry a recognisable User-Agent (`fetch-asset.mjs` does).
+- *2026-10-25.* In a sample, don't rely on `THREE.DefaultLoadingManager.onLoad`: textures that finish before it's set never fire it. Wait on each texture's own promise.
 
 - *2026-10-25.* mflux's `-q 8` quantises at load time, which means loading full precision first. Z-Image-Turbo peaked at 25 GB on this 24 GB Mac and swapped hard. From a copy saved with `mflux-save` it peaks at 7.5 GB and takes 32 s for 1216×832 at 9 steps. `tools/gen.sh` always runs from the saved copy.
 - *2026-10-25.* Z-Image-Turbo is strong at realism (a rainy street corner at dusk, a lived-in kitchen) but garbles text ("Pian0 Recital", "Europan Ricitat"). Anything with words goes to Ideogram 4. Image models don't draw cutaways either: that's the 3D renderer's job.

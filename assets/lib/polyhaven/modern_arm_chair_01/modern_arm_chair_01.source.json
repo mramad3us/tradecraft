@@ -1,0 +1,16 @@
+{
+ "library": "Poly Haven",
+ "id": "modern_arm_chair_01",
+ "name": "Modern Arm Chair 01",
+ "type": "model",
+ "authors": [
+  "Vibrant Nordic"
+ ],
+ "page": "https://polyhaven.com/a/modern_arm_chair_01",
+ "resolution": "1k",
+ "files": [
+  "modern_arm_chair_01.glb"
+ ],
+ "licence": "CC0",
+ "fetched": "2026-10-25"
+}

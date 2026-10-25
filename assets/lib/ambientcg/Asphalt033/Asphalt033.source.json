@@ -1,0 +1,19 @@
+{
+ "library": "ambientCG",
+ "id": "Asphalt033",
+ "name": "Asphalt 033",
+ "type": "texture",
+ "authors": [
+  "ambientCG"
+ ],
+ "page": "https://ambientcg.com/view?id=Asphalt033",
+ "resolution": "1K",
+ "files": [
+  "Asphalt033_ao_1K.jpg",
+  "Asphalt033_diff_1K.jpg",
+  "Asphalt033_nor_gl_1K.jpg",
+  "Asphalt033_rough_1K.jpg"
+ ],
+ "licence": "CC0",
+ "fetched": "2026-10-25"
+}
