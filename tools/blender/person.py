@@ -133,7 +133,8 @@ if args.motions:
         ghosts[name] = ghost
         motions.append({"clip": name, "frames": frames, "seconds": round(frames / retarget.FPS, 2), "check": check})
         print(f"motion {name}: {frames} frames ({frames / retarget.FPS:.1f} s); pose check: limbs {check['limbs']}°, "
-              f"shrug {check['shrug']}°, wrist {check['wrist']}°, curl {check['curl']}, lean {check['lean'][0]}° (recording {check['lean'][1]}°)")
+              f"shrug {check['shrug']}°, wrist {check['wrist']}°, curl {check['curl']}, lean {check['lean'][0]}° (recording {check['lean'][1]}°), "
+              f"head tilt {check['tilt']}°, hand clearance {check['clearance']} m")
         for w in check["warnings"]:
             print(f"  WARN {name}: {w}")
 

@@ -4,6 +4,10 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.11 (2026-10-25)
+
+- Two more pose checks, for what the user caught at "60/100": head tilt (beyond the recording's) and hand clearance (fingertip to thigh surface, negative = inside the leg). The CMU walk fails the second, at -0.02 m.
+
 ## v0.0.10 (2026-10-25)
 
 - `tools/gallery.mjs` removes the pictures of views that no longer exist.

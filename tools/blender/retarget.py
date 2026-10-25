@@ -43,7 +43,8 @@ CURL = {"FingerBase": 8, "HandFinger1": 40}
 SWING = {"LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase", "RightUpLeg", "RightLeg", "RightFoot", "RightToeBase",
          "LeftArm", "LeftForeArm", "RightArm", "RightForeArm"}
 # The limits check() holds a bake to (degrees). Past one, it's a WARN line, not a silent picture.
-CHECKS = {"limbs": 2.0, "shrug": 8.0, "wrist": 30.0, "curl": 0.7}
+CHECKS = {"limbs": 2.0, "shrug": 8.0, "wrist": 30.0, "curl": 0.7, "tilt": 8.0, "clearance": 0.0}
+THIGH_M = 0.10      # thigh radius with trousers, for the fingertip clearance (a first estimate)
 
 
 def _frame_time(path):
@@ -219,7 +220,11 @@ def check(rig, src, action, first, step, frames):
               recording's does from its rest (0: shoulders move as the actor's did)
       wrist   the largest bend between forearm and hand (a relaxed wrist: under 30)
       curl    how far the fingers' bend is a curl toward the palm (1) rather than a sideways splay (0)
-      lean    the largest torso lean from vertical, person and recording"""
+      lean    the largest torso lean from vertical, person and recording
+      tilt    the most the head rolls off level beyond what the recording's does (the user saw a
+              tilted head, 2026-10-25)
+      clearance  metres between a fingertip and the thigh's surface at the closest (the user saw
+              fingers pass into the legs, 2026-10-25): below 0 is inside the leg"""
     rw, sw = rig.matrix_world, src.matrix_world
     tdir = lambda n: (rw @ rig.pose.bones[n].tail) - (rw @ rig.pose.bones[n].head)
     sdir = lambda n: (sw @ src.pose.bones[n].tail) - (sw @ src.pose.bones[n].head)
@@ -227,7 +232,14 @@ def check(rig, src, action, first, step, frames):
     elev = lambda v: math.degrees(math.asin(max(-1.0, min(1.0, v.z / v.length))))
     ang = lambda a, b: math.degrees(a.angle(b)) if a.length > 1e-9 and b.length > 1e-9 else 0.0
     up = Vector((0, 0, 1))
-    r = {"limbs": 0.0, "shrug": 0.0, "wrist": 0.0, "curl": 1.0, "lean": [0.0, 0.0]}
+    r = {"limbs": 0.0, "shrug": 0.0, "wrist": 0.0, "curl": 1.0, "lean": [0.0, 0.0], "tilt": 0.0, "clearance": 1.0}
+    def roll(arm, w, bone):   # the head's side-to-side axis (bone local X) against level, degrees
+        x = (w @ arm.pose.bones[bone].matrix).to_3x3() @ Vector((1, 0, 0))
+        return math.degrees(math.asin(max(-1.0, min(1.0, x.normalized().z))))
+    def seg(p, a, b):          # distance from point p to segment ab
+        ab = b - a
+        t = max(0.0, min(1.0, (p - a).dot(ab) / ab.length_squared))
+        return (a + ab * t - p).length
     rig.animation_data.action = action
     for k in range(0, frames, 10):
         bpy.context.scene.frame_set(k + 1)
@@ -235,8 +247,15 @@ def check(rig, src, action, first, step, frames):
                                           "LeftHandFinger1", "RightHandFinger1"] + sorted(SWING)}
         t_thumb = {s: (rw @ rig.pose.bones[s + "Thumb"].head) - (rw @ rig.pose.bones[("Left" if s == "L" else "Right") + "Hand"].head) for s in "LR"}
         t_lean = ang((rw @ rig.pose.bones["Neck"].head) - (rw @ rig.pose.bones["Hips"].head), up)
+        t_roll = roll(rig, rw, "Head")
+        P = lambda n, tail=False: rw @ (rig.pose.bones[n].tail if tail else rig.pose.bones[n].head)
+        for side in ("Left", "Right"):
+            tip = P(side + "HandFinger1", tail=True)
+            near = min(seg(tip, P(f"{s}UpLeg"), P(f"{s}Leg")) for s in ("Left", "Right"))
+            r["clearance"] = min(r["clearance"], near - THIGH_M)
         bpy.context.scene.frame_set(first + k * step)
         s_lean = ang((sw @ src.pose.bones["Neck"].head) - (sw @ src.pose.bones["Hips"].head), up)
+        r["tilt"] = max(r["tilt"], abs(t_roll) - abs(roll(src, sw, "Head")))
         r["lean"] = [max(r["lean"][0], t_lean), max(r["lean"][1], s_lean)]
         for n in SWING:
             r["limbs"] = max(r["limbs"], ang(t[n], sdir(RENAME.get(n, n))))
@@ -252,7 +271,7 @@ def check(rig, src, action, first, step, frames):
                 knuckles = (thumb - hand * thumb.dot(hand)).normalized()     # across the knuckles
                 axis = hand.cross(finger).normalized()                      # what the fingers turned about
                 r["curl"] = min(r["curl"], abs(axis.dot(knuckles)))
-    r = {k: ([round(x, 1) for x in v] if isinstance(v, list) else round(v, 2 if k == "curl" else 1)) for k, v in r.items()}
+    r = {k: ([round(x, 1) for x in v] if isinstance(v, list) else round(v, 2 if k in ("curl", "clearance") else 1)) for k, v in r.items()}
     r["warnings"] = [f"{k} {r[k]} (limit {lim})" for k, lim in CHECKS.items()
-                     if (r[k] < lim if k == "curl" else r[k] > lim)]
+                     if (r[k] < lim if k in ("curl", "clearance") else r[k] > lim)]
     return r
