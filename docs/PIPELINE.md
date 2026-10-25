@@ -18,7 +18,8 @@ In order:
 |---|---|---|---|
 | People (bodies, faces, clothes, hair) | MPFB, `tools/blender/person.py` | — | Parametric and varied (age, build, ethnicity), contemporary wardrobe, rigged, CC0/CC-BY with per-asset credits |
 | People in motion | CMU motion capture: `tools/fetch-cmu.sh`, then `person.py --motions` | Mixamo (the user's Adobe login; MPFB has a `mixamo` skeleton); Quaternius (CC0, needs retargeting) | 2,435 recorded motions of real people, free, no account, and the same bone names as MPFB's `cmu_mb` skeleton |
-| Buildings, rooms, street furniture | Blender scripts building modular kits | Poly Haven models for props | We control scale, cutaways, collision and level of detail; a kit varies into a whole city |
+| Buildings and rooms | The shell (walls, floors, roof, interior walls, openings) is built at runtime from a short description (`samples/lib/building.js`). What fills it (windows, doors, shopfronts, balconies, stairs) is the Blender kit, `tools/blender/kit.py` → `assets/kit/kit.glb` | — | A city is data, not gigabytes of models; cutaways come free (walls to stubs, storeys hidden); textures tile in true metres; Blender's bevels go where detail shows |
+| Street furniture | Poly Haven models (CC0) | Blender kit pieces | Scanned, real-world scale |
 | Props (furniture, objects) | Poly Haven models (CC0) | Blender-scripted; generated textures on simple shapes | Scanned, real-world scale |
 | Surfaces (walls, floors, ground, fabric) | Poly Haven / ambientCG PBR textures (CC0) | Z-Image-Turbo for something specific (a wallpaper pattern, a stained carpet) | Photographic, tileable, full PBR set |
 | Sky and ambient light | Poly Haven HDRIs (CC0) | Procedural sky | Real light, easy variation by time of day |
@@ -65,16 +66,22 @@ Next to every asset that ships, a sidecar `.json` with the same name records how
 - **Checking motion:** `samples/001-motion/` plays the clips. `?check` reports each clip's speed, facing (feet against heading: 1 is forward) and planted-foot slide (m/s: under about 0.15 is fine at game distance). `?strip=t1,t2,…` is a filmstrip, `?orbit=deg,dist,up&focus=<bone>` a close-up.
 - **An image:** `tools/gen.sh <model> --out x.png --prompt "…" [--seed N --width W --height H --steps 9]`. Always through `gen.sh`, never mflux directly. It runs from a saved 8-bit copy of the model (made once, in `~/Library/Caches/tradecraft/models/`), and it writes `x.gen.json` (model, licence, prompt, seed, command, date). The first use of a model downloads it to `~/.cache/huggingface` (Z-Image-Turbo: about 33 GB) and saves the copy (about 10 GB).
 - **From the CC0 libraries:** `node tools/fetch-asset.mjs find polyhaven textures|models|hdris <words>`, or `find ambientcg <words>`. Then `get polyhaven <id> [--res 1k|2k]` or `get ambientcg <id> [--res 1K|2K]`. It lands in `assets/lib/<library>/<id>/` with its `.source.json`. Textures arrive as `<id>_diff|nor_gl|rough|ao_<res>.jpg`, models as one game-sized `.glb` (`--raw` keeps the original), skies as `.hdr`. `samples/002-library/` shows how to use them: tiling at real size, the sky as the environment light.
+- **The building kit:** `blender -b --python tools/blender/kit.py -- --out assets/kit/kit.glb`. Each piece is a top-level node, with glTF extras `kind`, `opening` [w, h] and `sill`. Its origin is the bottom middle of the opening in the wall's mid-plane, and it faces out of the wall (+Z).
+- **A building:** `building(kit, spec)` from `samples/lib/building.js` (the spec format is in its header). Then `update(camera, { walls: 'up'|'cut'|'down', storey })` for the cutaway. Materials come from `textured('<library>/<id>', metresPerTile)` in `samples/lib/materials.js`, with `await loaded(draw)` before `ready()`. `samples/003-building/` is the worked example.
 - **A screenshot:** serve (`python3 tools/serve.py <port> .`), then `node tools/shot.mjs <url> <out.png> [--size WxH]`; kill the server afterwards. Samples take `?cam=px,py,pz,tx,ty,tz`.
 
 ## Still needed
 
 - **Motion for the game itself** (the samples can do without): loops cut from the clips, walks in place with the travel given to the game's movement, blending between them. And the hands: the `cmu_mb` skeleton has only three finger bones per hand, so a hand is a relaxed curl, not a grip.
-- **A modular kit generator** in Blender: walls, floors, doors, windows, stairs, cutaway-ready.
+- **More kit:** roofs that aren't flat, awnings, cornices, shutters, signs, street lamps, interior fittings (kitchens, bathrooms). And kit pieces merged by material when cloned (each is several meshes today: more draw calls than needed).
 - **The samples gallery:** one page listing every sample with a picture, and contact sheets, so the user can pick.
 - Later: sound (effects, ambience, music), UI fonts (vendored, offline), compressed GPU textures (KTX2), portraits.
 
 ## Lessons
+
+- *2026-10-25.* A kit piece with no hole of its own (a balcony) must not be treated as an opening: a zero-height "hole" made the wall-splitting rebuild the wall across the French window behind it.
+- *2026-10-25.* Not every ambientCG set has every map (plaster, concrete and tiles come without AO): `textured()` loads only what the set's `.source.json` lists.
+- *2026-10-25.* three's GLTFLoader turns `.`, `:`, `/` and `[]` in node names into `_`. Kit pieces are looked up by their root names, which have none.
 
 - *2026-10-25.* MPFB's MAKESKIN materials give clothes, hair and brows a clear coat, and the suit a glossy roughness map: cloth shone like vinyl under an environment light. `person.py` keeps the coat only on the eyes, and sets cloth matte (0.85), shoes 0.55, hair 0.6, skin 0.55.
 - *2026-10-25.* Poly Haven's API terms: free for any use, commercial included. Downloaded CC0 assets need no credit, ever; only an app showing content from the live API owes a "Powered by Poly Haven" line. Calls must carry a recognisable User-Agent (`fetch-asset.mjs` does).

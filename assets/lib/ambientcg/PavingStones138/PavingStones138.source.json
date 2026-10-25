@@ -1,0 +1,19 @@
+{
+ "library": "ambientCG",
+ "id": "PavingStones138",
+ "name": "Paving Stones 138",
+ "type": "texture",
+ "authors": [
+  "ambientCG"
+ ],
+ "page": "https://ambientcg.com/view?id=PavingStones138",
+ "resolution": "1K",
+ "files": [
+  "PavingStones138_ao_1K.jpg",
+  "PavingStones138_diff_1K.jpg",
+  "PavingStones138_nor_gl_1K.jpg",
+  "PavingStones138_rough_1K.jpg"
+ ],
+ "licence": "CC0",
+ "fetched": "2026-10-25"
+}

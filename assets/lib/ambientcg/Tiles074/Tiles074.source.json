@@ -1,0 +1,18 @@
+{
+ "library": "ambientCG",
+ "id": "Tiles074",
+ "name": "Tiles 074",
+ "type": "texture",
+ "authors": [
+  "ambientCG"
+ ],
+ "page": "https://ambientcg.com/view?id=Tiles074",
+ "resolution": "1K",
+ "files": [
+  "Tiles074_diff_1K.jpg",
+  "Tiles074_nor_gl_1K.jpg",
+  "Tiles074_rough_1K.jpg"
+ ],
+ "licence": "CC0",
+ "fetched": "2026-10-25"
+}

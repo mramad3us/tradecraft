@@ -1,0 +1,18 @@
+{
+ "library": "ambientCG",
+ "id": "PaintedPlaster017",
+ "name": "Painted Plaster 017",
+ "type": "texture",
+ "authors": [
+  "ambientCG"
+ ],
+ "page": "https://ambientcg.com/view?id=PaintedPlaster017",
+ "resolution": "1K",
+ "files": [
+  "PaintedPlaster017_diff_1K.jpg",
+  "PaintedPlaster017_nor_gl_1K.jpg",
+  "PaintedPlaster017_rough_1K.jpg"
+ ],
+ "licence": "CC0",
+ "fetched": "2026-10-25"
+}

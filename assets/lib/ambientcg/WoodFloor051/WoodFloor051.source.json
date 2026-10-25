@@ -1,0 +1,19 @@
+{
+ "library": "ambientCG",
+ "id": "WoodFloor051",
+ "name": "Wood Floor 051",
+ "type": "texture",
+ "authors": [
+  "ambientCG"
+ ],
+ "page": "https://ambientcg.com/view?id=WoodFloor051",
+ "resolution": "1K",
+ "files": [
+  "WoodFloor051_ao_1K.jpg",
+  "WoodFloor051_diff_1K.jpg",
+  "WoodFloor051_nor_gl_1K.jpg",
+  "WoodFloor051_rough_1K.jpg"
+ ],
+ "licence": "CC0",
+ "fetched": "2026-10-25"
+}

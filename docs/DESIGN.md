@@ -26,7 +26,8 @@ The target entity count, set early: the code is built for it from the start.
 
 - In the browser if it stays the most convenient, like longhaul: the same save logic (IndexedDB, a save schema, additive upgrades on load), the same method (CLAUDE.md).
 - three.js (0.186.1), vendored as ES module files in `vendor/three/` (`tools/vendor-three.mjs`) and loaded through an import map, so there is still no build step, no network and no package install to play. A departure from longhaul's hand-written WebGL2, made for skinned characters, glTF, shadows and post-processing.
-- Content is made by scripts: Blender run headless for scenes, kits and baking, MPFB (MakeHuman) for people, exported as glTF (see docs/PIPELINE.md).
+- Content is made by scripts: Blender run headless for kits, MPFB (MakeHuman) for people, exported as glTF (see docs/PIPELINE.md).
+- Buildings are assembled at runtime from short descriptions (footprint, storeys, openings, interior walls, stairs), dressed with Blender kit pieces. A city is data, and the cutaway (front walls to stubs, upper storeys hidden) is part of how buildings are made, not an afterthought.
 
 ## Open questions
 

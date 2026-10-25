@@ -1,0 +1,18 @@
+{
+ "library": "ambientCG",
+ "id": "Concrete034",
+ "name": "Concrete 034",
+ "type": "texture",
+ "authors": [
+  "ambientCG"
+ ],
+ "page": "https://ambientcg.com/view?id=Concrete034",
+ "resolution": "1K",
+ "files": [
+  "Concrete034_diff_1K.jpg",
+  "Concrete034_nor_gl_1K.jpg",
+  "Concrete034_rough_1K.jpg"
+ ],
+ "licence": "CC0",
+ "fetched": "2026-10-25"
+}
