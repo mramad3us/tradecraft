@@ -7,6 +7,10 @@
 // files), saved as samples/<NNN-name>/shots/<view>.jpg (800 px wide). Then samples/index.json lists
 // them all for samples/index.html (the gallery: open with ./play.sh --dev, then /samples/), and
 // samples/contact.jpg puts every view on one sheet. A view that fails is reported and left out.
+//
+// Pixel art is spoilt by smooth resizing and JPEG: a sample.json with "pixel": "480x270" (its native
+// size) is shot at three times that, brought back to native with point sampling, and kept as a PNG
+// at twice native, every pixel a crisp 2 × 2.
 import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { execFileSync, spawn } from 'node:child_process';
 import path from 'node:path';
@@ -32,14 +36,18 @@ try {
     const shots = path.join(SAMPLES, id, 'shots');
     mkdirSync(shots, { recursive: true });
     const views = [];
+    const native = s.pixel ? s.pixel.split('x').map(Number) : null;
     for (const v of s.views) {
-      const png = path.join(shots, `${slug(v.name)}.png`), jpg = png.replace(/\.png$/, '.jpg');
+      const raw = path.join(shots, `${slug(v.name)}.raw.png`);
+      const out = path.join(shots, `${slug(v.name)}.${native ? 'png' : 'jpg'}`);
       const url = `http://127.0.0.1:${PORT}/samples/${id}/${v.query ? '?' + v.query : ''}`;
       try {
-        execFileSync('node', [path.join(ROOT, 'tools/shot.mjs'), url, png, '--size', '1600x1000', '--timeout', '90000'], { stdio: 'pipe' });
-        execFileSync('magick', [png, '-resize', '800x', '-quality', '82', jpg]);
-        rmSync(png);
-        views.push({ name: v.name, query: v.query, shot: `${id}/shots/${slug(v.name)}.jpg` });
+        const size = native ? `${native[0] * 3}x${native[1] * 3}` : '1600x1000';
+        execFileSync('node', [path.join(ROOT, 'tools/shot.mjs'), url, raw, '--size', size, '--timeout', '90000'], { stdio: 'pipe' });
+        if (native) execFileSync('magick', [raw, '-filter', 'point', '-resize', `${native[0]}x${native[1]}!`, '-resize', `${native[0] * 2}x${native[1] * 2}!`, out]);
+        else execFileSync('magick', [raw, '-resize', '800x', '-quality', '82', out]);
+        rmSync(raw);
+        views.push({ name: v.name, query: v.query, shot: `${id}/shots/${path.basename(out)}` });
         console.log(`  ✓ ${id} · ${v.name}`);
       } catch (e) {
         failed.push(`${id} · ${v.name}: ${(e.stdout || e.message).toString().trim().split('\n').slice(-3).join(' / ')}`);
@@ -49,9 +57,9 @@ try {
     // Shots of views that no longer exist go (a renamed view would otherwise leave its old picture).
     const keep = new Set(views.map(v => path.basename(v.shot)));
     if (views.length === s.views.length) {
-      for (const f of readdirSync(shots)) if (f.endsWith('.jpg') && !keep.has(f)) rmSync(path.join(shots, f));
+      for (const f of readdirSync(shots)) if (/\.(jpg|png)$/.test(f) && !keep.has(f)) rmSync(path.join(shots, f));
     }
-    byId.set(id, { id, title: s.title, about: s.about, views });
+    byId.set(id, { id, title: s.title, about: s.about, pixel: !!native, views });
   }
 } finally {
   server.kill();

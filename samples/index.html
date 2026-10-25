@@ -31,6 +31,7 @@
   figure a { display: block; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); background: #0d0e11; }
   figure img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; transition: transform .2s; }
   figure a:hover img { transform: scale(1.02); }
+  figure img.pixel { image-rendering: pixelated; object-fit: contain; background: #14151c; }
   figcaption { display: flex; align-items: center; justify-content: space-between; padding: 6px 2px 0; font-size: 13px; }
   .star { background: none; border: none; font-size: 18px; line-height: 1; padding: 2px 4px; color: #555b67; }
   .star.on { color: var(--pick); }
@@ -78,6 +79,7 @@
         const show = () => { const on = picks.has(key); star.classList.toggle('on', on); fig.classList.toggle('picked', on); };
         star.onclick = () => { picks.has(key) ? picks.delete(key) : picks.add(key); write(picks); show(); count(); };
         fig.querySelector('img').alt = key;
+        if (s.pixel) fig.querySelector('img').classList.add('pixel');
         show();
         grid.appendChild(fig);
       }

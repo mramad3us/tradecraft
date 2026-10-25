@@ -19,6 +19,15 @@ How it gets found: once the toolchain is set up, many small look samples (a stre
 Explored so far (nothing committed):
 - **Realistic** (samples 000-004): MPFB people, CC0 photographic materials, PBR light; motion from Mixamo (samples 001, 004).
 - **Cartoonish 3D iso** (sample 005, after a pixel-art reference from the user, 2026-10-25): one street rendered by `samples/lib/looks.js` as `pixel` (3D pixel art: low resolution, orthographic, toon light, outlines, quantised colour), `pixel-chunky`, `toon` (flat palette, bands, outlines), and `flat` (a low-poly toy), each with a chibi option (heads 1.5×). The pixel family reads best. Toon and flat still show people as dark silhouettes: stylised people need their own palette, not averaged photo textures.
+- **Chibi town** (sample 006, 2026-10-25): none of the above passed the user's "sniff test". They asked to simplify: "pixel art 100%, but simple, almost 2D", a handheld RPG (Pokémon-like) with big heads and almost invisible legs, barely modelled. Their reasoning: few animations, lots of freedom, and it scales very easily. References: a top-down pixel RPG camp, with closeups of its 32-px characters (heavy dark outlines, faces of a few pixels, beards, boots). Built as pixel art from simple 3D:
+  - The frame is 480 × 270, scaled by a whole number with hard pixel edges.
+  - The camera looks straight on and 45° down, orthographic, so a metre is 16 px on the ground, up a wall and across.
+  - One 50-colour palette; every pixel snaps to it.
+  - Outlines are inked where parts meet: dark at a silhouette, lighter between touching parts.
+  - People are boxes 29 px tall, with a 15 × 13 head and painted faces, posed in code at 8 frames a second. Variety is parameters.
+  - Facades, signs and the ground are painted pixel textures on boxes.
+  - Night lights the windows, signs and lamps, with hard-edged pools of lamplight.
+  - The direction is the user's call, pending their reaction.
 
 ## Systems
 
@@ -35,4 +44,4 @@ The target entity count, set early: the code is built for it from the start.
 
 ## Open questions
 
-- The look: realistic or cartoonish (pixel, toon, flat), settled by picking from samples (see Look).
+- The look: leaning to chibi pixel art (sample 006); settled by the user's pick (see Look).

@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.13 (2026-10-25)
+
+- Chibi town (sample 006), after the user asked for simple pixel art, handheld-RPG style. `samples/lib/pixelart.js` renders 480 × 270 through a 45° orthographic camera at 16 px a metre, with inked outlines and one 50-colour palette. `samples/lib/chibi.js` makes people 29 px tall from a few boxes: 15 × 13 heads with painted faces and profiles, hats, beards, glasses, coats and dresses, things carried. They're posed in code at 8 fps: idle, walk, run, sit, crouch. `samples/lib/pixeltown.js` paints the street: facades, signs in a 3 × 5 pixel font, kerbs, a zebra crossing, trees, lamps, benches, café tables, cars and a taxi. Night lights windows, signs and lamps.
+- Gallery: pixel-art samples get crisp PNG shots at twice their native size (no smoothing, no JPEG).
+
 ## v0.0.12 (2026-10-25)
 
 - Animation libraries: `tools/blender/animlib.py` fits a whole folder of clips once to MPFB's mixamo skeleton, checking each against its recording. `samples/lib/anim.js` re-bases them onto any person on that rig. The first Mixamo clip (a walk) passes every check: limbs 0°, shrug 2°, wrists as recorded, real finger curl, head tilt 0.7°. `retarget.py` now has a profile per library (CMU, Mixamo). The rest of the Mixamo clips wait on Chrome's permission for multiple downloads. `samples/004-mixamo/` shows the library.

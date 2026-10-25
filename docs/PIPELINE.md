@@ -69,6 +69,14 @@ Next to every asset that ships, a sidecar `.json` with the same name records how
 - **The building kit:** `blender -b --python tools/blender/kit.py -- --out assets/kit/kit.glb`. Each piece is a top-level node, with glTF extras `kind`, `opening` [w, h] and `sill`. Its origin is the bottom middle of the opening in the wall's mid-plane, and it faces out of the wall (+Z).
 - **A building:** `building(kit, spec)` from `samples/lib/building.js` (the spec format is in its header). Then `update(camera, { walls: 'up'|'cut'|'down', storey })` for the cutaway. Materials come from `textured('<library>/<id>', metresPerTile)` in `samples/lib/materials.js`, with `await loaded(draw)` before `ready()`. `samples/003-building/` is the worked example.
 - **The gallery:** each sample folder has a `sample.json` (`title`, `about`, `views: [{ name, query }]`). `node tools/gallery.mjs [filter]` shoots every view (failing on any page error), writes `samples/<id>/shots/*.jpg`, `samples/index.json` and `samples/contact.jpg`. `./play.sh --dev`, then `/samples/`, is the gallery: ★ marks a pick, and "Copy my picks" gives the user a list to paste back. Rebuild it after changing a sample.
+- **A pixel-art scene (chibi town):** `pixelStage({ zoom })` from `samples/lib/pixelart.js` gives the renderer, the 45° camera (`look({ x, z })`), the light, and `render()` (outlines and palette). Build with its tools:
+  - `paint(w, h, draw, { repeat, glows })` paints a texture pixel by pixel, at 16 px a metre.
+  - `box()` / `roundedBox()` take a material per face, and fit painted textures one texel to a pixel.
+  - `part()` sets where outlines are drawn.
+  - `text()` writes in the 3 × 5 pixel font.
+  - `nightfall(stage)` and `pool()` make night: glowing paint and hard-edged pools of lamplight.
+
+  People come from `chibi(spec)` (`samples/lib/chibi.js`); the street and props from `samples/lib/pixeltown.js`. Paint only in PALETTE colours: a front shows exactly its painted colour, so what's painted is what shows.
 - **A look:** `applyLook(name, stage, { target })` from `samples/lib/looks.js` restyles a scene's materials, after the textures have loaded. It returns `{ render, camera }`: `real`, `pixel`, `pixel-chunky`, `toon`, `flat`. Bigger heads come from the head bone's scale (`street.js` does it). `samples/005-looks/` shows every look on the street from `samples/lib/street.js`.
 - **An animation library:** `blender -b --python tools/blender/animlib.py -- --profile mixamo --dir ~/Library/Caches/tradecraft/mixamo/raw --out assets/anim/mixamo.glb`. It fits every clip, checks each against its recording, and writes `.checks.json` and `.motion.json` beside the library. In the browser, `rebaseClips(library.scene, library.animations, person)` (`samples/lib/anim.js`) re-bases the clips onto any person on the same rig.
 - **Mixamo clips:** search and export through the logged-in Chrome session, with the page's own API (products, then animations/export, then the monitor), on the X Bot, without skin, at 30 fps, in place for loops. The exported file arrives through a browser download, since the tool hides signed URLs and S3 doesn't allow CORS. Chrome must be allowed to download several files from mixamo.com. Files go from ~/Downloads to `~/Library/Caches/tradecraft/mixamo/raw/<key>.fbx`. The raw FBX never enters the repo: Mixamo allows use in games, not redistribution.
@@ -92,6 +100,11 @@ A motion I made can look fine to me and be wrong. On 2026-10-25 the walk had sho
 - Later: sound (effects, ambience, music), UI fonts (vendored, offline), compressed GPU textures (KTX2), portraits.
 
 ## Lessons
+
+- *2026-10-25.* Pixel art from 3D: light a front at exactly 1.0 of its colour. At 0.66 (a plain sun and sky), the palette snap moved every painted colour one step down: a beige trench coat came out skin-coloured and read as a beard. A smooth light falloff bands into rings through the palette: a lamp is drawn as two cones of even light (a core and a ring), as pixel artists draw pools. Glow must be opted into, colour by colour: a yellow taxi, painted the same colour as a lit window, lit up whole.
+- *2026-10-25.* Pixel-art people from 45° above showed as much hair as face. Squashing a person to 0.45 in world depth (outside its turn, so any facing) shows their tops as sprites do. Sun shadows under people read as long smears: sprites have a blob.
+- *2026-10-25.* three.js uploads a uniform array at the size the shader declares: 50 palette colours in a `vec3 pal[64]` threw ("reading 'toArray'"). Pad the array.
+- *2026-10-25.* The gallery's 800-px JPEG thumbnails blur pixel art. A sample.json with `"pixel": "480x270"` is shot at 3×, brought to native with point sampling, and kept as a PNG at 2×.
 
 - *2026-10-25.* Stylised looks: photo textures averaged to one colour come out muddy, so name a palette per material. Realistic light leaves the shaded side black: lift it with a strong cool sky fill, and keep the darkest toon band about a third lit. Dithering everywhere reads as grain: use only a touch. And frame closer: at the block framing, people are about 10 px tall and can't carry the look.
 - *2026-10-25.* three.js 0.186: pass `depthTexture` to a render target only when there is one. `depthTexture: undefined` throws inside the setter ("reading 'renderTarget'").

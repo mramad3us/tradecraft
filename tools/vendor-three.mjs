@@ -25,6 +25,7 @@ const ADDONS = [
   'postprocessing/OutputPass.js',
   'postprocessing/GTAOPass.js',
   'postprocessing/UnrealBloomPass.js',
+  'geometries/RoundedBoxGeometry.js',
 ];
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
