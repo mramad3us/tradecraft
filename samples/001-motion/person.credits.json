@@ -25,17 +25,50 @@
   {
    "clip": "07_01",
    "frames": 79,
-   "seconds": 2.63
+   "seconds": 2.63,
+   "check": {
+    "limbs": 0.0,
+    "shrug": 0.3,
+    "wrist": 11.9,
+    "curl": 1.0,
+    "lean": [
+     3.2,
+     7.1
+    ],
+    "warnings": []
+   }
   },
   {
    "clip": "17_03@4-10",
    "frames": 181,
-   "seconds": 6.03
+   "seconds": 6.03,
+   "check": {
+    "limbs": 0.0,
+    "shrug": 6.3,
+    "wrist": 11.9,
+    "curl": 1.0,
+    "lean": [
+     46.0,
+     50.4
+    ],
+    "warnings": []
+   }
   },
   {
    "clip": "18_08@0-8",
    "frames": 241,
-   "seconds": 8.03
+   "seconds": 8.03,
+   "check": {
+    "limbs": 0.0,
+    "shrug": 1.2,
+    "wrist": 11.9,
+    "curl": 1.0,
+    "lean": [
+     9.5,
+     7.8
+    ],
+    "warnings": []
+   }
   }
  ],
  "assets": [

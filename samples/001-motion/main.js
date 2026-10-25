@@ -5,6 +5,9 @@
 //   ?t=<seconds>          freeze at that moment (for screenshots)
 //   ?strip=t1,t2,…        a filmstrip: the clip at each moment, side by side, in one picture
 //   ?orbit=deg,dist,up    a close camera circling the hips, or a bone with &focus=<bone>
+//   ?ghost=beside|over    the recording's own skeleton (person.motion.json), in orange, beside the
+//                         person or on top of them: what the actor did, next to what the person does
+//   ?bones                the person's own skeleton, in cyan
 // The grid on the ground is a metre square: feet should plant on it, not slide.
 import { createStage, loadModel, params, ready } from '../lib/stage.js';
 
@@ -31,20 +34,73 @@ for (const c of clips) {
 }
 play(clips.find(c => c.name === params.get('clip')) || clips[0]);
 
-// ?orbit=deg[,dist[,up]]: a close camera circling a point (0° looks from +z), for faces and hands;
-// the point is the hips at chest height, or a bone (?focus=RightHand); up raises the camera over it.
-const orbit = params.get('orbit')?.split(',').map(Number);
+// The ghost: the recording's joints, frame by frame, drawn as lines from each joint to its parent.
+const GHOST_SIDE = 0.75;
+const ghosts = params.has('ghost') ? await (await fetch('./person.motion.json')).json() : null;
+const ghostLines = new THREE.LineSegments(new THREE.BufferGeometry(),
+  new THREE.LineBasicMaterial({ color: 0xffa040, depthTest: false, transparent: true }));
+ghostLines.renderOrder = 10;
+scene.add(ghostLines);
+const ghostAt = (t) => {
+  const g = ghosts?.[action.getClip().name];
+  ghostLines.visible = !!g;
+  if (!g) return;
+  const f = g.frames[Math.max(0, Math.min(g.frames.length - 1, Math.round(t * g.fps)))];
+  // Beside: GHOST_SIDE to the camera's right, so it stands next to the person in the picture.
+  camera.updateMatrixWorld();
+  const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize().multiplyScalar(GHOST_SIDE);
+  const side = params.get('ghost') === 'over' ? [0, 0] : [right.x, right.z];
+  const pts = [];
+  g.parents.forEach((p, i) => {
+    if (p < 0) return;
+    for (const j of [p, i]) pts.push(f[3 * j] + side[0], f[3 * j + 1], f[3 * j + 2] + side[1]);
+  });
+  ghostLines.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+};
+if (params.has('bones')) {
+  const helper = new THREE.SkeletonHelper(gltf.scene);
+  helper.material.depthTest = false;
+  helper.material.color = new THREE.Color(0x40d0ff);
+  helper.renderOrder = 11;
+  scene.add(helper);
+}
+
+// ?orbit=deg[,dist[,up]]: a close camera circling a point, for faces and hands; deg is a number
+// (0° looks from +z) or front | side | back, read from where the feet point at that moment. The point
+// is the hips at chest height, or a bone (?focus=RightHand); up raises the camera over it.
+const orbitRaw = params.get('orbit')?.split(',');
+const orbit = orbitRaw && [orbitRaw[0], ...orbitRaw.slice(1).map(Number)];
+const facingDeg = () => {   // the way the clip travels (or, standing, the feet point), as an orbit angle
+  const clip = action.getClip(), now = action.time;
+  mixer.setTime(0); const a0 = hips.getWorldPosition(new THREE.Vector3());
+  mixer.setTime(clip.duration); const a1 = hips.getWorldPosition(new THREE.Vector3());
+  mixer.setTime(now);
+  const travel = a1.sub(a0).setY(0);
+  if (travel.length() > 0.5) return Math.atan2(travel.x, travel.z) * 180 / Math.PI;
+  const f = new THREE.Vector3();
+  for (const [foot, toe] of [['LeftFoot', 'LeftToeBase'], ['RightFoot', 'RightToeBase']]) {
+    const a = gltf.scene.getObjectByName(foot).getWorldPosition(new THREE.Vector3());
+    f.add(gltf.scene.getObjectByName(toe).getWorldPosition(new THREE.Vector3()).sub(a).setY(0).normalize());
+  }
+  return Math.atan2(f.x, f.z) * 180 / Math.PI;
+};
 const focus = params.get('focus') && gltf.scene.getObjectByName(params.get('focus'));
 const at = (t) => {
   mixer.setTime(t);
   hips.getWorldPosition(hipsAt);
   follow(new THREE.Vector3(hipsAt.x, 0.9, hipsAt.z));
   if (orbit) {
-    const [deg, dist = 5, up = 0.4] = orbit, r = deg * Math.PI / 180;
+    const [how, dist = 5, up = 0.4] = orbit;
+    const named = { front: 0, side: 90, back: 180 };
+    const deg = how in named ? facingDeg() + named[how] : Number(how);
+    const r = deg * Math.PI / 180;
     const c = focus ? focus.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(hipsAt.x, 1.1, hipsAt.z);
+    // Beside a ghost: aim between the person and the ghost, half the ghost's offset to the right.
+    if (params.get('ghost') === 'beside') c.add(new THREE.Vector3(Math.cos(r), 0, -Math.sin(r)).multiplyScalar(GHOST_SIDE / 2));
     camera.position.set(c.x + Math.sin(r) * dist, c.y + up, c.z + Math.cos(r) * dist);
     camera.lookAt(c);
   }
+  ghostAt(t);
 };
 
 // ?check: measure every clip, so a retarget is judged by numbers, not only by eye.
@@ -53,6 +109,9 @@ const at = (t) => {
 //   slide   how fast a planted foot (the lower toe, on the ground) moves, in m/s: near 0 is good
 //   speed   the hips' average ground speed, m/s (a walk is about 1.2–1.5)
 if (params.has('check')) {
+  // The pose check person.py made against the recording itself (limbs, shrug, wrist, curl, lean).
+  const credits = await (await fetch('./person.credits.json')).json();
+  const pose = Object.fromEntries((credits.motions || []).map(m => [m.clip, m.check]));
   const p = new THREE.Vector3(), q = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3();
   const bone = n => gltf.scene.getObjectByName(n);
   const lt = bone('LeftToeBase'), rt = bone('RightToeBase'), lf = bone('LeftFoot'), rf = bone('RightFoot');
@@ -89,7 +148,7 @@ if (params.has('check')) {
     return { clip: clip.name, seconds: +clip.duration.toFixed(2), metres: +dist.toFixed(2),
       speed: +(dist / clip.duration).toFixed(2),
       facing: moving ? +(facing / moving).toFixed(2) : null,
-      slide: +(slide / Math.max(1, planted)).toFixed(2) };
+      slide: +(slide / Math.max(1, planted)).toFixed(2), pose: pose[clip.name] };
   });
 }
 
@@ -118,6 +177,7 @@ if (strip) {
   const clock = new THREE.Clock();
   renderer.setAnimationLoop(() => {
     mixer.update(clock.getDelta());
+    ghostAt(action.time);
     hips.getWorldPosition(hipsAt);
     follow(new THREE.Vector3(hipsAt.x, 0.9, hipsAt.z));
     renderer.render(scene, camera);

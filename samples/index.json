@@ -1,5 +1,5 @@
 {
- "built": "2026-10-25T21:46",
+ "built": "2026-10-25T22:01",
  "samples": [
   {
    "id": "000-toolchain",
@@ -21,22 +21,32 @@
   {
    "id": "001-motion",
    "title": "Motion",
-   "about": "CMU motion capture retargeted onto an MPFB person: a walk, a (theatrical) stealthy walk, a conversation. ?check prints speed, facing and foot slide.",
+   "about": "CMU motion capture retargeted onto an MPFB person, judged against the recording's own skeleton (orange). Look big, from the front and the side: shoulders, wrists, hands. ?check prints the pose check and foot slide.",
    "views": [
     {
-     "name": "walk",
-     "query": "clip=07_01&strip=0.3,0.65,1.0,1.35&orbit=20,7,0.5",
-     "shot": "001-motion/shots/walk.jpg"
+     "name": "walk front, recording over",
+     "query": "clip=07_01&strip=0.3,0.8,1.3&orbit=front,5,0.2&ghost=over",
+     "shot": "001-motion/shots/walk-front-recording-over.jpg"
     },
     {
-     "name": "conversation",
-     "query": "clip=18_08@0-8&strip=0.5,2,3.5,5,6.5,7.5",
-     "shot": "001-motion/shots/conversation.jpg"
+     "name": "walk side, recording beside",
+     "query": "clip=07_01&strip=0.3,0.8,1.3&orbit=side,6.5,0.2&ghost=beside",
+     "shot": "001-motion/shots/walk-side-recording-beside.jpg"
     },
     {
-     "name": "stealthy walk",
+     "name": "walk iso",
+     "query": "clip=07_01&strip=0.3,0.65,1.0,1.35",
+     "shot": "001-motion/shots/walk-iso.jpg"
+    },
+    {
+     "name": "conversation front, recording beside",
+     "query": "clip=18_08@0-8&strip=0.5,3,5.5&orbit=front,6.5,0.2&ghost=beside",
+     "shot": "001-motion/shots/conversation-front-recording-beside.jpg"
+    },
+    {
+     "name": "stealthy walk (theatrical)",
      "query": "clip=17_03@4-10&strip=0,1,2,3,4,5",
-     "shot": "001-motion/shots/stealthy-walk.jpg"
+     "shot": "001-motion/shots/stealthy-walk-theatrical.jpg"
     }
    ]
   },

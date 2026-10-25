@@ -21,7 +21,9 @@
 #
 # --motions 07_01,17_03@4-12 bakes CMU motion-capture clips (tools/fetch-cmu.sh, cached) onto the
 # person as named animations (07_01, 17_03…; @start-end in seconds takes a slice). Motion needs the
-# cmu_mb skeleton, which is then used whatever the spec says (tools/blender/retarget.py). Then
+# cmu_mb skeleton, which is then used whatever the spec says (tools/blender/retarget.py). Each clip's
+# pose check (against the recording) is printed and kept in .credits.json, and the recording's own
+# skeleton goes to <out>.motion.json, for samples to draw beside the person. Then
 # gltf-transform shrinks it (textures 1024 px WebP, meshopt meshes) unless --raw. Next to the .glb, a
 # .credits.json lists the spec and every asset's author, licence and source (CC-BY ones are printed).
 import argparse, glob, json, os, re, struct, subprocess, sys, importlib
@@ -115,6 +117,7 @@ if proxy is not None:
 # Motion: each CMU clip baked as its own action on the skeleton.
 CMU = os.path.join(os.path.expanduser("~/Library/Caches/tradecraft"), "cmu", "bvh")
 motions = []
+ghosts = {}
 if args.motions:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import retarget
@@ -126,9 +129,13 @@ if args.motions:
             raise SystemExit(f"no clip {mid}: run tools/fetch-cmu.sh {mid}")
         a, _, b = span.partition("-")
         name = mid if not span else f"{mid}@{span}"
-        action, frames = retarget.retarget(rig, bvh, name, float(a or 0), float(b) if b else None)
-        motions.append({"clip": name, "frames": frames, "seconds": round(frames / retarget.FPS, 2)})
-        print(f"motion {name}: {frames} frames ({frames / retarget.FPS:.1f} s)")
+        action, frames, check, ghost = retarget.retarget(rig, bvh, name, float(a or 0), float(b) if b else None)
+        ghosts[name] = ghost
+        motions.append({"clip": name, "frames": frames, "seconds": round(frames / retarget.FPS, 2), "check": check})
+        print(f"motion {name}: {frames} frames ({frames / retarget.FPS:.1f} s); pose check: limbs {check['limbs']}°, "
+              f"shrug {check['shrug']}°, wrist {check['wrist']}°, curl {check['curl']}, lean {check['lean'][0]}° (recording {check['lean'][1]}°)")
+        for w in check["warnings"]:
+            print(f"  WARN {name}: {w}")
 
 tris = 0
 for o in bpy.context.scene.objects:
@@ -227,6 +234,9 @@ if args.out:
         subprocess.run([os.path.join(repo, "node_modules", ".bin", "gltf-transform"), "optimize", raw, raw,
                         "--compress", "meshopt", "--texture-compress", "webp", "--texture-size", "1024"],
                        check=True, stdout=subprocess.DEVNULL)
+    if ghosts:
+        with open(os.path.splitext(args.out)[0] + ".motion.json", "w") as f:
+            json.dump(ghosts, f, separators=(",", ":"))
     cr = credits()
     with open(os.path.splitext(args.out)[0] + ".credits.json", "w") as f:
         json.dump({"spec": spec, "motions": motions, "assets": cr}, f, indent=1)

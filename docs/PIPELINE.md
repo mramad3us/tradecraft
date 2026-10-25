@@ -63,13 +63,24 @@ Next to every asset that ships, a sidecar `.json` with the same name records how
 - **Set up everything:** `tools/setup.sh` (rerunnable).
 - **A person:** `blender -b --python tools/blender/person.py -- --spec spec.json --out samples/x/person.glb` (`--list clothes|hair|skin|…` shows what's installed; `--raw` skips the optimising).
 - **Motion:** `tools/fetch-cmu.sh --find walk` searches the index (every word must match). `tools/fetch-cmu.sh 07_01 18_08` caches clips. `person.py … --motions 07_01,18_08@0-8` bakes them on (`@start-end` in seconds takes a slice), and they come out as named animations at 30 fps.
-- **Checking motion:** `samples/001-motion/` plays the clips. `?check` reports each clip's speed, facing (feet against heading: 1 is forward) and planted-foot slide (m/s: under about 0.15 is fine at game distance). `?strip=t1,t2,…` is a filmstrip, `?orbit=deg,dist,up&focus=<bone>` a close-up.
+- **Checking motion:** `person.py --motions` prints a pose check per clip against the recording itself, with limits (`CHECKS` in `retarget.py`; past one it prints WARN). `samples/001-motion/` plays the clips. `?check` adds speed, facing and planted-foot slide (m/s: under about 0.15 is fine at game distance). `?ghost=over|beside` draws the recording's own skeleton (from `person.motion.json`) on top of the person or next to them. `?strip=t1,t2,…` is a filmstrip. `?orbit=front|side|back|deg,dist,up&focus=<bone>` gives a close-up, with front and side read from the way the clip travels. See How to judge motion.
 - **An image:** `tools/gen.sh <model> --out x.png --prompt "…" [--seed N --width W --height H --steps 9]`. Always through `gen.sh`, never mflux directly. It runs from a saved 8-bit copy of the model (made once, in `~/Library/Caches/tradecraft/models/`), and it writes `x.gen.json` (model, licence, prompt, seed, command, date). The first use of a model downloads it to `~/.cache/huggingface` (Z-Image-Turbo: about 33 GB) and saves the copy (about 10 GB).
 - **From the CC0 libraries:** `node tools/fetch-asset.mjs find polyhaven textures|models|hdris <words>`, or `find ambientcg <words>`. Then `get polyhaven <id> [--res 1k|2k]` or `get ambientcg <id> [--res 1K|2K]`. It lands in `assets/lib/<library>/<id>/` with its `.source.json`. Textures arrive as `<id>_diff|nor_gl|rough|ao_<res>.jpg`, models as one game-sized `.glb` (`--raw` keeps the original), skies as `.hdr`. `samples/002-library/` shows how to use them: tiling at real size, the sky as the environment light.
 - **The building kit:** `blender -b --python tools/blender/kit.py -- --out assets/kit/kit.glb`. Each piece is a top-level node, with glTF extras `kind`, `opening` [w, h] and `sill`. Its origin is the bottom middle of the opening in the wall's mid-plane, and it faces out of the wall (+Z).
 - **A building:** `building(kit, spec)` from `samples/lib/building.js` (the spec format is in its header). Then `update(camera, { walls: 'up'|'cut'|'down', storey })` for the cutaway. Materials come from `textured('<library>/<id>', metresPerTile)` in `samples/lib/materials.js`, with `await loaded(draw)` before `ready()`. `samples/003-building/` is the worked example.
 - **The gallery:** each sample folder has a `sample.json` (`title`, `about`, `views: [{ name, query }]`). `node tools/gallery.mjs [filter]` shoots every view (failing on any page error), writes `samples/<id>/shots/*.jpg`, `samples/index.json` and `samples/contact.jpg`. `./play.sh --dev`, then `/samples/`, is the gallery: ★ marks a pick, and "Copy my picks" gives the user a list to paste back. Rebuild it after changing a sample.
 - **A screenshot:** serve (`python3 tools/serve.py <port> .`), then `node tools/shot.mjs <url> <out.png> [--size WxH]`; kill the server afterwards. Samples take `?cam=px,py,pz,tx,ty,tz`.
+
+## How to judge motion
+
+A motion I made can look fine to me and be wrong. On 2026-10-25 the walk had shoulders shrugged to the ears and hands bent into flippers, and I put it down to "the suit's shoulders" until the user pointed at it. So:
+
+1. **Read the numbers first.** The pose check (limbs against the recording, shoulder shrug, wrist bend, finger curl, lean) and the sample's `?check` (slide, facing). A WARN is a failure: fix it before showing anything.
+2. **Look big, from the front and the side.** Not just the iso thumbnail: at game distance a body's errors blur into "clothes". Use strips at 1500 px wide with `orbit=front` and `orbit=side`.
+3. **Look against the truth.** With `ghost=over` (the recording on the body) or `ghost=beside`. Judging a body alone is how the shrug got through.
+4. **Check by eye, part by part:** shoulders level and relaxed; arms hanging close and swinging against the legs; elbows and knees bending the right way only; wrists near straight; hands relaxed, curled toward the palm; head level; torso upright; feet planted, not skating; nothing passing through the clothes.
+5. **Never explain an oddity away unchecked** ("probably the suit", "probably the angle"). Measure it or look closer.
+6. **When the user catches something the checks missed,** add a check for it (a number, a limit) in the same change, so it can't come back unseen.
 
 ## Still needed
 
@@ -78,6 +89,10 @@ Next to every asset that ships, a sidecar `.json` with the same name records how
 - Later: sound (effects, ambience, music), UI fonts (vendored, offline), compressed GPU textures (KTX2), portraits.
 
 ## Lessons
+
+- *2026-10-25.* Retargeting: only align the rest-pose differences that are *pose* (the clip's T-pose arms, its splayed legs). Never align the ones that come from how the skeletons are *built*. CMU's collarbones point 15-20° up and its hand bones point 90° off the forearm; copying those shrugged our people's shoulders by 25-29° and bent their wrists into flippers. The fix took the shrug from 29° to 0.3° against the recording, and the wrist from 90° to 12°.
+- *2026-10-25.* A finger curl tuned by eye on a close-up was really a sideways splay: from that angle the two look alike. The curl axis is now derived (across the knuckles, toward the palm), and the pose check measures it (curl 1.0 = toward the palm, 0 = sideways).
+- *2026-10-25.* "Front" by a fixed orbit angle is meaningless: it depends on which way the clip walks. I labelled a side view "front" for a whole round. Samples now take `orbit=front|side|back`, read from the motion.
 
 - *2026-10-25.* A kit piece with no hole of its own (a balcony) must not be treated as an opening: a zero-height "hole" made the wall-splitting rebuild the wall across the French window behind it.
 - *2026-10-25.* Not every ambientCG set has every map (plaster, concrete and tiles come without AO): `textured()` loads only what the set's `.source.json` lists.
