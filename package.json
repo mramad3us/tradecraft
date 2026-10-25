@@ -1,0 +1,12 @@
+{
+  "name": "tradecraft",
+  "private": true,
+  "type": "module",
+  "description": "TRADECRAFT (a game, in design)",
+  "scripts": {
+    "start": "./play.sh",
+    "dev": "./play.sh --dev",
+    "test": "node tests/run.mjs",
+    "test:quick": "QUICK=1 node tests/run.mjs"
+  }
+}

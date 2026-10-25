@@ -1,0 +1,7 @@
+.DS_Store
+node_modules/
+*.log
+# the play copy (a git worktree on a release tag: tools/promote.sh)
+.play/
+# runtime state: server pids, the keep-awake lease and its log
+.run/
