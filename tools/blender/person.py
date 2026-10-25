@@ -20,7 +20,7 @@
 # and a skeleton (game_engine by default; "mixamo" takes Mixamo animations as they are). Then
 # gltf-transform shrinks it (textures 1024 px WebP, meshopt meshes) unless --raw. Next to the .glb, a
 # .credits.json lists the spec and every asset's author, licence and source (CC-BY ones are printed).
-import argparse, glob, json, os, re, subprocess, sys, importlib
+import argparse, glob, json, os, re, struct, subprocess, sys, importlib
 import bpy
 
 mpfb = "bl_ext.blender_org.mpfb.services."
@@ -131,11 +131,38 @@ def credits():
     return out
 
 
+def set_alpha_modes(path):
+    """Opaque skin and eyes; hair, brows, lashes and clothes cut out (MASK). MPFB's materials all wire the
+    texture's alpha, so the exporter marks every one BLEND, and a blended body hides nothing behind it:
+    the inside of the mouth and the backs of the eyes show through the face. Set in the GLB's JSON chunk."""
+    stem = lambda p: os.path.splitext(os.path.basename(p))[0]
+    opaque = {info["name"] + ".body"} | {info["name"] + "." + stem(info["eyes"])}
+    with open(path, "rb") as f:
+        data = f.read()
+    magic, version, _ = struct.unpack_from("<III", data, 0)
+    jlen, jtype = struct.unpack_from("<II", data, 12)
+    gltf = json.loads(data[20:20 + jlen])
+    rest = data[20 + jlen:]
+    for m in gltf.get("materials", []):
+        if m.get("name") in opaque:
+            m["alphaMode"] = "OPAQUE"
+            m.pop("alphaCutoff", None)
+        else:
+            m["alphaMode"] = "MASK"
+            m["alphaCutoff"] = 0.5
+    js = json.dumps(gltf, separators=(",", ":")).encode()
+    js += b" " * (-len(js) % 4)
+    with open(path, "wb") as f:
+        f.write(struct.pack("<III", magic, version, 20 + len(js) + len(rest)))
+        f.write(struct.pack("<II", len(js), jtype) + js + rest)
+
+
 if args.out:
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     bpy.ops.export_scene.gltf(filepath=os.path.abspath(args.out), export_format="GLB", use_visible=True,
                               export_skins=True, export_animations=False, export_apply=True,
                               export_image_format="JPEG", export_jpeg_quality=85)
+    set_alpha_modes(os.path.abspath(args.out))
     if not args.raw:
         # Game-sized: textures to 1024 px WebP, meshes meshopt-compressed (the game's GLTFLoader has the
         # decoder). Through the repo's pinned gltf-transform; 13 MB becomes about 1 MB.

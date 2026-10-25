@@ -21,6 +21,9 @@ scene.background = new THREE.Color(0x1b1d22);
 const camera = new THREE.PerspectiveCamera(20, innerWidth / innerHeight, 0.1, 200);
 camera.position.set(9, 8.5, 9);
 camera.lookAt(0, 0.9, 0);
+// ?cam=px,py,pz,tx,ty,tz aims the camera anywhere (from, to), for close looks at faces and hands.
+const cam = new URLSearchParams(location.search).get('cam')?.split(',').map(Number);
+if (cam?.length === 6) { camera.position.set(cam[0], cam[1], cam[2]); camera.lookAt(cam[3], cam[4], cam[5]); }
 
 scene.add(new THREE.HemisphereLight(0xbfd2ff, 0x2a2420, 0.6));
 const sun = new THREE.DirectionalLight(0xfff1dc, 2.2);
@@ -37,7 +40,12 @@ scene.add(ground);
 const done = () => { renderer.render(scene, camera); requestAnimationFrame(() => { window.__ready = true; }); };
 const url = new URLSearchParams(location.search).get('model') || './person.glb';
 new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).load(url, gltf => {
-  gltf.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  gltf.scene.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = true; o.receiveShadow = true;
+    // Cut-out materials (hair, brows, lashes) get soft edges from MSAA instead of a hard alpha test.
+    if (o.material.alphaTest > 0) o.material.alphaToCoverage = true;
+  });
   scene.add(gltf.scene);
   window.__model = { meshes: 0, bones: 0 };
   gltf.scene.traverse(o => { if (o.isMesh) window.__model.meshes++; if (o.isBone) window.__model.bones++; });

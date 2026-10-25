@@ -7,3 +7,5 @@ node_modules/
 .run/
 # art references (commercial screenshots: kept local, never committed)
 ref/
+# credentials and anything private: never committed
+*.private
