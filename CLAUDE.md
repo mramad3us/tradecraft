@@ -14,16 +14,13 @@ A game, in design: nothing is built yet, and `docs/DESIGN.md` is where the desig
 
 ## Toolchain and assets
 
-- **The game** runs on three.js, vendored in `vendor/three/` and loaded through an import map (`"three"` → `./vendor/three/build/three.module.js`, `"three/addons/"` → `./vendor/three/examples/jsm/`). To use another add-on, add it to `ADDONS` in `tools/vendor-three.mjs` and rerun it. Bump three by changing its pin in package.json, then `npm install` and rerun the vendor script.
-- **Dev tools** come from `npm install` (devDependencies, pinned): playwright-core for headless screenshots, gltf-transform for optimising models (`npx gltf-transform …`). Nothing the game loads comes from `node_modules`.
-- **Blender** is driven by scripts, never by hand: `blender -b --python tools/blender/<script>.py -- <args>`. A scene, a kit or a character is a script in the repo, so it can be rebuilt and varied. Generated `.blend` files and renders are build output.
-- **People** come from MPFB, MakeHuman's generator for Blender, with the asset packs in `tools/blender/mpfb-packs.txt`. They're cached in `~/Library/Caches/tradecraft/makehuman/` and installed into MPFB by `tools/setup.sh`. Inside Python, MPFB imports as `bl_ext.blender_org.mpfb`.
-- **Images** are generated on this Mac with mflux (`~/.local/bin/mflux-generate-*`), with no API key and nothing leaving the machine. The game is free and won't be sold (the user, 2026-10-25), so non-commercial weights are allowed, within what each licence actually says:
-  - **Ships in the game:** Z-Image-Turbo (`mflux-generate-z-image-turbo -q 8`, Apache-2.0: the main model, for realism) and FLUX.2 klein 4B (`mflux-generate-flux2` / `-flux2-edit`, Apache-2.0: edits, reference images). Also models under the FLUX Non-Commercial License v2.1 (FLUX.2 klein 9B, FLUX.1 dev and its family). That licence counts "hobby projects" as non-commercial as long as no payment comes from them, and lets the outputs be used for any purpose. Those models are gated: they need the user's free Hugging Face login.
-  - **Samples only, never shipped:** Qwen-Image 2.1 (`mflux-generate-qwen-2.1`, `-qwen-2.1-edit`). Its licence allows "research or evaluation purposes only".
-  - Read the licence before using any other model (Krea 2, Ideogram 4, FIBO…).
-  - Record the model, prompt and seed of every generated image that ships, next to it. Then it can be regenerated under another model if the game's terms ever change (a price, donations, ads), or swapped out if someone objects. Check what's generated for anything infringing (recognisable brands, logos, real people) before it ships, and say in CREDITS.md that the game uses AI-generated images.
-- **Licences:** anything that ships in the repo is CC0, CC-BY with its credit added to `CREDITS.md` in the same change, or generated as above. Nothing else.
+`docs/PIPELINE.md` is how content gets made. It covers the rules for picking a tool, which tool for which job, what each licence allows, the recipes, provenance, and a dated log of lessons. Read it before making or fetching any asset. When a tool choice changes or something surprises you, update it in the same change. The rules that never bend:
+
+- **Scripts, not hands.** Blender runs headless (`blender -b --python tools/blender/<script>.py -- <args>`). A scene, a kit, a person or an image batch is a script in the repo. Generated `.blend` files and renders are build output.
+- **Licences.** What ships is CC0, CC-BY (credited in `CREDITS.md` in the same change), or made by an image model PIPELINE.md allows for shipping. Qwen-Image 2.1 is samples only. A model whose licence isn't in PIPELINE.md isn't used until it is.
+- **Provenance.** Every shipped asset has its sidecar `.json` saying how to make it again.
+- **Secrets.** The Hugging Face token lives in `~/.cache/huggingface/token`: never in the repo, never printed. `*.private` is gitignored.
+- **The game loads nothing from `node_modules`.** three.js is vendored in `vendor/three/` (import map: `"three"` → `./vendor/three/build/three.module.js`, `"three/addons/"` → `./vendor/three/examples/jsm/`). To use another add-on, add it to `ADDONS` in `tools/vendor-three.mjs` and rerun it. To bump three, change its pin in package.json, run `npm install`, and rerun the vendor script.
 - **Art references** live in `ref/` (gitignored: commercial screenshots, never committed).
 
 ## Versions and releases
