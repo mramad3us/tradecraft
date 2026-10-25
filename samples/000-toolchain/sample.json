@@ -1,0 +1,2 @@
+{ "title": "Toolchain check", "about": "A person made by MPFB, exported from Blender and loaded under the iso camera: the whole chain, end to end.",
+  "views": [ { "name": "iso", "query": "" }, { "name": "close", "query": "cam=1.5,1.95,1.5,0,1.45,0" } ] }

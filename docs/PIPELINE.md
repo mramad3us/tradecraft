@@ -68,13 +68,13 @@ Next to every asset that ships, a sidecar `.json` with the same name records how
 - **From the CC0 libraries:** `node tools/fetch-asset.mjs find polyhaven textures|models|hdris <words>`, or `find ambientcg <words>`. Then `get polyhaven <id> [--res 1k|2k]` or `get ambientcg <id> [--res 1K|2K]`. It lands in `assets/lib/<library>/<id>/` with its `.source.json`. Textures arrive as `<id>_diff|nor_gl|rough|ao_<res>.jpg`, models as one game-sized `.glb` (`--raw` keeps the original), skies as `.hdr`. `samples/002-library/` shows how to use them: tiling at real size, the sky as the environment light.
 - **The building kit:** `blender -b --python tools/blender/kit.py -- --out assets/kit/kit.glb`. Each piece is a top-level node, with glTF extras `kind`, `opening` [w, h] and `sill`. Its origin is the bottom middle of the opening in the wall's mid-plane, and it faces out of the wall (+Z).
 - **A building:** `building(kit, spec)` from `samples/lib/building.js` (the spec format is in its header). Then `update(camera, { walls: 'up'|'cut'|'down', storey })` for the cutaway. Materials come from `textured('<library>/<id>', metresPerTile)` in `samples/lib/materials.js`, with `await loaded(draw)` before `ready()`. `samples/003-building/` is the worked example.
+- **The gallery:** each sample folder has a `sample.json` (`title`, `about`, `views: [{ name, query }]`). `node tools/gallery.mjs [filter]` shoots every view (failing on any page error), writes `samples/<id>/shots/*.jpg`, `samples/index.json` and `samples/contact.jpg`. `./play.sh --dev`, then `/samples/`, is the gallery: ★ marks a pick, and "Copy my picks" gives the user a list to paste back. Rebuild it after changing a sample.
 - **A screenshot:** serve (`python3 tools/serve.py <port> .`), then `node tools/shot.mjs <url> <out.png> [--size WxH]`; kill the server afterwards. Samples take `?cam=px,py,pz,tx,ty,tz`.
 
 ## Still needed
 
 - **Motion for the game itself** (the samples can do without): loops cut from the clips, walks in place with the travel given to the game's movement, blending between them. And the hands: the `cmu_mb` skeleton has only three finger bones per hand, so a hand is a relaxed curl, not a grip.
 - **More kit:** roofs that aren't flat, awnings, cornices, shutters, signs, street lamps, interior fittings (kitchens, bathrooms). And kit pieces merged by material when cloned (each is several meshes today: more draw calls than needed).
-- **The samples gallery:** one page listing every sample with a picture, and contact sheets, so the user can pick.
 - Later: sound (effects, ambience, music), UI fonts (vendored, offline), compressed GPU textures (KTX2), portraits.
 
 ## Lessons

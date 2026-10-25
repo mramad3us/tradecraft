@@ -1,0 +1,83 @@
+{
+ "built": "2026-10-25T21:46",
+ "samples": [
+  {
+   "id": "000-toolchain",
+   "title": "Toolchain check",
+   "about": "A person made by MPFB, exported from Blender and loaded under the iso camera: the whole chain, end to end.",
+   "views": [
+    {
+     "name": "iso",
+     "query": "",
+     "shot": "000-toolchain/shots/iso.jpg"
+    },
+    {
+     "name": "close",
+     "query": "cam=1.5,1.95,1.5,0,1.45,0",
+     "shot": "000-toolchain/shots/close.jpg"
+    }
+   ]
+  },
+  {
+   "id": "001-motion",
+   "title": "Motion",
+   "about": "CMU motion capture retargeted onto an MPFB person: a walk, a (theatrical) stealthy walk, a conversation. ?check prints speed, facing and foot slide.",
+   "views": [
+    {
+     "name": "walk",
+     "query": "clip=07_01&strip=0.3,0.65,1.0,1.35&orbit=20,7,0.5",
+     "shot": "001-motion/shots/walk.jpg"
+    },
+    {
+     "name": "conversation",
+     "query": "clip=18_08@0-8&strip=0.5,2,3.5,5,6.5,7.5",
+     "shot": "001-motion/shots/conversation.jpg"
+    },
+    {
+     "name": "stealthy walk",
+     "query": "clip=17_03@4-10&strip=0,1,2,3,4,5",
+     "shot": "001-motion/shots/stealthy-walk.jpg"
+    }
+   ]
+  },
+  {
+   "id": "002-library",
+   "title": "CC0 library check",
+   "about": "What tools/fetch-asset.mjs brings in, in the renderer: ambientCG asphalt, a Poly Haven brick wall and armchair, a night-street HDR as the light.",
+   "views": [
+    {
+     "name": "night street",
+     "query": "",
+     "shot": "002-library/shots/night-street.jpg"
+    }
+   ]
+  },
+  {
+   "id": "003-building",
+   "title": "A building from the kit",
+   "about": "A three-storey corner block assembled at runtime and dressed with the Blender kit, with the cutaway modes: walls up, cut, down, storey by storey.",
+   "views": [
+    {
+     "name": "walls up",
+     "query": "walls=up&t=0.8",
+     "shot": "003-building/shots/walls-up.jpg"
+    },
+    {
+     "name": "cut",
+     "query": "walls=cut&t=0.8",
+     "shot": "003-building/shots/cut.jpg"
+    },
+    {
+     "name": "first floor",
+     "query": "walls=cut&storey=1&t=0.8",
+     "shot": "003-building/shots/first-floor.jpg"
+    },
+    {
+     "name": "ground floor",
+     "query": "walls=down&storey=0&t=0.8",
+     "shot": "003-building/shots/ground-floor.jpg"
+    }
+   ]
+  }
+ ]
+}
