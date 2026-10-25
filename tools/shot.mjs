@@ -6,7 +6,7 @@
 // Metal backend so WebGL renders as it does for the player rather than in software. The page is
 // shot once --ready is true (default: window.__ready, which a sample sets when its first frame is
 // drawn). Page errors, console errors and failed requests (by URL) are printed, and fail the run,
-// so a broken page never passes as a picture.
+// so a broken page never passes as a picture. If the page sets window.__report, it's printed too.
 import { chromium } from 'playwright-core';
 
 const args = process.argv.slice(2);
@@ -33,6 +33,9 @@ try {
   await page.screenshot({ path: out });
   const gl = await page.evaluate(() => window.__renderer || '');
   console.log(`${out} (${w}x${h})${gl ? ` · ${gl}` : ''}`);
+  // A sample can publish numbers about what it shows (window.__report): printed, to be read.
+  const report = await page.evaluate(() => window.__report);
+  if (report) console.log(JSON.stringify(report, null, 1));
 } catch (e) {
   errors.push(`shot: ${e.message.split('\n')[0]}`);
 } finally {

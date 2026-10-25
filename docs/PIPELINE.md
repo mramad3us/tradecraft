@@ -17,7 +17,7 @@ In order:
 | Job | First choice | Otherwise | Why |
 |---|---|---|---|
 | People (bodies, faces, clothes, hair) | MPFB, `tools/blender/person.py` | — | Parametric and varied (age, build, ethnicity), contemporary wardrobe, rigged, CC0/CC-BY with per-asset credits |
-| People in motion | **Open** (see Still needed) | | |
+| People in motion | CMU motion capture: `tools/fetch-cmu.sh`, then `person.py --motions` | Mixamo (the user's Adobe login; MPFB has a `mixamo` skeleton); Quaternius (CC0, needs retargeting) | 2,435 recorded motions of real people, free, no account, and the same bone names as MPFB's `cmu_mb` skeleton |
 | Buildings, rooms, street furniture | Blender scripts building modular kits | Poly Haven models for props | We control scale, cutaways, collision and level of detail; a kit varies into a whole city |
 | Props (furniture, objects) | Poly Haven models (CC0) | Blender-scripted; generated textures on simple shapes | Scanned, real-world scale |
 | Surfaces (walls, floors, ground, fabric) | Poly Haven / ambientCG PBR textures (CC0) | Z-Image-Turbo for something specific (a wallpaper pattern, a stained carpet) | Photographic, tileable, full PBR set |
@@ -48,7 +48,7 @@ Anything that ships is CC0, CC-BY (credited in `CREDITS.md` in the same change),
 
 The gated models (FLUX.2 klein 9B, Krea 2, Ideogram 4) download with the user's Hugging Face token, kept in `~/.cache/huggingface/token`, never in the repo and never printed. Before anything generated ships: review it for recognisable brands, logos, real people, or anything unlawful (that's also Krea's required content filter).
 
-Asset libraries: MakeHuman packs (CC0 and CC-BY: `tools/blender/mpfb-packs.txt`), Poly Haven and ambientCG (CC0).
+Asset libraries: MakeHuman packs (CC0 and CC-BY: `tools/blender/mpfb-packs.txt`), Poly Haven and ambientCG (CC0), and the CMU Graphics Lab Motion Capture Database ("free for use in research and commercial projects worldwide", acknowledged in CREDITS.md; cgspeed's BVH conversion, from the GitHub copy Shriinivas/cmubvh).
 
 ## Provenance
 
@@ -61,18 +61,29 @@ Next to every asset that ships, a sidecar `.json` with the same name records how
 
 - **Set up everything:** `tools/setup.sh` (rerunnable).
 - **A person:** `blender -b --python tools/blender/person.py -- --spec spec.json --out samples/x/person.glb` (`--list clothes|hair|skin|…` shows what's installed; `--raw` skips the optimising).
-- **An image:** `mflux-generate-z-image-turbo -q 8 --seed N --width W --height H --steps 9 --prompt "…" --output out.png`. The first run of a model downloads it to `~/.cache/huggingface` (Z-Image-Turbo: about 33 GB).
+- **Motion:** `tools/fetch-cmu.sh --find walk` searches the index (every word must match). `tools/fetch-cmu.sh 07_01 18_08` caches clips. `person.py … --motions 07_01,18_08@0-8` bakes them on (`@start-end` in seconds takes a slice), and they come out as named animations at 30 fps.
+- **Checking motion:** `samples/001-motion/` plays the clips. `?check` reports each clip's speed, facing (feet against heading: 1 is forward) and planted-foot slide (m/s: under about 0.15 is fine at game distance). `?strip=t1,t2,…` is a filmstrip, `?orbit=deg,dist,up&focus=<bone>` a close-up.
+- **An image:** `tools/gen.sh <model> --out x.png --prompt "…" [--seed N --width W --height H --steps 9]`. Always through `gen.sh`, never mflux directly. It runs from a saved 8-bit copy of the model (made once, in `~/Library/Caches/tradecraft/models/`), and it writes `x.gen.json` (model, licence, prompt, seed, command, date). The first use of a model downloads it to `~/.cache/huggingface` (Z-Image-Turbo: about 33 GB) and saves the copy (about 10 GB).
 - **A screenshot:** serve (`python3 tools/serve.py <port> .`), then `node tools/shot.mjs <url> <out.png> [--size WxH]`; kill the server afterwards. Samples take `?cam=px,py,pz,tx,ty,tz`.
 
 ## Still needed
 
-- **People in motion.** Today they stand in MakeHuman's rest pose. Candidates: the CMU motion-capture library (free to use, a very large range of everyday motion; MPFB has a `cmu_mb` skeleton made for it and imports BVH files), Mixamo (needs the user's Adobe login; MPFB has a `mixamo` skeleton), Quaternius' animation library (CC0, but its own skeleton, so it would need retargeting). To decide by trying.
+- **Motion for the game itself** (the samples can do without): loops cut from the clips, walks in place with the travel given to the game's movement, blending between them. And the hands: the `cmu_mb` skeleton has only three finger bones per hand, so a hand is a relaxed curl, not a grip.
 - **Fetching from the CC0 libraries:** a script that pulls a Poly Haven / ambientCG asset at a chosen resolution and writes its `.source.json`.
 - **A modular kit generator** in Blender: walls, floors, doors, windows, stairs, cutaway-ready.
 - **The samples gallery:** one page listing every sample with a picture, and contact sheets, so the user can pick.
 - Later: sound (effects, ambience, music), UI fonts (vendored, offline), compressed GPU textures (KTX2), portraits.
 
 ## Lessons
+
+- *2026-10-25.* mflux's `-q 8` quantises at load time, which means loading full precision first. Z-Image-Turbo peaked at 25 GB on this 24 GB Mac and swapped hard. From a copy saved with `mflux-save` it peaks at 7.5 GB and takes 32 s for 1216×832 at 9 steps. `tools/gen.sh` always runs from the saved copy.
+- *2026-10-25.* Z-Image-Turbo is strong at realism (a rainy street corner at dusk, a lived-in kitchen) but garbles text ("Pian0 Recital", "Europan Ricitat"). Anything with words goes to Ideogram 4. Image models don't draw cutaways either: that's the 3D renderer's job.
+
+- *2026-10-25.* cgspeed's CMU BVH files start with a calibration frame (all rotations zero): skip it. Their rest pose is a T-pose with the legs splayed about 20°, not MakeHuman's straight-legged A-pose (nor MPFB's own T-pose), so `retarget.py` first swings the person's bones to point as the clip's do at rest, then transfers rotations from there. It scales the hips' travel by thigh + shin length, not by "hips to foot" (the splayed legs made that 12% short). Planted-foot slide went from 0.37 to 0.12 m/s.
+- *2026-10-25.* The CMU conversion has no real hand data (the wrists are noise, the fingers never move): the hand follows the forearm, and the fingers take a 35° curl about their local Z, +Z on the right and −Z on the left.
+- *2026-10-25.* Blender's scene defaults to 24 fps and the glTF exporter samples actions at the scene rate: set it to the rate the keys were made at (30), or clips play 25% slow.
+- *2026-10-25.* CMU's "walk stealthily" (17_03, 17_04) is a theatrical, arms-out cartoon sneak: not grounded. Prefer ordinary walks, pauses, glances, and the two-person conversations (18_08 with 19_08, recorded together).
+- *2026-10-25.* zsh (the shell here) doesn't split an unquoted `$v` into words: `for v in "X 0"; do set -- $v` gives one argument. Spell the pairs out in loops.
 
 - *2026-10-25.* MPFB's materials all wire the texture's alpha, so Blender exports every one as BLEND. A blended body hides nothing behind it, and the mouth's inside and the eyeballs' backs showed through the face. `person.py` sets skin and eyes OPAQUE, and the rest MASK with soft edges (alpha to coverage).
 - *2026-10-25.* Pillow 13.0 (2026-10-16) imports a lazy-loading feature that Python 3.13/3.14 lack, and mflux died at start. Pinned Pillow 12.3.0 (`tools/setup.sh`).

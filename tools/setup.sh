@@ -61,6 +61,6 @@ brew list uv >/dev/null 2>&1 || brew install uv
 if ! ~/.local/bin/mflux-generate-z-image-turbo --help >/dev/null 2>&1; then
   uv tool install --force --python 3.13 mflux==0.22.0 --with pillow==12.3.0
 fi
-echo "mflux $(~/.local/share/uv/tools/mflux/bin/python -c 'import importlib.metadata as m; print(m.version("mflux"))'); models download on first use into ~/.cache/huggingface"
+echo "mflux $(~/.local/share/uv/tools/mflux/bin/python -c 'import importlib.metadata as m; print(m.version("mflux"))'); a model downloads on its first use through tools/gen.sh, which also saves its 8-bit copy"
 
 step "done"

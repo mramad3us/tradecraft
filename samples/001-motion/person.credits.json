@@ -1,0 +1,120 @@
+{
+ "spec": {
+  "name": "agent",
+  "body": {
+   "gender": 1.0,
+   "age": 0.62,
+   "muscle": 0.55,
+   "weight": 0.5,
+   "height": 0.6,
+   "race": {
+    "african": 0.05,
+    "asian": 0.05,
+    "caucasian": 0.9
+   }
+  },
+  "skin": "middleage caucasian male",
+  "hair": "short02",
+  "eyebrows": "eyebrow001",
+  "clothes": [
+   "toigo_male_suit_3",
+   "mindfront_shoes_oxford_male"
+  ]
+ },
+ "motions": [
+  {
+   "clip": "07_01",
+   "frames": 79,
+   "seconds": 2.63
+  },
+  {
+   "clip": "17_03@4-10",
+   "frames": 181,
+   "seconds": 6.03
+  },
+  {
+   "clip": "18_08@0-8",
+   "frames": 241,
+   "seconds": 8.03
+  }
+ ],
+ "assets": [
+  {
+   "asset": "cmu 07_01",
+   "author": "CMU Graphics Lab Motion Capture Database",
+   "license": "CMU (free for research and commercial use)",
+   "source": "http://mocap.cs.cmu.edu",
+   "pack": "cgspeed BVH conversion (github.com/Shriinivas/cmubvh)"
+  },
+  {
+   "asset": "cmu 17_03@4-10",
+   "author": "CMU Graphics Lab Motion Capture Database",
+   "license": "CMU (free for research and commercial use)",
+   "source": "http://mocap.cs.cmu.edu",
+   "pack": "cgspeed BVH conversion (github.com/Shriinivas/cmubvh)"
+  },
+  {
+   "asset": "cmu 18_08@0-8",
+   "author": "CMU Graphics Lab Motion Capture Database",
+   "license": "CMU (free for research and commercial use)",
+   "source": "http://mocap.cs.cmu.edu",
+   "pack": "cgspeed BVH conversion (github.com/Shriinivas/cmubvh)"
+  },
+  {
+   "asset": "low-poly",
+   "author": "makehuman_system",
+   "license": "CC0",
+   "source": "http://www.makehumancommunity.org",
+   "pack": "makehuman_system_assets"
+  },
+  {
+   "asset": "eyebrow001",
+   "author": "makehuman_system",
+   "license": "CC0",
+   "source": "http://www.makehumancommunity.org",
+   "pack": "makehuman_system_assets"
+  },
+  {
+   "asset": "eyelashes01",
+   "author": "makehuman_system",
+   "license": "CC0",
+   "source": "http://www.makehumancommunity.org",
+   "pack": "makehuman_system_assets"
+  },
+  {
+   "asset": "short02",
+   "author": "makehuman_system",
+   "license": "CC0",
+   "source": "http://www.makehumancommunity.org",
+   "pack": "makehuman_system_assets"
+  },
+  {
+   "asset": "male_generic",
+   "author": "makehuman_system",
+   "license": "CC0",
+   "source": "http://www.makehumancommunity.org",
+   "pack": "makehuman_system_assets"
+  },
+  {
+   "asset": "middleage_caucasian_male",
+   "author": "makehuman_system",
+   "license": "CC0",
+   "source": "http://www.makehumancommunity.org",
+   "pack": "makehuman_system_assets"
+  },
+  {
+   "asset": "toigo_male_suit_3",
+   "author": "MargaretToigo",
+   "license": "CC0",
+   "source": "http://www.makehumancommunity.org/node/1733",
+   "pack": "suits01"
+  },
+  {
+   "asset": "mindfront_shoes_oxford_male",
+   "author": "Mindfront",
+   "license": "CC-BY",
+   "source": "http://www.makehumancommunity.org/node/620",
+   "pack": "shoes02"
+  }
+ ]
+}

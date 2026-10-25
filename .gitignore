@@ -9,3 +9,4 @@ node_modules/
 ref/
 # credentials and anything private: never committed
 *.private
+__pycache__/

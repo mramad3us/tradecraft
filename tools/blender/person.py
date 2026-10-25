@@ -17,7 +17,11 @@
 #
 # What comes out is meant for the game, not for a close-up: the low-poly body proxy instead of the
 # full mesh, no subdivision, the game-engine skin material (plain PBR textures that glTF carries),
-# and a skeleton (game_engine by default; "mixamo" takes Mixamo animations as they are). Then
+# and a skeleton (game_engine by default; "mixamo" takes Mixamo animations as they are).
+#
+# --motions 07_01,17_03@4-12 bakes CMU motion-capture clips (tools/fetch-cmu.sh, cached) onto the
+# person as named animations (07_01, 17_03…; @start-end in seconds takes a slice). Motion needs the
+# cmu_mb skeleton, which is then used whatever the spec says (tools/blender/retarget.py). Then
 # gltf-transform shrinks it (textures 1024 px WebP, meshopt meshes) unless --raw. Next to the .glb, a
 # .credits.json lists the spec and every asset's author, licence and source (CC-BY ones are printed).
 import argparse, glob, json, os, re, struct, subprocess, sys, importlib
@@ -38,6 +42,7 @@ ap.add_argument("--spec", help="a JSON file, or a JSON object inline")
 ap.add_argument("--out", help="the .glb to write")
 ap.add_argument("--list", choices=sorted(KINDS), help="list the installed assets of one kind")
 ap.add_argument("--raw", action="store_true", help="skip the optimisation pass (gltf-transform)")
+ap.add_argument("--motions", default="", help="CMU clips to bake, e.g. 07_01,17_03@4-12 (seconds)")
 args = ap.parse_args(argv)
 
 
@@ -81,7 +86,7 @@ male = body["gender"] >= 0.5
 info = {
     "name": spec.get("name", "person"),
     "phenotype": body,
-    "rig": spec.get("rig", "game_engine"),
+    "rig": "cmu_mb" if args.motions else spec.get("rig", "game_engine"),
     "eyes": find("eyes", spec.get("eyes", "low-poly")),
     "eyebrows": find("eyebrows", spec.get("eyebrows", "eyebrow001")),
     "eyelashes": find("eyelashes", spec.get("eyelashes", "eyelashes01")),
@@ -107,6 +112,24 @@ if proxy is not None:
     basemesh.hide_render = True
     basemesh.hide_set(True)
 
+# Motion: each CMU clip baked as its own action on the skeleton.
+CMU = os.path.join(os.path.expanduser("~/Library/Caches/tradecraft"), "cmu", "bvh")
+motions = []
+if args.motions:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import retarget
+    rig = ObjectService.find_object_of_type_amongst_nearest_relatives(basemesh, "Skeleton")
+    for m in args.motions.split(","):
+        mid, _, span = m.partition("@")
+        bvh = os.path.join(CMU, mid + ".bvh")
+        if not os.path.exists(bvh):
+            raise SystemExit(f"no clip {mid}: run tools/fetch-cmu.sh {mid}")
+        a, _, b = span.partition("-")
+        name = mid if not span else f"{mid}@{span}"
+        action, frames = retarget.retarget(rig, bvh, name, float(a or 0), float(b) if b else None)
+        motions.append({"clip": name, "frames": frames, "seconds": round(frames / retarget.FPS, 2)})
+        print(f"motion {name}: {frames} frames ({frames / retarget.FPS:.1f} s)")
+
 tris = 0
 for o in bpy.context.scene.objects:
     if o.type == "MESH" and o.visible_get():
@@ -123,6 +146,10 @@ def credits():
             meta.setdefault(name, dict(m, pack=os.path.basename(f)[:-5]))
     used = [info[k] for k in ("eyes", "eyebrows", "eyelashes", "hair", "proxy", "skin_mhmat") if info.get(k)]
     out = []
+    for m in motions:
+        out.append({"asset": "cmu " + m["clip"], "author": "CMU Graphics Lab Motion Capture Database",
+                    "license": "CMU (free for research and commercial use)", "source": "http://mocap.cs.cmu.edu",
+                    "pack": "cgspeed BVH conversion (github.com/Shriinivas/cmubvh)"})
     for path in used + info["clothes"]:
         name = os.path.splitext(os.path.basename(path))[0]
         m = meta.get(name, {})
@@ -160,7 +187,8 @@ def set_alpha_modes(path):
 if args.out:
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     bpy.ops.export_scene.gltf(filepath=os.path.abspath(args.out), export_format="GLB", use_visible=True,
-                              export_skins=True, export_animations=False, export_apply=True,
+                              export_skins=True, export_animations=bool(motions), export_animation_mode="ACTIONS",
+                              export_apply=True,
                               export_image_format="JPEG", export_jpeg_quality=85)
     set_alpha_modes(os.path.abspath(args.out))
     if not args.raw:
@@ -173,9 +201,9 @@ if args.out:
                        check=True, stdout=subprocess.DEVNULL)
     cr = credits()
     with open(os.path.splitext(args.out)[0] + ".credits.json", "w") as f:
-        json.dump({"spec": spec, "assets": cr}, f, indent=1)
+        json.dump({"spec": spec, "motions": motions, "assets": cr}, f, indent=1)
     lic = sorted({c["license"] for c in cr})
     print(f"wrote {args.out} ({os.path.getsize(args.out) // 1024} KB); licences: {', '.join(lic)}")
     for c in cr:
-        if c["license"] not in ("CC0",):
+        if c["license"] not in ("CC0",) and not c["asset"].startswith("cmu "):
             print(f"  credit: {c['asset']} by {c['author']} ({c['license']}) {c['source']}")
