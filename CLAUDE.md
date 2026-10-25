@@ -9,7 +9,22 @@ A game, in design: nothing is built yet, and `docs/DESIGN.md` is where the desig
 - `tools/release.sh patch "<summary>" --trailer "Co-Authored-By: …"`: cut a release (CHANGELOG's Unreleased becomes the version, VERSION bumps, tests run, commit, tag, push).
 - `npm test`, or `node tests/run.mjs <filter>`: the tests. `npm run test:quick` (`QUICK=1`) leaves out the ones marked `heavy: true`; use it whenever the user may be playing. `SKIP=a,b` leaves out tests by name.
 - `tools/awake.sh status | off | on | run <cmd…>`: the keep-awake lease (below).
+- `tools/setup.sh`: set up the whole toolchain (below). Safe to rerun: each step skips what's already done.
 - Browser smoke test: serve on a port of your own (`./play.sh --dev`, or `python3 tools/serve.py <port> <dir>`), drive it with `playwright-core` (install it in a scratch dir) and the system Chrome (`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`, headless). Collect `pageerror` and console errors. Kill the server after.
+
+## Toolchain and assets
+
+- **The game** runs on three.js, vendored in `vendor/three/` and loaded through an import map (`"three"` → `./vendor/three/build/three.module.js`, `"three/addons/"` → `./vendor/three/examples/jsm/`). To use another add-on, add it to `ADDONS` in `tools/vendor-three.mjs` and rerun it. Bump three by changing its pin in package.json, then `npm install` and rerun the vendor script.
+- **Dev tools** come from `npm install` (devDependencies, pinned): playwright-core for headless screenshots, gltf-transform for optimising models (`npx gltf-transform …`). Nothing the game loads comes from `node_modules`.
+- **Blender** is driven by scripts, never by hand: `blender -b --python tools/blender/<script>.py -- <args>`. A scene, a kit or a character is a script in the repo, so it can be rebuilt and varied. Generated `.blend` files and renders are build output.
+- **People** come from MPFB, MakeHuman's generator for Blender, with the asset packs in `tools/blender/mpfb-packs.txt`. They're cached in `~/Library/Caches/tradecraft/makehuman/` and installed into MPFB by `tools/setup.sh`. Inside Python, MPFB imports as `bl_ext.blender_org.mpfb`.
+- **Images** are generated on this Mac with mflux (`~/.local/bin/mflux-generate-*`), with no API key and nothing leaving the machine. The game is free and won't be sold (the user, 2026-10-25), so non-commercial weights are allowed, within what each licence actually says:
+  - **Ships in the game:** Z-Image-Turbo (`mflux-generate-z-image-turbo -q 8`, Apache-2.0: the main model, for realism) and FLUX.2 klein 4B (`mflux-generate-flux2` / `-flux2-edit`, Apache-2.0: edits, reference images). Also models under the FLUX Non-Commercial License v2.1 (FLUX.2 klein 9B, FLUX.1 dev and its family). That licence counts "hobby projects" as non-commercial as long as no payment comes from them, and lets the outputs be used for any purpose. Those models are gated: they need the user's free Hugging Face login.
+  - **Samples only, never shipped:** Qwen-Image 2.1 (`mflux-generate-qwen-2.1`, `-qwen-2.1-edit`). Its licence allows "research or evaluation purposes only".
+  - Read the licence before using any other model (Krea 2, Ideogram 4, FIBO…).
+  - Record the model, prompt and seed of every generated image that ships, next to it. Then it can be regenerated under another model if the game's terms ever change (a price, donations, ads), or swapped out if someone objects. Check what's generated for anything infringing (recognisable brands, logos, real people) before it ships, and say in CREDITS.md that the game uses AI-generated images.
+- **Licences:** anything that ships in the repo is CC0, CC-BY with its credit added to `CREDITS.md` in the same change, or generated as above. Nothing else.
+- **Art references** live in `ref/` (gitignored: commercial screenshots, never committed).
 
 ## Versions and releases
 

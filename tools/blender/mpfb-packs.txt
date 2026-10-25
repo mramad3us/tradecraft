@@ -1,0 +1,39 @@
+# MakeHuman asset packs for MPFB (https://static.makehumancommunity.org/assets/assetpacks.html),
+# installed by tools/setup.sh. One per line: <pack>/<zip name without .zip>. Chosen for a
+# contemporary setting: no weapons, armour, fantasy or creatures.
+# CC0: use freely.
+makehuman_system_assets/makehuman_system_assets_cc0
+system_clothes_materials01/system_clothes_materials01_cc0
+system_hair_materials01/system_hair_materials01_cc0
+skins01/skins01_cc0
+skins02/skins02_cc0
+suits01/suits01_cc0
+shirts01/shirts01_cc0
+pants01/pants01_cc0
+shoes01/shoes01_cc0
+hats01/hats01_cc0
+glasses01/glasses01_cc0
+gloves01/gloves01_cc0
+hair01/hair01_cc0
+bodyparts05/bodyparts05_cc0
+eyebrows01/eyebrows01_cc0
+eyelashes01/eyelashes01_cc0
+dress01/dress01_cc0
+skirts01/skirts01_cc0
+poses01/poses01_cc0
+nose01/nose01_cc0
+cheek01/cheek01_cc0
+ears01/ears01_cc0
+hands01/hands01_cc0
+# CC-BY: anything from these that ships in the game is credited in CREDITS.md.
+shirts02/shirts02_ccby
+shirts03/shirts03_ccby
+pants02/pants02_ccby
+shoes02/shoes02_ccby
+shoes03/shoes03_ccby
+hair02/hair02_ccby
+hair03/hair03_ccby
+hats03/hats03_cc-by
+glasses02/glasses02_ccby
+equipment03/equipment03_cc-by
+bodyparts06/bodyparts06_cc-by

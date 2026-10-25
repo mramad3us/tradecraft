@@ -7,6 +7,12 @@
     "start": "./play.sh",
     "dev": "./play.sh --dev",
     "test": "node tests/run.mjs",
-    "test:quick": "QUICK=1 node tests/run.mjs"
+    "test:quick": "QUICK=1 node tests/run.mjs",
+    "setup": "tools/setup.sh"
+  },
+  "devDependencies": {
+    "three": "0.186.1",
+    "playwright-core": "1.64.0",
+    "@gltf-transform/cli": "4.5.1"
   }
 }

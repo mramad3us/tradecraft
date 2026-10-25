@@ -5,3 +5,5 @@ node_modules/
 .play/
 # runtime state: server pids, the keep-awake lease and its log
 .run/
+# art references (commercial screenshots: kept local, never committed)
+ref/

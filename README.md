@@ -20,6 +20,7 @@ tools/promote.sh --status   # where it is, and what's newer
 ## Develop
 
 ```sh
+tools/setup.sh              # the toolchain: Blender + MPFB and its packs, ffmpeg, npm dev tools, vendored three.js
 npm test                    # all tests;  npm run test:quick leaves out the heavy ones
 tools/release.sh patch "summary"   # release: changelog, VERSION, tests, commit, tag, push
 tools/awake.sh status       # the keep-awake lease (hooks renew it while Claude works)
@@ -30,3 +31,4 @@ Versions: patch releases (0.x.y) as the work goes; the minor moves when a releas
 ## Documentation
 
 - [docs/DESIGN.md](docs/DESIGN.md): the game's design, settled before it's built.
+- [CREDITS.md](CREDITS.md): third-party code and assets.
