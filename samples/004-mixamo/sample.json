@@ -1,0 +1,3 @@
+{ "title": "Animation library (Mixamo)", "about": "Mixamo clips fitted once to MPFB's mixamo skeleton (tools/blender/animlib.py) and re-based onto any person on that skeleton (samples/lib/anim.js). Only the walk so far: the rest await Chrome's permission for multiple downloads.",
+  "views": [ { "name": "walk front, recording over", "query": "clip=standard-walk&strip=0.1,0.4,0.7&orbit=front,5,0.2&ghost=over" },
+             { "name": "walk side", "query": "clip=standard-walk&strip=0.1,0.4,0.7&orbit=side,5,0.2" } ] }

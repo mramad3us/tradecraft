@@ -16,6 +16,10 @@ What the references (Disco Elysium, local copies in `ref/`, not committed) are f
 
 How it gets found: once the toolchain is set up, many small look samples (a street corner, a room, a few people, different treatments of light, material and colour), and the user picks the ones that land.
 
+Explored so far (nothing committed):
+- **Realistic** (samples 000-004): MPFB people, CC0 photographic materials, PBR light; motion from Mixamo (samples 001, 004).
+- **Cartoonish 3D iso** (sample 005, after a pixel-art reference from the user, 2026-10-25): one street rendered by `samples/lib/looks.js` as `pixel` (3D pixel art: low resolution, orthographic, toon light, outlines, quantised colour), `pixel-chunky`, `toon` (flat palette, bands, outlines), and `flat` (a low-poly toy), each with a chibi option (heads 1.5×). The pixel family reads best. Toon and flat still show people as dark silhouettes: stylised people need their own palette, not averaged photo textures.
+
 ## Systems
 
 ## Scale
@@ -31,4 +35,4 @@ The target entity count, set early: the code is built for it from the start.
 
 ## Open questions
 
-- The look: settled by picking from samples (see Look).
+- The look: realistic or cartoonish (pixel, toon, flat), settled by picking from samples (see Look).

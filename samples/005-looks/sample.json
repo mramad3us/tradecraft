@@ -1,0 +1,10 @@
+{ "title": "Looks: cartoonish 3D iso", "about": "The same street (the corner block, a walker, a man upstairs) rendered several ways. pixel: 3D pixel art, low resolution, outlines, toon light. toon: flat colours, three light bands, outlines. flat: a low-poly toy. chibi: heads 1.5 times. Realistic stays one option among these.",
+  "views": [ { "name": "pixel, street, chibi", "query": "look=pixel&frame=street&heads=1.5&t=0.6&walls=up" },
+             { "name": "pixel, street", "query": "look=pixel&frame=street&t=0.6&walls=up" },
+             { "name": "pixel, block", "query": "look=pixel&frame=block&t=0.6&walls=up" },
+             { "name": "pixel chunky, street, chibi", "query": "look=pixel-chunky&frame=street&heads=1.5&t=0.6&walls=up" },
+             { "name": "pixel, block, cut", "query": "look=pixel&frame=block&t=0.6&walls=cut&storey=1" },
+             { "name": "toon, street, chibi", "query": "look=toon&frame=street&heads=1.5&t=0.6&walls=up" },
+             { "name": "toon, block", "query": "look=toon&frame=block&t=0.6&walls=up" },
+             { "name": "flat, street, chibi", "query": "look=flat&frame=street&heads=1.5&t=0.6&walls=up" },
+             { "name": "real, street", "query": "look=real&frame=street&t=0.6&walls=up" } ] }

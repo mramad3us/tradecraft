@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.12 (2026-10-25)
+
+- Animation libraries: `tools/blender/animlib.py` fits a whole folder of clips once to MPFB's mixamo skeleton, checking each against its recording. `samples/lib/anim.js` re-bases them onto any person on that rig. The first Mixamo clip (a walk) passes every check: limbs 0°, shrug 2°, wrists as recorded, real finger curl, head tilt 0.7°. `retarget.py` now has a profile per library (CMU, Mixamo). The rest of the Mixamo clips wait on Chrome's permission for multiple downloads. `samples/004-mixamo/` shows the library.
+- Looks (`samples/lib/looks.js`, sample 005): the same street rendered as realistic, 3D pixel art (pixel, pixel-chunky), toon, and a low-poly toy (flat), with a chibi option. `samples/lib/street.js` is the shared street (trees and a lamp post added). `samples/lib/motion-view.js` is the shared motion review.
+
 ## v0.0.11 (2026-10-25)
 
 - Two more pose checks, for what the user caught at "60/100": head tilt (beyond the recording's) and hand clearance (fingertip to thigh surface, negative = inside the leg). The CMU walk fails the second, at -0.02 m.

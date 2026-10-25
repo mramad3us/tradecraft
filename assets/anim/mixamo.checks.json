@@ -1,0 +1,21 @@
+{
+ "profile": "mixamo",
+ "rig": "mixamo",
+ "clips": {
+  "standard-walk": {
+   "limbs": 0.0,
+   "shrug": 2.0,
+   "wrist": 0.0,
+   "curl": 0.98,
+   "lean": [
+    5.2,
+    4.6
+   ],
+   "tilt": 0.7,
+   "clearance": -0.0,
+   "warnings": [],
+   "frames": 36,
+   "seconds": 1.2
+  }
+ }
+}

@@ -1,5 +1,5 @@
 {
- "built": "2026-10-25T22:01",
+ "built": "2026-10-25T22:45",
  "samples": [
   {
    "id": "000-toolchain",
@@ -86,6 +86,75 @@
      "name": "ground floor",
      "query": "walls=down&storey=0&t=0.8",
      "shot": "003-building/shots/ground-floor.jpg"
+    }
+   ]
+  },
+  {
+   "id": "004-mixamo",
+   "title": "Animation library (Mixamo)",
+   "about": "Mixamo clips fitted once to MPFB's mixamo skeleton (tools/blender/animlib.py) and re-based onto any person on that skeleton (samples/lib/anim.js). Only the walk so far: the rest await Chrome's permission for multiple downloads.",
+   "views": [
+    {
+     "name": "walk front, recording over",
+     "query": "clip=standard-walk&strip=0.1,0.4,0.7&orbit=front,5,0.2&ghost=over",
+     "shot": "004-mixamo/shots/walk-front-recording-over.jpg"
+    },
+    {
+     "name": "walk side",
+     "query": "clip=standard-walk&strip=0.1,0.4,0.7&orbit=side,5,0.2",
+     "shot": "004-mixamo/shots/walk-side.jpg"
+    }
+   ]
+  },
+  {
+   "id": "005-looks",
+   "title": "Looks: cartoonish 3D iso",
+   "about": "The same street (the corner block, a walker, a man upstairs) rendered several ways. pixel: 3D pixel art, low resolution, outlines, toon light. toon: flat colours, three light bands, outlines. flat: a low-poly toy. chibi: heads 1.5 times. Realistic stays one option among these.",
+   "views": [
+    {
+     "name": "pixel, street, chibi",
+     "query": "look=pixel&frame=street&heads=1.5&t=0.6&walls=up",
+     "shot": "005-looks/shots/pixel-street-chibi.jpg"
+    },
+    {
+     "name": "pixel, street",
+     "query": "look=pixel&frame=street&t=0.6&walls=up",
+     "shot": "005-looks/shots/pixel-street.jpg"
+    },
+    {
+     "name": "pixel, block",
+     "query": "look=pixel&frame=block&t=0.6&walls=up",
+     "shot": "005-looks/shots/pixel-block.jpg"
+    },
+    {
+     "name": "pixel chunky, street, chibi",
+     "query": "look=pixel-chunky&frame=street&heads=1.5&t=0.6&walls=up",
+     "shot": "005-looks/shots/pixel-chunky-street-chibi.jpg"
+    },
+    {
+     "name": "pixel, block, cut",
+     "query": "look=pixel&frame=block&t=0.6&walls=cut&storey=1",
+     "shot": "005-looks/shots/pixel-block-cut.jpg"
+    },
+    {
+     "name": "toon, street, chibi",
+     "query": "look=toon&frame=street&heads=1.5&t=0.6&walls=up",
+     "shot": "005-looks/shots/toon-street-chibi.jpg"
+    },
+    {
+     "name": "toon, block",
+     "query": "look=toon&frame=block&t=0.6&walls=up",
+     "shot": "005-looks/shots/toon-block.jpg"
+    },
+    {
+     "name": "flat, street, chibi",
+     "query": "look=flat&frame=street&heads=1.5&t=0.6&walls=up",
+     "shot": "005-looks/shots/flat-street-chibi.jpg"
+    },
+    {
+     "name": "real, street",
+     "query": "look=real&frame=street&t=0.6&walls=up",
+     "shot": "005-looks/shots/real-street.jpg"
     }
    ]
   }

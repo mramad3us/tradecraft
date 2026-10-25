@@ -1,0 +1,84 @@
+{
+ "spec": {
+  "name": "agent",
+  "body": {
+   "gender": 1.0,
+   "age": 0.62,
+   "muscle": 0.55,
+   "weight": 0.5,
+   "height": 0.6,
+   "race": {
+    "african": 0.05,
+    "asian": 0.05,
+    "caucasian": 0.9
+   }
+  },
+  "skin": "middleage caucasian male",
+  "hair": "short02",
+  "eyebrows": "eyebrow001",
+  "clothes": [
+   "toigo_male_suit_3",
+   "mindfront_shoes_oxford_male"
+  ],
+  "rig": "mixamo"
+ },
+ "motions": [],
+ "assets": [
+  {
+   "asset": "low-poly",
+   "author": "makehuman_system",
+   "license": "CC0",
+   "source": "http://www.makehumancommunity.org",
+   "pack": "makehuman_system_assets"
+  },
+  {
+   "asset": "eyebrow001",
+   "author": "makehuman_system",
+   "license": "CC0",
+   "source": "http://www.makehumancommunity.org",
+   "pack": "makehuman_system_assets"
+  },
+  {
+   "asset": "eyelashes01",
+   "author": "makehuman_system",
+   "license": "CC0",
+   "source": "http://www.makehumancommunity.org",
+   "pack": "makehuman_system_assets"
+  },
+  {
+   "asset": "short02",
+   "author": "makehuman_system",
+   "license": "CC0",
+   "source": "http://www.makehumancommunity.org",
+   "pack": "makehuman_system_assets"
+  },
+  {
+   "asset": "male_generic",
+   "author": "makehuman_system",
+   "license": "CC0",
+   "source": "http://www.makehumancommunity.org",
+   "pack": "makehuman_system_assets"
+  },
+  {
+   "asset": "middleage_caucasian_male",
+   "author": "makehuman_system",
+   "license": "CC0",
+   "source": "http://www.makehumancommunity.org",
+   "pack": "makehuman_system_assets"
+  },
+  {
+   "asset": "toigo_male_suit_3",
+   "author": "MargaretToigo",
+   "license": "CC0",
+   "source": "http://www.makehumancommunity.org/node/1733",
+   "pack": "suits01"
+  },
+  {
+   "asset": "mindfront_shoes_oxford_male",
+   "author": "Mindfront",
+   "license": "CC-BY",
+   "source": "http://www.makehumancommunity.org/node/620",
+   "pack": "shoes02"
+  }
+ ]
+}
