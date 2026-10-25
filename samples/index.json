@@ -1,5 +1,5 @@
 {
- "built": "2026-10-25T23:18",
+ "built": "2026-10-25T23:43",
  "samples": [
   {
    "id": "000-toolchain",
@@ -161,7 +161,7 @@
   {
    "id": "006-chibi",
    "title": "Chibi town: pixel art from simple 3D",
-   "about": "A handheld-RPG look: 480 × 270, a camera straight on and 45° down so a metre is 16 px on the ground and up a wall, one palette, inked outlines. People are a few boxes 29 px tall with big heads and painted faces (samples/lib/chibi.js), posed in code at 8 frames a second. The street is painted: facades, signs and the ground are pixel textures on boxes (samples/lib/pixeltown.js). Night lights the windows, signs and lamps.",
+   "about": "A handheld-RPG look: 480 × 270, a camera straight on and 45° down so a metre is 16 px on the ground and up a wall, one palette, inked outlines. People are pixel sprites drawn from templates in three views and shaded like a pixel artist (samples/lib/sprites.js), stood in the street as upright cards, 8 frames a second. Trees and props are sprites too (samples/lib/townsprites.js); facades, signs and the ground are painted textures on boxes (samples/lib/pixeltown.js). Night lights the windows, signs and lamps.",
    "pixel": true,
    "views": [
     {
@@ -180,6 +180,11 @@
      "shot": "006-chibi/shots/people.png"
     },
     {
+     "name": "sprites",
+     "query": "view=sheet",
+     "shot": "006-chibi/shots/sprites.png"
+    },
+    {
      "name": "closer, day",
      "query": "t=2&zoom=2&x=-4&z=-2.6",
      "shot": "006-chibi/shots/closer-day.png"
@@ -188,6 +193,11 @@
      "name": "closer, night",
      "query": "t=2&zoom=2&x=4&z=-2.6&time=night",
      "shot": "006-chibi/shots/closer-night.png"
+    },
+    {
+     "name": "people as boxes (before)",
+     "query": "view=lineup&t=0.3&people=boxes",
+     "shot": "006-chibi/shots/people-as-boxes-before.png"
     }
    ]
   }

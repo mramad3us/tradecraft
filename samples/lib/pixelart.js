@@ -187,7 +187,7 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
     renderer.setRenderTarget(null);
     renderer.render(post, postCam);
   };
-  return { THREE, renderer, scene, camera, sun, hemi, look, render, W, H };
+  return { THREE, renderer, scene, camera, sun, hemi, look, render, W, H, lightAt: null };
 }
 
 /**
@@ -199,6 +199,20 @@ export function nightfall(stage) {
   stage.hemi.color.set(0x5d8fc2); stage.hemi.groundColor.set(0x1b2541); stage.hemi.intensity = 0.26 * Math.PI;
   stage.sun.color.set(0x95c1e3); stage.sun.intensity = 0.15 * Math.PI;
   stage.sun.castShadow = false;                                // moon shadows only streak the lamps' pools
+  // Sprites aren't lit by the scene's lights: lightAt(x, z) is the light a sprite standing there takes,
+  // what a front face gets from the night sky and the moon, plus the pools it stands in (world space).
+  const pools = [];
+  stage.scene.traverse(o => { if (o.userData.pool) { const p = o.userData.pool, w = o.localToWorld(new THREE.Vector3(p.x, 0, p.z)); pools.push({ ...p, x: w.x, z: w.z, c: new THREE.Color(p.color) }); } });
+  const night = new THREE.Color().setRGB(0.061, 0.118, 0.193);   // linear
+  stage.lightAt = (x, z, out = new THREE.Color()) => {
+    out.copy(night);
+    for (const p of pools) {
+      const d = Math.hypot(x - p.x, z - p.z);
+      if (d < p.r) out.add(p.c.clone().multiplyScalar(p.core + p.ring));
+      else if (d < p.r * 1.5) out.add(p.c.clone().multiplyScalar(p.ring));
+    }
+    return out;
+  };
   const maps = new Map();
   const emissiveOf = (tex) => {
     if (maps.has(tex)) return maps.get(tex);
@@ -247,6 +261,7 @@ export function pool(x, y, z, { r = 2, color = 0xe7b84a, core = 0.5, ring = 0.2,
     spot.target.position.set(x + aim[0], 0, z + aim[1]);
     g.add(spot, spot.target);
   }
+  g.userData.pool = { x: x + aim[0], z: z + aim[1], r, core, ring, color };   // for sprites (lightAt)
   return g;
 }
 

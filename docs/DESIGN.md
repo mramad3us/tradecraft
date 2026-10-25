@@ -24,10 +24,11 @@ Explored so far (nothing committed):
   - The camera looks straight on and 45° down, orthographic, so a metre is 16 px on the ground, up a wall and across.
   - One 50-colour palette; every pixel snaps to it.
   - Outlines are inked where parts meet: dark at a silhouette, lighter between touching parts.
-  - People are boxes 29 px tall, with a 15 × 13 head and painted faces, posed in code at 8 frames a second. Variety is parameters.
-  - Facades, signs and the ground are painted pixel textures on boxes.
-  - Night lights the windows, signs and lamps, with hard-edged pools of lamplight.
-  - The direction is the user's call, pending their reaction.
+  - People are pixel sprites, about 28 px tall. Each part (head, face, hair, hat, beard, glasses, body by kind of top, arms, legs) is a small template in three views (front, back, side; the other side mirrored). They're recoloured from palette ramps per person and shaded by rule, as a pixel artist would: light from the upper left, shadow under hair and chin, darker lines where parts overlap, an ink outline. Frames are poses of the parts (bob, arm swing, step, stride, sit) at 8 a second, so a new hat or coat animates for free. In the street a person is an upright card: at this camera a metre is 16 px both up and across, so a card shows its sprite one texel to one pixel.
+  - Trees and props are sprites too (leaf clumps shaded round from the upper left, a bark trunk; a post box, shrubs, bistro furniture, a bicycle, pigeons). Their cards cast the sun's shadow: the silhouette flattened on the ground.
+  - Facades, signs and the ground are painted pixel textures on boxes (flower boxes and posters included).
+  - Night lights the windows, signs and lamps, with hard-edged pools of lamplight; a sprite takes the light of the pool it stands in.
+  - The user's scores (2026-10-25), for the first build with box people: camera angle 95/100, night colour shift 90, environment 80 ("tree needs work, things lack flair"), characters 35. Head-to-body ratio good; front views "too boxy"; some profiles good. The sprites, the trees and the flair answer that; their verdict is pending.
 
 ## Systems
 

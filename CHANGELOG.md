@@ -4,6 +4,14 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.14 (2026-10-25)
+
+- Chibi town, second pass, after the user's scores (camera 95, night 90, environment 80, characters 35: "front view is too boxy"):
+  - People are pixel sprites now (`samples/lib/sprites.js`). Each part is a template in three views, recoloured per person from palette ramps, shaded as a pixel artist would: upper-left light, shadow under hair and chin, inner lines between parts, an ink outline. Frames: idle 2, walk 4, run 4, sit.
+  - In the street, people are upright cards one texel to a pixel, snapped to the pixel grid, and lit at night by the pools they stand in. `?people=boxes` brings back the box people for comparison.
+  - Trees are drawn sprites (leaf clumps lit from the upper left, bark), casting their silhouette's shadow. New props: potted shrubs, a post box, a café chalkboard, bistro tables and chairs, a bicycle, pecking pigeons, flower boxes under windows, posters in the alley.
+  - `?view=sheet` lays the cast's sprites out flat.
+
 ## v0.0.13 (2026-10-25)
 
 - Chibi town (sample 006), after the user asked for simple pixel art, handheld-RPG style. `samples/lib/pixelart.js` renders 480 × 270 through a 45° orthographic camera at 16 px a metre, with inked outlines and one 50-colour palette. `samples/lib/chibi.js` makes people 29 px tall from a few boxes: 15 × 13 heads with painted faces and profiles, hats, beards, glasses, coats and dresses, things carried. They're posed in code at 8 fps: idle, walk, run, sit, crouch. `samples/lib/pixeltown.js` paints the street: facades, signs in a 3 × 5 pixel font, kerbs, a zebra crossing, trees, lamps, benches, café tables, cars and a taxi. Night lights windows, signs and lamps.

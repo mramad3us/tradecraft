@@ -41,7 +41,7 @@ function painter(px, wM, hM, seed = 1, night = false) {
       px(x0, y0 + hh - 2, ww, 2, dirt);                          // grime at the foot
     },
     /** A window: frame, glass with a glint (or lit), mullion and transom, a sill, a lintel, shutters. */
-    window(x, y, w, h, { lit = false, frame = 0xdfe2e8, lintel = 0xc4bba9, shutters = null, curtain = null } = {}) {
+    window(x, y, w, h, { lit = false, frame = 0xdfe2e8, lintel = 0xc4bba9, shutters = null, curtain = null, flowers = null } = {}) {
       const x0 = X(x), y0 = Y(y + h), ww = Math.round(w * M), hh = Math.round(h * M);
       if (night && r() < 0.4) lit = true;                        // at night, some rooms have the light on
       if (lintel) px(x0 - 1, y0 - 2, ww + 2, 2, lintel);
@@ -59,6 +59,25 @@ function painter(px, wM, hM, seed = 1, night = false) {
         px(sx, y0, 4, hh, shutters);
         for (let j = 1; j < hh; j += 2) px(sx, y0 + j, 4, 1, INK === shutters ? 0x353947 : 0x24503a);
       }
+      if (flowers) {                                             // a flower box on the sill
+        const by = y0 + hh + 2;
+        px(x0 - 1, by, ww + 2, 2, 0x6b4636); px(x0 - 1, by + 2, ww + 2, 1, 0x47302a);
+        for (let i = 0; i < ww + 2; i++) {
+          px(x0 - 1 + i, by - 1, 1, 1, r() < 0.5 ? 0x356f42 : 0x4f8f45);
+          if (r() < 0.6) px(x0 - 1 + i, by - 2, 1, 1, r() < 0.5 ? 0x24503a : 0x356f42);
+          if (r() < 0.4) px(x0 - 1 + i, by - 2 - (r() < 0.3 ? 1 : 0), 1, 1, flowers[Math.floor(r() * flowers.length)]);
+        }
+      }
+    },
+    /** A poster pasted on a wall: a coloured sheet, a band of text, a picture, a torn corner. */
+    poster(x, y, w, h, { bg = 0xe2dac6, fg = 0x9e3c36, art = 0x283f6b, words = '' } = {}) {
+      const x0 = X(x), y0 = Y(y + h), ww = Math.round(w * M), hh = Math.round(h * M);
+      px(x0, y0, ww, hh, bg);
+      px(x0 + 1, y0 + 1, ww - 2, Math.floor(hh * 0.55), art);
+      px(x0 + 3, y0 + 3, 3, 3, fg); px(x0 + ww - 5, y0 + 2, 2, 2, 0xf8e08a);
+      if (words) text(px, x0 + Math.max(1, Math.floor((ww - textWidth(words)) / 2)), y0 + hh - 7, words, fg);
+      px(x0 + ww - 2, y0 + hh - 2, 2, 2, 0x5c5650);              // a torn corner
+      px(x0, y0 + hh, ww, 1, 0x5c5650);
     },
     /** A door: panels, a knob, a fanlight above, a step below. */
     door(x, w, h, { color = 0x356f42, frame = 0xe2dac6, glass = true } = {}) {

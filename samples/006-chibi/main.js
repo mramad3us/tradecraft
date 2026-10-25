@@ -1,6 +1,7 @@
 // Sample 006: chibi town. Pixel art from simple 3D (samples/lib/pixelart.js): chibi people
 // (samples/lib/chibi.js) on a street of painted boxes (samples/lib/pixeltown.js).
-//   ?view=street|lineup   the street, or the cast in a row (front, then side on, walking)
+//   ?view=street|lineup|sheet   the street; the cast in a row; or their sprites flat
+//   ?people=boxes         people as boxes (chibi.js) instead of sprites (sprites.js)
 //   ?zoom=2               look closer (the same pixels, fewer of them, shown bigger)
 //   ?x=0&z=-2.4           where the camera looks
 //   ?time=night           night: lamps lit, windows and signs aglow
@@ -8,11 +9,16 @@
 import * as THREE from 'three';
 import { pixelStage, nightfall, pool, ground, tile, mat } from '../lib/pixelart.js';
 import { chibi } from '../lib/chibi.js';
+import { spritePerson } from '../lib/sprites.js';
+import { treeCard, propCard } from '../lib/townsprites.js';
 import { street, building, awning, bladeSign, lamp, tree, bench, bin, cafeTable, chair, car } from '../lib/pixeltown.js';
 import { CAST } from './cast.js';
 
 const q = new URLSearchParams(location.search);
 const view = q.get('view') ?? 'street';
+if (view === 'sheet') await import('./sheet.js');
+else run();
+function run() {
 const zoom = Number(q.get('zoom') ?? (view === 'lineup' ? 2 : 1));
 const T = q.has('t') ? Number(q.get('t')) : null;
 const night = q.get('time') === 'night';
@@ -21,20 +27,26 @@ const { scene } = stage;
 const actors = [];                                               // { update(t) }
 const wrap = (x, a, b) => a + ((((x - a) % (b - a)) + (b - a)) % (b - a));
 
+const boxes = q.get('people') === 'boxes';
+const snap = (v) => Math.round(v * 16) / 16;                     // sprites sit on the pixel grid
 function person(name, { x, z, y = 0, facing = 0, state = 'idle', phase = 0, path = null }) {
-  const p = chibi(CAST[name]);
+  const p = (boxes ? chibi : spritePerson)(CAST[name]);
   p.root.position.set(x, y, z);
   p.turn.rotation.y = facing;
   scene.add(p.root);
   actors.push({ update(t) {
+    let px = x, pz = z;
     if (path) {                                                  // along x (vx) or z (vz), looping
-      if (path.vx) p.root.position.x = wrap(x + path.vx * t, path.from, path.to);
-      if (path.vz) p.root.position.z = wrap(z + path.vz * t, path.from, path.to);
+      if (path.vx) px = wrap(x + path.vx * t, path.from, path.to);
+      if (path.vz) pz = wrap(z + path.vz * t, path.from, path.to);
     }
+    p.root.position.set(boxes ? px : snap(px), boxes ? y : snap(y), boxes ? pz : snap(pz));
+    if (p.material) p.material.color.copy(stage.lightAt ? stage.lightAt(px, pz) : WHITE);
     p.pose(state, t + phase);
   } });
   return p;
 }
+const WHITE = new THREE.Color(1, 1, 1);
 
 if (view === 'lineup') {
   scene.add(ground(-10, -6, 10, 6, mat(0, tile('cobble', 2))));
@@ -53,7 +65,7 @@ if (view === 'lineup') {
     f.band(3.4);
     f.door(3.0, 1.1, 2.2, { color: 0x356f42 });
     for (const x of [1.0, 5.0, 7.0, 9.2]) f.window(x, 0.9, 1.1, 1.4, { curtain: x === 5.0 ? 0xc95c45 : null });
-    for (const x of [1.0, 3.0, 5.0, 7.0, 9.2]) f.window(x, 4.0, 1.1, 1.5, { shutters: 0x356f42 });
+    for (const x of [1.0, 3.0, 5.0, 7.0, 9.2]) f.window(x, 4.0, 1.1, 1.5, { shutters: 0x356f42, flowers: [0xc95c45, 0xe8896a, 0xf8e08a] });
     f.cornice(6.9);
   } }));
   scene.add(building({ x0: -8.5, x1: -1, z: zB, h: 4.4, wall: 'plaster', wallColor: 0xe2dac6, seed: 12, night, draw(f) {
@@ -69,13 +81,15 @@ if (view === 'lineup') {
     for (const x of [0.7, 1.9, 5.6, 6.8]) f.window(x, 0.9, 0.9, 1.6, { frame: 0xf6f4ee, lintel: 0xb8bdc8 });
     f.sign(3.0, 2.95, 2.6, 0.6, 'HOTEL', { bg: 0x1b2541, fg: 0xf8e08a, border: 0xb9862e });
     f.band(3.8, 0xb8bdc8);
-    for (const x of [0.7, 2.4, 4.1, 5.8]) f.window(x, 4.3, 1.0, 1.7, { frame: 0xf6f4ee, lintel: 0xb8bdc8, shutters: 0x3b6296, lit: x === 4.1 });
+    for (const x of [0.7, 2.4, 4.1, 5.8]) f.window(x, 4.3, 1.0, 1.7, { frame: 0xf6f4ee, lintel: 0xb8bdc8, shutters: 0x3b6296, lit: x === 4.1, flowers: [0xc95c45, 0xf6f4ee] });
   } }));
   scene.add(bladeSign(7.3, 3.2, zB, 'BAR', { bg: 0x4a2a52 }));
   // An alley between the hotel and the newsagent, with a building at its end.
   scene.add(ground(7.5, -11, 9.5, zB, mat(0, tile('cobble', 1))));
   scene.add(building({ x0: 6, x1: 11, z: -10, h: 6, wallColor: 0x6e2a2e, seed: 14, night, draw(f) {
     f.door(2.0, 1.0, 2.1, { color: 0x353947, frame: 0x7d756c, glass: false });
+    f.poster(1.55, 0.8, 0.6, 0.9, { bg: 0xf8e08a, art: 0x9e3c36, fg: 0x14151c });
+    f.poster(3.2, 0.9, 0.7, 1.0, { bg: 0xdfe2e8, art: 0x283f6b, fg: 0x9e3c36, words: 'JAZZ' });
   } }));
   scene.add(bin(8.8, -6.2));
   scene.add(building({ x0: 9.5, x1: 20, z: zB, h: 6.4, wallColor: 0x8f6345, seed: 15, night, draw(f) {
@@ -91,9 +105,19 @@ if (view === 'lineup') {
   if (night) for (const x of [-6.1, 12.3]) {                     // shop windows spill light on the pavement
     scene.add(pool(x, 2.4, zB + 0.2, { r: 1.6, color: 0xe7b84a, core: 0.3, ring: 0.15, aim: [0, 1.6] }));
   }
-  scene.add(tree(-12, 4.8, { seed: 3 }), tree(11, 4.8, { seed: 4, scale: 0.9 }));
   scene.add(bench(-5.5, 5.4), bin(2.8, 4.3));
-  scene.add(cafeTable(-7.2, -3.5), chair(-7.2, -4.1), chair(-6.6, -3.0, -Math.PI / 2), cafeTable(-5.2, -3.5), chair(-5.2, -4.1));
+  const at = (m, x, z) => { m.position.set(snap(x), 0, snap(z)); scene.add(m); return m; };
+  at(treeCard({ seed: 3 }), -12, 4.8);
+  at(treeCard({ seed: 8, size: 0.9 }), 11, 4.8);
+  // The café's terrace: tables and chairs, the chalkboard; flair along the street.
+  at(propCard('chair'), -7.2, -4.2); at(propCard('table'), -7.2, -3.6); at(propCard('chair'), -6.4, -3.3);
+  at(propCard('chair'), -5.0, -4.2); at(propCard('table'), -5.0, -3.6);
+  at(propCard('chalkboard'), -3.4, -3.0);
+  at(propCard('shrub', { seed: 5 }), 3.0, -4.6); at(propCard('shrub', { seed: 6 }), 5.6, -4.6);
+  at(propCard('postbox'), -10.6, -2.6);
+  at(propCard('bicycle'), 15.6, -4.5);
+  const pigeons = [[-1.2, -2.9], [-0.6, -3.3], [0.1, -2.7], [13.2, 5.2]].map(([x, z], i) => ({ m: at(propCard('pigeon'), x, z), i }));
+  actors.push({ update(t) { for (const { m, i } of pigeons) m.show(Math.floor(t * 3 + i * 1.7) % 3 === 0 ? 1 : 0); } });
   const parked = car(0x3b6296); parked.position.set(-14.5, 0, -1.05); scene.add(parked);
   const parked2 = car(0x9e3c36); parked2.position.set(14.0, 0, -1.05); scene.add(parked2);
   const taxi = car(0xe7b84a, { taxi: true }); taxi.rotation.y = Math.PI; taxi.position.set(0, 0, 2.2); scene.add(taxi);
@@ -104,11 +128,16 @@ if (view === 'lineup') {
   person('red', { x: -14, z: -3.4, facing: Math.PI / 2, state: 'walk', path: { vx: 1.1, from: -19, to: 19 } });
   person('suit', { x: 9, z: 4.3, facing: -Math.PI / 2, state: 'walk', phase: 0.2, path: { vx: -1.2, from: -19, to: 19 } });
   person('kid', { x: 2, z: -2.6, facing: -Math.PI / 2, state: 'run', path: { vx: -2.6, from: -19, to: 19 } });
-  person('beard', { x: -5.5, y: 0.03, z: 5.45, state: 'sit' });
-  person('long', { x: -7.2, y: 0.06, z: -4.05, state: 'sit', phase: 0.3 });
+  // Sitters: a box person sits at the seat; a sprite's card stands just in front of it, raised so its
+  // seat row meets the seat's front edge on screen (a pixel up for each pixel forward).
+  person('beard', boxes ? { x: -5.5, y: 0.03, z: 5.45, state: 'sit' } : { x: -5.5, y: 0.24, z: 5.7, state: 'sit' });
+  person('long', boxes ? { x: -7.2, y: 0.06, z: -4.05, state: 'sit', phase: 0.3 } : { x: -7.2, y: 0.22, z: -3.85, state: 'sit', phase: 0.3 });
   person('beanie', { x: 1.1, z: -2.4, state: 'walk', path: { vz: 0.9, from: -2.6, to: 4.2 } });
   stage.look({ x: Number(q.get('x') ?? 0), z: Number(q.get('z') ?? -2.4) });
-  if (night) nightfall(stage);
+  if (night) {
+    nightfall(stage);
+    scene.traverse(o => { if (o.userData.sprite) o.material.color.copy(stage.lightAt(o.position.x, o.position.z)); });
+  }
 }
 
 let frames = 0;
@@ -122,3 +151,4 @@ function frame() {
 }
 window.__tradecraft = { stage, actors };
 frame();
+}
