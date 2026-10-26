@@ -43,7 +43,7 @@ export function createUI({ input, cb }) {
 
   const keyHints = () => {
     const k = (a) => `<kbd>${input.label(a)}</kbd>`;
-    keys.innerHTML = `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('run')} run · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
+    keys.innerHTML = `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
   };
   keyHints();
   setTimeout(keyHints, 300);                                       // once the keyboard's layout is known
@@ -76,11 +76,13 @@ export function createUI({ input, cb }) {
     watch.querySelector('.time').textContent = clockText(state.time.ms);
     watch.querySelector('.date').textContent = stampText(state.time.ms).split(',')[0];
     frame.classList.toggle('paused', paused && menu.hidden && log.hidden && paper.hidden);
-    // The target's marker: over their head while we have them, at the frame's edge when they're off it.
-    const sc = state.scenario, t = sc.target && !sc.outcome && sc.have && view?.posOf(sc.target);
-    const hiddenT = sc.target && state.actors.find(a => a.id === sc.target)?.hidden;
-    marker.hidden = !t || hiddenT;
-    if (t && !hiddenT) {
+    // The marker: over whom we take for the target (sc.marked), as we last saw them (live, or their
+    // memory in the dimmed street), at the frame's edge when they're off it; hollow when out of view.
+    const sc = state.scenario, mk = sc.marked && !sc.outcome ? sc.marked : null;
+    const t = mk && (view?.posOf(mk) ?? (sc.lastSeen && [sc.lastSeen.x, sc.lastSeen.z]));
+    marker.hidden = !t;
+    if (t) {
+      marker.classList.toggle('memory', state.mind?.seen?.[mk]?.[5] !== state.mind?.at);
       const k = frame.clientWidth / RES[0], cam = view.camera;
       const sx = RES[0] / 2 + (t[0] - cam.x) * 16, sy = RES[1] / 2 + (t[1] - cam.z) * 16 - 2.45 * 16;
       const cx = Math.max(6, Math.min(RES[0] - 6, sx)), cy = Math.max(8, Math.min(RES[1] - 8, sy));
@@ -89,15 +91,16 @@ export function createUI({ input, cb }) {
       marker.style.transform = `translate(${Math.round(cx * k)}px, ${Math.round(cy * k)}px) rotate(${off ? Math.atan2(sy - cy, sx - cx) * 180 / Math.PI - 90 : 0}deg)`;
       marker.style.setProperty('--k', k);
     }
-    // The instinct.
+    // The instinct: always a line, its tone in its border; {key} in the text shows as that key.
     const p = !sc.outcome && sc.prompt;
     prompt.hidden = !p;
-    if (p) {
-      const text = p.text + (p.key === 'window' ? '  (look in a window)' : '');
-      if (prompt.dataset.text !== text + p.key) {
-        prompt.dataset.text = text + p.key;
-        prompt.replaceChildren(...(p.key ? [el('kbd', { textContent: input.label('instinct') }), ' '] : []), el('span', { textContent: text }));
-      }
+    if (p && prompt.dataset.text !== p.text + p.tone) {
+      prompt.dataset.text = p.text + p.tone;
+      prompt.className = `prompt ${p.tone}`;
+      prompt.replaceChildren(...p.text.split(/(\{[a-z]+\})/).filter(Boolean).map(part => {
+        const m = part.match(/^\{([a-z]+)\}$/);
+        return m ? el('kbd', { textContent: input.label(m[1]) }) : el('span', { textContent: part });
+      }));
     }
     const now = performance.now();
     for (const t of [...toasts.children]) {
@@ -106,6 +109,7 @@ export function createUI({ input, cb }) {
     }
   }
   function toast(e) {
+    if (e.hidden) return;                                          // (what the character didn't see)
     const t = el('div', { className: `toast ${e.kind}${e.roll && !e.roll.ok ? ' fail' : ''}` }, e.text ?? '', e.roll ? el('span', { className: 'num', textContent: checkText(e.roll) }) : null);
     t.born = performance.now();
     toasts.append(t);
@@ -134,9 +138,11 @@ export function createUI({ input, cb }) {
   }
 
   // ---------- the log (J) ----------
+  // The log shows what the character knows: what they didn't see (e.hidden) only once the scene's over.
   function openLog(state) {
-    const items = state.log.slice().reverse().map(e => el('li', { className: e.roll && !e.roll.ok ? 'fail' : '' },
-      el('time', { textContent: stampText(e.ms) }), e.text ?? '', e.roll ? el('span', { className: 'num', textContent: checkText(e.roll) }) : null));
+    const over = !!state.scenario.outcome;
+    const items = state.log.filter(e => over || !e.hidden).reverse().map(e => el('li', { className: `${e.roll && !e.roll.ok ? 'fail' : ''}${e.hidden ? ' unseen' : ''}` },
+      el('time', { textContent: stampText(e.ms) }), e.hidden ? el('em', { textContent: 'Unseen: ' }) : null, e.text ?? '', e.roll ? el('span', { className: 'num', textContent: checkText(e.roll) }) : null));
     log.replaceChildren(el('div', { className: 'sheet logsheet' },
       el('h2', { textContent: 'LOG' }), el('p', { className: 'note', textContent: `${dateText(state.time.ms)}. ${input.label('log')} or ${input.label('menu')} to close.` }), el('hr'),
       el('ol', {}, items)));
@@ -151,11 +157,19 @@ export function createUI({ input, cb }) {
       el('h2', { textContent: brief.title }), el('hr'),
       ...brief.body.map(t => el('p', { textContent: t })),
       el('p', { className: 'note', textContent: brief.footer }), el('hr'),
-      el('button', { className: 'item go', onclick: begin }, 'Begin', el('small', { textContent: `${input.label('instinct')} does what your instinct says; ${input.label('log')} is the log.` })),
+      brief.keys ? el('ul', { className: 'keylist' }, brief.keys.map(([k, what]) => el('li', {}, el('kbd', { textContent: input.label(k) }), ` ${what}`))) : null,
+      el('button', { className: 'item go', onclick: begin }, 'Begin', el('small', { textContent: `${input.label('instinct')} does what your instinct offers; ${input.label('log')} is the log.` })),
     ));
     paper.hidden = false;
     paper.dataset.kind = 'brief';
     paper.querySelector('.go').focus();
+  }
+  // What happened that the character never saw: his checks behind their back, revealed after.
+  function unseenOf(state) {
+    const hid = state.log.filter(e => e.hidden && e.ms >= state.scenario.began);
+    if (!hid.length) return [];
+    return [el('p', { className: 'note', textContent: 'What you didn\'t see:' }),
+      el('ul', { className: 'unseenlist' }, hid.slice(-6).map(e => el('li', {}, el('time', { textContent: clockText(e.ms) }), ` ${e.text}`)))];
   }
   const OUTCOMES = { seen: 'SEEN', made: 'MADE', lost: 'LOST', missed: 'MISSED', blown: 'BLOWN' };
   function showResult(state, { again, same, title }) {
@@ -166,7 +180,9 @@ export function createUI({ input, cb }) {
       el('h2', { textContent: SCENARIOS[sc.kind].name.toUpperCase() }), el('hr'),
       el('p', { textContent: sc.endText }),
       sc.lead ? el('p', { className: 'lead', textContent: `Lead. ${sc.lead}` }) : null,
-      el('p', { className: 'note', textContent: `${Math.floor(secs / 60)} min ${secs % 60} s on his tail · seen ${sc.sightings.length} time${sc.sightings.length === 1 ? '' : 's'} · closest ${sc.closest < 1e8 ? sc.closest.toFixed(1) : '?'} m · ${sc.rolls} rolls (the ones that mattered are in the log, ${input.label('log')})` }),
+      ...unseenOf(state),
+      el('p', { className: 'note', textContent: `${Math.floor(secs / 60)} min ${secs % 60} s on his tail · seen ${sc.sightings.length} time${sc.sightings.length === 1 ? '' : 's'} · closest ${sc.closest < 1e8 ? sc.closest.toFixed(1) : '?'} m`
+        + `${sc.warned !== undefined ? ` · his checks read in time: ${sc.warned}` : ''}${sc.mixups ? ` · followed the wrong man ${sc.mixups} time${sc.mixups === 1 ? '' : 's'}` : ''} · ${sc.rolls} rolls (the ones that mattered are in the log, ${input.label('log')})` }),
       el('hr'),
       el('p', { className: 'note', textContent: 'How did it play? A score out of 100, and what felt off, in the chat: that\'s what this test is for.' }),
       el('button', { className: 'item', onclick: go(again) }, 'Again, another evening', el('small', { textContent: 'A new street, a new route, new dice.' })),

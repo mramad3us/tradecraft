@@ -9,10 +9,12 @@
 // the world gets outcomes for the gap, not a simulation of it.
 //
 // The tick, in this order (decisions made in a tick act the next):
-//   1. The player's input becomes their velocity, gait and facing.
+//   1. The player's input becomes their velocity, gait and heading (where they face: the way they
+//      walk, or, holding E, the way they look).
 //   2. Everyone moves by their velocity, sliding along what blocks them (sim/world.js), in the
 //      order they're listed.
-//   3. The actor grid is rebuilt.
+//   3. The actor grid is rebuilt, and the player looks: what they see is remembered
+//      (sim/perception.js), and that's all the view will show of anyone else.
 //   4. Everyone else thinks: the velocity they'll move by next tick (sim/crowd.js for passers-by,
 //      the scenario for its own characters).
 //   5. The scenario's rules (its checks and events).
@@ -22,13 +24,17 @@
 import { seedRng } from './rng.js';
 import { TICK_MS, MIN } from './clock.js';
 import { SAVE_SCHEMA } from './state.js';
-import { attach, refocus, rehash, move } from './world.js';
+import { attach, refocus, rehash, move, near } from './world.js';
 import { populate, think, walk, facing } from './crowd.js';
+import { look, headOf, faceOf } from './perception.js';
 import { drift } from './people.js';
 import { SCENARIOS } from './scenarios/index.js';
 
 export const WALK_MS = 1.45;                                       // the player's walk, m/s
+export const STROLL_MS = 0.95;                                     // a stroll (Alt held): to keep a pace without stopping
 export const RUN_MS = 3.6;                                         // and run (which draws attention)
+export const LOOK_M = 50;                                          // the player looks at whoever's within this (sight's reach)
+export const GLANCE_S = 1.2;                                       // a look over the shoulder (E tapped)
 export const AUTOSAVE_MS = 30 * MIN;
 const DT = TICK_MS / 1000;
 const TICKS_PER_S = Math.round(1000 / TICK_MS);
@@ -38,7 +44,7 @@ export function newGame({ seed = 1, scenario = 'walk', version = '' } = {}) {
   const state = {
     game: 'tradecraft', schema: SAVE_SCHEMA, version, seed, rng: seedRng(seed), tick: 0, time: { ms: 0 },
     scenario: { kind: scenario }, country: 'ru', legend: null, player: null, focus: null,
-    people: {}, map: null, actors: [], nextActor: 1, heat: {}, log: [], flags: {},
+    people: {}, map: null, actors: [], nextActor: 1, heat: {}, log: [], flags: {}, mind: { seen: {} },
   };
   SCENARIOS[scenario].setup(state);
   return state;
@@ -59,26 +65,44 @@ export const playerActor = (state) => state.actors.find(a => a.who === state.pla
 export const focusActor = (state) => (state.focus && actor(state, state.focus)) || playerActor(state);
 
 /**
- * One tick. input: { mx, mz (−1 … 1, z toward the camera), run, act: [actions this tick] }. An
- * action goes to the scenario (T: 'instinct'); it may give the player something to do (me.busy:
- * a short plan of steps, such as stepping to a shop window to look in it), which moving cancels.
+ * One tick. input: { mx, mz (−1 … 1, z toward the camera), run, slow, look, act: [actions this
+ * tick] }. run is Shift held, slow Alt (a stroll); look is E held: the player stands, and mx, mz turn
+ * their eyes instead of their feet. Actions go to the scenario (T: 'instinct'); one may give the
+ * player something to do (me.busy: a short plan of steps, such as stepping to a shop window to look
+ * in it), which moving cancels. 'glance' (E tapped) is the game's own: for GLANCE_S the player's eyes
+ * go back over their shoulder (me.glance, ticks left), walking on; the scenario hears of it too, for
+ * whoever might see it done.
  */
 export function step(state, input = {}, bus) {
   const scenario = SCENARIOS[state.scenario.kind];
   // 1. The player.
-  for (const act of input.act ?? []) scenario.act?.(state, bus, act);
   const me = playerActor(state);
+  for (const act of input.act ?? []) {
+    if (act === 'glance' && me && !me.glance) me.glance = Math.round(GLANCE_S * TICKS_PER_S);
+    scenario.act?.(state, bus, act);
+  }
   if (me && !me.ai) {
     let mx = input.mx ?? 0, mz = input.mz ?? 0;
     const n = Math.hypot(mx, mz);
-    if (n > 0.01) me.busy = null;
+    if (n > 0.01 && !input.look) me.busy = null;
     if (me.busy) busy(me);
-    else {
+    else if (input.look) {
+      me.vx = me.vz = 0; me.gait = 'idle'; me.glass = false;
+      if (n > 0.01) { me.head = Math.atan2(mz, mx); me.face = faceOf(me.head); }
+    } else {
       if (n > 1) { mx /= n; mz /= n; }
-      const speed = input.run ? RUN_MS : WALK_MS;
+      const speed = input.run ? RUN_MS : input.slow ? STROLL_MS : WALK_MS;
       me.vx = mx * speed; me.vz = mz * speed;
       me.gait = n > 0.01 ? (input.run ? 'run' : 'walk') : 'idle';
-      me.face = facing(me.vx, me.vz, me.face);
+      me.glass = false;
+      if (n > 0.01) { me.head = Math.atan2(mz, mx); me.face = facing(me.vx, me.vz, me.face); }
+    }
+    // A glance back: the eyes over the shoulder, the feet going on; then the eyes come back.
+    if (me.glance) {
+      me.eyesOn ??= me.head;
+      if (n > 0.01 || me.busy) me.eyesOn = me.head;
+      me.head = me.eyesOn + Math.PI;
+      if (--me.glance === 0) { me.head = me.eyesOn; me.eyesOn = undefined; }
     }
   }
   // 2. Everyone moves.
@@ -86,8 +110,9 @@ export function step(state, input = {}, bus) {
     if (a.ai) walk(state, a);
     else if (a.vx || a.vz) a.stride += move(state, a, a.vx * DT, a.vz * DT);
   }
-  // 3. The grid. 4. Everyone else thinks.
+  // 3. The grid, and the player looks. 4. Everyone else thinks.
   rehash(state);
+  if (me) look(state, me, near(state, me.x, me.z, LOOK_M));
   for (const a of state.actors) {
     if (a.ai?.kind === 'walker') think(state, a);
     else if (a.ai) scenario.think?.(state, a, bus);
@@ -107,18 +132,22 @@ export function step(state, input = {}, bus) {
 }
 
 // The player's busy plan: ['go', x, z] (walk there; given up after a second without getting closer)
-// and ['wait', ticks, face, gait].
+// and ['wait', ticks, face, gait]. Waiting at a shop window (busy.what 'window'), the glass shows
+// the street behind (sim/perception.js).
 function busy(me) {
   const b = me.busy, s = b.steps[0];
+  me.glass = false;
   if (!s) { me.busy = null; me.vx = me.vz = 0; me.gait = 'idle'; return; }
   if (s[0] === 'go') {
     const dx = s[1] - me.x, dz = s[2] - me.z, d = Math.hypot(dx, dz);
     b.best = Math.min(b.best ?? d, d);
     if (d < 0.1 || (b.wait++ > 20 && d > b.best - 0.05)) { b.steps.shift(); b.wait = 0; b.best = undefined; return busy(me); }
-    me.vx = dx / d * WALK_MS; me.vz = dz / d * WALK_MS; me.gait = 'walk'; me.face = facing(me.vx, me.vz, me.face);
+    me.vx = dx / d * WALK_MS; me.vz = dz / d * WALK_MS; me.gait = 'walk'; me.face = facing(me.vx, me.vz, me.face); me.head = Math.atan2(dz, dx);
     return;
   }
-  me.vx = me.vz = 0; me.face = s[2] ?? me.face; me.gait = s[3] ?? 'idle';
+  me.vx = me.vz = 0; me.gait = s[3] ?? 'idle';
+  if (s[2]) { me.face = s[2]; me.head = headOf(s[2]); }
+  me.glass = b.what === 'window';
   if (++b.wait >= s[1]) { b.steps.shift(); b.wait = 0; }
 }
 

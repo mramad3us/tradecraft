@@ -18,7 +18,7 @@ export const walk = {
     state.people[me.id] = me;
     state.player = me.id;
     state.map = { kind: 'street', seed: seedFrom(r), i0: -2, i1: 2, crowd: 1 };
-    state.actors.push({ id: 'a0', who: me.id, seed: null, x: 1.5, z: -2.6, vx: 0, vz: 0, face: 'down', gait: 'idle', stride: 0, stuck: 0, ai: null });
+    state.actors.push({ id: 'a0', who: me.id, seed: null, x: 1.5, z: -2.6, vx: 0, vz: 0, face: 'down', head: Math.PI / 2, gait: 'idle', stride: 0, stuck: 0, ai: null });
     say(state, null, { kind: 'note', text: `${me.name}, ${state.legend.name}. An afternoon off, in theory. Moscow in November: the light is already going.` });
   },
 };

@@ -80,13 +80,27 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .marker.off::before { animation: none; }
 @keyframes bob { 50% { transform: translateY(calc(1px * var(--k, 2))); } }
 
-/* The instinct: a line at the foot of the picture. */
-.prompt { position: absolute; left: 50%; bottom: 58px; transform: translateX(-50%); background: var(--hud); border: 1px solid #3b6296; color: #dfe2e8; padding: 6px 12px; font-style: italic; font-size: 13px; white-space: nowrap; border-radius: 3px; }
+/* The instinct: a line at the foot of the picture, always there, its tone in its border. */
+.prompt { position: absolute; left: 50%; bottom: 58px; transform: translateX(-50%); background: var(--hud); border: 1px solid #4c5262; border-left-width: 4px; color: #dfe2e8; padding: 6px 12px; font-style: italic; font-size: 13px; max-width: 86%; text-align: center; border-radius: 3px; }
 .prompt[hidden] { display: none; }
-.prompt kbd { font-style: normal; margin-right: 4px; }
+.prompt kbd { font-style: normal; margin: 0 3px; }
+.prompt.calm { border-color: #4c5262; color: #b8bdc8; }
+.prompt.note { border-color: #3b6296; }
+.prompt.warn { border-color: var(--brass); }
+.prompt.urgent { border-color: var(--red); color: #f6f4ee; animation: urge 0.9s steps(2) 3; }
+@keyframes urge { 50% { background: rgba(110, 42, 46, 0.85); } }
+.marker.memory::before { opacity: 0.4; animation: none; }
+.sheet .keylist { list-style: none; padding: 0; margin: 6px 0; font-size: 13px; }
+.sheet .keylist li { padding: 2px 0; }
+.sheet .keylist kbd { color: var(--ink); border-color: var(--rule); }
 
 #title .section { font: bold 13px var(--type); letter-spacing: 0.2em; margin: 18px 0 2px; color: var(--ink); }
 .sheet .stamp.good { border-color: #356f42; color: #356f42; }
 .sheet p { margin: 8px 0; }
 .sheet.brief, .sheet.result { width: min(520px, 92%) !important; font-size: 14px; }
 .sheet .lead { background: var(--paper-2); padding: 6px 8px; border-left: 3px solid var(--brass); }
+
+/* What the character didn't see, shown after the scene. */
+.logsheet li.unseen { color: #6a7182; }
+.sheet .unseenlist { margin: 4px 0 8px; padding-left: 18px; font-size: 12.5px; color: #4c5262; }
+.sheet .unseenlist time { color: #8f96a6; }

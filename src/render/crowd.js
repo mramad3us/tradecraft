@@ -106,8 +106,9 @@ export function createCrowd(scene) {
 
   const m4 = new THREE.Matrix4();
   /**
-   * Draw these people: [{ key, look, x, z, face, gait, stride, phase, tint: [r, g, b] }], at time t
-   * (seconds, for idling). Positions are where to draw (the view interpolates between ticks).
+   * Draw these people: [{ key, look, x, z, face, gait, stride, phase, t?, tint: [r, g, b] }], at time
+   * t (seconds, for idling; a person's own t holds them still, as a memory). Positions are where to
+   * draw (the view interpolates between ticks).
    */
   function update(people, t) {
     frameNo++;
@@ -117,8 +118,8 @@ export function createCrowd(scene) {
       const slot = slotOf(p.key, p.look);
       const f = p.gait === 'walk' ? `walk${Math.floor(p.stride / STEP_M.walk) % 4}`
         : p.gait === 'run' ? `run${Math.floor(p.stride / STEP_M.run) % 4}`
-        : p.gait === 'sit' ? 'sit' : `idle${Math.floor(t * 2 + p.phase) % 2}`;
-      const sit = p.gait === 'sit';
+        : p.gait === 'sit' || p.gait === 'crouch' ? 'sit' : `idle${Math.floor((p.t ?? t) * 2 + p.phase) % 2}`;
+      const sit = p.gait === 'sit';                                 // (a crouch is the same pose, on the ground)
       m4.makeTranslation(snap(p.x), sit ? SEAT.y : 0, snap(p.z + (sit ? SEAT.z : 0)));
       cards.setMatrixAt(i, m4);
       m4.makeTranslation(snap(p.x), 0.02, snap(p.z));

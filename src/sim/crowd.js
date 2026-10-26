@@ -18,6 +18,7 @@ import { LANES, Z } from './map/street.js';
 import { near, move, blocked, sectionAt } from './world.js';
 import { seedFrom } from './people.js';
 import { hourOfDay, TICK_MS } from './clock.js';
+import { headOf } from './perception.js';
 
 export const CROWD_PER_100M = 40;                                  // at the busiest hours, along the street
 export const WINDOW_M = 45;                                        // passers-by live within this of the focus
@@ -88,7 +89,7 @@ function plan(state, r, x, lane, dir, focusX) {
 function spawn(state, r, x, z, lane, dir, focusX, lead = []) {
   const a = {
     id: `a${state.nextActor++}`, who: null, seed: seedFrom(r), x, z, vx: 0, vz: 0,
-    face: dir > 0 ? 'right' : 'left', gait: 'idle', stride: 0, stuck: 0,
+    face: dir > 0 ? 'right' : 'left', head: dir > 0 ? 0 : Math.PI, gait: 'idle', stride: 0, stuck: 0,
     ai: { kind: 'walker', speed: range(r, 1.05, 1.6), steps: [...lead, ...plan(state, r, x, lane, dir, focusX)], wait: 0 },
   };
   state.actors.push(a);
@@ -135,7 +136,8 @@ export function follow(state, a) {
   if (!step) { a.vx = a.vz = 0; a.gait = 'idle'; return null; }
   if (step[0] === 'gone') { ai.gone = true; a.vx = a.vz = 0; return step; }
   if (step[0] === 'wait') {
-    a.vx = a.vz = 0; a.face = step[2] ?? a.face; a.gait = step[3] ?? 'idle';
+    a.vx = a.vz = 0; a.gait = step[3] ?? 'idle';
+    if (step[2]) { a.face = step[2]; a.head = headOf(step[2]); }
     if (++ai.wait >= step[1]) { ai.wait = 0; ai.steps.shift(); }
     return step;
   }
@@ -175,6 +177,7 @@ export function steer(state, a, tx, tz, speed) {
   a.vx = ux / n * speed; a.vz = uz / n * speed;
   a.gait = 'walk';
   a.face = facing(a.vx, a.vz, a.face);
+  a.head = Math.atan2(a.vz, a.vx);
 }
 
 /** The sprite's facing for a velocity, keeping the old one near the diagonals (no flicker). */

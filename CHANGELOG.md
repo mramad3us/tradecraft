@@ -4,6 +4,25 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.21 (2026-10-26)
+
+- **Perception** (you asked for it: where we look, what characters are aware of). Everyone faces a way and sees a cone ahead, as far as the light allows, plus a small radius of awareness all round; walls block the view. Awareness widens both.
+  - **The screen shows what your character is aware of.** The rest is dimmed and frozen as it was last seen: people out of sight stand where you saw them, mid-step, until you look that way again. At night, lamplit pools stay visible far off and the dark between them doesn't.
+  - **New keys:** Alt (Option on a Mac) held strolls (0.95 m/s, to keep a pace); E held stops and looks, the move keys turning your eyes; E tapped glances back over your shoulder for a second, walking on.
+  - In numbers: a cone of 100° plus 2° a point of Awareness (a Handler's ≈ 132°); reach 18 m + 34 m × the light (50 m by day, 34 m into a lamp's pool at night, 22 m into the dark); awareness 2.5 m + 0.2 m a point (≈ 5.7 m).
+- **Tailing, rebuilt on perception and made to play** (mechanic test 1):
+  - **Each run is an evening:** dusk, night, the lunchtime crowd, or a wary evening (he checks more, warns less).
+  - **His checks come with tells** (he slows, drifts to a window, glances at the kerb). If you're watching him, Awareness reads them, and the instinct warns you in time to act. The check itself needs you in his sight, so being out of his line of sight, or in the dark between lamps, is safe.
+  - **Cover on T:** the instinct offers what fits where you stand: look in a shop window (its glass shows the street behind you), sit on a bench, tie a shoelace, cross at the zebra. Starting it as he looks is worse than nothing.
+  - **More of your choices count:** standing about, staring at him, your back to him, lamplight at night, jaywalking, glancing back.
+  - **His alertness** rises with near things and brings his checks closer.
+  - **Lookalikes:** men in grey coats and hats walk the street, and you can end up following the wrong one until you're close enough to see it.
+  - **The marker** is over whom you take for him, hollow where you last saw him when he's out of sight.
+  - **The instinct always speaks**, the voice of training, with dry humour now and then ("You have no idea where he went…"). Its border shows how pressing it is.
+  - **You only learn what you see:** a check of his you didn't see isn't narrated. The result paper lists them after ("what you didn't see"), and you may notice the change in him later.
+  - **Balance** over 100 evenings: a naive tail is made 91 times; a careful one sees the meeting 60 times, a trained one 67. Lunch is the hardest evening, night the easiest.
+- **The brief** lists the keys the test needs. **The result** adds how many of his checks you read in time and how often you followed the wrong man.
+
 ## v0.0.20 (2026-10-26)
 
 - **Mechanic test 1: tailing a target** (title, Mechanic tests). Gennady Orlov, a former GRU officer, leaves his office on a Tuesday at 16:45 and walks east through the dusk to a meeting. Follow him, don't be seen twice, and see whom he meets.

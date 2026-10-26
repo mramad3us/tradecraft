@@ -129,6 +129,11 @@ export const FINE_PALETTE = [
  * A pixel-art stage: renderer, scene, the 45° camera and a render() that outlines and palettises.
  * The canvas goes into `parent`, shown at the largest whole-number scale that fits the window
  * (unless autoFit is false: the game fits it with its interface).
+ *
+ * setFog(texture, x0, z0, w, h) dims what lies where a ground-plane mask says it's unseen: the mask
+ * (one channel, 1 seen … 0 unseen) covers x0 … x0 + w, z0 … z0 + h in world metres, and each pixel
+ * looks it up at the ground position under it (from the depth buffer: a wall's pixels at its foot, a
+ * person's at their feet), dithered between seen and dimmed. setFog(null) turns it off.
  */
 export function pixelStage({ background = 0x23252f, outline = true, palette = PALETTE, zoom = 1, res = RES, grade = 0, parent = document.body, autoFit = true } = {}) {
   const W = Math.round(res[0] / zoom), H = Math.round(res[1] / zoom);
@@ -196,6 +201,7 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
       tColor: { value: rt.texture }, tDepth: { value: rt.depthTexture }, tId: { value: rtId.texture },
       res: { value: new THREE.Vector2(W, H) }, near: { value: camera.near }, far: { value: camera.far },
       outline: { value: outline ? 1 : 0 }, grade: { value: grade },
+      tFog: { value: null }, fogOn: { value: 0 }, fogBox: { value: new THREE.Vector4(0, 0, 1, 1) }, invVP: { value: new THREE.Matrix4() },
       // (padded to the shader's 128: three uploads the array at the declared size)
       pal: { value: Array.from({ length: 128 }, (_, i) => { const c = pal[Math.min(i, pal.length - 1)]; return new THREE.Vector3(c.r, c.g, c.b); }) },
       count: { value: Math.min(pal.length, 128) },
@@ -204,9 +210,20 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
     fragmentShader: `
       precision highp float;
       in vec2 vUv; out vec4 outColor;
-      uniform sampler2D tColor, tDepth, tId; uniform vec2 res; uniform float near, far, outline, grade;
-      uniform vec3 pal[128]; uniform int count;
+      uniform sampler2D tColor, tDepth, tId, tFog; uniform vec2 res; uniform float near, far, outline, grade, fogOn;
+      uniform vec3 pal[128]; uniform int count; uniform vec4 fogBox; uniform mat4 invVP;
       float lin(float d) { return near + d * (far - near); }
+      // A 4 × 4 ordered dither: the threshold for this pixel.
+      float bayer(vec2 p) {
+        int i = int(mod(p.x, 4.0)) + 4 * int(mod(p.y, 4.0));
+        float m[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.);
+        return (m[i] + 0.5) / 16.0;
+      }
+      // Unseen: darker, greyer, a little cold, as a memory of the place.
+      vec3 dim(vec3 c) {
+        float l = dot(c, vec3(0.30, 0.59, 0.11));
+        return mix(vec3(l), c, 0.3) * 0.48 + vec3(0.010, 0.016, 0.032);
+      }
       vec3 nearest(vec3 c) {
         vec3 best = pal[0]; float bd = 1e9;
         for (int i = 0; i < 128; i++) {
@@ -220,7 +237,13 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
       void main() {
         vec2 px = 1.0 / res, uv = (floor(vUv * res) + 0.5) * px;
         vec3 col = pow(clamp(texture(tColor, uv).rgb, 0.0, 1.0), vec3(1.0 / 2.2));
-        float d = lin(texture(tDepth, uv).r);
+        float raw = texture(tDepth, uv).r;
+        float d = lin(raw);
+        if (fogOn > 0.5 && raw < 0.99999) {
+          vec4 w = invVP * vec4(uv * 2.0 - 1.0, raw * 2.0 - 1.0, 1.0);
+          float v = texture(tFog, (w.xz / w.w - fogBox.xy) / fogBox.zw).r;
+          if (v < bayer(gl_FragCoord.xy)) col = dim(col);
+        }
         if (outline > 0.5) {
           vec3 id = texture(tId, uv).rgb;
           float edge = 1.0;
@@ -249,9 +272,12 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
   const post = new THREE.Scene();
   post.add(quad);
   const postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const U = quad.material.uniforms;
+  const setFog = (tex, x0 = 0, z0 = 0, w = 1, h = 1) => { U.tFog.value = tex; U.fogOn.value = tex ? 1 : 0; U.fogBox.value.set(x0, z0, w, h); };
   const render = () => {
     renderer.setRenderTarget(rt);
     renderer.render(scene, camera);
+    U.invVP.value.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
     if (outline) {
       // The part-ID pass: each mesh drawn flat in its part's colour.
       const saved = [];
@@ -269,7 +295,7 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
     renderer.setRenderTarget(null);
     renderer.render(post, postCam);
   };
-  return { THREE, renderer, scene, camera, sun, hemi, look, render, W, H, lightAt: null };
+  return { THREE, renderer, scene, camera, sun, hemi, look, render, setFog, W, H, lightAt: null };
 }
 
 /**

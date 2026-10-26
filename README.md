@@ -27,7 +27,7 @@ tools/awake.sh status       # the keep-awake lease (hooks renew it while Claude 
 node tools/gallery.mjs      # rebuild the samples gallery (pictures of every sample view)
 ```
 
-**In the game:** Z Q S D (W A S D on QWERTY; arrows too) walk, Shift runs, J opens the log, Space pauses, Esc opens the menu (save to a file, load one, debug mode). Keys are read by where they sit, so they work on any layout. `?play=walk&seed=3&hour=22` (or `?play=tail`) skips the title (for shots and tests); `window.__tradecraft` is the debug handle.
+**In the game:** Z Q S D (W A S D on QWERTY; arrows too) walk, Alt (Option) held strolls, Shift runs, E held stops and looks (the move keys turn your eyes), E tapped glances back over your shoulder, T does what your instinct offers, J opens the log, Space pauses, Esc opens the menu (save to a file, load one, debug mode). What your character isn't aware of is dimmed, and its people frozen as last seen. Keys are read by where they sit, so they work on any layout. `?play=walk&seed=3&hour=22` (or `?play=tail`) skips the title (for shots and tests); `window.__tradecraft` is the debug handle.
 
 **Code:** `src/sim` (the pure sim: no DOM, one seeded rng, a fixed tick), `src/render` (the view), `src/ui` (keys, screens, saves), `src/art` (the look). Each module's header explains its model.
 

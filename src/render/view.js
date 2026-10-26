@@ -15,20 +15,32 @@
 //   - people and sprite props take the light where they stand (lightAt), the same number checks read;
 //     a card in front of the player that would hide them is seen through;
 //   - the camera follows the focus (the player), clamped to the map, snapped to the pixel grid, and
-//     the sun's shadow camera moves with it in whole texels of its map, so shadows never shimmer.
+//     the sun's shadow camera moves with it in whole texels of its map, so shadows never shimmer;
+//   - what the player's character is aware of (sim/perception.js): a mask on the ground, FOG_CELL_M
+//     cells over the view, each the visibility of its spot from the player's eyes (the cone, the
+//     radius of awareness, the light, the walls in the way). A building takes the visibility of its
+//     walls' feet, so a facade lights up when it's seen. The stage dims what's unseen (pixelStage
+//     setFog); the mask eases in quickly and out slowly (FOG_IN_S, FOG_OUT_S), as eyes do;
+//   - people as the player knows them: those seen this tick where they are, the rest where they were
+//     last seen, frozen mid-step in the dimmed street, until that spot is looked at again.
 // Positions are interpolated between the last two ticks (alpha), so motion is smooth at any frame rate.
 import * as THREE from 'three';
 import { pixelStage, finish, FINE_PALETTE, PX_PER_M, emissiveOf } from '../art/pixelart.js';
 import { buildSection } from './town.js';
 import { createCrowd } from './crowd.js';
-import { sky, lightAt, LAMP } from '../sim/light.js';
+import { sky, lightAt, lightLevel, LAMP } from '../sim/light.js';
 import { Z, SECTION_M } from '../sim/map/street.js';
 import { passerby } from '../sim/people.js';
-import { focusActor } from '../sim/game.js';
+import { focusActor, playerActor } from '../sim/game.js';
+import { eyes, openness, lineClear } from '../sim/perception.js';
 
 export const RES = [640, 360];
 export const LAMP_SLOTS = 10;
 export const BUILD_MS = 6;
+export const FOG_CELL_M = 0.5;
+export const FOG_N = [96, 80];                                     // cells: 48 × 40 m round the camera
+const FOG_AT = [-24, -18];                                         // the mask's corner from the camera, m
+const FOG_IN_S = 0.08, FOG_OUT_S = 0.4;
 const LAMP_Y = 2.7;
 const CAMERA_Z = [Z.sideEnd + 5, 14.2];                             // the camera's centre stays within these
 const HALF_W = RES[0] / PX_PER_M / 2;
@@ -90,6 +102,83 @@ export function createView({ parent, bus }) {
     aim.copy(right).multiplyScalar(u).addScaledVector(up, v).addScaledVector(sunDir, w);
     sun.target.position.copy(aim);
     sun.position.copy(aim).addScaledVector(sunDir, -18);
+  }
+
+  // The fog: what the player's character is aware of, on the ground.
+  const [FNX, FNZ] = FOG_N, fogData = new Uint8Array(FNX * FNZ), fogVal = new Float32Array(FNX * FNZ).fill(1);
+  const fogAim = new Float32Array(FNX * FNZ), fogLight = new Float32Array(FNX * FNZ), fogIn = new Int16Array(FNX * FNZ);
+  const fogTex = new THREE.DataTexture(fogData, FNX, FNZ, THREE.RedFormat, THREE.UnsignedByteType);
+  fogTex.magFilter = fogTex.minFilter = THREE.LinearFilter;
+  fogTex.generateMipmaps = false;
+  let fogO = null, fogLitAt = -1e12, fogWalls = null, fogLast = performance.now();
+  /** Bring the mask up to date for the player's eyes (dt: seconds since the last frame). */
+  function fog(state, me, S) {
+    const now = performance.now(), dt = Math.min(0.25, (now - fogLast) / 1000);
+    fogLast = now;
+    const W = state.$world;
+    const ox = Math.floor((cam.x + FOG_AT[0]) / FOG_CELL_M), oz = Math.floor((cam.z + FOG_AT[1]) / FOG_CELL_M);
+    if (!fogO || fogO[0] !== ox || fogO[1] !== oz || fogWalls !== W.walls) {
+      // The mask moved (or the street changed): carry the eased values over, and find again the
+      // walls each cell lies in and the light on each.
+      if (fogO) {
+        const old = fogVal.slice(), sx = ox - fogO[0], sz = oz - fogO[1];
+        for (let j = 0; j < FNZ; j++) for (let i = 0; i < FNX; i++) {
+          const pi = i + sx, pj = j + sz;
+          fogVal[j * FNX + i] = pi >= 0 && pi < FNX && pj >= 0 && pj < FNZ ? old[pj * FNX + pi] : 0;
+        }
+      }
+      fogO = [ox, oz]; fogWalls = W.walls; fogLitAt = -1e12;
+      const x0 = ox * FOG_CELL_M, z0 = oz * FOG_CELL_M;
+      fogIn.fill(-1);
+      W.walls.forEach((w, k) => {
+        const i0 = Math.max(0, Math.ceil((w.x0 - x0) / FOG_CELL_M - 0.5)), i1 = Math.min(FNX - 1, Math.floor((w.x1 - x0) / FOG_CELL_M - 0.5));
+        const j0 = Math.max(0, Math.ceil((w.z0 - z0) / FOG_CELL_M - 0.5)), j1 = Math.min(FNZ - 1, Math.floor((w.z1 - z0) / FOG_CELL_M - 0.5));
+        for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) fogIn[j * FNX + i] = k;
+      });
+    }
+    const x0 = ox * FOG_CELL_M, z0 = oz * FOG_CELL_M;
+    if (Math.abs(state.time.ms - fogLitAt) > 1000) {               // the light changes slowly: once a game second
+      fogLitAt = state.time.ms;
+      const lamps = W.lamps.filter(l => l.x > x0 - 4 && l.x < x0 + FNX * FOG_CELL_M + 4 && l.z > z0 - 4 && l.z < z0 + FNZ * FOG_CELL_M + 4);
+      for (let j = 0; j < FNZ; j++) for (let i = 0; i < FNX; i++) fogLight[j * FNX + i] = lightLevel(lamps, x0 + (i + 0.5) * FOG_CELL_M, z0 + (j + 0.5) * FOG_CELL_M, state.time.ms, S);
+    }
+    const e = eyes(state, me);
+    const walls = W.walls.filter(w => w.x1 > Math.min(e.x, x0) - 1 && w.x0 < Math.max(e.x, x0 + FNX * FOG_CELL_M) + 1 && w.z1 > Math.min(e.z, z0) - 1 && w.z0 < Math.max(e.z, z0 + FNZ * FOG_CELL_M) + 1);
+    for (let j = 0, k = 0; j < FNZ; j++) {
+      const z = z0 + (j + 0.5) * FOG_CELL_M;
+      for (let i = 0; i < FNX; i++, k++) {
+        if (fogIn[k] >= 0) { fogAim[k] = 0; continue; }
+        const x = x0 + (i + 0.5) * FOG_CELL_M;
+        const v = openness(state, e, x, z, fogLight[k]);
+        fogAim[k] = v > 0 && !lineClear(state, e.x, e.z, x, z, walls) ? 0 : v;
+      }
+    }
+    // A building's cells take its walls' feet: the facade's (the open cell south of them in their
+    // column), and near its ends, the side walls' (the open cell beside them in their row).
+    for (let i = 0; i < FNX; i++) {
+      let foot = 0;
+      for (let j = FNZ - 1; j >= 0; j--) { const k = j * FNX + i; if (fogIn[k] < 0) foot = fogAim[k]; else fogAim[k] = foot; }
+    }
+    for (let j = 0; j < FNZ; j++) {
+      const row = j * FNX;
+      for (let i = 0; i < FNX; i++) {
+        if (fogIn[row + i] >= 0) continue;
+        const v = fogAim[row + i];
+        for (const s of [-1, 1]) for (let n = 1; n <= 2; n++) {
+          const ii = i + s * n;
+          if (ii < 0 || ii >= FNX || fogIn[row + ii] < 0) break;
+          fogAim[row + ii] = Math.max(fogAim[row + ii], v);
+        }
+      }
+    }
+    const kin = 1 - Math.exp(-dt / FOG_IN_S), kout = 1 - Math.exp(-dt / FOG_OUT_S);
+    for (let k = 0; k < fogVal.length; k++) {
+      const a = fogAim[k], v = fogVal[k];
+      fogVal[k] = v + (a - v) * (a > v ? kin : kout);
+      fogData[k] = Math.round(fogVal[k] * 255);
+    }
+    fogTex.needsUpdate = true;
+    stage.setFog(fogTex, x0, z0, FNX * FOG_CELL_M, FNZ * FOG_CELL_M);
   }
 
   const lerp = (a, b, k) => a + (b - a) * k;
@@ -156,15 +245,28 @@ export function createView({ parent, bus }) {
         m.renderOrder = see ? 10 : 0;
       }
     }
+    // People as the player knows them: seen this tick, where they are; otherwise where they were.
+    const pc = playerActor(state), seen = state.mind?.seen ?? {}, now = state.mind?.at;
+    if (pc) fog(state, pc, S); else stage.setFog(null);
     const people = [];
     drawn.clear();
+    const lookFor = (key) => (typeof key === 'string' ? state.people[key]?.look : lookOf(key));
     for (const a of state.actors) {
       if (a.hidden) continue;                                      // (indoors)
+      if (pc && a !== pc && seen[a.id]?.[5] !== now) continue;
       const [x, z, stride] = at(a);
       drawn.set(a.id, [x, z]);
-      const look = a.who ? state.people[a.who]?.look : lookOf(a.seed);
+      const look = lookFor(a.who ?? a.seed);
       if (!look) continue;
       people.push({ key: a.who ?? a.seed, look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S) });
+    }
+    for (const id in seen) {
+      const r = seen[id];
+      if (r[5] === now) continue;
+      const look = lookFor(r[6]);
+      if (!look) continue;
+      drawn.set(id, [r[0], r[1]]);
+      people.push({ key: r[6], look, x: r[0], z: r[1], face: r[2], gait: r[3], stride: r[4], phase: 0, t: r[5] / 1000, tint: lightAt(lamps, r[0], r[1], ms, S) });
     }
     crowd.update(people, t);
     stage.render();
@@ -183,5 +285,6 @@ export function createView({ parent, bus }) {
   }
   function dispose() { clear(); off.forEach(f => f()); stage.renderer.dispose(); stage.renderer.domElement.remove(); }
 
-  return { stage, frame, clear, dispose, flush: () => build(Infinity), canvas: stage.renderer.domElement, get camera() { return cam; }, posOf: (id) => drawn.get(id) };
+  return { stage, frame, clear, dispose, flush: () => build(Infinity), canvas: stage.renderer.domElement, get camera() { return cam; }, posOf: (id) => drawn.get(id),
+    fogAt: (x, z) => { if (!fogO) return 1; const i = Math.floor(x / FOG_CELL_M) - fogO[0], j = Math.floor(z / FOG_CELL_M) - fogO[1]; return i >= 0 && i < FNX && j >= 0 && j < FNZ ? fogVal[j * FNX + i] : 0; } };
 }

@@ -14,6 +14,10 @@
 //   map { kind, seed, i0, i1, crowd }   the map being played: enough to generate it again
 //   actors [ … ]               who's on it, where, doing what (sim/crowd.js, sim/game.js)
 //   nextActor, heat { 'legend@country': 0–100 }, log [ … ] (sim/log.js), flags { }
+//   mind { seen { actor id: [x, z, face, gait, stride, ms, look key] } }   what the player last saw of
+//                              whom, and where (sim/perception.js)
+import { headOf } from './perception.js';
+
 export const SAVE_SCHEMA = 1;
 
 /** The state as save JSON: everything but the $ keys. */
@@ -36,7 +40,8 @@ export function upgradeState(s) {
   s.log ??= [];
   s.focus ??= null;
   s.map.crowd ??= 1;
-  for (const a of s.actors) { a.stride ??= 0; a.stuck ??= 0; }
+  s.mind ??= { seen: {} };
+  for (const a of s.actors) { a.stride ??= 0; a.stuck ??= 0; a.head ??= headOf(a.face); }
   s.schema = SAVE_SCHEMA;
   return s;
 }

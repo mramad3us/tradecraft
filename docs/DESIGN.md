@@ -221,20 +221,32 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
 - **Movement.** Walk; Shift to run, which draws attention. No sneaking; Deception covers it. No driving: a car is fast travel, with its tail risk (Q150).
 - **F** is context-sensitive, with a drop-down menu when there are several options.
 - **Talk.** Abstract, so it generates: pick an approach (above) and roll the check.
-- **No stealth system** (sight lines, noise). Sneaking assignments are played through disguise and the instinct: T does what it says ("Hide now!"), whenever there's something to hide behind.
+- **Perception** (the user, 2026-10-26: "a notion of where we're looking and what characters are aware of"). It replaces the first design's "no sight lines". Everyone faces a heading; we control only where we walk and where we face (looking is passive). The numbers live in `src/sim/perception.js`.
+  - **What a character sees:** a cone ahead (100°, plus 2° a point of Awareness), as far as the light allows (18 m plus 34 m × the light level: 50 m by day, 34 m into a lamp's pool at night, 22 m into the dark); all round, a radius of situational awareness (2.5 m, plus 0.2 m a point of Awareness); and, at a shop window, the street behind in its glass (170°, three quarters of the range). Buildings block the line of sight; people, cars and trees don't.
+  - **On screen:** what the character isn't aware of is dimmed (darker, greyer, colder), with a dithered edge, and frozen as it was last seen: people out of sight stand where they were seen, mid-step, until that spot is looked at again, and then they've moved on or gone. A building lights up when its wall is seen. The same function draws the screen and decides the dice.
+  - **Everyone else** sees by the same rules. A check against us needs us in the checker's sight.
+  - **Knowing what happened:** we learn of what we see. A target's look back we didn't see isn't narrated; the result paper tells it afterwards ("what you didn't see"), and the change in him may be noticed later (Awareness).
+  - **Looking back** (E tapped) is an action: our eyes go over our shoulder for a second, walking on. Whoever has us in sight may notice it (our Deception against their Awareness): someone who checks behind them has something behind them.
+- **No sneaking system** (noise, crouching). Sneaking assignments are played through perception, disguise and the instinct: T does what it says ("Hide now!"), whenever there's something to hide behind.
+- **Advanced tradecraft** (the user, 2026-10-26), to build with test 2 (being tailed) and after: crossing streets, cabs, trains, the metro. Some techniques are evasive but conspicuous: running, jaywalking, a sudden cab, doubling back. They lose a tail and tell it you're a professional.
+- **Semi-overt surveillance** (the user, 2026-10-26). In Russia the FSB follows people of interest, diplomats among them, and doesn't much hide it. Being seen to act as a professional (dry-cleaning visibly, losing them with a conspicuous move) costs cover: heat rises and the watchers take more interest. Often the right play is to look oblivious, and do the operational thing another day.
 - **Observation** (central) (Q142). Hold E to watch someone.
   - Time passes, and their sheet reveals itself by checks.
   - Staring too long risks their Awareness.
   - Meetings you witness are noted by themselves.
   - C takes a photo if you carry a camera.
 - **Tailing** (Q143). The target walks on and the map extends with them. Too close raises their suspicion, too far loses them. Crowds help. The instinct warns before you lose them.
-- **Tailing, the test** (v0.0.20; my calls, for the user to score). Gennady Orlov, a former GRU officer, walks east through a November dusk to a meeting on a boulevard bench; the street grows ahead of him. The numbers live in `src/sim/scenarios/tail.js`.
-  - **Unseen.** At his moments (a look back, a shop window's reflection, coming out of a shop, crossing, doubling back) he rolls Pathfinding against our Deception if we're where he's looking. The modifiers are our choices: distance (under 5 m +6 to him, under 10 m +3, over 15 m −2, over 25 m −4, over 35 m −6), across the road (−3), people about us (alone +2, among people −2, a crowd −4), the light where we stand (dusk −2, dark −4), running (+6), stopping when he stops (+3), right behind him (+1), looking in a window (−2).
-  - **Twice and you're made.** The first sighting sets him dry-cleaning: a little later he doubles back. The second ends the test.
-  - **Keeping him** is a brass marker over his head. Beyond 22 m we roll Tracking every 4 s against a difficulty from the distance, the people round him and the dark, and again when he comes out of a shop or crosses with us more than 15 m off. Lost, the marker goes; within 16 m an Awareness roll finds him again; lost for two minutes, he's gone.
-  - **The instinct** says what a trained eye would: too close, he's stopped, he's pulling away, he's in a shop. T does what it says when there's something to do (look in a shop window: a reason to stop).
-  - **The meeting** is seen from within 18 m, with him in hand, for 15 s. Closer than 5 m, the contact rolls too.
-  - **Balance**, by scripted followers over 30 evenings (`tests/tail.test.mjs`): tailing 10 m behind is made 9 times in 10; the other pavement, 20 m back, sees the meeting 6 times in 10. A player has more tricks (crowds, windows, the dark).
+- **Tailing, the test** (v0.0.21; my calls, for the user to score). Gennady Orlov, a former GRU officer, walks east to a meeting on a boulevard bench; the street grows ahead of him. The numbers live in `src/sim/scenarios/tail.js`. It's played through perception: we see what our character's eyes take in, and so does he.
+  - **Evenings:** each run draws one: dusk (16:45), night (19:40), the lunchtime crowd (13:05), or a wary evening (17:30, dark, him jumpy: more checks, less warning).
+  - **His checks:** looking back, a shop window's glass, coming out of a shop, crossing, and after a first sighting, doubling back. Most come with a **tell** (1.6–2.6 s: he slows, drifts to the glass, glances at the kerb; 1–1.8 s when wary). If we're watching him, an Awareness roll reads it, and the instinct warns.
+  - **The check is a scan:** for its length he looks a way, and the first moment we're in his sight he rolls Pathfinding against our Deception. The modifiers are our choices: distance (under 5 m +6 to him, under 10 m +3, over 15 m −2, over 25 m −4, over 35 m −6); across the road (−3); right behind him (+1); people about us (alone +2, among people −2, a crowd −4); the light where we stand (dusk −2, dark −4, a lamp's pool at night +2); running (+6); crossing away from the zebra (+2); looking back over our shoulder (+2); stopping when he stopped (+3); standing about with nothing to do (+2); looking straight at him (+2); our back to him (−1); what we were doing (a shop window −3, a bench −3, a shoelace −1, waiting to cross −1, but starting it as he looks +2); his alertness (up to +4); having seen us once (+2 within 15 m).
+  - **Twice and you're made.** A near thing raises his **alertness** (0–100), which brings his checks closer together.
+  - **Cover (T):** the instinct offers what fits where we stand: look in a shop window (its glass shows the street behind us), sit on a bench, tie a shoelace (not twice in 40 s), cross at the zebra.
+  - **Pace:** he walks at 1.15–1.45 m/s, a new pace each stretch; we walk at 1.45, stroll at 0.95 (Alt held), run at 3.6.
+  - **Keeping him:** the marker is over whom we take for him (hollow when he's out of sight, where we last saw him). Beyond 22 m with people round him, Tracking every 6 s keeps him. A few men in grey coats and hats walk the street, most overtaking him on his pavement; when one passes close by him, Tracking (−3) keeps our eyes on the right one. Failing, we follow the wrong man until we're within 9 m (5.4 m in the dark) and see it. Lost, Awareness finds him among the grey coats in view, nearest first, and the wrong one may pass. Not seen for 90 s, he's gone.
+  - **The instinct** speaks all the time, the voice of training, with dry humour now and then (the user): the gap and its trend, his tells and checks, the light, the crowd, crossing, where to stand. Its border shows how pressing it is.
+  - **The meeting** is seen with both of them in view, within 20 m, for 12 s. Closer than 6 m, the contact may look.
+  - **Balance**, by scripted followers over 100 evenings (`TAIL_N=100 node tests/run.mjs tail`): a naive tail (10 m behind) is made 9 times in 10; a careful one (the other pavement, 20 m back) sees the meeting 6 times in 10; a trained one (careful, and doing what the instinct offers when it warns) 7 times in 10. The lunchtime crowd is the hardest evening (broad daylight), night the easiest.
 - **Travel.** Fast travel between points of interest by metro, bus, taxi or your own car. The way to the transport is flavoured: a driveway with the car, the subway entrance below the flat. Transit becomes a playable map when it matters (a tail, a brush pass); otherwise it's a cutscene (Q151). Traffic appears where it matters, and a taxi at the right moment can shake a tail.
 - **CQC.** Rock, paper, scissors, second by second, with time paused until you choose: K hits, L grapples, M guards. Guard beats hit, hit beats grapple, grapple beats guard.
   - **The intent read:** a higher CQC gives a chance to see what the opponent will do next, scaling with the difference. Otherwise a "?" floats over their head.
@@ -322,8 +334,8 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
    - A map renderer: a camera that follows, a crowd of 50 sprites, light from the clock.
    - A generated Moscow street to walk (see World size).
 3. **Mechanic tests**, one map each, scored by the user:
-   1. Tailing a target. Built (v0.0.20): the title's Mechanic tests. How it plays is below (Tailing, the test).
-   2. Being tailed: spot it, lose it (a street and the metro).
+   1. Tailing a target. Built (v0.0.20), rebuilt on perception (v0.0.21): the title's Mechanic tests. How it plays is above (Moment to moment, Tailing, the test).
+   2. Being tailed: spot it, lose it (a street and the metro), with cabs and trains, techniques evasive but conspicuous, and the FSB's semi-overt surveillance (see Moment to moment).
    3. Watching and photographing.
    4. A conversation: approaches, gauges, hooks, leads.
    5. A brush pass and a dead drop under watch.
@@ -404,10 +416,12 @@ Keyboard first. Keys are read by physical position (`KeyboardEvent.code`), so th
 |---|---|
 | Z Q S D | Move |
 | Shift | Run |
+| Alt (Option on a Mac) | Stroll, while held: a slower walk, to keep a pace without stopping (my call) |
 | F | Interact (a menu when there are several options) |
 | I | Inventory |
 | T | Do what the instinct says |
-| E (hold) | Watch someone |
+| E (hold) | Stop and look: the move keys turn your eyes. Later, watch someone. |
+| E (tap) | Glance back over your shoulder, walking on (the user, 2026-10-26) |
 | C | Camera |
 | K, L, M | Hit, grapple, guard. M is the key right of L, which QWERTY prints ";". |
 | G | Draw a gun |

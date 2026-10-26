@@ -3,7 +3,9 @@
 // The saved state holds only what the map is (state.map: its kind, seed and bounds) and who's on it
 // (state.actors). Everything derived is rebuilt on load into state.$world (runtime only, never
 // saved): the generated sections in play, a grid of the blockers (BUCKET_M buckets), and a grid of
-// the actors rebuilt each tick, so finding who's near someone never walks the whole crowd.
+// the actors rebuilt each tick, so finding who's near someone never walks the whole crowd. The
+// buildings' rectangles (walls) are kept apart too: they're what blocks a line of sight
+// (sim/perception.js).
 //
 // Sections come and go around a focus (the player, or a target the scenario follows): those within
 // REACH_M are generated, those beyond DROP_M are dropped, and the bus hears of both so the renderer
@@ -26,7 +28,7 @@ const key = (ix, iz) => ix * 73856093 ^ iz * 19349663;
 
 /** Build state.$world for state.map, with the sections around x. */
 export function attach(state, bus, x = 0) {
-  const W = state.$world = { sections: new Map(), grid: new Map(), hash: new Map(), lamps: [], bx: [0, 0] };
+  const W = state.$world = { sections: new Map(), grid: new Map(), hash: new Map(), lamps: [], walls: [], bx: [0, 0] };
   for (const i of state.map.inPlay ?? []) { W.sections.set(i, section(state.map.seed, i)); bus?.emit('section+', W.sections.get(i)); }
   reindex(W);
   refocus(state, bus, x);
@@ -56,11 +58,13 @@ export function refocus(state, bus, x) {
 function reindex(W) {
   W.grid.clear();
   W.lamps = [];
+  W.walls = [];
   let a = Infinity, b = -Infinity;
   for (const S of W.sections.values()) {
     a = Math.min(a, S.x0); b = Math.max(b, S.x1);
     W.lamps.push(...S.lamps);
     for (const b of S.blockers) {
+      if (b.what === 'building') W.walls.push(b);
       for (let ix = Math.floor(b.x0 / BUCKET_M); ix <= Math.floor(b.x1 / BUCKET_M); ix++) {
         for (let iz = Math.floor(b.z0 / BUCKET_M); iz <= Math.floor(b.z1 / BUCKET_M); iz++) {
           const k = key(ix, iz);

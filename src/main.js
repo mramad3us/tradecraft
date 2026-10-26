@@ -81,7 +81,7 @@ function launch(s, { hour = null } = {}) {
   prev = new Map(); acc = 0; paused = false; running = true; acts = [];
   const sc = SCENARIOS[state.scenario.kind];
   if (state.scenario.outcome) result();
-  else if (sc.brief && state.tick === 0) ui.showBrief(sc.brief, () => {});
+  else if (sc.brief && state.tick === 0) ui.showBrief(typeof sc.brief === 'function' ? sc.brief(state) : sc.brief, () => {});
 }
 
 /** A test's result paper, with the ways on. */
@@ -108,7 +108,7 @@ input.onAction((action) => {
   if (action === 'menu') { if (open) { ui.closeOverlays(); paused = false; } else { ui.openMenu(settings); } return; }
   if (action === 'log') { if (open === 'log') { ui.closeOverlays(); } else if (!open) ui.openLog(state); return; }
   if (action === 'pause' && !open) paused = !paused;
-  if (action === 'instinct' && !open && !paused) acts.push('instinct');
+  if ((action === 'instinct' || action === 'glance') && !open && !paused) acts.push(action);
 });
 addEventListener('keydown', (e) => {                               // debug mode: the clock moves on
   if (!running || !settings.debug || ui.overlay() || e.repeat) return;
