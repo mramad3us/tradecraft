@@ -8,7 +8,11 @@
 // (sim/perception.js).
 //
 // The map is one row of the city's streets (state.map.row; sim/map/street.js); its exits lead to the
-// rows north and south (exitAt(), and sim/game.js changeMap()).
+// rows north and south (exitAt(), and sim/game.js changeMap()). Or a room (state.map.kind: the dojo,
+// sim/map/dojo.js), one section with no way out.
+
+/** A section of the map: a street's, or the room. */
+const sectionFor = (map, i) => (map.kind === 'dojo' ? dojo(map.seed) : section(map.seed, i, map.row ?? 0));
 //
 // Sections come and go around a focus (the player, or a target the scenario follows): those within
 // REACH_M are generated, those beyond DROP_M are dropped, and the bus hears of both so the renderer
@@ -20,6 +24,7 @@
 // walls. People don't block each other (a crowd would trap the player): passers-by steer round
 // whoever's near (sim/crowd.js), and the player walks through a shoulder or two.
 import { section, sectionsAround, Z } from './map/street.js';
+import { dojo } from './map/dojo.js';
 
 export const BUCKET_M = 4;
 export const RADIUS_M = 0.25;
@@ -32,7 +37,7 @@ const key = (ix, iz) => ix * 73856093 ^ iz * 19349663;
 /** Build state.$world for state.map, with the sections around x. */
 export function attach(state, bus, x = 0) {
   const W = state.$world = { sections: new Map(), grid: new Map(), hash: new Map(), lamps: [], walls: [], bx: [0, 0] };
-  for (const i of state.map.inPlay ?? []) { W.sections.set(i, section(state.map.seed, i, state.map.row ?? 0)); bus?.emit('section+', W.sections.get(i)); }
+  for (const i of state.map.inPlay ?? []) { W.sections.set(i, sectionFor(state.map, i)); bus?.emit('section+', W.sections.get(i)); }
   reindex(W);
   refocus(state, bus, x);
   return W;
@@ -45,7 +50,7 @@ export function refocus(state, bus, x) {
   let changed = false;
   for (const i of want) {
     if (W.sections.has(i)) continue;
-    W.sections.set(i, section(map.seed, i, map.row ?? 0));
+    W.sections.set(i, sectionFor(map, i));
     bus?.emit('section+', W.sections.get(i));
     changed = true;
   }

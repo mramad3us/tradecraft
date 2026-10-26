@@ -1,6 +1,6 @@
 // TRADECRAFT render: everyone on the map, in one draw.
 //
-// Each person's sprite sheet (src/art/sprites.js: 11 frames across, 4 facings down, a 24 × 34 cell)
+// Each person's sprite sheet (src/art/sprites.js: 15 frames across, 4 facings down, a 24 × 34 cell)
 // goes into a slot of one ATLAS_PX square atlas, the first time their look is seen; a slot whose look
 // has gone unseen longest is reused when the atlas is full. Everyone is then one instance of one
 // upright card (an InstancedMesh): per instance its place, its atlas cell (the slot plus the frame and
@@ -9,7 +9,9 @@
 //
 // Frames follow the sim, not a clock: a walker's step advances with the distance they've walked
 // (STEP_M a frame), so feet never slide, and a run's longer stride shows. A sitter's card stands on
-// the seat (SEAT). Each card has a blob of shadow under it (a second instanced draw), as in the samples.
+// the seat (SEAT). A fighter's gait is its frame (guard, punch, grab, reel); someone down lies: the
+// card turned on its side, its back to where they fell from (DOWN). Each card has a blob of shadow
+// under it (a second instanced draw), as in the samples.
 import * as THREE from 'three';
 import { frame, CELL, FRAMES, DIRS } from '../art/sprites.js';
 import { PX_PER_M } from '../art/pixelart.js';
@@ -18,6 +20,8 @@ export const ATLAS_PX = 2048;
 export const MAX_PEOPLE = 160;
 export const STEP_M = { walk: 0.16, run: 0.45 };            // (8 frames a second at an ordinary walk, as the samples)
 const SEAT = { y: 0.24, z: -0.2 };                                 // a sitter's card: up on the seat, back against it
+const DOWN = { y: 0.3, x: 1.05 };                                 // a card laid on its side: lifted off the floor, its middle over the spot
+const FIGHT = new Set(['guard', 'punch', 'grab', 'reel']);
 const [CW, CH] = CELL, SW = CW * FRAMES.length, SH = CH * DIRS.length;
 const COLS = Math.floor(ATLAS_PX / SW), ROWS = Math.floor(ATLAS_PX / SH);
 const INK = 0x14151c;
@@ -118,9 +122,12 @@ export function createCrowd(scene) {
       const slot = slotOf(p.key, p.look);
       const f = p.gait === 'walk' ? `walk${Math.floor(p.stride / STEP_M.walk) % 4}`
         : p.gait === 'run' ? `run${Math.floor(p.stride / STEP_M.run) % 4}`
-        : p.gait === 'sit' || p.gait === 'crouch' ? 'sit' : `idle${Math.floor((p.t ?? t) * 2 + p.phase) % 2}`;
+        : p.gait === 'sit' || p.gait === 'crouch' ? 'sit' : FIGHT.has(p.gait) ? p.gait : p.gait === 'down' ? 'reel' : `idle${Math.floor((p.t ?? t) * 2 + p.phase) % 2}`;
       const sit = p.gait === 'sit';                                 // (a crouch is the same pose, on the ground)
-      m4.makeTranslation(snap(p.x), sit ? SEAT.y : 0, snap(p.z + (sit ? SEAT.z : 0)));
+      if (p.gait === 'down') {                                      // (on their back, the head away from whoever they faced)
+        const s = p.face === 'left' ? -1 : 1;
+        m4.makeRotationZ(s * Math.PI / 2).setPosition(snap(p.x - s * DOWN.x), DOWN.y, snap(p.z));
+      } else m4.makeTranslation(snap(p.x), sit ? SEAT.y : 0, snap(p.z + (sit ? SEAT.z : 0)));
       cards.setMatrixAt(i, m4);
       m4.makeTranslation(snap(p.x), 0.02, snap(p.z));
       blobs.setMatrixAt(i, m4);

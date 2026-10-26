@@ -29,11 +29,14 @@
 import * as THREE from 'three';
 import { pixelStage, finish, FINE_PALETTE, PX_PER_M, emissiveOf } from '../art/pixelart.js';
 import { buildSection } from './town.js';
+import { buildDojo } from './dojo.js';
 import { createCrowd } from './crowd.js';
 import { sky, lightAt, lightLevel, LAMP } from '../sim/light.js';
 import { Z, SECTION_M } from '../sim/map/street.js';
 import { passerby } from '../sim/people.js';
 import { focusActor, playerActor } from '../sim/game.js';
+import { SCENARIOS } from '../sim/scenarios/index.js';
+import { Z_BACK, Z_FRONT } from '../sim/map/dojo.js';
 import { eyes, visibility } from '../sim/perception.js';
 
 export const RES = [640, 360];
@@ -65,7 +68,7 @@ export function createView({ parent, bus }) {
   const building = new Map();                                     // i → a section's build, under way
   const off = [
     bus.on('map-', () => clear()),                                // another street: its sections share the old one's indices
-    bus.on('section+', (S) => { if (!sections.has(S.i) && !building.has(S.i)) building.set(S.i, buildSection(S)); }),
+    bus.on('section+', (S) => { if (!sections.has(S.i) && !building.has(S.i)) building.set(S.i, S.kind === 'dojo' ? buildDojo(S) : buildSection(S)); }),
     bus.on('section-', (S) => {
       const b = building.get(S.i);
       if (b) { building.delete(S.i); const r = b.return(); r.value?.dispose(); }
@@ -207,7 +210,9 @@ export function createView({ parent, bus }) {
       const [fx, fz] = at(f);
       let x = fx;
       if (state.map.i0 !== null) x = Math.max(state.map.i0 * SECTION_M + halfW, Math.min((state.map.i1 + 1) * SECTION_M - halfW, x));
-      look(x, Math.max(camZ[0], Math.min(camZ[1], fz)));
+      // (in the hall: the near sill at the picture's foot, the back wall in it)
+      const cz = state.map.kind === 'dojo' ? [Z_BACK + 3, Z_FRONT + 0.4 - stage.H / PX_PER_M / 2] : camZ;
+      look(x, Math.max(cz[0], Math.min(Math.max(cz[0], cz[1]), fz)));
     }
     // The light.
     hemi.color.setHex(S.sky); hemi.groundColor.setHex(S.ground); hemi.intensity = S.skyK * Math.PI;
@@ -256,20 +261,22 @@ export function createView({ parent, bus }) {
     }
     // People as the player knows them: seen this tick, where they are; otherwise where they were.
     const pc = playerActor(state), seen = state.mind?.seen ?? {}, now = state.mind?.at;
-    if (pc) fog(state, pc, S); else stage.setFog(null);
+    // (a scenario whose character takes in all of a small lit room shows it whole: aware)
+    const aware = SCENARIOS[state.scenario.kind]?.aware;
+    if (pc && !aware) fog(state, pc, S); else stage.setFog(null);
     const people = [];
     drawn.clear();
     const lookFor = (key) => (typeof key === 'string' ? state.people[key]?.look : lookOf(key));
     for (const a of state.actors) {
       if (a.hidden) continue;                                      // (indoors)
-      if (pc && a !== pc && seen[a.id]?.[5] !== now) continue;
+      if (pc && a !== pc && !aware && seen[a.id]?.[5] !== now) continue;
       const [x, z, stride] = at(a);
       drawn.set(a.id, [x, z]);
       const look = lookFor(a.who ?? a.seed);
       if (!look) continue;
       people.push({ key: a.who ?? a.seed, look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S) });
     }
-    for (const id in seen) {
+    for (const id in aware ? {} : seen) {                          // (and as remembered, those out of sight)
       const r = seen[id];
       if (r[5] === now) continue;
       const look = lookFor(r[6]);

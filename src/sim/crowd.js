@@ -108,6 +108,7 @@ function stays(state, a, rows, focusX) {
  * street in view too may have people appear anywhere (a game just begun).
  */
 export function populate(state, focusX, { fill = false } = {}) {
+  if (state.map.kind !== 'street') return;                         // (a room has no passers-by)
   const r = state.rng, R = state.map.row, seed = state.map.seed, rows = [];
   for (let k = -BUBBLE_ROWS; k <= BUBBLE_ROWS; k++) rows.push(R + k);
   state.actors = state.actors.filter(a => !isPasserby(a) || stays(state, a, rows, focusX));

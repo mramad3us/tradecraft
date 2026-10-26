@@ -39,10 +39,12 @@ export function createUI({ input, cb }) {
   const banner = el('div', { className: 'banner', textContent: 'PAUSED' });
   const marker = el('div', { className: 'marker', hidden: true });
   const bubble = el('div', { className: 'bubble', hidden: true });   // what a character's just become aware of: ? or !
+  const intent = el('div', { className: 'intent', hidden: true });   // in a fight: what they're about to do, if we read it
+  const bout = el('div', { className: 'bout', hidden: true });       // in a fight: the two of them, the score, the edges
   const tags = el('div', { className: 'tags' });                   // faces you've marked: seen before, a tail
   const goal = el('div', { className: 'goal', hidden: true });      // where you're going, when it's off the picture
   const prompt = el('div', { className: 'prompt', hidden: true });
-  const hud = el('div', { id: 'hud' }, tags, marker, bubble, goal, prompt, watch, toasts, keys, banner);
+  const hud = el('div', { id: 'hud' }, tags, marker, bubble, intent, bout, goal, prompt, watch, toasts, keys, banner);
   const menu = el('div', { className: 'overlay', hidden: true });
   const log = el('div', { className: 'overlay', hidden: true });
   const paper = el('div', { className: 'overlay', hidden: true });     // a brief, a result
@@ -100,6 +102,7 @@ export function createUI({ input, cb }) {
     watch.querySelector('.date').textContent = stampText(state.time.ms).split(',')[0];
     const me = state.actors.find(a => a.who === state.player);
     if (me && state.map?.kind === 'street') watch.querySelector('.place').textContent = placeName(state.map.seed, state.map.row ?? 0, me.x, me.z);
+    else watch.querySelector('.place').textContent = SCENARIOS[state.scenario.kind]?.place?.(state) ?? '';
     frame.classList.toggle('paused', paused && menu.hidden && log.hidden && paper.hidden);
     // The marker: over whom we take for the target (sc.marked), as we last saw them (live, or their
     // memory in the dimmed street), at the frame's edge when they're off it; hollow when out of view.
@@ -154,6 +157,23 @@ export function createUI({ input, cb }) {
       bubble.textContent = sc.mark.glyph;
       bubble.className = `bubble ${sc.mark.glyph === '!' ? 'alarm' : ''}`;
       bubble.style.transform = `translate(${Math.round(bx * k)}px, ${Math.round(by * k)}px)`;
+    }
+    // A fight (sim/cqc.js): over the other one, what we read they're about to do (or a '?'), while
+    // we choose; at the top, the two of them, a bout's score, and the edges each holds.
+    const fi = !sc.outcome && state.fight, them = fi && state.actors.find(a => a.who === fi.b), ip = them && view?.posOf(them.id);
+    intent.hidden = !(ip && fi.phase === 'choose');
+    if (!intent.hidden) {
+      const k = frame.clientWidth / RES[0], cam = view.camera;
+      intent.textContent = fi.read ? { hit: 'HIT', grapple: 'GRAB', guard: 'COVER' }[fi.theirs.move] : '?';
+      intent.className = `intent ${fi.read ? 'read' : ''}`;
+      intent.style.transform = `translate(${Math.round((RES[0] / 2 + (ip[0] - cam.x) * 16) * k)}px, ${Math.round((RES[1] / 2 + (ip[1] - cam.z) * 16 - 3.0 * 16) * k)}px)`;
+    }
+    bout.hidden = !fi;
+    if (fi) {
+      const pips = (n) => '◆'.repeat(n) || '·';
+      const name = (who) => (who === state.player ? 'You' : state.people[who]?.name.split(' ').slice(-1)[0] ?? '?');
+      const txt = `${name(fi.a)} ${pips(fi.adv.a)}${fi.bout ? `   ${fi.score.a} – ${fi.score.b}   ` : '   ·   '}${pips(fi.adv.b)} ${name(fi.b)}`;
+      if (bout.textContent !== txt) bout.textContent = txt;
     }
     // The instinct: always a line, its tone in its border; {key} in the text shows as that key.
     const p = !sc.outcome && sc.prompt;
@@ -219,7 +239,7 @@ export function createUI({ input, cb }) {
   }
   // ---------- the character sheet (C) ----------
   const LEVEL = Object.fromEntries(Object.entries(TRAINED).map(([k, v]) => [v, k]));
-  const LANGS = { en: 'English', ru: 'Russian' };
+  const LANGS = { en: 'English', ru: 'Russian', es: 'Spanish', fr: 'French', de: 'German', ar: 'Arabic', zh: 'Chinese' };
   function openSheet(state) {
     const p = state.people[state.player], cls = CLASSES[p.cls], os = p.os ?? 0;
     const rows = Object.entries(SKILLS).map(([k, sk]) => {

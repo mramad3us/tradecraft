@@ -4,6 +4,16 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.35 (2026-10-26)
+
+- **Close combat, and the Farm** (your ask). A new start on the title, *The Farm: hand to hand*: the agency's training hall at Camp Peary, week six of the course, an instructor (Hale), a class, a mat. It's the tutorial for fighting.
+  - **A fight** is a second at a time, and the world stops while you choose: K hit, L grab, M cover (on QWERTY, ;). Cover beats a hit, a hit beats a grab, a grab beats cover; the same move both ways is a roll of CQC against CQC. Blows land on a body part and show on your sheet; what's hurt costs your CQC from then on.
+  - **Edges:** every punch you cover earns one (one per 10 CQC held at most); hold Shift with a move to spend it: a hit that lands does double, a grab shrugs off the punch it walks into, a cover stops a throw.
+  - **Reading:** the better fighter sees what's coming. Over the other one's head: HIT, GRAB or COVER when you read it, a ? when you can't. Hale reads you nearly always, and answers.
+  - **The lesson:** Hale calls the moves while you learn them (cover, grab, hit, the three mixed, an edge spent), then you spar to three points: a weaker classmate, an even one, then Hale. In the tests' bouts, six points of CQC over your partner wins 83% of them, even is a coin toss, and nobody beats Hale (1 in 100). Too hurt, and you're sent to the bench.
+  - People now have fight poses: a guard (fists up before the face), a punch, a grab, a stagger, and lying on the mat.
+- **Fixed:** a walk the game makes for you (to a shop's glass, a bench, the mat) gave up after a second however far it had to go; it now goes all the way, and gives up only when a second's walking brings it no closer.
+
 ## v0.0.34 (2026-10-26)
 
 - **The character sheet, on C** (your ask): your name and cover, Tradecraft (the over-skill) as a bar, every skill with its training (course, advanced, expert, master, and practice as dots), what Tradecraft multiplies it by, and its value; your languages; and your **health part by part**: head, torso, each arm, each leg, on a figure and in words. The game pauses while it's open; C or Esc closes it. The camera, when there is one, moves to P.

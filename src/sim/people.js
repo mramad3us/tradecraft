@@ -163,3 +163,23 @@ export function handler(r) {
     top: { kind: 'coat', color: pick(r, [0x353947, 0x4c5262, 0x47302a]), trim: 0x23252f, belt: 0x23252f }, legs: 0x23252f, shoes: 0x14151c };
   return p;
 }
+
+/**
+ * Someone at the Farm, the agency's school (sim/scenarios/dojo.js): a trainee, or (instructor) one of
+ * its teachers. In training clothes, a grey or navy sweatshirt; their CQC and over-skill as given.
+ */
+export function recruit(r, { id, cqc = [5, 1], os = 15, age = 24 + int(r, 6), instructor = false, sex = chance(r, 0.45) ? 'f' : 'm' }) {
+  const t = (base, most) => [base, int(r, most + 1)];
+  const p = sheet({
+    id, name: `${pick(r, sex === 'f' ? US_FEMALE : US_MALE)} ${pick(r, US_FAMILY)}`, sex, cls: 'spook', os,
+    skills: instructor
+      ? { deception: t(10, 3), tracking: t(10, 3), pathfinding: t(10, 3), awareness: t(15, 3), social: t(10, 2), analysis: t(10, 2), tech: t(5, 1), medicine: t(10, 2), cqc, weapons: t(15, 3), fitness: [15, 3] }
+      : { deception: t(5, 2), tracking: t(5, 1), pathfinding: t(5, 1), awareness: t(5, 2), social: t(5, 2), analysis: t(5, 2), tech: t(5, 1), medicine: t(5, 0), cqc, weapons: t(5, 2), fitness: [5, 1 + int(r, 3)] },
+    langs: { en: 'native', ...(chance(r, 0.6) ? { [pick(r, ['ru', 'es', 'fr', 'de', 'ar', 'zh'])]: pick(r, ['basic', 'working']) } : {}) },
+    persistent: true,
+  });
+  p.age = age;
+  p.look = { skin: pick(r, ['light', 'light', 'tan', 'brown', 'dark']), hair: { style: sex === 'f' ? pick(r, ['bun', 'short']) : age > 40 && chance(r, 0.3) ? 'bald' : 'short', color: pick(r, [0x14151c, 0x2a1c18, 0x47302a, 0x6b4636, 0xb9862e]) },
+    top: { kind: 'sweater', color: instructor ? 0x23252f : pick(r, [0x6a7182, 0x4c5262, 0x283f6b]), trim: instructor ? 0x9e3c36 : 0x8f96a6 }, legs: 0x23252f, shoes: 0xf6f4ee };
+  return p;
+}

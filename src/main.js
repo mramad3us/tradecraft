@@ -114,6 +114,7 @@ input.onAction((action) => {
   if (action === 'sheet') { if (open === 'sheet') { ui.closeOverlays(); } else if (!open) ui.openSheet(state); return; }
   if (action === 'pause' && !open) paused = !paused;
   if ((action === 'instinct' || action === 'glance') && !open && !paused) acts.push(action);
+  if ((action === 'hit' || action === 'grapple' || action === 'guard') && !open && !paused) acts.push(input.poll().run ? `${action}+` : action);   // (Shift held: an edge spent)
 });
 addEventListener('keydown', (e) => {                               // debug mode: the clock moves on
   if (!running || !settings.debug || ui.overlay() || e.repeat) return;

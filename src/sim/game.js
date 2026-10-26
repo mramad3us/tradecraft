@@ -93,6 +93,9 @@ export function step(state, input = {}, bus) {
     if (act === 'glance' && me && !me.glance) me.glance = Math.round(GLANCE_S * TICKS_PER_S);
     scenario.act?.(state, bus, act);
   }
+  // A fight waiting for a choice: time stands still until it's made (sim/cqc.js).
+  if (state.fight?.phase === 'choose') return;
+  if (scenario.holds?.(state)) input = { act: input.act };        // (the scenario has the player's feet)
   if (me && !me.ai) {
     let mx = input.mx ?? 0, mz = input.mz ?? 0;
     const n = Math.hypot(mx, mz);
@@ -166,8 +169,10 @@ function busy(me) {
   if (!s) { me.busy = null; me.vx = me.vz = 0; me.gait = 'idle'; return; }
   if (s[0] === 'go') {
     const dx = s[1] - me.x, dz = s[2] - me.z, d = Math.hypot(dx, dz);
-    b.best = Math.min(b.best ?? d, d);
-    if (d < 0.1 || (b.wait++ > 20 && d > b.best - 0.05)) { b.steps.shift(); b.wait = 0; b.best = undefined; return busy(me); }
+    // (given up when a second's walking hasn't brought it closer than it was a second before)
+    const stuck = ++b.wait % TICKS_PER_S === 0 && b.mark !== undefined && d > b.mark - 0.05;
+    if (b.wait % TICKS_PER_S === 0) b.mark = d;
+    if (d < 0.1 || stuck) { b.steps.shift(); b.wait = 0; b.mark = undefined; return busy(me); }
     me.vx = dx / d * WALK_MS; me.vz = dz / d * WALK_MS; me.gait = 'walk'; me.face = facing(me.vx, me.vz, me.face); me.head = Math.atan2(dz, dx);
     return;
   }

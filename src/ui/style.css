@@ -157,3 +157,13 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .charsheet .body li span:last-child { color: #6a7182; }
 .charsheet .body li.hurt span:last-child, .charsheet .body li.bruised span:last-child { color: #8f6345; }
 .charsheet .body li.wounded span:last-child, .charsheet .body li.out span:last-child { color: var(--red); font-weight: bold; }
+
+/* A fight: what we read the other is about to do, over their head (brass when read, a '?' when not);
+   the two of them at the top, a bout's score between, the edges each holds as diamonds. */
+.intent { position: absolute; left: 0; top: 0; transform-origin: 0 0; translate: -50% -100%; padding: 1px 6px; font: bold 11px var(--type);
+  background: var(--hud); color: var(--paper); border: 1px solid #4c5262; border-radius: 3px; letter-spacing: 0.1em; }
+.intent[hidden] { display: none; }
+.intent.read { background: var(--brass); color: var(--ink); border-color: var(--ink); }
+.bout { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: var(--hud); padding: 5px 14px; border-radius: 4px;
+  font: 13px var(--type); color: var(--paper); white-space: pre; letter-spacing: 0.04em; }
+.bout[hidden] { display: none; }

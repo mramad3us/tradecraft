@@ -18,14 +18,17 @@
 //     its role's darkest tone: a line inside the figure, softer than the outline;
 //   - an outline of ink round the whole silhouette.
 //
-// sheet(spec) draws every frame (FRAMES across, DIRS down) onto one canvas: 11 × 4 cells. Frames are
+// sheet(spec) draws every frame (FRAMES across, DIRS down) onto one canvas: 15 × 4 cells. Frames are
 // poses of the parts, not drawings of their own: a bob of the body, arms forward or back, legs
-// standing, stepping or striding, so a new hat or coat animates for free.
+// standing, stepping or striding, so a new hat or coat animates for free. A fight's (guard, punch,
+// grab, reel) are drawn side on, where fighters face each other: fists up before the chin, a fist
+// thrown, both hands reaching, a lean back from a blow; seen from the front they're a stance. Lying
+// down is no frame: the view lays the card down (src/render/crowd.js).
 import * as THREE from 'three';
 import { PX_PER_M } from './pixelart.js';
 
 export const CELL = [24, 34];
-export const FRAMES = ['idle0', 'idle1', 'walk0', 'walk1', 'walk2', 'walk3', 'run0', 'run1', 'run2', 'run3', 'sit'];
+export const FRAMES = ['idle0', 'idle1', 'walk0', 'walk1', 'walk2', 'walk3', 'run0', 'run1', 'run2', 'run3', 'sit', 'guard', 'punch', 'grab', 'reel'];
 export const DIRS = ['down', 'up', 'right', 'left'];
 export const FPS = 8;
 
@@ -484,8 +487,15 @@ function armSide(kind, swing, far) {
     2: [10, 20, [`${sl(0)}${sl(0)}...`, `.${sl(1)}${sl(1)}..`, `..${sl(2)}${hand}${hand}`, `...${hand}${hand}`]],   // running: bent, the fist at the chest
     [-1]: [8, 20, [`..${sl(0)}${sl(0)}`, `.${sl(1)}${sl(1)}.`, `.${sl(2)}${sl(2)}.`, `${sl(3)}${sl(3)}..`, `${sl(4)}${sl(4)}..`, `${hand}${hand}..`]],
     [-2]: [7, 20, [`...${sl(0)}${sl(0)}`, `..${sl(1)}${sl(1)}.`, `.${hand}${hand}..`, `.${hand}${hand}..`]],                   // running: bent, the fist at the hip
+    // A fight's: fists up, the near one before the eyes, the far one at the chin; a fist thrown at
+    // the face; both hands reaching for cloth.
+    guard: far ? [11, 16, [`.......${hand}${hand}`, `......${hand}${hand}.`, `.....${sl(2)}${sl(2)}..`, `....${sl(2)}${sl(2)}...`, `${sl(0)}${sl(0)}${sl(1)}${sl(1)}.....`]]
+      : [10, 14, [`.....${hand}${hand}`, `.....${hand}${hand}`, `.....${sl(2)}${sl(2)}`, `.....${sl(2)}${sl(2)}`, `.....${sl(2)}${sl(2)}`, `....${sl(1)}${sl(1)}${sl(1)}`, `${sl(0)}${sl(0)}${sl(1)}${sl(1)}${sl(1)}..`]],
+    punch: [10, 17, [`..........${hand}${hand}`, `......${sl(2)}${sl(2)}${sl(3)}${sl(3)}${hand}${hand}`, `${sl(0)}${sl(0)}${sl(1)}${sl(1)}${sl(1)}${sl(1)}${sl(2)}${sl(2)}....`, `${sl(0)}${sl(0)}..........`]],
+    grab: [10, 20, [`${sl(0)}${sl(0)}${sl(1)}${sl(1)}${sl(2)}${sl(2)}${hand}${hand}${hand}`, `.${sl(1)}${sl(1)}${sl(2)}${sl(2)}${sl(3)}${hand}${hand}.`]],
   };
-  return shapes[swing];
+  const s = shapes[swing];
+  return far && (swing === 'punch' || swing === 'grab') ? [s[0] - 2, s[1] + 1, s[2]] : s;   // (the far arm a little behind and below)
 }
 
 // Side legs (right): stand, stride (near leg forward or back), pass (one knee up), sit.
@@ -520,6 +530,10 @@ const POSES = {
   run2: { bob: 1, reach: [-1, 1], swing: [2, -2], front: 1, side: ['runback', 'runfwd'], lean: 1 },
   run3: { bob: -1, reach: [0, 0], swing: [1, -1], front: 0, side: ['runtrail', 'runlift'], lean: 1 },
   sit: { bob: 2, reach: [0, 0], swing: [0, 0], front: 0, side: ['sit', 'sit'], sit: true },
+  guard: { bob: 1, reach: [-1, -1], swing: ['guard', 'guard'], front: 0, side: ['fwd', 'back'], over: true },
+  punch: { bob: 0, reach: [1, -1], swing: ['punch', 'guard'], front: 0, side: ['fwd', 'back'], lean: 1, over: true },
+  grab: { bob: 1, reach: [1, 1], swing: ['grab', 'grab'], front: 0, side: ['fwd', 'back'], lean: 1 },
+  reel: { bob: 0, reach: [-1, -1], swing: [-1, 1], front: 0, side: ['stand', 'back'], lean: -1 },
 };
 
 function compose(spec, dir, frame) {
@@ -553,7 +567,7 @@ function compose(spec, dir, frame) {
     draw(legsSide(P.side[1], false), 0, air);
     draw(legsSide(P.side[0], true), 0, air);
     draw(torsoSide(kind), lean, bob);
-    draw(armSide(kind, P.swing[0], false), lean, bob);
+    if (!P.over) draw(armSide(kind, P.swing[0], false), lean, bob);
   } else {
     draw(legsFront(view === 'up' ? -P.front : P.front, P.sit));
     draw(torsoFront(kind, view === 'up'), 0, bob);
@@ -579,6 +593,7 @@ function compose(spec, dir, frame) {
   else draw([4, 12, view === 'right' ? ['hhhh', 'hhh.', 'hh..'] : ['hh...........hh', 'h.............h']], lean, hb);
   if (spec.glasses && view !== 'up') draw(T.glasses[spec.glasses][view], lean, hb);
   if (hat) draw(hat[view] ?? hat.down, lean, hb);
+  if (P.over && view === 'right') draw(armSide(kind, P.swing[0], false), lean, bob);   // (a fist before the face)
   return cells;
 }
 

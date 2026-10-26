@@ -9,9 +9,13 @@
 // and mapChanged() are told when the player goes off the map to the next street (sim/game.js
 // changeMap): whom to take along, and what to do on arrival; result() fills its result paper. `test`
 // lists it among the mechanic tests; `brief` is the paper shown before it starts. When it ends it
-// sets state.scenario.outcome and tells the bus ('scenario-end').
+// sets state.scenario.outcome and tells the bus ('scenario-end'). holds?(state): whether the player's
+// feet are the scenario's just now (a fight, a walk onto the mat), so the move keys do nothing.
+// aware: the character takes in the whole map (a small lit room), so the view shows it all, no fog.
+// place?(state): where we are, for the watch, off the street.
 import { walk } from './walk.js';
 import { tail } from './tail.js';
 import { sdr } from './sdr.js';
+import { dojoScenario } from './dojo.js';
 
-export const SCENARIOS = { walk, tail, sdr };
+export const SCENARIOS = { walk, dojo: dojoScenario, tail, sdr };

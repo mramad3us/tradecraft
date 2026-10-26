@@ -111,4 +111,30 @@ export default [
       });
     },
   },
+  {
+    name: 'the dojo from the title: the brief, onto the mat, an exchange (C, the sheet), no errors',
+    heavy: true,
+    async fn() {
+      await withGame(async (page, errors) => {
+        await page.goto(`http://localhost:${PORT}/`);
+        await page.waitForFunction("!document.getElementById('title').hidden", null, { timeout: 30000 });
+        await page.getByText('The Farm: hand to hand').click();
+        await page.waitForSelector('.sheet.brief', { timeout: 30000 });
+        await page.keyboard.press('Enter');
+        await page.waitForFunction('window.__ready === true', null, { timeout: 30000 });
+        await page.keyboard.press('KeyT');
+        await page.waitForFunction('window.__tradecraft.state.fight?.phase === "choose"', null, { timeout: 20000 });
+        const before = await page.evaluate(() => ({ intent: document.querySelector('.intent').hidden ? null : document.querySelector('.intent').textContent, bout: document.querySelector('.bout').textContent }));
+        await page.keyboard.press('Semicolon');                     // (cover: Hale's first is a hit)
+        await page.waitForTimeout(1500);
+        await page.keyboard.press('KeyC');
+        await page.waitForTimeout(300);
+        const after = await page.evaluate(() => ({ log: window.__tradecraft.state.log.at(-1)?.text, sheet: !document.querySelector('.charsheet')?.closest('.overlay').hidden, edges: window.__tradecraft.state.fight?.adv.a }));
+        console.log(`      over Hale: ${before.intent}; at the top: ${before.bout.trim()}; then: ${after.log}`);
+        assert(before.intent === 'HIT', 'Hale\'s hit called over the head');
+        assert(after.edges === 1 && after.sheet, 'covered, an edge; the sheet opens');
+        assert(errors.length === 0, errors.join('\n'));
+      });
+    },
+  },
 ];

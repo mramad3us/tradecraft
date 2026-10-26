@@ -273,6 +273,12 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
 - **CQC.** Rock, paper, scissors, second by second, with time paused until you choose: K hits, L grapples, M guards. Guard beats hit, hit beats grapple, grapple beats guard.
   - **The intent read:** a higher CQC gives a chance to see what the opponent will do next, scaling with the difference. Otherwise a "?" floats over their head.
   - **Advantage points:** a successful guard against a hit grants one, up to one per 10 CQC. A point does one of three things: doubles the damage of your next successful hit, cancels the damage of a hit taken, or fends off a grapple when guarding.
+  - **Built** (v0.0.35, `src/sim/cqc.js`; the numbers my calls). Each exchange: their move is chosen first, then ours. A guard against a hit blocks it and earns an edge. A hit against a grab lands clean (×1.5, the head more often). A grab against a guard is a throw (3–5 to the torso). The same move both ways is an opposed CQC roll, ties to us: the winner's hit lands, the winner's grab throws; two guards circle. A hit does 2–5 points to a part (the torso 45%, the head 30%, the arms and legs the rest), plus 1 for each 5 points of CQC the hitter has over the other; hurts then cost that fighter's CQC (Health).
+  - **Edges** are spent with the move, Shift held, and only if they do something: with a hit, double if it lands; with a grab, a punch walked into does nothing; with a guard, a throw is stopped.
+  - **Reading** both ways: 6% a point of CQC over the other's, at most 90%. Ours shows over them before we choose (their move, or "?"); theirs answers our move with what beats it. Only the better fighter reads at all. The other side's choice otherwise: its style's mix (even, striker, wrestler, careful), turned against the move we lean on (2% a point of their CQC, at most 70%).
+  - **The end:** a fight when someone is out cold, down or can't stand; a bout (sparring: blows pulled to half) at three points, a hit one and a throw two, or stopped when a head or torso is wounded.
+  - **Balance**, bouts to three, our side answering what it reads and guessing otherwise (`node tests/run.mjs cqc`): CQC 8 against 2 wins 83%, against 8 53%, against 14 17%, against 30 1%; 20 against 10, 98%.
+  - **The dojo** (v0.0.35, the user: "a demo starter in a CIA dojo where young agents are taught how to fight, it will serve as a tutorial for CQC"; `src/sim/scenarios/dojo.js`): the Farm, week six of the course. Hale, the instructor, calls each move in drills (cover a punch, grab a cover, hit a grab, the three mixed, then an edge spent), then bouts to three with a weaker classmate (you read them about a third of the time), an even one (you read nothing) and Hale (CQC 30, who reads you nine times in ten). Hurt badly enough, you're sent to the bench. The bruises stay on your sheet.
 - **Knock out or kill.** The player chooses, and each attempt is a check. Low CQC can kill by accident when trying to knock out, or fail to kill when trying to (Q148). A death escalates the police and the opposition.
 - **Guns.** G draws a gun, if there's one in the inventory; R reloads. Every draw, shot and reload is a Weapon handling check, with fumbles on failure; a natural 1 can mean a shot in the foot. Shooting is paused second by second, like CQC: pick a target, then a Weapon handling roll against distance and cover (Q146).
 - **Health** is a few wounds before going down, more with Fitness. Serious wounds need care, and a hospital means exposure. Healing takes days (Q147).
@@ -378,7 +384,7 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
    3. Watching and photographing.
    4. A conversation: approaches, gauges, hooks, leads.
    5. A brush pass and a dead drop under watch.
-   6. A fight: CQC, then guns.
+   6. A fight: CQC (built v0.0.35, its tutorial the dojo), then guns.
    7. A police stop.
    8. The desk and the mind map.
 4. **Joining.**
@@ -463,7 +469,7 @@ Keyboard first. Keys are read by physical position (`KeyboardEvent.code`), so th
 | E (tap) | Glance back over your shoulder, walking on (the user, 2026-10-26) |
 | C | Character sheet: the over-skill, the skills, health part by part (the user, 2026-10-26) |
 | P | Camera (was C) |
-| K, L, M | Hit, grapple, guard. M is the key right of L, which QWERTY prints ";". |
+| K, L, M | Hit, grapple, guard. M is the key right of L, which QWERTY prints ";". Shift held with one: spend an edge (an advantage point). |
 | G | Draw a gun |
 | R | Reload |
 | Tab | Mind map |
