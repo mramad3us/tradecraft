@@ -167,8 +167,35 @@ export function follow(state, a) {
   return step;
 }
 
-/** A passer-by decides how to move next tick (their plan done, they've gone). */
-export const think = (state, a) => { if (!follow(state, a)) a.ai.gone = true; };
+/** A passer-by decides how to move next tick (their plan done, they've gone), and minds the player. */
+export const think = (state, a) => { if (!follow(state, a)) a.ai.gone = true; else notice(state, a); };
+
+// What a passer-by is aware of, shown: someone running past, or staring at them from close by, draws
+// their eyes. They turn their head to the player for NOTICE_S (walking on), so you see what they see.
+export const NOTICE_S = 1.5;
+export const RUN_NOTICE_M = 9;
+export const STARE_M = 6;
+export const STARE_S = 1.5;
+function notice(state, a) {
+  const me = state.$me?.tick === state.tick ? state.$me.a : (state.$me = { tick: state.tick, a: state.actors.find(o => o.who === state.player) }).a;
+  if (!me || a.hidden) return;
+  const dx = me.x - a.x, dz = me.z - a.z, d = Math.hypot(dx, dz);
+  if (d > RUN_NOTICE_M) { a.stared = 0; return; }
+  const toMe = Math.atan2(dz, dx);
+  if (!a.noticing) {
+    // Staring: the player stood, E held, looking straight at them, close.
+    const at = me.looking && d < STARE_M && Math.abs(((Math.atan2(-dz, -dx) - me.head + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI) < 0.3;
+    a.stared = at ? (a.stared ?? 0) + 1 : 0;
+    const running = me.gait === 'run' && Math.abs(((toMe - (a.head ?? 0) + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI) < 1.2;
+    if (running || a.stared >= STARE_S * TPS) { a.noticing = Math.round(NOTICE_S * TPS); a.stared = 0; }
+  }
+  if (a.noticing) {
+    a.noticing--;
+    a.head = toMe; a.face = facingOf(toMe);
+  }
+}
+const TPS = 1000 / TICK_MS;
+const facingOf = (h) => { const c = Math.cos(h), s = Math.sin(h); return Math.abs(c) >= Math.abs(s) ? (c > 0 ? 'right' : 'left') : (s > 0 ? 'down' : 'up'); };
 
 /**
  * Head for (tx, tz) at `speed`: slow behind someone in the way, lean away from anyone too close,

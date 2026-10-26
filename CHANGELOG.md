@@ -4,6 +4,16 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.23 (2026-10-26)
+
+- **What characters are aware of, shown:** a ? over him when he half-notices something, a ! when he's seen you, if you're watching him. Passers-by turn their heads to look at someone running past, or at you if you stare at them close up (E held, 1.5 s).
+- **Tailing:**
+  - If you don't see him turn up a lane, the instinct doesn't know which one either (it no longer says he's in a shop).
+  - Taking a different lane, or leaving the street without him, now says so: you went the wrong way.
+  - A save and a load across a change of street play on the same (tested).
+- **The scripted followers** (`tests/bots.mjs`) go round railings, lamp posts and parked cars, so their numbers measure the game. Over 100 evenings: naive made 79; careful sees the meeting 47, trained 61.
+- **Playtests** are logged in `docs/PLAYTESTS.md`: what was played, what turned up, what was fixed, what's still rough.
+
 ## v0.0.22 (2026-10-26)
 
 - **Every side of the map leads somewhere** (you asked for it). The city is rows of streets, each its own map:

@@ -27,10 +27,10 @@ const mean = (runs, k) => fmt(runs.reduce((s, r) => s + r[k], 0) / runs.length, 
 
 export default [
   {
-    name: 'tailing: a save and a load in the middle of a tail change nothing',
+    name: 'tailing: a save and a load in the middle of a tail (before and after a change of street) change nothing',
     fn() {
       const run = (cut) => {
-        let g = newGame({ seed: 9, scenario: 'tail' });
+        let g = newGame({ seed: 7, scenario: 'tail' });
         start(g, null);
         for (let t = 0; t < 6000; t++) {
           if (t === cut) { g = fromJSON(toJSON(g)); start(g, null); }
@@ -39,9 +39,10 @@ export default [
         }
         return toJSON(g);
       };
-      const a = run(-1), b = run(3000);
-      assert(a === b, 'the tail went differently after a load');
+      const a = run(-1), b = run(3000), c = run(2400);
+      assert(a === b && a === c, 'the tail went differently after a load');
       const g = fromJSON(a);
+      assert(g.map.row === -1, 'he turned up a lane, and we followed him to the next street (the case this seed tests)');
       console.log(`      after 5 game minutes (${g.scenario.evening}): ${g.scenario.phase}, ${g.scenario.outcome ?? 'going on'}, ${g.scenario.rolls} rolls, he's ${fmt(g.actors.find(x => x.who === 'orlov')?.x - g.scenario.startX, 0)} m along`);
     },
   },

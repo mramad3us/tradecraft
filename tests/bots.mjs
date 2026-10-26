@@ -10,7 +10,24 @@
 //            when told it's gaining.
 import { sectionAt } from '../src/sim/world.js';
 
-export const toward = (me, x, z, slack, extra = {}) => { const dx = x - me.x, dz = z - me.z, d = Math.hypot(dx, dz); return d > slack ? { mx: dx / d, mz: Math.abs(dz) > 0.3 ? dz / d : 0, ...extra } : { ...extra }; };
+// Toward (x, z), stopping within slack; a bot that hasn't moved for a few ticks against something
+// (a lamp post, a parked car) sidesteps a while, as anyone would.
+const stuck = new WeakMap();
+export const toward = (me, x, z, slack, extra = {}) => {
+  const dx = x - me.x, dz = z - me.z, d = Math.hypot(dx, dz);
+  if (d <= slack) { stuck.delete(me); return { ...extra }; }
+  const k = stuck.get(me) ?? { x: me.x, z: me.z, n: 0, side: 0, flip: -1 };   // (the first sidestep toward the target)
+  k.n = Math.hypot(me.x - k.x, me.z - k.z) < 0.01 ? k.n + 1 : 0; k.x = me.x; k.z = me.z;
+  if (k.n > 3) { k.side = 12; k.flip = -k.flip; k.n = 0; }      // (stuck again: the other way this time)
+  stuck.set(me, k);
+  let mx = dx / d, mz = Math.abs(dz) > 0.3 ? dz / d : 0;
+  if (k.side > 0) {                                                  // along the other axis, toward the target on it
+    k.side--;
+    if (Math.abs(dx) >= Math.abs(dz)) [mx, mz] = [Math.sign(dx) * 0.3, (Math.sign(dz) || 1) * k.flip];
+    else [mx, mz] = [(Math.sign(dx) || 1) * k.flip, Math.sign(dz) * 0.3];
+  }
+  return { mx, mz, ...extra };
+};
 // A bot's way somewhere: straight, unless a railing's in the way (the boulevard's, either side), then
 // through the nearest gap in it (a zebra's line, a park path).
 export function route(g, me, x, z, slack = 1) {

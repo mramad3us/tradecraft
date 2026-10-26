@@ -88,6 +88,7 @@ export function step(state, input = {}, bus) {
     let mx = input.mx ?? 0, mz = input.mz ?? 0;
     const n = Math.hypot(mx, mz);
     if (n > 0.01 && !input.look) me.busy = null;
+    me.looking = !!input.look && !me.busy;
     if (me.busy) busy(me);
     else if (input.look) {
       me.vx = me.vz = 0; me.gait = 'idle'; me.glass = false;

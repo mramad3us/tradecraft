@@ -193,7 +193,8 @@ export const tail = {
   mapChanged(state, bus) {
     const sc = state.scenario, t = actorOf(state, sc.target), me = playerOf(state);
     sc.gap = []; sc.lastSeen = null; sc.scan = null; sc.tell = null;
-    if (!t) return;
+    if (!t) return end(state, bus, 'lost', sc.away ? `You went the wrong way. He went up ${sc.away.name}; you didn't, and that was the evening.`
+      : 'You left him on the street behind you. Whatever he did next, he did it without you.');
     const d = Math.max(2.5, Math.min(30, (state.time.ms - sc.away.ms) / 1000 * 1.3)), up = me.z - laneMid('south');
     t.hidden = t.offmap = false;
     t.x = me.x; t.z = me.z;
@@ -286,7 +287,7 @@ function thinkOrlov(state, a, bus) {
       return;
     case 'phase': ai.steps.shift(); sc.phase = step[1]; return thinkOrlov(state, a, bus);
     case 'away':                                                  // off up the lane, to the next street: waits there for us
-      if (!a.offmap) { a.offmap = true; a.hidden = true; sc.away = { ...sc.turn, ms: state.time.ms }; }
+      if (!a.offmap) { a.offmap = true; a.hidden = true; sc.away = { ...sc.turn, ms: state.time.ms, seen: !!sc.turn.seen }; }
       a.vx = a.vz = 0;
       return;
     default: follow(state, a);
@@ -450,12 +451,13 @@ function moment(state, bus, me, t, d, kind) {
   // the result paper (what you didn't see).
   const [unseen, seen] = LINES[kind], watching = inView(state, t.id), hidden = !watching || undefined;
   if (r.ok) {
-    if (r.margin < 3) { sc.alert = Math.min(100, sc.alert + 12); say(state, bus, { kind: 'roll', roll: r, hidden, text: pick(state.rng, NAG) }); }
+    if (r.margin < 3) { sc.alert = Math.min(100, sc.alert + 12); mark(state, t, '?', watching); say(state, bus, { kind: 'roll', roll: r, hidden, text: pick(state.rng, NAG) }); }
     else say(state, bus, { kind: 'roll', roll: r, hidden, text: pick(state.rng, unseen) });
     return;
   }
   sc.sightings.push({ ms: state.time.ms, kind, seen: watching });
   sc.alert = Math.min(100, sc.alert + 40);
+  mark(state, t, '!', watching);
   say(state, bus, { kind: 'roll', roll: r, hidden, text: pick(state.rng, seen) });
   if (sc.sightings.length === 1) {
     if (watching) say(state, bus, { kind: 'instinct', text: 'He\'s seen your face. Once. He\'ll be looking for it now.' });
@@ -466,6 +468,15 @@ function moment(state, bus, me, t, d, kind) {
     t.ai.steps = [['wait', TPS, 'left', 'idle'], ['go', t.x - 70, laneMid(t.z < Z.kerbN ? 'far' : 'near')], ['gone']];
     end(state, bus, 'made', MADE);
   }
+}
+
+/**
+ * What he's just become aware of, over his head for MARK_S, if we're watching him to see it: '?' (he
+ * half-noticed something), '!' (he's seen us). The UI draws state.scenario.mark.
+ */
+export const MARK_S = 2.5;
+function mark(state, t, glyph, watching) {
+  if (watching) state.scenario.mark = { id: t.id, glyph, until: state.time.ms + MARK_S * 1000 };
 }
 
 /** What makes us easy or hard for him to spot, as modifiers to his roll. */
@@ -523,6 +534,7 @@ function glanced(state, bus, me) {
   sc.rolls++;
   if (r.ok) return;
   sc.alert = Math.min(100, sc.alert + 15);
+  mark(state, t, '?', inView(state, t.id));
   say(state, bus, { kind: 'roll', roll: r, hidden: !inView(state, t.id) || undefined,
     text: 'He catches you checking behind you. People who watch their backs have something behind them, and he files it away.' });
 }
@@ -570,7 +582,11 @@ function second(state, bus, me, t, d) {
   twins(state, t);
   // Whom we take for him.
   if (sc.marked && !actorOf(state, sc.marked)) { sc.marked = null; sc.findS = 0; }   // (a twin who's walked off)
-  if (inView(state, t.id)) { sc.lastSeenT = state.time.ms; if (sc.marked === t.id) sc.lastSeen = { x: t.x, z: t.z, ms: state.time.ms }; }
+  if (inView(state, t.id)) {
+    sc.lastSeenT = state.time.ms;
+    if (sc.marked === t.id) sc.lastSeen = { x: t.x, z: t.z, ms: state.time.ms };
+    if (sc.turn && t.z < Z.front + 0.5 && sc.marked === t.id) sc.turn.seen = true;   // we saw him go into it
+  }
   sc.unseenS = Math.floor((state.time.ms - (sc.lastSeenT ?? sc.began)) / 1000);
   if (sc.marked === t.id) {
     // (in the open he's simply there to see: it's people round him he's lost among, and a twin
@@ -712,20 +728,21 @@ function instinct(state, me, t, d, still) {
     if (wd < 14) return L('twin-close', 'warn', 'Closer than you\'d like. Is that the briefcase? Hard to say from here.');
     return L('twin', 'calm', ['Steady. Keep him in sight.', 'Grey coat, a good way on. Keep the pace.']);
   }
-  if (t.offmap) {
+  if (t.offmap && sc.away.seen) {
     const w = sc.away, inLane = me.z < Z.front && me.x > w.x0 - 0.5 && me.x < w.x1 + 0.5;
     const gd = Math.round(inLane ? me.z - Z.north : Math.abs((w.x0 + w.x1) / 2 - me.x) + Math.max(0, me.z - Z.front) + (Z.front - Z.north));
     return L('away', 'warn', [`He's gone up ${w.name}: ${gd} m to the far end. Through it after him, or you've lost him.`, `${w.name}: he's through it and out the other end by now. Follow, or lose him.`]);
   }
-  if (sc.turn && t.z < Z.front + 0.5 && seen) return L('turn', 'warn', [`He's turned up ${sc.turn.name}. Give him the corner: it's empty in there, and narrow.`, `Up ${sc.turn.name}. Don't follow him straight in: let him get to the top.`]);
-  if (t.hidden) {
+  if (sc.turn?.seen && t.z < Z.front + 0.5 && seen) return L('turn', 'warn', [`He's turned up ${sc.turn.name}. Give him the corner: it's empty in there, and narrow.`, `Up ${sc.turn.name}. Don't follow him straight in: let him get to the top.`]);
+  if (t.hidden && !t.offmap) {
     const shop = SHOPS[sc.shop] ?? 'a shop', o = offer(state, me);
     if (d < 8) return L('shop-door', 'warn', [`He's in ${shop}. Don't hover at the door: walk on, or cross over.`, `He's in ${shop}. Hovering at the door is how you end up in the same queue. Walk on.`]);
     if (o.act === 'window' && !busy) return L('shop-wait', 'note', `He's in ${shop}. Wait where you can see the door.${o.text}`, { act: o.act });
     return L('shop', 'note', `He's gone into ${shop}. He'll come out looking: be somewhere you'd be anyway.`);
   }
   if (!seen && sc.unseenS >= 3) {
-    const where = sc.lastSeen ? `${Math.round(Math.hypot(sc.lastSeen.x - me.x, sc.lastSeen.z - me.z))} m ${sc.lastSeen.x > me.x ? 'east' : 'west'} of you` : 'ahead';
+    const ld = sc.lastSeen ? Math.round(Math.hypot(sc.lastSeen.x - me.x, sc.lastSeen.z - me.z)) : null;
+    const where = ld === null ? 'ahead' : ld < 5 ? 'right about here' : `${ld} m ${sc.lastSeen.x > me.x ? 'east' : 'west'} of you`;
     if (sc.unseenS > 20) return L('unseen-long', 'warn', [`You haven't seen him for ${sc.unseenS} seconds. That's generally considered a problem. He was ${where}.`, `Still no sign of him. He was ${where}. Get eyes on him.`]);
     return L('unseen', 'warn', `You can't see him. ${sc.unseenS > 12 ? 'You\'re losing him: he' : 'He'} was ${where}. Get eyes on him.`);
   }

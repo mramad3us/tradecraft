@@ -39,4 +39,5 @@ Versions: patch releases (0.x.y) as the work goes; the minor moves when a releas
 
 - [docs/DESIGN.md](docs/DESIGN.md): the game's design, settled before it's built.
 - [docs/PIPELINE.md](docs/PIPELINE.md): how content is made: tools, licences, recipes, lessons.
+- [docs/PLAYTESTS.md](docs/PLAYTESTS.md): what was played, what turned up, what was fixed.
 - [CREDITS.md](CREDITS.md): third-party code and assets.

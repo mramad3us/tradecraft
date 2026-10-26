@@ -26,8 +26,9 @@ export function createUI({ input, cb }) {
   const keys = el('div', { className: 'keys' });
   const banner = el('div', { className: 'banner', textContent: 'PAUSED' });
   const marker = el('div', { className: 'marker', hidden: true });
+  const bubble = el('div', { className: 'bubble', hidden: true });   // what a character's just become aware of: ? or !
   const prompt = el('div', { className: 'prompt', hidden: true });
-  const hud = el('div', { id: 'hud' }, marker, prompt, watch, toasts, keys, banner);
+  const hud = el('div', { id: 'hud' }, marker, bubble, prompt, watch, toasts, keys, banner);
   const menu = el('div', { className: 'overlay', hidden: true });
   const log = el('div', { className: 'overlay', hidden: true });
   const paper = el('div', { className: 'overlay', hidden: true });     // a brief, a result
@@ -93,6 +94,16 @@ export function createUI({ input, cb }) {
       marker.classList.toggle('off', off);
       marker.style.transform = `translate(${Math.round(cx * k)}px, ${Math.round(cy * k)}px) rotate(${off ? Math.atan2(sy - cy, sx - cx) * 180 / Math.PI - 90 : 0}deg)`;
       marker.style.setProperty('--k', k);
+    }
+    // A mark over a character who's just noticed something, while it lasts and they're in view.
+    const mk2 = sc.mark && sc.mark.until > state.time.ms && !sc.outcome && view?.posOf(sc.mark.id);
+    bubble.hidden = !mk2;
+    if (mk2) {
+      const k = frame.clientWidth / RES[0], cam = view.camera;
+      const bx = RES[0] / 2 + (mk2[0] - cam.x) * 16, by = RES[1] / 2 + (mk2[1] - cam.z) * 16 - 3.0 * 16;
+      bubble.textContent = sc.mark.glyph;
+      bubble.className = `bubble ${sc.mark.glyph === '!' ? 'alarm' : ''}`;
+      bubble.style.transform = `translate(${Math.round(bx * k)}px, ${Math.round(by * k)}px)`;
     }
     // The instinct: always a line, its tone in its border; {key} in the text shows as that key.
     const p = !sc.outcome && sc.prompt;

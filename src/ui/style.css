@@ -105,3 +105,9 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .logsheet li.unseen { color: #6a7182; }
 .sheet .unseenlist { margin: 4px 0 8px; padding-left: 18px; font-size: 12.5px; color: #4c5262; }
 .sheet .unseenlist time { color: #8f96a6; }
+
+/* What a character's just become aware of: a ? or a ! over their head, typed like the rest. */
+.bubble { position: absolute; left: 0; top: 0; transform-origin: 0 0; margin: -14px 0 0 -9px; width: 18px; height: 20px; line-height: 20px;
+  text-align: center; font: bold 15px var(--type); color: var(--ink); background: var(--paper); border: 2px solid var(--ink); border-radius: 3px; pointer-events: none; }
+.bubble[hidden] { display: none; }
+.bubble.alarm { background: var(--red); color: var(--paper); }
