@@ -19,7 +19,7 @@
 //     the sun's shadow camera moves with it in whole texels of its map, so shadows never shimmer;
 //   - what the player's character is aware of (sim/perception.js): a mask on the ground, FOG_CELL_M
 //     cells over the view, each the visibility of its spot from the player's eyes (the cone, the
-//     radius of awareness, the light, the walls in the way). A building takes the visibility of its
+//     radius of awareness, a shop window's glass, the light, the walls in the way). A building takes the visibility of its
 //     walls' feet, so a facade lights up when it's seen. The stage dims what's unseen (pixelStage
 //     setFog); the mask eases in quickly and out slowly (FOG_IN_S, FOG_OUT_S), as eyes do;
 //   - people as the player knows them: those seen this tick where they are, the rest where they were
@@ -33,7 +33,7 @@ import { sky, lightAt, lightLevel, LAMP } from '../sim/light.js';
 import { Z, SECTION_M } from '../sim/map/street.js';
 import { passerby } from '../sim/people.js';
 import { focusActor, playerActor } from '../sim/game.js';
-import { eyes, openness, lineClear } from '../sim/perception.js';
+import { eyes, visibility } from '../sim/perception.js';
 
 export const RES = [640, 360];
 export const LAMP_SLOTS = 10;
@@ -151,9 +151,7 @@ export function createView({ parent, bus }) {
       const z = z0 + (j + 0.5) * FOG_CELL_M;
       for (let i = 0; i < FNX; i++, k++) {
         if (fogIn[k] >= 0) { fogAim[k] = 0; continue; }
-        const x = x0 + (i + 0.5) * FOG_CELL_M;
-        const v = openness(state, e, x, z, fogLight[k]);
-        fogAim[k] = v > 0 && !lineClear(state, e.x, e.z, x, z, walls) ? 0 : v;
+        fogAim[k] = visibility(state, e, x0 + (i + 0.5) * FOG_CELL_M, z, fogLight[k], walls);
       }
     }
     // A building's cells take its walls' feet: the facade's (the open cell south of them in their

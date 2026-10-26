@@ -4,6 +4,16 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.32 (2026-10-26)
+
+- **Shop windows are mirrors** (your ask). Stand at a shop's glass facing it and you're looking in the window, however you got there (T, or walking up to it): its reflection shows the street behind you, lit on the screen like anything else you see.
+  - **Less than turning round:** only what the pane reflects (stand at one end and the glass runs the other way), three quarters as far (39 m by day against 52), and not straight behind you, 24° wide, where the reflection is your own back: a dark wedge on the screen.
+  - **Slant it:** straight in, the glass shows the road behind you; hold E and turn your eyes along it (up-left, up-right) and it shows the pavement you walked, on the side the glass runs.
+  - **Always on offer:** the instinct offers the window at every shopfront now, whatever else it's saying, in all three scenes (being tailed, it came and went, and other lines hid it). T walks you to the end of the pane where the glass runs back the way you came (tailing: toward him), and you stay at it until you move.
+- **Being tailed:** a window is a check of your back as you come to it and every 6 s you stay, so the look after 5 s shows who stopped when you stopped. With a watcher's eyes on you it's still a roll, at better odds than a glance back: the same Deception against their Awareness, +5 on your side (people do look in windows), +1 at another within a minute. Caught, they write it down. Covert watchers stopped at a window watch you in its glass.
+  - The test's checker, who looks in windows (its eyes slanted back along the glass) and glances back now and then, now calls a covert team off rightly 5 times in 12 (2 before) and burns him 4 times (5); with an overt pair, 5 called off rightly in 9 (6). It's written down a little more often, 1.3 times a walk against 0.8: windows are a check too. The pro, overt: 8 in 9 called off rightly (7); covert: 7 clean and 2 called off rightly in 12 (6 and 4). Nobody behind: still 8 clean in 9.
+- **Tailing:** Orlov's windows are real glass now, at the end of the pane ahead of him with his look slanted back along it the way he came; before, half of them were beside the door where there's no glass. The game's follower at a window keeps him in the glass, slanted his way, instead of looking straight at him. Unchanged in the measure: it held a careful man in 959 chases out of 960 (the same one lost, at night), and skill against skill moved no further than chance (our base 5 / 10 / 15 / 20 against his 10: seen 0%, 25%, 79%, 100%; ours 15 against his 5 / 10 / 15 / 20: 100%, 79%, 21%, 4%).
+
 ## v0.0.31 (2026-10-26)
 
 - **The city lives round you** (your ask): passers-by are going somewhere real now, a shop, a block of flats, a courtyard's arch, 2–5 streets from where they appear and 120–600 m along, by a way of their own, stopping at a shop window, a bench on the boulevard, a phone call on the way. Follow anyone and the tail ends at their door: six civilians followed by the game's follower all went in at theirs, 2 to 4 streets on.

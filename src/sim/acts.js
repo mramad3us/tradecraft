@@ -1,19 +1,25 @@
 // TRADECRAFT sim: what the player can do on a street with T, whatever the scene: the instinct offers
 // it (a scenario's instinct, or the free walk's), act() does it.
-//   - 'window': step to a shop window and look in it (its glass shows the street behind:
-//     sim/perception.js), a reason to stop;
+//   - 'window': step to a shop window's glass and look in it (it shows the street behind:
+//     sim/perception.js), a reason to stop: at the end of the pane that has the glass run the way
+//     you'd watch (opts.toward: −1 west, 1 east; by default back the way you were going). Looking in
+//     a window is being stood at its pane with the eyes into it (glassAhead()), however you got
+//     there; the eyes can slant along it (E held).
 //   - 'bench': sit on a bench on the boulevard's path, until you move;
 //   - 'lace': stop to tie a shoelace (not again within LACE_AGAIN_S: twice is a story);
 //   - 'cross': over the street at its zebra, or over the boulevard's far road at its own.
 // Each becomes the player's busy plan (sim/game.js busy()), which moving cancels; busy.since is when
 // it began (a scenario may care whether that was before or after someone looked).
-// Also here, the bits of the street they read: where the crossings are, and a calm way to pick a line
-// of the instinct's without touching the dice.
+// Also here, the bits of the street they read: where the crossings and the shop windows are, the
+// instinct's offer of what T would do here, and a calm way to pick a line of the instinct's without
+// touching the dice.
 import { TICK_MS } from './clock.js';
 import { hash } from './rng.js';
-import { LANES, Z } from './map/street.js';
+import { LANES, Z, SECTION_M } from './map/street.js';
+import { sectionOf } from './city.js';
 import { sectionAt } from './world.js';
 import { say } from './log.js';
+import { GLASS_REACH_M, intoGlass } from './perception.js';
 
 export const LACE_AGAIN_S = 40;
 const TPS = 1000 / TICK_MS;
@@ -44,26 +50,48 @@ export function benchNear(state, a) {
   return s && s[1] < 2.6 ? s[0] : null;
 }
 
+/** The pane of a shop window within m along the shops' pavement from the actor ({ x0, x1, z }), or null. */
+export function paneNear(state, a, m = 1.5) {
+  if (a.z < Z.front || a.z > LANES.far[1] + 0.4) return null;
+  return sectionAt(state, a.x)?.doors.find(d => d.pane && a.x > d.pane.x0 - m && a.x < d.pane.x1 + m)?.pane ?? null;
+}
+
+/** The pane in front of (x, z) on a row (the map's, unless said), close enough to look in (GLASS_REACH_M), or null. */
+export function paneAt(state, x, z, row = state.map.row) {
+  if (z <= Z.front || z - Z.front > GLASS_REACH_M) return null;
+  return sectionOf(state.map.seed, row, Math.floor(x / SECTION_M)).doors.find(d => d.pane && x > d.pane.x0 - 0.3 && x < d.pane.x1 + 0.3)?.pane ?? null;
+}
+
+/** The pane the actor is looking into, stood at it with the eyes into it, or null. */
+export const glassAhead = (state, a) => (intoGlass(a.head ?? 0) ? paneAt(state, a.x, a.z) : null);
+
 /** What gives the actor a reason to stop here: 'window' (a shop's glass at hand), 'bench' (a seat), 'lace', or null. */
 export function coverHere(state, a) {
-  const S = sectionAt(state, a.x);
-  if (!S) return null;
-  if (a.z < LANES.far[1] + 0.4 && a.z > Z.front && S.doors.some(d => d.kind === 'shop' && Math.abs(d.x - a.x) < 3.2)) return 'window';
+  if (!sectionAt(state, a.x)) return null;
+  if (!a.glass && paneNear(state, a)) return 'window';
   if (benchNear(state, a) !== null) return 'bench';
   return state.time.ms - (state.scenario.laceMs ?? -1e12) > LACE_AGAIN_S * 1000 ? 'lace' : null;
 }
 
+const COVER = { window: 'look in the window', bench: 'sit on the bench', lace: 'tie a shoelace' };
+/** What T would do here, for the end of an instinct's line: { act, text } (only: the covers allowed). */
+export function offer(state, me, only = null) {
+  const c = coverHere(state, me), ok = c && (!only || only.includes(c));
+  return { act: ok ? c : null, text: ok ? ` {instinct} ${COVER[c]}.` : '' };
+}
+
 /** Do it: the player's busy plan for act. */
-export function act(state, bus, me, what) {
-  act1(state, bus, me, what);
+export function act(state, bus, me, what, opts = {}) {
+  act1(state, bus, me, what, opts);
   if (me.busy) me.busy.since = state.time.ms;
 }
 
-function act1(state, bus, me, what) {
+function act1(state, bus, me, what, { toward = Math.cos(me.head ?? 0) >= 0 ? -1 : 1 } = {}) {
   if (what === 'window') {
-    const S = sectionAt(state, me.x), door = S.doors.filter(d => d.kind === 'shop').sort((a, b) => Math.abs(a.x - me.x) - Math.abs(b.x - me.x))[0];
-    const wx = Math.abs(me.x - door.x) < 0.9 ? door.x + (me.x < door.x ? -1.4 : 1.4) : me.x;   // beside the door, at the glass
-    me.busy = { what: 'window', steps: [['go', wx, -4.35], ['wait', 5 * TPS, 'up', 'idle']], wait: 0 };
+    const pane = paneNear(state, me);
+    if (!pane) return;
+    const wx = toward < 0 ? pane.x1 - 0.4 : pane.x0 + 0.4;          // (at the glass, and stood there after: moving takes you off)
+    me.busy = { what: 'window', steps: [['go', wx, pane.z + 0.65], ['wait', 1, 'up', 'idle']], wait: 0 };
     say(state, bus, { kind: 'instinct', text: 'You find something in a shop window worth a look. In the glass, the street behind you.' });
   } else if (what === 'bench') {
     const sx = benchNear(state, me);

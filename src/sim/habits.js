@@ -6,7 +6,8 @@
 //   - 'look': on a stretch of pavement now and then (every LOOK_EVERY_M), he slows (the tell, slowM)
 //     and stops to look back the way he came;
 //   - 'window': along a row of shops (a chance a stretch), he steps to a window and studies the street
-//     behind in the glass;
+//     behind in the glass: at the end of the pane ahead of him, his look slanted back along it the
+//     way he came (GLASS_BACK_DEG: sim/perception.js); a passer-by looks at the goods;
 //   - 'shop': or he goes into one (out of sight a while; once a walk) and comes out looking both ways
 //     ('exit');
 //   - 'cross': at a zebra's kerb, a look both ways (wide);
@@ -20,6 +21,7 @@ import { finish, clearAt, sectionOf, LINE } from './city.js';
 import { Z, SECTION_M } from './map/street.js';
 import { range, chance } from './rng.js';
 import { TICK_MS } from './clock.js';
+import { GLASS_BACK_DEG } from './perception.js';
 
 const TPS = 1000 / TICK_MS;
 // (A long walk crosses a dozen roads and turns a dozen corners: a check at every one would be one
@@ -94,11 +96,12 @@ export function withHabits(seed, route, r, style = 'calm') {
         const x = a.x + ux * ev.t, z = a.z + uz * ev.t;
         const i = push({ row: a.row, x, z, w: a.w, way: a.way });
         if (ev.kind === 'window') {
-          const gx = ev.door.x + (chance(r, 0.5) ? 1.4 : -1.4), gz = -4.35;
+          const p = ev.door.pane, gz = p.z + 0.65, gx = !H.checks ? (p.x0 + p.x1) / 2 : ux > 0 ? p.x1 - 0.4 : p.x0 + 0.4;
+          const head = H.checks ? -Math.PI / 2 - Math.sign(ux) * GLASS_BACK_DEG * Math.PI / 180 : undefined;
           if (spur(seed, a.row, gx, z, gx, gz) && spur(seed, a.row, x, z, gx, z)) {
             push({ row: a.row, x: gx, z, w: 0, way: 'attach' });
             const g = push({ row: a.row, x: gx, z: gz, w: 0, way: 'attach' });
-            marks.push([g, { kind: 'window', check: true, ticks: ticks(r, 4, 7), face: 'up', glass: true, slowM: range(r, ...H.tell) }]);
+            marks.push([g, { kind: 'window', check: true, ticks: ticks(r, 4, 7), face: 'up', head, glass: true, slowM: range(r, ...H.tell) }]);
             push({ row: a.row, x: gx, z, w: 0, way: 'attach' });
             push({ row: a.row, x, z, w: a.w, way: a.way });
           }

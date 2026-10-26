@@ -8,10 +8,11 @@
 // (sim/game.js): an agent that's the focus takes the map with it through a lane.
 //
 // A route (ai.route, or one rebuilt from a plan: routeOf(), PLANNERS) can carry stops (route.stops,
-// sorted by s: { s, ticks, face, gait, hidden, glass, wide, kind, check, slowM }): the agent slows
-// over the slowM metres before one (a tell), then waits there, facing a way, perhaps out of sight (a
-// shop) or at a window's glass; the scenario hears of each (onStop: 'tell', 'start', 'end'). A stop
-// that's a check (stop.check) is one a follower looks away from.
+// sorted by s: { s, ticks, face, head, gait, hidden, glass, wide, kind, check, slowM }): the agent
+// slows over the slowM metres before one (a tell), then waits there, facing a way (its eyes on head,
+// if it says), perhaps out of sight (a shop) or looking in a window (the pane it's stood at:
+// sim/perception.js); the scenario hears of each (onStop: 'tell', 'start', 'end'). A stop that's a
+// check (stop.check) is one a follower looks away from.
 //
 // A follower (ai.follow: { id, keep, trail, … }) walks in its target's footsteps, as far as it has
 // seen them: the trail is the places it saw them, bridged by the planner where it lost sight of them
@@ -24,12 +25,13 @@
 // were seen going in by, waited on (DOOR_WAIT_S); otherwise it looks about there and walks on a little
 // their way (SEARCH_S), and not finding them on the street, watches the shopfronts nearby from the
 // pavement (DOOR_WAIT_S). Then it's lost them. Its eyes stay on them while they're anywhere it can
-// turn its head to.
+// turn its head to; stood at a shop window, on their reflection in it (gazeInto()).
 import { TICK_MS } from './clock.js';
 import { placeAt, routeFrom, finish, sectionOf, clearAt, LINE } from './city.js';
 import { Z, SECTION_M } from './map/street.js';
 import { near } from './world.js';
-import { seesActor, headOf, openAir, SIGHT_M, LIGHT_M } from './perception.js';
+import { seesActor, headOf, gazeInto, openAir, SIGHT_M, LIGHT_M } from './perception.js';
+import { paneAt } from './acts.js';
 
 const DT = TICK_MS / 1000;
 const TPS = 1000 / TICK_MS;
@@ -184,7 +186,9 @@ function startStop(state, a, stop, scenario, bus) {
   a.gait = stop.gait ?? 'idle';
   ai.sit = stop.gait === 'sit';
   if (stop.face) { a.face = stop.face; a.head = headOf(stop.face); }
-  a.glass = !!stop.glass; a.wide = !!stop.wide; a.hidden = !!stop.hidden;
+  if (stop.head !== undefined) a.head = stop.head;
+  const pane = stop.glass && paneAt(state, a.x, a.z, rowOf(state, a));
+  a.glass = pane ? { ...pane, since: state.time.ms } : false; a.wide = !!stop.wide; a.hidden = !!stop.hidden;
   scenario?.onStop?.(state, a, stop, 'start', bus);
 }
 
@@ -227,11 +231,12 @@ export function watchTarget(state, a) {
   const toUs = both && !t.hidden && t.ai?.waiting?.check && state.time.ms - fo.seenMs < 2000 && seesActor(state, t, a);
   if (toUs) {
     a.ai.eyesOn = true; a.ai.averted = true; fo.seenMs = state.time.ms;
-    a.head = Math.atan2(t.z - a.z, t.x - a.x) + Math.PI / 2;        // (off to the side: walking behind them, ahead is them)
+    a.head = a.glass ? -Math.PI / 2 : Math.atan2(t.z - a.z, t.x - a.x) + Math.PI / 2;   // (off to the side: walking behind them, ahead is them; at a window, the goods)
     return;
   }
   a.ai.averted = false;
-  if (both && !t.hidden && state.time.ms - fo.seenMs < 2000) {   // eyes on them, whichever way the feet go
+  if (both && !t.hidden && state.time.ms - fo.seenMs < 2000 && a.glass) { a.ai.eyesOn = true; a.head = gazeInto(a.glass, a.x, a.z, t.x, t.z); }
+  else if (both && !t.hidden && state.time.ms - fo.seenMs < 2000) {   // eyes on them, whichever way the feet go
     const to = Math.atan2(t.z - a.z, t.x - a.x), d = Math.abs(((to - a.head + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI);
     a.ai.eyesOn = d < 2.4; if (a.ai.eyesOn) a.head = to;
   } else if (fo.inside) {                                          // gone in somewhere along here: the shopfronts, both ways

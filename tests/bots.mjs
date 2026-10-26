@@ -68,8 +68,9 @@ export const trained = (g, me, t) => {
 
 // ---------- test 2, being tailed: players walking to a meeting ----------
 //   oblivious  straight there, sits down;
-//   checker    straight there, checking its back on the way (shop windows, a glance now and
-//              then), and calls it off when the instinct says it's followed;
+//   checker    straight there, checking its back on the way (shop windows, stood at the glass
+//              GLASS_STAY_S, its eyes slanted back along it; a glance now and then), and calls it
+//              off when the instinct says it's followed;
 //   pro        a checker that, with a face marked, takes a lane where nobody it's marked can see
 //              it go, watches the lane's mouth from the other end, and only then goes on.
 import { waypoint } from '../src/sim/nav.js';
@@ -100,10 +101,12 @@ export const oblivious = (g, me) => {
   if (g.time.ms < m.from - 20000 && g.map.row === m.row && Math.abs(me.x - m.x) < 25) return {};   // (early: wait about)
   return goTo(g, me, m.row, m.seat2, 13.5);
 };
+const GLASS_STAY_S = 7;
 export const checker = (g, me) => {
   const sc = g.scenario, m = sc.meet, p = sc.prompt;
   const k = mem(me, 'checker', () => ({ glance: g.time.ms + 20000, window: 0 }));
   if (me.busy || sc.phase === 'meet') return {};
+  if (me.glass && g.time.ms - me.glass.since < GLASS_STAY_S * 1000) return { look: true, mx: -sc.heading.dir * 0.7, mz: -0.7 };
   if (p?.act === 'abort') return { act: ['instinct'] };
   if (p?.act === 'meet') return { act: ['instinct'] };
   if (p?.act === 'window' && g.time.ms > k.window) { k.window = g.time.ms + 45000; return { act: ['instinct'] }; }

@@ -48,7 +48,7 @@ import { say } from '../log.js';
 import { skill } from '../skills.js';
 import { opposed, check } from '../checks.js';
 import { range, int, chance, pick, weighted, hash } from '../rng.js';
-import { act, coverHere, crossingAt, crossingNear, say1 } from '../acts.js';
+import { act, offer, paneNear, crossingAt, crossingNear, say1 } from '../acts.js';
 import { Z, SECTION_M } from '../map/street.js';
 import { near, sectionAt } from '../world.js';
 import { planRoute, routeFrom, sectionOf, pointAt, LINE } from '../city.js';
@@ -140,7 +140,7 @@ export const tail = {
         `${ev.light} You'll see which man he is as he comes out. After that it's your eyes and your training: keep him in sight, keep people between you, keep his pace, and don't stop when he stops. Your instinct will talk you through it.`,
       ],
       footer: `Station Moscow · Tuesday 3 November 2026 · ${hhmm(ev.h, ev.m)}`,
-      keys: [['instinct', 'does what your instinct offers'], ['slow', 'held: stroll, to keep his pace'], ['watch', 'held: stop and look, the move keys turning your eyes; on a grey coat, a close look'], ['log', 'the log']],
+      keys: [['instinct', 'does what your instinct offers'], ['slow', 'held: stroll, to keep his pace'], ['watch', 'held: stop and look, the move keys turning your eyes (at a shop window, along its glass); on a grey coat, a close look'], ['log', 'the log']],
     };
   },
 
@@ -225,9 +225,10 @@ export const tail = {
     if (action === 'glance') return glanced(state, bus, me);
     if (action !== 'instinct') return;
     const p = sc.prompt;
-    if (!p?.act) return say(state, bus, { kind: 'instinct', text: me.busy || me.ai?.cover ? 'You\'re at it. Moving stops it.' : 'Nothing to do but walk. Keep him in sight.' });
+    if (!p?.act) return say(state, bus, { kind: 'instinct', text: me.busy || me.ai?.cover || me.glass ? 'You\'re at it. Moving stops it.' : 'Nothing to do but walk. Keep him in sight.' });
     if (me.ai) return agentCover(state, bus, me, p.act);
-    act(state, bus, me, p.act);
+    const t = actorOf(state, sc.target);
+    act(state, bus, me, p.act, { toward: t ? Math.sign(t.x - me.x) || 1 : undefined });   // (a window: its glass running his way)
   },
 
   think(state, a, bus) {
@@ -329,10 +330,11 @@ function agentCover(state, bus, me, what) {
   const seed = state.map.seed, row = rowOf(state, me), here = { row, x: me.x, z: me.z, w: 0, way: 'attach' };
   let pts = [here, { ...here }], stop;
   if (what === 'window') {
-    const S = sectionAt(state, me.x), door = S?.doors.filter(d => d.kind === 'shop').sort((a, b) => Math.abs(a.x - me.x) - Math.abs(b.x - me.x))[0];
-    if (!door) return;
-    const gx = Math.abs(me.x - door.x) < 0.9 ? door.x + (me.x < door.x ? -1.4 : 1.4) : me.x;
-    pts = [here, { row, x: gx, z: me.z, w: 0 }, { row, x: gx, z: -4.35, w: 0 }];
+    // (at the end of the pane away from him, so the glass runs his way: he's watched in it)
+    const p = paneNear(state, me), t = actorOf(state, state.scenario.target);
+    if (!p) return;
+    const gx = t && t.x > me.x ? p.x0 + 0.4 : p.x1 - 0.4;
+    pts = [here, { row, x: gx, z: me.z, w: 0 }, { row, x: gx, z: p.z + 0.65, w: 0 }];
     stop = { kind: 'window', ticks: 5 * TPS, face: 'up', glass: true };
   } else if (what === 'lace') { stop = { kind: 'lace', ticks: 3 * TPS, face: me.face, gait: 'crouch' }; state.scenario.laceMs = state.time.ms; }
   else if (what === 'bench') {
@@ -492,9 +494,9 @@ function coverNow(state, me) {
     if (state.scenario.scan && ac.since >= state.scenario.scan.ms) return { why: 'stopping short as he looked', v: 2 };
     return { window: { why: 'busy at a shop window', v: -3 }, bench: { why: 'sitting on a bench', v: -3 }, lace: { why: 'tying a shoelace', v: -1 } }[ac.what] ?? null;
   }
-  const b = me.busy, s = b?.steps[0];
-  if (b && state.scenario.scan && b.since >= state.scenario.scan.ms) return { why: 'stopping short as he looked', v: 2 };
-  if (b?.what === 'window' && s?.[0] === 'wait') return { why: 'busy at a shop window', v: -3 };
+  const b = me.busy, s = b?.steps[0], scan = state.scenario.scan;
+  if (b && scan && b.since >= scan.ms) return { why: 'stopping short as he looked', v: 2 };
+  if (me.glass) return scan && me.glass.since >= scan.ms ? { why: 'stopping short as he looked', v: 2 } : { why: 'busy at a shop window', v: -3 };
   if (b?.what === 'bench' && me.gait === 'sit') return { why: 'sitting on a bench', v: -3 };
   if (b?.what === 'lace' && s?.[0] === 'wait') return { why: 'tying a shoelace', v: -1 };
   if (!b && crossingAt(state, me) && me.gait === 'idle' && (Math.abs(me.z - Z.kerbN) < 1.6 || Math.abs(me.z - Z.kerbS) < 1.6)) return { why: 'waiting to cross', v: -1 };
@@ -718,18 +720,24 @@ const clockOf = (state) => { const m = Math.floor(state.time.ms / 60000) % 1440;
 
 // ---------- the instinct ----------
 
-const COVER = { window: 'look in the window', bench: 'sit on the bench', lace: 'tie a shoelace' };
-const offer = (state, me) => { const c = coverHere(state, me); return { act: c, text: c ? ` {instinct} ${COVER[c]}` : '' }; };
-
 /**
  * What a trained eye tells you now: { id, text, tone ('calm' | 'note' | 'warn' | 'urgent'), act,
  * log }. act is what T does ('window', 'bench', 'lace', 'cross'); {instinct}, {slow}, {watch} in the
- * text show as those keys. The first rule that holds speaks.
+ * text show as those keys. The first rule that holds speaks; a shop window at hand is offered at the
+ * end of any line with nothing else to offer, but an urgent one (as he looks, stopping is the thing
+ * he'd see) and the meeting's.
  */
 function instinct(state, me, t, d, still) {
+  const p = rule(state, me, t, d, still);
+  if (p.act || p.tone === 'urgent' || state.scenario.phase === 'meet' || me.busy || me.ai?.cover || me.glass) return p;
+  const o = offer(state, me, ['window']);
+  return o.act ? { ...p, text: p.text + o.text, act: o.act } : p;
+}
+
+function rule(state, me, t, d, still) {
   const sc = state.scenario, seen = inView(state, t.id), marked = sc.marked === t.id;
   const L = (id, tone, text, extra = {}) => ({ id, tone, text: Array.isArray(text) ? say1(state, id, text) : text, act: null, ...extra });
-  const busy = me.busy?.what ?? me.ai?.cover?.what;
+  const busy = me.busy?.what ?? me.ai?.cover?.what ?? (me.glass ? 'window' : null);
   // The meeting.
   if (sc.phase === 'meet' && sc.contact && seen) {
     const c = actorOf(state, sc.contact), both = c && inView(state, c.id);
@@ -777,6 +785,8 @@ function instinct(state, me, t, d, still) {
     if (o.act === 'window' && !busy) return L('shop-wait', 'note', `He's in ${shop}. Wait where you can see the door.${o.text}`, { act: o.act });
     return L('shop', 'note', `He's gone into ${shop}. He'll come out looking: be somewhere you'd be anyway.`);
   }
+  if (me.glass && !seen && !t.hidden && sc.unseenS >= 2) return L('glass-lost', 'warn', ['He\'s not in the glass. Hold {watch} and slant your eyes along it his way, or walk on.', 'The glass shows you the street, not him. Slant your eyes along it ({watch} held), or move.']);
+  if (me.glass && seen && d >= 9 && state.time.ms - me.glass.since < 6000) return L('glass', 'calm', ['There he is, in the glass. Keep him in it.', 'You have him in the glass, and he has your back. Keep it that way.']);
   if (!seen && sc.unseenS >= 3) {
     const ld = sc.lastSeen ? Math.round(Math.hypot(sc.lastSeen.x - me.x, sc.lastSeen.z - me.z)) : null;
     const where = ld === null ? 'ahead' : ld < 5 ? 'right about here' : `${ld} m ${sc.lastSeen.x > me.x ? 'east' : 'west'} of you`;
@@ -788,7 +798,7 @@ function instinct(state, me, t, d, still) {
   if (d < 5) { const o = offer(state, me); return L('far-too-close', 'urgent', `Far too close. Peel off.${o.text}`, { act: o.act }); }
   if (d < 9 && !busy) return L('too-close', 'warn', ['Too close. Let him get ahead.', 'You\'re on his heels. Drop back.', 'Any closer and you\'ll be carrying his briefcase. Drop back.']);
   const stopped = Math.hypot(t.vx, t.vz) < 0.05;
-  if (stopped && still && d < 30) { const o = offer(state, me); return L('mirror', 'warn', `He's stopped. Don't stop with him: walk on, or find a reason.${o.text}`, { act: o.act }); }
+  if (stopped && still && d < 30 && !me.glass) { const o = offer(state, me); return L('mirror', 'warn', `He's stopped. Don't stop with him: walk on, or find a reason.${o.text}`, { act: o.act }); }
   if (still && sc.stillS >= 3 && d < 35 && !coverNow(state, me)) { const o = offer(state, me); return L('loiter', 'warn', [`Standing about draws the eye. Give yourself a reason.${o.text}`, `Standing in the middle of the pavement. Very natural. Give yourself a reason.${o.text}`], { act: o.act }); }
   const toHim = Math.abs(wrap(Math.atan2(t.z - me.z, t.x - me.x) - (me.head ?? 0)));
   if (toHim < 0.5 && still && d < 18 && !busy) return L('stare', 'warn', ['You\'re staring at him. Look at something else.', 'You\'re staring at him. Moscow has other things to look at. Try a lamp post.']);

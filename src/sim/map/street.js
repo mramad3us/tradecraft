@@ -34,7 +34,7 @@
 // pixels, a whole number of slabs, kerb stones and lane dashes), so sections join seamlessly.
 //
 // What the sim reads: `blockers` (rectangles nobody walks through), the LANES (where passers-by
-// walk), `doors`, `crossings` (zebras over the street, with a gap in the railing), `crossingsS` (the
+// walk), `doors` (a shop's has its window's glass: pane { x0, x1, z }, west of the door), `crossings` (zebras over the street, with a gap in the railing), `crossingsS` (the
 // way from the boulevard's path to the far pavement: a zebra over the far road, or a park path),
 // `lamps` (light, sim/light.js), `exits` (where the map leads off: { dir 'n' | 's', x0, x1, kind,
 // name }), `band` ('boulevard' | 'park').
@@ -326,7 +326,7 @@ function building(r, x0, x1, z, S, { far = false } = {}) {
       ops.push(['shopfront', x, sw - 1.3, 2.7, { goods: [pick(r, [0xf6f4ee, 0xdfe2e8]), pick(r, [0x9e3c36, 0x3b6296, 0x356f42, 0xe7b84a]), pick(r, [0x8f6345, 0xc95c45, 0x5d8fc2])] }]);
       ops.push(['door', x + sw - 1.2, 1.1, 2.4, { color: 0x23252f, frame: 0x23252f }]);
       ops.push(['sign', x, 3.05, sw - 0.1, 0.75, SHOPS[kind], { bg, fg, border }]);
-      S.doors.push({ x: x0 + x + sw - 0.65, z, w: 1.1, kind: 'shop', shop: kind });
+      S.doors.push({ x: x0 + x + sw - 0.65, z, w: 1.1, kind: 'shop', shop: kind, pane: { x0: x0 + x, x1: x0 + x + sw - 1.3, z } });
       x += sw + 0.5 + range(r, 0, 0.6);
       continue;
     }

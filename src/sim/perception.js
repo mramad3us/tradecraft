@@ -8,10 +8,16 @@
 //     34 m, one in the dark between lamps from 22;
 //   - all round, a radius of situational awareness, AWARE_M plus AWARE_PER for each point of
 //     Awareness: the edge of the eye, footsteps, the sense of someone there;
-//   - looking into a shop window (a.glass), the street behind in its glass: a cone of GLASS_DEG,
-//     GLASS_K of the range.
-// Buildings block the line of sight; people, cars and trees don't (the street is seen over and
-// between them).
+//   - looking into a shop window (a.glass: its pane, { x0, x1, z }), the street behind, as a mirror
+//     shows it: what the eyes' cone takes in of the street's reflection, through the pane and no
+//     further, out to GLASS_K of the range (the path there and back). So a look straight in shows
+//     the road behind, and one slanted along the glass (up to GLASS_MAX_DEG) shows the pavement far
+//     behind, through the glass on that side. Straight behind, BODY_DEG wide, the reflection is
+//     your own back: what's there isn't seen. You look in a window standing at it (GLASS_REACH_M);
+//     someone who uses one to check slants their look back the way they came (GLASS_BACK_DEG), or
+//     at whoever they're keeping an eye on (gazeInto()).
+// Buildings block the line of sight (in the glass, from the street to the pane); people, cars and
+// trees don't (the street is seen over and between them).
 //
 // visibility() is soft (0 … 1: the view dims by it); sees() is its threshold SEEN, what the rules
 // read. The screen and the dice use the same function: what's dim on screen is what the character
@@ -31,13 +37,16 @@ export const AWARE_M = 2.5;
 export const AWARE_PER = 0.2;
 export const SIGHT_M = 18;
 export const LIGHT_M = 34;
-export const GLASS_DEG = 170;
 export const GLASS_K = 0.75;
+export const BODY_DEG = 24;
+export const GLASS_MAX_DEG = 60;
+export const GLASS_BACK_DEG = 50;
+export const GLASS_REACH_M = 1.5;
 export const SEEN = 0.5;
 export const FORGET_M = 70;
 export const CIVILIAN_AWARENESS = 4;                               // a passer-by's eyes, for scenes that need them
 
-const TAU = Math.PI * 2;
+const TAU = Math.PI * 2, RAD = Math.PI / 180;
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 export const wrap = (a) => ((a + Math.PI) % TAU + TAU) % TAU - Math.PI;
 
@@ -52,14 +61,14 @@ export function faceOf(head) {
   return a > 0 ? 'down' : 'up';
 }
 
-/** Someone's eyes: { x, z, head, cone (half-angle), aware (m), glass }. */
+/** Someone's eyes: { x, z, head, cone (half-angle), aware (m), glass (the pane looked in, or null) }. */
 export function eyes(state, a) {
   const sheet = a.who ? state.people[a.who] : null;
   const aw = sheet ? skill(sheet, 'awareness') : CIVILIAN_AWARENESS;
   return {
     x: a.x, z: a.z, head: a.head ?? headOf(a.face),
     cone: Math.min(CONE_MAX_DEG, CONE_DEG + CONE_PER_AWARENESS * aw) * Math.PI / 360,
-    aware: AWARE_M + AWARE_PER * aw, glass: !!a.glass,
+    aware: AWARE_M + AWARE_PER * aw, glass: a.glass?.z !== undefined ? a.glass : null,
   };
 }
 
@@ -79,25 +88,50 @@ export const openAir = (state) => { const t = skyNow(state).tint; return 0.3 * t
 export const lightHere = (state, x, z) => lightLevel(state.$world.lamps, x, z, state.time.ms, skyNow(state));
 
 /**
- * How well eyes e take in (x, z), 0 … 1, line of sight not considered. light: the light level there
- * (lightHere()), when it's known.
+ * How well eyes e take in (x, z) straight, 0 … 1, line of sight not considered. light: the light
+ * level there (lightHere()), when it's known.
  */
 export function openness(state, e, x, z, light) {
   const dx = x - e.x, dz = z - e.z, d = Math.hypot(dx, dz);
   if (d < 1) return 1;
-  let v = clamp01((e.aware + 0.75 - d) / 1.5);
+  const v = clamp01((e.aware + 0.75 - d) / 1.5);
   if (v >= 1) return 1;
   const range = SIGHT_M + LIGHT_M * (light ?? lightHere(state, x, z));
   const far = clamp01((range + 2 - d) / 4);
   if (far <= v) return v;
-  const dir = Math.atan2(dz, dx);
-  v = Math.max(v, far * clamp01((e.cone + 0.12 - Math.abs(wrap(dir - e.head))) / 0.24));
-  if (e.glass) {
-    const back = clamp01((range * GLASS_K + 2 - d) / 4) * clamp01((GLASS_DEG * Math.PI / 360 + 0.12 - Math.abs(wrap(dir - e.head - Math.PI))) / 0.24);
-    v = Math.max(v, back);
-  }
-  return v;
+  return Math.max(v, far * clamp01((e.cone + 0.12 - Math.abs(wrap(Math.atan2(dz, dx) - e.head))) / 0.24));
 }
+
+/**
+ * How well eyes e take in (x, z) in the glass they look into, 0 … 1, line of sight not considered:
+ * its reflection (the spot mirrored in the pane's line) in their cone, seen through the pane, not
+ * behind their own back, within GLASS_K of the range.
+ */
+export function inGlass(state, e, x, z, light) {
+  const g = e.glass;
+  if (!g || z <= g.z || e.z <= g.z) return 0;
+  const ix = x - e.x, iz = 2 * g.z - z - e.z, d = Math.hypot(ix, iz);   // (the reflection, from the eyes)
+  const range = (SIGHT_M + LIGHT_M * (light ?? lightHere(state, x, z))) * GLASS_K;
+  const far = clamp01((range + 2 - d) / 4);
+  if (far <= 0) return 0;
+  const dir = Math.atan2(iz, ix), body = BODY_DEG * RAD / 2;
+  const cone = clamp01((e.cone + 0.12 - Math.abs(wrap(dir - e.head))) / 0.24);
+  const back = clamp01((Math.abs(wrap(dir + Math.PI / 2)) - body + 0.06) / 0.12);
+  const gx = glassX(e, x, z), pane = clamp01((gx - g.x0 + 0.1) / 0.2) * clamp01((g.x1 - gx + 0.1) / 0.2);
+  return far * cone * back * pane;
+}
+
+/** Where on the pane eyes e see (x, z) reflected (its x). */
+const glassX = (e, x, z) => e.x + (x - e.x) * (e.z - e.glass.z) / ((e.z - e.glass.z) + (z - e.glass.z));
+
+/** The look into pane g from (x, z) that has (tx, tz) in it: at its reflection, slanted at most GLASS_MAX_DEG. */
+export function gazeInto(g, x, z, tx, tz) {
+  const off = Math.atan2(tx - x, (tz - g.z) + (z - g.z)), max = GLASS_MAX_DEG * RAD;
+  return -Math.PI / 2 + Math.max(-max, Math.min(max, off));
+}
+
+/** Whether a head (radians) looks into glass on the building line north of it. */
+export const intoGlass = (head) => Math.abs(wrap(head + Math.PI / 2)) <= GLASS_MAX_DEG * RAD + 1e-9;
 
 /** Whether the segment from (x0, z0) to (x1, z1) passes through no building. */
 export function lineClear(state, x0, z0, x1, z1, walls = state.$world.walls) {
@@ -123,10 +157,15 @@ function crosses(x0, z0, x1, z1, w) {
   return t0 < t1;
 }
 
-/** How well eyes e see (x, z), 0 … 1, with the line of sight. */
-export function visibility(state, e, x, z, light) {
-  const v = openness(state, e, x, z, light);
-  return v > 0 && !lineClear(state, e.x, e.z, x, z) ? 0 : v;
+/** How well eyes e see (x, z), 0 … 1, with the line of sight (walls: those that may be in the way). */
+export function visibility(state, e, x, z, light, walls = state.$world.walls) {
+  let v = openness(state, e, x, z, light);
+  if (v > 0 && !lineClear(state, e.x, e.z, x, z, walls)) v = 0;
+  if (e.glass && v < 1) {
+    const g = inGlass(state, e, x, z, light);
+    if (g > v && lineClear(state, glassX(e, x, z), e.glass.z + 0.06, x, z, walls)) v = g;
+  }
+  return v;
 }
 
 /** Whether eyes e see the spot (x, z): the rules' threshold of visibility(). */

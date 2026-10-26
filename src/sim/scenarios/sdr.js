@@ -10,8 +10,8 @@
 //
 // It's played through perception (sim/perception.js), both ways:
 //   - **Spotting them.** At the moments a person checks their back (a glance over the shoulder, E
-//     tapped; a shop window's glass; crossing the road; standing still a while; and, weakly, all the
-//     time) the player rolls Pathfinding against the Deception of each face in view (look()). A face
+//     tapped; a shop window's glass, as you come to it and every few seconds you stay; crossing the
+//     road; standing still a while; and, weakly, all the time) the player rolls Pathfinding against the Deception of each face in view (look()). A face
 //     noticed again counts again if it's copied a move of ours it had no reason to copy (stood behind
 //     us, close, when we stood STOP_MOVE_S, at a window or anywhere; came over the road when we did;
 //     turned when we turned; not a lane, which people going places take too), or simply stayed with us (STAYED_S and
@@ -24,8 +24,9 @@
 //   - **What they write down.** Seen by a watcher, the conspicuous things are noted (flag()), and the
 //     character doesn't know it unless they catch the watcher at it (their Awareness against the
 //     watcher's Deception, with the watcher in view): a hedged line, and a face counted. Running,
-//     glancing back (your Deception against their Awareness), crossing away from the zebra, doubling
-//     back, each kind at most FLAGS_MAX times. Each costs FLAG_HEAT at the end; two or more and they
+//     glancing back (your Deception against their Awareness), using a shop window to look (the same
+//     roll, GLASS_COVER on your side: people do look in windows; GLASS_AGAIN_COVER at another within
+//     GLASS_AGAIN_S), crossing away from the zebra, doubling back, each kind at most FLAGS_MAX times. Each costs FLAG_HEAT at the end; two or more and they
 //     know what you are.
 //   - **The meeting.** T by the bench sits you beside him for MEET_S seconds. A watcher's eyes on
 //     you then and he's burned. Or T calls it off, when the instinct thinks you're followed.
@@ -43,8 +44,8 @@ import { LANES, Z, SECTION_M, section, placeName, streetName } from '../map/stre
 import { near, sectionAt } from '../world.js';
 import { follow, steer, isPasserby } from '../crowd.js';
 import { lightBand } from '../light.js';
-import { eyes, sees, seesActor, inView, lightHere } from '../perception.js';
-import { act, coverHere, crossingAt, laneMid, say1 } from '../acts.js';
+import { eyes, sees, seesActor, inView, lightHere, gazeInto } from '../perception.js';
+import { act, offer, paneAt, crossingAt, laneMid, say1 } from '../acts.js';
 import { waypoint, zoneOf } from '../nav.js';
 
 const TPS = 1000 / TICK_MS;
@@ -58,6 +59,9 @@ export const STOP_MOVE_S = 5;                                     // standing th
 export const STAYED_S = 90;                                        // or a face still behind us this long
 export const STAYED_M = 100;                                       // and this far on
 export const FLAG_HEAT = 3;
+export const GLASS_COVER = 5;                                      // a look in a shop window: to the eye, someone looking at the goods
+export const GLASS_AGAIN_COVER = 1;                                // less so at every window on the way
+export const GLASS_AGAIN_S = 60;
 export const TEAMS = [['none', 3], ['overt', 3.5], ['covert', 3.5]];
 export const HOURS = [{ id: 'afternoon', h: 15, m: 20, w: 1 }, { id: 'dusk', h: 16, m: 40, w: 2 }, { id: 'night', h: 19, m: 30, w: 1.5 }];
 
@@ -112,7 +116,7 @@ export const sdr = {
     state.scenario = {
       kind: 'sdr', hour: hour.id, team, crew, meet, phase: 'walk', asset: null, teamLost: team === 'none', teamSeenMs: state.time.ms, pending: [],
       nextHandover: state.time.ms + Math.round(range(r, ...HANDOVER_S)) * 1000, heading: { dir: 1, s: 0 },
-      faces: {}, suspects: {}, flags: [], flagged: {}, checks: 0, glances: 0, stillS: 0, onRoad: false, sinceMap: null, check: null, moves: 0, snap: null,
+      faces: {}, suspects: {}, flags: [], flagged: {}, checks: 0, glances: 0, windows: 0, glassS: 0, stillS: 0, onRoad: false, sinceMap: null, check: null, moves: 0, snap: null,
       prompt: null, outcome: null, rolls: 0, began: state.time.ms, met: false, burned: false,
     };
     say(state, null, { kind: 'note', text: `${me.name}. ${clockText(state.time.ms)}, out of the embassy on ${streetName(state.map.seed, 0)}. SOLOVEY: ${meet.place}, ${rowsText(meet.row)}, from ${clockText(meet.from)}.` });
@@ -136,8 +140,8 @@ export const sdr = {
     if (sc.phase === 'meet') return;                               // (sitting with him: nothing to do but talk)
     if (p?.act === 'meet') return sitDown(state, bus, me);
     if (p?.act === 'abort') return callOff(state, bus);
-    if (p?.act) act(state, bus, me, p.act);
-    else say(state, bus, { kind: 'instinct', text: me.busy ? 'You\'re at it. Moving stops it.' : 'Nothing to do here but walk, and look.' });
+    if (p?.act) act(state, bus, me, p.act, { toward: -sc.heading.dir });   // (a window: its glass running back the way you came)
+    else say(state, bus, { kind: 'instinct', text: me.busy || me.glass ? 'You\'re at it. Moving stops it.' : 'Nothing to do here but walk, and look.' });
   },
 
   think(state, a, bus) {
@@ -224,7 +228,7 @@ export const sdr = {
       title: sdr.name.toUpperCase(), text: sc.endText,
       lead: sc.met ? `${clockText(sc.ended)}: SOLOVEY handed over a folded newspaper. Inside, next month's procurement schedule for the Western Military District.` : null,
       notes: notes.filter(Boolean),
-      stats: `${Math.floor((sc.ended - sc.began) / 60000)} min ${Math.round((sc.ended - sc.began) / 1000) % 60} s · ${sc.checks} checks of your back, ${sc.glances} of them glances${shownRolls(state) ? ` · ${shownRolls(state)} rolls in the log (J)` : ''}`,
+      stats: `${Math.floor((sc.ended - sc.began) / 60000)} min ${Math.round((sc.ended - sc.began) / 1000) % 60} s · ${sc.checks} checks of your back (${sc.glances} glances, ${sc.windows ?? 0} shop windows)${shownRolls(state) ? ` · ${shownRolls(state)} rolls in the log (J)` : ''}`,
     };
   },
 };
@@ -252,12 +256,13 @@ const OUTCOMES = { clean: 'MET', burned: 'MET', right: 'CALLED OFF', needless: '
 const CAUGHT_LINE = {
   ran: (who) => `${who} turns to watch you run, and keeps watching a beat too long.`,
   checked: (who) => `As you turn back, ${who[0].toLowerCase() + who.slice(1)} looks away a moment too late. They may have seen you check.`,
+  glassed: (who) => `In the glass, ${who[0].toLowerCase() + who.slice(1)} is watching you, not the street. They may know what you were looking at.`,
   jaywalked: (who) => `${who} watches you cross, and doesn't look away when you look up.`,
   doubled: (who) => `When you turn round, ${who[0].toLowerCase() + who.slice(1)} stops too, and finds a shop window very interesting.`,
 };
-const CAUGHT = { ran: 'run', checked: 'look back', jaywalked: 'cross away from the zebra', doubled: 'double back' };
-const FLAGS = { ran: 'you ran', checked: 'you checked behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back' };
-const SAW = { ran: 'saw you run', checked: 'saw you check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back' };
+const CAUGHT = { ran: 'run', checked: 'look back', glassed: 'check behind you in a shop window', jaywalked: 'cross away from the zebra', doubled: 'double back' };
+const FLAGS = { ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back' };
+const SAW = { ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back' };
 export const FLAGS_MAX = 2;                                        // times a kind of thing is written down, at most
 const list = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 const actorOf = (state, id) => (id ? state.actors.find(a => a.id === id) : null);
@@ -293,7 +298,7 @@ const crewOf = (state, a) => state.scenario.crew.find(c => c.id === a.id);
 
 // A watcher: the eye walks KEEP metres behind us on our pavement (or level across the road, for a
 // back-up), goes where we go, and stops when we stop (an overt one facing us; a covert one at a
-// window). Peeling off (a handover, or lost us), it walks a plan out of the map.
+// window, us in its glass). Peeling off (a handover, or lost us), it walks a plan out of the map.
 function thinkWatcher(state, a) {
   const sc = state.scenario, me = playerOf(state), c = crewOf(state, a);
   if (a.ai.steps.length || !c || !me) {
@@ -316,8 +321,10 @@ function thinkWatcher(state, a) {
     a.vx = a.vz = 0; a.gait = 'idle';
     const toMe = Math.atan2(me.z - a.z, me.x - a.x);
     if (sc.team === 'overt') { a.head = toMe; a.face = Math.abs(Math.cos(toMe)) > Math.abs(Math.sin(toMe)) ? (Math.cos(toMe) > 0 ? 'right' : 'left') : (Math.sin(toMe) > 0 ? 'down' : 'up'); }
-    else if (a.z < Z.front + 1.5) { a.face = 'up'; a.head = -Math.PI / 2; a.glass = true; }
-    else { a.head = toMe; a.face = Math.cos(toMe) > 0 ? 'right' : 'left'; }
+    else if (paneAt(state, a.x, a.z)) {                               // (at a shop's glass: watching us in it)
+      a.glass ||= { ...paneAt(state, a.x, a.z), since: state.time.ms };
+      a.face = 'up'; a.head = gazeInto(a.glass, a.x, a.z, me.x, me.z);
+    } else { a.head = toMe; a.face = Math.cos(toMe) > 0 ? 'right' : 'left'; }
     return;
   }
   a.glass = false;
@@ -478,6 +485,22 @@ function glanced(state, bus, me) {
   if (!r.ok) flag(state, bus, 'checked');
 }
 
+/**
+ * At a shop window, looking in: people do, so a watcher who sees us at it takes it for the goods,
+ * mostly (GLASS_COVER on our side; GLASS_AGAIN_COVER at another so soon after the last).
+ */
+function glassed(state, bus, me) {
+  const sc = state.scenario, again = state.time.ms - (sc.glassMs ?? -1e12) < GLASS_AGAIN_S * 1000;
+  sc.glassMs = state.time.ms; sc.windows = (sc.windows ?? 0) + 1;
+  if (sc.teamLost) return;
+  const w = sc.crew.map(c => actorOf(state, c.id)).find(a => a && !a.ai.steps.length && seesActor(state, a, me) && Math.hypot(a.x - me.x, a.z - me.z) < 25);
+  if (!w) return;
+  const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception'), mods: [again ? { why: 'another window, so soon', v: GLASS_AGAIN_COVER } : { why: 'at a shop window, as people are', v: GLASS_COVER }] },
+    { skill: 'awareness', value: skill(state.people[w.who], 'awareness') });
+  sc.rolls++;
+  if (!r.ok) flag(state, bus, 'glassed');
+}
+
 // ---------- once a second ----------
 
 function second(state, bus, me) {
@@ -487,7 +510,7 @@ function second(state, bus, me) {
   // Our heading along the street, and doubling back (a sharp reversal after a steady stretch).
   const vdir = Math.abs(me.vx) > 0.5 ? Math.sign(me.vx) : 0;
   if (vdir && vdir !== sc.heading.dir) { if (sc.heading.s >= 8) { flag(state, bus, 'doubled'); snapshot(state, 'double'); sc.moves++; } sc.heading = { dir: vdir, s: 0 }; }
-  sc.stopS = still || me.busy?.what === 'window' ? (sc.stopS ?? 0) + 1 : 0;   // (stood, or at a shop's window)
+  sc.stopS = still ? (sc.stopS ?? 0) + 1 : 0;                     // (stood: at a shop's window too)
   if (sc.stopS === 1) snapshot(state, 'stop');
   if (sc.stopS === STOP_MOVE_S) sc.moves++;
   else if (vdir) sc.heading.s++;
@@ -501,12 +524,16 @@ function second(state, bus, me) {
     const onRoad = me.z > Z.kerbN + 0.3 && me.z < Z.kerbS - 0.3;
     if (onRoad && !sc.onRoad && !crossingAt(state, me)) flag(state, bus, 'jaywalked');
   }
-  // Our checks: crossing (looking both ways), a shop window's glass, standing a while; weakly, always.
+  // Our checks: crossing (looking both ways), a shop window's glass (as we come to it, and every
+  // few seconds we stay: after STOP_MOVE_S, it shows who stopped when we did), standing a while;
+  // weakly, always.
   const onRoad = me.z > Z.kerbN + 0.3 && me.z < Z.kerbS - 0.3;
   if (onRoad && !sc.onRoad) { snapshot(state, 'cross'); sc.moves++; look(state, bus, 'cross', 1); }
   sc.onRoad = onRoad;
-  if (me.busy?.what === 'window' && me.busy.steps[0]?.[0] === 'wait' && !me.busy.looked) { me.busy.looked = true; look(state, bus, 'window', 0); }
-  else if (sc.stillS >= 3 && sc.stillS % 6 === 3) look(state, bus, 'stop', -1);
+  sc.glassS = me.glass ? (sc.glassS ?? 0) + 1 : 0;
+  if (sc.glassS === 1) { glassed(state, bus, me); look(state, bus, 'window', 0); }
+  else if (sc.glassS && sc.glassS % 6 === 0) look(state, bus, 'window', 0);
+  else if (!me.glass && sc.stillS >= 3 && sc.stillS % 6 === 3) look(state, bus, 'stop', -1);
   else if (state.tick % (8 * TPS) === 0) look(state, bus, 'passive', -3);
   for (const id in sc.suspects) if (!actorOf(state, id)) delete sc.suspects[id];
   // SOLOVEY, on his bench from meet.from to meet.to, if we're on his street.
@@ -620,20 +647,25 @@ function instinct(state, me, still) {
     return L('bench', 'warn', 'There he is: bald, glasses, the paper. If you\'re sure you\'re clean, {instinct} sit down beside him.', 'meet');
   }
   if (sure) return L('sure', 'warn', [`You've a tail. Don't take them to him: {instinct} call it off, or lose them first where they can't see you do it.`, 'They\'re on you. A lane they don\'t see you take, or home. {instinct} call it off.'], 'abort');
+  // (a shop window at hand is offered whatever else is said, so it shows as you come to it)
+  const o = offer(state, me, ['window']), A = (line) => (o.act && !line.act ? { ...line, text: line.text + o.text, act: o.act } : line);
   if (sc.sinceMap && now - sc.sinceMap < 20000) {
     if (still) return L('lane-watch', 'note', ['Good. Watch the mouth of the lane. Whoever comes out after you may be going your way, or may be coming for you: the second kind stops when you do.', 'Watch the lane\'s mouth. People come through lanes all day; the one who comes for you looks for you when they come out.']);
-    return L('lane-out', 'note', 'Out of the lane. Stop somewhere natural and watch the mouth of it: whoever comes out after you, see what they do when you don\'t move.');
+    return A(L('lane-out', 'note', 'Out of the lane. Stop somewhere natural and watch the mouth of it: whoever comes out after you, see what they do when you don\'t move.'));
   }
-  if (familiar.length) return L('familiar', 'note', `${cap(familiar[0].look)}: seen before. Could be nothing. Check again in a while, somewhere else.`);
-  if (sc.lead && now - sc.lead.ms < 12000) return L(`lead-${sc.lead.ms}`, 'note', [`Behind you, going your way: ${sc.lead.look}. You'll know that face again.`, `${cap(sc.lead.look)}, a way back, walking your way. Probably nothing. Remember the face.`]);
+  if (familiar.length && !me.glass) return A(L('familiar', 'note', `${cap(familiar[0].look)}: seen before. Could be nothing. Check again in a while, somewhere else.`));
+  if (sc.lead && now - sc.lead.ms < 12000) return A(L(`lead-${sc.lead.ms}`, 'note', [`Behind you, going your way: ${sc.lead.look}. You'll know that face again.`, `${cap(sc.lead.look)}, a way back, walking your way. Probably nothing. Remember the face.`]));
+  // At a shop window: what it shows, and how to use it.
+  if (me.glass && now < g.to) return L(sc.glassS < 7 ? 'glass' : 'glass-stay', 'calm', sc.glassS < 7
+    ? ['In the glass, the street behind you, all but the middle of it: that\'s your own back. Who stops when you stop?', 'The glass shows the road behind you. Hold {watch} and slant your eyes along it for the pavement.']
+    : ['Long enough at one window and it\'s not the goods you\'re looking at. Walk on when you\'ve seen what you need.', 'Slant your eyes along the glass ({watch} held) for the pavement behind you; straight in, it\'s the road.']);
   if (now < g.from - 30000) {
-    const o = coverHere(state, me);
-    if (o === 'window' && (sc.checks < 2 || now % 40000 < 15000)) return L('window', 'calm', 'A shop window. {instinct} look in it: the glass shows who\'s behind you.', 'window');
+    if (o.act) return L('early', 'calm', 'A shop window. {instinct} look in it: the glass shows who\'s behind you.', 'window');
     return L('early', 'calm', [`SOLOVEY from ${clockText(g.from)}: ${wayText(state, me)} Time to check your back on the way.`, ...LESSONS]);
   }
   if (now < g.to) {
-    if (state.map.row === g.row && Math.abs(g.x - me.x) < 30) return L('near', 'warn', `He's there, on the bench${s && inView(state, s.id) ? '' : ' somewhere ahead'}. Last chance to check your back before you sit down with him.`);
-    return L('due', 'warn', `SOLOVEY is on his bench until ${clockText(g.to)}: ${wayText(state, me)}`);
+    if (state.map.row === g.row && Math.abs(g.x - me.x) < 30) return A(L('near', 'warn', `He's there, on the bench${s && inView(state, s.id) ? '' : ' somewhere ahead'}. Last chance to check your back before you sit down with him.`));
+    return A(L('due', 'warn', `SOLOVEY is on his bench until ${clockText(g.to)}: ${wayText(state, me)}`));
   }
   return L('late', 'warn', 'He\'s leaving. You\'re too late.');
 }

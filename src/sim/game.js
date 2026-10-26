@@ -34,6 +34,7 @@ import { populate, think, walk, facing, isPasserby, noticeAgent } from './crowd.
 import { look, headOf, faceOf } from './perception.js';
 import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } from './agents.js';
 import { drift } from './people.js';
+import { glassAhead } from './acts.js';
 import { SCENARIOS } from './scenarios/index.js';
 
 export const WALK_MS = 1.45;                                       // the player's walk, m/s
@@ -98,14 +99,13 @@ export function step(state, input = {}, bus) {
     me.looking = !!input.look && !me.busy;
     if (me.busy) busy(me);
     else if (input.look) {
-      me.vx = me.vz = 0; me.gait = 'idle'; me.glass = false;
+      me.vx = me.vz = 0; me.gait = 'idle';
       if (n > 0.01) { me.head = Math.atan2(mz, mx); me.face = faceOf(me.head); }
     } else {
       if (n > 1) { mx /= n; mz /= n; }
       const speed = input.run ? RUN_MS : input.slow ? STROLL_MS : WALK_MS;
       me.vx = mx * speed; me.vz = mz * speed;
       me.gait = n > 0.01 ? (input.run ? 'run' : 'walk') : 'idle';
-      me.glass = false;
       if (n > 0.01) { me.head = Math.atan2(mz, mx); me.face = facing(me.vx, me.vz, me.face); }
     }
     // A glance back: the eyes over the shoulder, the feet going on; then the eyes come back.
@@ -115,6 +115,11 @@ export function step(state, input = {}, bus) {
       me.head = me.eyesOn + Math.PI;
       if (--me.glance === 0) { me.head = me.eyesOn; me.eyesOn = undefined; }
     }
+    // Stood at a shop's glass with the eyes into it: looking in the window (since when, for the
+    // scenarios: a stop that began as someone looked is a stop they saw begin).
+    const pane = !me.vx && !me.vz && glassAhead(state, me);
+    me.glass = pane ? (me.glass?.x0 === pane.x0 ? me.glass : { ...pane, since: state.time.ms }) : false;
+    if (me.glass) me.face = 'up';
   }
   // 2. Everyone moves; the focus may leave the map.
   for (const a of state.actors) {
@@ -154,11 +159,9 @@ export function step(state, input = {}, bus) {
 }
 
 // The player's busy plan: ['go', x, z] (walk there; given up after a second without getting closer)
-// and ['wait', ticks, face, gait]. Waiting at a shop window (busy.what 'window'), the glass shows
-// the street behind (sim/perception.js).
+// and ['wait', ticks, face, gait].
 function busy(me) {
   const b = me.busy, s = b.steps[0];
-  me.glass = false;
   if (!s) { me.busy = null; me.vx = me.vz = 0; me.gait = 'idle'; return; }
   if (s[0] === 'go') {
     const dx = s[1] - me.x, dz = s[2] - me.z, d = Math.hypot(dx, dz);
@@ -169,7 +172,6 @@ function busy(me) {
   }
   me.vx = me.vz = 0; me.gait = s[3] ?? 'idle';
   if (s[2]) { me.face = s[2]; me.head = headOf(s[2]); }
-  me.glass = b.what === 'window';
   if (++b.wait >= s[1]) { b.steps.shift(); b.wait = 0; }
 }
 

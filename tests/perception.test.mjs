@@ -1,7 +1,8 @@
-// Perception: the cone, the radius of awareness, the light, the walls; and the player's memory of
-// who was where (frozen out of sight, forgotten when the spot is looked at again).
+// Perception: the cone, the radius of awareness, the light, the walls, a shop window's glass; and the
+// player's memory of who was where (frozen out of sight, forgotten when the spot is looked at again).
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
-import { eyes, visibility, sees, SEEN, inView, AWARE_M, AWARE_PER, CONE_DEG, CONE_PER_AWARENESS } from '../src/sim/perception.js';
+import { eyes, visibility, sees, SEEN, inView, lightHere, AWARE_M, AWARE_PER, CONE_DEG, CONE_PER_AWARENESS, SIGHT_M, LIGHT_M, GLASS_K, BODY_DEG } from '../src/sim/perception.js';
+import { coverHere, crossingNear } from '../src/sim/acts.js';
 import { at } from '../src/sim/clock.js';
 import { skill } from '../src/sim/skills.js';
 import { Z } from '../src/sim/map/street.js';
@@ -62,6 +63,60 @@ export default [
       const day = street(13), me2 = playerActor(day);
       Object.assign(me2, { x: lamp.x - 26, z: -2.6, head: 0 });
       assert(sees(day, eyes(day, me2), lamp.x, -4.8), 'by day, the same spot is seen');
+    },
+  },
+  {
+    name: 'perception: a shop window shows the street behind, through its pane, short of a straight look, and not what your back hides',
+    fn() {
+      const g = street(13), me = playerActor(g);
+      const pane = [...g.$world.sections.values()].flatMap(S => S.doors).map(d => d.pane).filter(p => p && p.x1 - p.x0 >= 2.8).sort((a, b) => Math.abs(a.x0) - Math.abs(b.x0))[0];
+      assert(pane, 'a shop with a good window');
+      const ex = pane.x1 - 0.4, ez = pane.z + 0.65, across = 8.5;   // at the glass, near its east end; the near pavement over the road
+      const at = (head, glass) => { Object.assign(me, { x: ex, z: ez, head, glass: glass ? { ...pane, since: 0 } : false }); return eyes(g, me); };
+      const IN = -Math.PI / 2, BACK = Math.PI / 2, SLANT = -Math.PI / 2 - Math.PI / 4;   // into the glass; turned round; slanted along it, west
+      const v = (e, x, z) => visibility(g, e, x, z);
+      const glass = at(IN, true), wall = at(IN, false), turned = at(BACK, false), slant = at(SLANT, true);
+      // Straight in: the road behind, and the near pavement over it, but not the middle (your own back).
+      const behind = [ex, across], side = [ex - 9, across], east = [ex + 14, across], west = [ex - 14, across], pavement = [ex - 14, -2.7];
+      assert(v(glass, ...side) >= SEEN && v(wall, ...side) < SEEN, 'over the road, to one side: in the glass (and not without it)');
+      assert(v(glass, ...behind) < SEEN && v(turned, ...behind) >= SEEN, 'straight behind: your own back in the glass (a straight look sees it)');
+      // Through the pane only: what's reflected beyond its end isn't in it.
+      assert(v(glass, ...west) >= SEEN && v(glass, ...east) < SEEN, 'the glass shows what it reflects: west of us, not east past its end');
+      // The pavement behind: not in a look straight in; slanted along the glass, yes.
+      assert(v(glass, ...pavement) < SEEN && v(slant, ...pavement) >= SEEN, 'the pavement behind, slanted along the glass');
+      // Shorter than a straight look: GLASS_K of the eye's reach (the way there and back).
+      const range = SIGHT_M + LIGHT_M * lightHere(g, ex, 20), far = [ex - 0.58 * range, 28];   // (on the far pavement, back west)
+      const vf = v(glass, ...far), tf = v(turned, ...far);
+      console.log(`      straight in: over the road 9 m aside ${fmt(v(glass, ...side), 2)}, straight behind ${fmt(v(glass, ...behind), 2)} (your back: ${BODY_DEG}°), 14 m east past the pane ${fmt(v(glass, ...east), 2)}, the pavement 14 m back ${fmt(v(glass, ...pavement), 2)} (slanted: ${fmt(v(slant, ...pavement), 2)}); ${fmt(range, 0)} m reach straight, ${fmt(range * GLASS_K, 0)} in the glass: at ${fmt(Math.hypot(far[0] - ex, far[1] - ez), 0)} m ${fmt(vf, 2)} (turned round ${fmt(tf, 2)})`);
+      assert(tf >= SEEN && vf < SEEN, 'the glass reaches less far than a look');
+      // And the instinct's offer: a shop window at hand on the shops' pavement, not once you're at it.
+      Object.assign(me, { x: (pane.x0 + pane.x1) / 2, z: -2.7, glass: false });
+      assert(coverHere(g, me) === 'window', 'a window offered, walking past it');
+      me.glass = { ...pane, since: 0 };
+      assert(coverHere(g, me) !== 'window', 'not when you\'re at it');
+    },
+  },
+  {
+    name: 'a shop window: every scene\'s instinct offers it on the shops\' pavement, and T takes you to the glass to look in it',
+    fn() {
+      const out = [];
+      for (const scenario of ['walk', 'sdr', 'tail']) {
+        const g = newGame({ seed: 5, scenario });
+        start(g, null);
+        for (let t = 0; t < 20 * 3; t++) step(g, {}, null);
+        const me = playerActor(g), mid = (p) => (p.x0 + p.x1) / 2;
+        const pane = [...g.$world.sections.values()].flatMap(S => S.doors).map(d => d.pane).filter(p => p && !crossingNear(g, { x: mid(p), z: -2.7 }, 6))
+          .sort((a, b) => Math.abs(mid(a) - me.x) - Math.abs(mid(b) - me.x))[0];
+        Object.assign(me, { x: mid(pane), z: -2.7, head: 0, face: 'right', busy: null });   // walking past it
+        for (let t = 0; t < 20 * 8; t++) step(g, {}, null);                                    // (a calm line holds 7 s)
+        const p = { ...g.scenario.prompt };
+        assert(p?.act === 'window' && /\{instinct\} look in/.test(p.text), `${scenario}: the window offered ("${p?.text}")`);
+        step(g, { act: ['instinct'] }, null);
+        for (let t = 0; t < 20 * 4; t++) step(g, {}, null);
+        assert(me.glass, `${scenario}: T takes you to the glass, and you look in it`);
+        out.push(`${scenario}: "${p.text.replace(/\{instinct\}/, 'T')}"`);
+      }
+      console.log(`      ${out.join('\n      ')}`);
     },
   },
   {

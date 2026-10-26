@@ -4,14 +4,15 @@
 // side streets, alleys and lanes lead on to the streets north and south.
 //
 // The instinct walks with you (instinct(), once a second): where a lane leads, where to cross, what
-// T would do here (look in a window, sit on a bench, cross), and between those a lesson or two.
+// T would do here (look in a window, sit on a bench, cross), and between those a lesson or two. A
+// shop window at hand is offered whatever else is said.
 import { at, TICK_MS, hourOfDay } from '../clock.js';
 import { handler, seedFrom } from '../people.js';
 import { heatKey } from '../heat.js';
 import { say } from '../log.js';
 import { Z, streetName, parkName } from '../map/street.js';
 import { sectionAt } from '../world.js';
-import { act, coverHere, crossingNear, say1 } from '../acts.js';
+import { act, coverHere, offer, crossingNear, say1 } from '../acts.js';
 import { openAir } from '../perception.js';
 
 const TPS = 1000 / TICK_MS;
@@ -37,7 +38,7 @@ export const walk = {
     const me = state.actors.find(a => a.who === state.player), p = state.scenario.prompt;
     if (action !== 'instinct' || !me) return;
     if (p?.act) act(state, bus, me, p.act);
-    else say(state, bus, { kind: 'instinct', text: me.busy ? 'You\'re at it. Moving stops it.' : 'Nothing to do here but look.' });
+    else say(state, bus, { kind: 'instinct', text: me.busy || me.glass ? 'You\'re at it. Moving stops it.' : 'Nothing to do here but look.' });
   },
 
   tick(state) {
@@ -61,7 +62,9 @@ function instinct(state, me) {
   const L = (id, text, act = null, tone = 'calm') => ({ id, tone, text: Array.isArray(text) ? say1(state, id, text) : text, act });
   const S = sectionAt(state, me.x), seed = state.map.seed, row = state.map.row ?? 0;
   if (!S) return L('none', 'Walk.');
-  if (me.busy) return L('busy', { window: 'In the glass, the street behind you. Who\'s stopped when you stopped?', bench: 'A bench is a good seat for the street. Moving gets you up.',
+  if (me.glass) return L('glass', ['In the glass, the street behind you, all but the middle of it: that\'s your own back.', 'Straight in, the glass shows the road behind you. Hold {watch} and slant your eyes along it: the pavement behind.',
+    'A shop window is a mirror with goods in it. Nobody minds anyone looking at the goods.']);
+  if (me.busy) return L('busy', { window: 'To the shop window.', bench: 'A bench is a good seat for the street. Moving gets you up.',
     lace: 'A shoelace: ten seconds to look back along the street, for free.', cross: 'Over you go.' }[me.busy.what] ?? 'At it.');
   const side = (g) => ((g.x0 + g.x1) / 2 < me.x ? 'on your left' : 'on your right');
   const inside = (g) => me.x > g.x0 && me.x < g.x1;
@@ -76,8 +79,8 @@ function instinct(state, me) {
     return L('cross-far', me.z < Z.roadN ? `The far road. {instinct} cross${g ? `: ${g.name} goes on south from the far pavement` : ''}.` : '{instinct} cross back to the boulevard.', 'cross');
   }
   // A way north or south close by.
-  const gn = me.z < Z.kerbN && S.gapsN.find(g => Math.abs((g.x0 + g.x1) / 2 - me.x) < 8);
-  if (gn) return L('gap-n', `${gn.name}, ${side(gn)}: up it to ${streetName(seed, row - 1)}.`);
+  const gn = me.z < Z.kerbN && S.gapsN.find(g => Math.abs((g.x0 + g.x1) / 2 - me.x) < 8), o = offer(state, me, ['window']);
+  if (gn) return L('gap-n', `${gn.name}, ${side(gn)}: up it to ${streetName(seed, row - 1)}.${o.text}`, o.act);
   const gs = me.z > Z.roadS - 0.5 && S.gapsS.find(g => Math.abs((g.x0 + g.x1) / 2 - me.x) < 8);
   if (gs) return L('gap-s', `${gs.name}, ${side(gs)}: down it to ${streetName(seed, row + 1)}.`);
   // Something to do here.
