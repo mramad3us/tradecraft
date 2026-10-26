@@ -10,6 +10,7 @@ import { clockText, stampText, dateText } from '../sim/clock.js';
 import { checkText } from '../sim/checks.js';
 import { SCENARIOS } from '../sim/scenarios/index.js';
 import { placeName } from '../sim/map/street.js';
+import { shownRolls } from '../sim/scenarios/sdr.js';
 
 const el = (tag, props = {}, ...kids) => {
   const e = Object.assign(document.createElement(tag), props);
@@ -218,7 +219,7 @@ export function createUI({ input, cb }) {
   const OUTCOMES = { seen: 'SEEN', made: 'MADE', lost: 'LOST', missed: 'MISSED', blown: 'BLOWN' };
   // (made, but you didn't see him make you: you know only that something spooked him)
   // (his sightings of you that you saw happen; the rest you can only suspect)
-  const seenText = (sc) => { const n = sc.sightings.filter(x => x.seen !== false).length, m = sc.sightings.length - n; return `you saw him spot you ${n} time${n === 1 ? '' : 's'}${m ? ' (maybe more)' : ''}`; };
+  const seenText = (sc) => { const n = sc.sightings.filter(x => x.seen !== false).length; return `you saw him spot you ${n} time${n === 1 ? '' : 's'}`; };
   const stampOf = (sc) => (sc.outcome === 'made' && sc.madeSeen === false ? 'SPOOKED' : OUTCOMES[sc.outcome] ?? sc.outcome);
   function showResult(state, { again, same, title }, { debug = false } = {}) {
     const sc = state.scenario, secs = Math.round((sc.ended - sc.began) / 1000);
@@ -247,7 +248,7 @@ export function createUI({ input, cb }) {
       sc.lead ? el('p', { className: 'lead', textContent: `Lead. ${sc.lead}` }) : null,
       ...(debug ? unseenOf(state) : []),
       el('p', { className: 'note', textContent: `${Math.floor(secs / 60)} min ${secs % 60} s on his tail · ${seenText(sc)} · closest ${sc.closest < 1e8 ? sc.closest.toFixed(1) : '?'} m`
-        + `${sc.warned !== undefined ? ` · his checks read in time: ${sc.warned}` : ''}${sc.mixups ? ` · followed the wrong man ${sc.mixups} time${sc.mixups === 1 ? '' : 's'}` : ''} · ${sc.rolls} rolls (the ones that mattered are in the log, ${input.label('log')})` }),
+        + `${sc.warned !== undefined ? ` · his checks read in time: ${sc.warned}` : ''}${sc.mixupsKnown ? ` · followed the wrong man ${sc.mixupsKnown} time${sc.mixupsKnown === 1 ? '' : 's'} that you know of` : ''} · ${shownRolls(state)} rolls (in the log, ${input.label('log')})` }),
       ...ways,
     ));
     paper.hidden = false;

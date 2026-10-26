@@ -603,7 +603,7 @@ function second(state, bus, me, t, d) {
     if (inView(state, w.id)) sc.lastSeen = { x: w.x, z: w.z, ms: state.time.ms };
     const reveal = REVEAL_M * (lightBand(lightHere(state, w.x, w.z)) === 'dark' ? 0.6 : 1);
     if (inView(state, w.id) && wd < reveal) {
-      sc.marked = null; sc.findS = 0;
+      sc.marked = null; sc.findS = 0; sc.mixupsKnown = (sc.mixupsKnown ?? 0) + 1;
       say(state, bus, { kind: 'instinct', text: `That's not him: ${state.people[w.who].tell}. Somewhere back there you swapped him for a stranger, who's having a perfectly ordinary evening.` });
     }
   } else if (++sc.findS >= FIND_EVERY_S) {

@@ -4,6 +4,10 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.27 (2026-10-26)
+
+- **No clue to what your character doesn't know** (your note): an unread sign reads exactly as no sign, "November passes quietly." with no hedge. The papers count only the rolls you saw and the mix-ups you found out about, and the tail's "(maybe more)" is gone.
+
 ## v0.0.26 (2026-10-26)
 
 - **You only know what your character knows** (your note):

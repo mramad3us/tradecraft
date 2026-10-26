@@ -222,10 +222,14 @@ export const sdr = {
       title: sdr.name.toUpperCase(), text: sc.endText,
       lead: sc.met ? `${clockText(sc.ended)}: SOLOVEY handed over a folded newspaper. Inside, next month's procurement schedule for the Western Military District.` : null,
       notes: notes.filter(Boolean),
-      stats: `${Math.floor((sc.ended - sc.began) / 60000)} min ${Math.round((sc.ended - sc.began) / 1000) % 60} s · ${sc.checks} checks of your back, ${sc.glances} of them glances · ${sc.rolls} rolls (the log, J)`,
+      stats: `${Math.floor((sc.ended - sc.began) / 60000)} min ${Math.round((sc.ended - sc.began) / 1000) % 60} s · ${sc.checks} checks of your back, ${sc.glances} of them glances · ${shownRolls(state)} rolls (the log, J)`,
     };
   },
 };
+
+// The rolls the character saw (those that reached the log not hidden): a count of all of them would
+// hint at what they didn't see.
+export const shownRolls = (state) => state.log.filter(e => e.roll && !e.hidden && e.ms >= state.scenario.began).length;
 
 // What the world tells you later: how it went for SOLOVEY, and the signs of what the FSB made of you.
 function epilogue(state) {
@@ -233,10 +237,11 @@ function epilogue(state) {
   const him = sc.outcome === 'burned' ? 'Three weeks later SOLOVEY misses his signal, and the one after. In December the evening papers report the arrest of a Ministry of Defence official for espionage.'
     : sc.outcome === 'clean' ? 'Later: SOLOVEY\'s next signal comes on time, and the one after that.'
       : 'A week later SOLOVEY makes the fallback meeting, nervous, but whole.';
-  // The signs are there to be read, and only a good eye reads them: a poor one sees a quiet month.
-  const signs = !sc.signs?.level ? '' : sc.signs.read
-    ? (sc.signs.level >= 2 ? ' Through the rest of November there\'s a car outside your building more often than not, and you notice it.' : ' Now and then that month, the same face twice on your way to work. You notice.')
-    : ' November passes quietly, as far as you can tell.';
+  // The signs are there to be read, and only a good eye reads them. Unread, a month of them reads
+  // exactly as a month without any: no clue to what the character doesn't know.
+  const signs = sc.signs?.level && sc.signs.read
+    ? (sc.signs.level >= 2 ? ' Through the rest of November there\'s a car outside your building more often than not.' : ' Now and then that month, the same face twice on your way to work.')
+    : ' November passes quietly.';
   return `${him}${signs}`;
 }
 
