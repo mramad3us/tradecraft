@@ -4,7 +4,16 @@ To be settled before anything is built. Each section ends as decisions, with the
 
 ## Pitch
 
-A spy game. Single player, seen in 3D from an isometric-style camera, set in the present day.
+A spy game. Single player, set in the present day, one character controlled: an intelligence operative. Not the analyst, not the special forces, though we work with both in various capacities. The player is always in the field, collecting intelligence, but the shape of the work changes with rank.
+
+What the user has said (2026-10-25), to be turned into decisions by the design questions:
+- **Ranks.** Examples of playable ranks: recruit, agent, handler, undercover, illegal. To be defined; the gameplay changes with them.
+- **The work.** Intelligence gathering, network building, recruiting contacts, maintaining a cover.
+- **Intelligence** is one notion, kept simple: "intelligence". Some people hold some that matters to us, and we need to obtain it. HUMINT is carried in people's heads; SIGINT is hacked or finessed out of devices; and other kinds.
+- **People.** Every character, even a throwaway NPC who won't outlive a scene, has an RPG-like character sheet with stats. The player meets all manner of civilians, some holding relevant intelligence.
+- **Time.** A real-time clock; some actions pass time faster.
+- **Scale.** Many characters on screen at once, mostly city situations. Each scene can be seen under varying light.
+- **Controls.** Keyboard mostly. Move with ZQSD (an AZERTY keyboard: the keys in WASD's place), interact F, inventory I.
 
 ## Pillars
 
@@ -43,6 +52,13 @@ The target entity count, set early: the code is built for it from the start.
 - Content is made by scripts: Blender run headless for kits, MPFB (MakeHuman) for people, exported as glTF (see docs/PIPELINE.md).
 - Buildings are assembled at runtime from short descriptions (footprint, storeys, openings, interior walls, stairs), dressed with Blender kit pieces. A city is data, and the cutaway (front walls to stubs, upper storeys hidden) is part of how buildings are made, not an afterthought.
 
+## Controls
+
+- Keyboard first. Movement reads `KeyboardEvent.code` (physical positions: KeyW/KeyA/KeyS/KeyD are Z/Q/S/D on the user's AZERTY keyboard), so it works on any layout. Labels on screen name the keys as the player's own layout prints them (`navigator.keyboard.getLayoutMap()` where the browser has it).
+- Interact F, inventory I; the rest to be settled.
+
 ## Open questions
+
+- The design questionnaire (2026-10-25): game loop, ranks, intelligence, characters, cover, world, controls, scope. Its answers become the sections above.
 
 - The look: leaning to chibi pixel art (sample 006); settled by the user's pick (see Look).

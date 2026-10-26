@@ -27,7 +27,7 @@ A game, in design: nothing is built yet, and `docs/DESIGN.md` is where the desig
 
 - `VERSION` holds the version: one place, read by the game and the scripts.
 - Work goes out in PATCH releases (0.4.0, 0.4.1, 0.4.2…): one per round of work and one per batch of the user's patch requests, as many as needed. Bump them as you please.
-- The MINOR moves only when the user declares a release candidate and then validates it; never on your own (`release.sh minor` refuses without `--user-validated`). The major (1.0) is the user's call too. Before the first playable build we're on 0.0.x; the first playable the user validates is 0.1.0.
+- You own the PATCH number only; the minor and the major are the user's. We stay on 0.0.x while the design settles and the first playable is built. When the user declares a release candidate, it's numbered 0.1.0-rc1 (`release.sh rc --user-declared`), and fixes to it are rc2, rc3… (`release.sh rc`, yours to cut; patch is refused on a candidate). Only when the user calls it is it 0.1.0 (`release.sh minor --user-validated`). Then work goes on in 0.1.x patches, and the same cycle leads to 0.2.0. The major (1.0) is the user's call too.
 - Every release goes through `tools/release.sh`: a commit `vX.Y.Z: <summary>` on `main` (subject under 72 characters; the detail goes in CHANGELOG.md, not the commit), an annotated tag, and a push when there's a remote. That's standing permission for release commits. Other commits, branches, merges and anything forced only when asked.
 - CHANGELOG.md is the release history: what changed for the player and which numbers moved. Write the entry under `## Unreleased` as the work happens. The release history doesn't go in memory (longhaul's memory grew to 36 KB of it).
 

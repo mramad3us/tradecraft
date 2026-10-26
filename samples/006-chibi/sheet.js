@@ -3,8 +3,10 @@
 import { frame, CELL } from '../lib/sprites.js';
 import { CAST } from './cast.js';
 
-const COLS = [['down', 'idle0'], ['down', 'walk0'], ['right', 'idle0'], ['right', 'walk0'], ['right', 'walk2'],
-  ['right', 'run0'], ['left', 'walk0'], ['up', 'idle0'], ['down', 'sit']];
+// ?cols=right:run0,right:run1 picks the frames shown (default: a few of each view).
+const COLS = new URLSearchParams(location.search).get('cols')?.split(',').map(c => c.split(':'))
+  ?? [['down', 'idle0'], ['down', 'walk0'], ['right', 'idle0'], ['right', 'walk0'], ['right', 'walk2'],
+    ['right', 'run0'], ['left', 'walk0'], ['up', 'idle0'], ['down', 'sit']];
 const [W, H] = CELL;
 const names = Object.keys(CAST), half = Math.ceil(names.length / 2);
 const cv = document.createElement('canvas');

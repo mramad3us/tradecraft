@@ -481,9 +481,9 @@ function armSide(kind, swing, far) {
   const shapes = {
     0: [10, 20, [`${sl(0)}${sl(0)}`, `${sl(1)}${sl(1)}`, `${sl(2)}${sl(2)}`, `${sl(3)}${sl(3)}`, `${sl(4)}${sl(4)}`, `${hand}${hand}`, `${hand}${hand}`]],
     1: [10, 20, [`${sl(0)}${sl(0)}..`, `.${sl(1)}${sl(1)}.`, `.${sl(2)}${sl(2)}.`, `..${sl(3)}${sl(3)}`, `..${sl(4)}${sl(4)}`, `..${hand}${hand}`]],
-    2: [10, 20, [`${sl(0)}${sl(0)}...`, `.${sl(1)}${sl(1)}..`, `..${sl(2)}${sl(2)}.`, `...${sl(3)}${hand}`, `...${hand}${hand}`]],
+    2: [10, 20, [`${sl(0)}${sl(0)}...`, `.${sl(1)}${sl(1)}..`, `..${sl(2)}${hand}${hand}`, `...${hand}${hand}`]],   // running: bent, the fist at the chest
     [-1]: [8, 20, [`..${sl(0)}${sl(0)}`, `.${sl(1)}${sl(1)}.`, `.${sl(2)}${sl(2)}.`, `${sl(3)}${sl(3)}..`, `${sl(4)}${sl(4)}..`, `${hand}${hand}..`]],
-    [-2]: [7, 20, [`...${sl(0)}${sl(0)}`, `..${sl(1)}${sl(1)}.`, `.${sl(2)}${sl(2)}..`, `${hand}${sl(3)}...`, `${hand}${hand}...`]],
+    [-2]: [7, 20, [`...${sl(0)}${sl(0)}`, `..${sl(1)}${sl(1)}.`, `.${hand}${hand}..`, `.${hand}${hand}..`]],                   // running: bent, the fist at the hip
   };
   return shapes[swing];
 }
@@ -495,8 +495,10 @@ function legsSide(pose, near) {
     fwd: [9, 27, ['pppp....', '.pppp...', '..pppp..', '..pppp..', '..ffffff', '..fffff.']],
     back: [5, 27, ['....pppp', '...pppp.', '..pppp..', '.pppp...', 'ffff....', '.fff....']],
     lift: [8, 27, ['.pppp.', '.ppppp', '..pppp', '.fffff', '..ffff']],
-    runfwd: [9, 26, ['pppp.....', '.ppppp...', '...pppp..', '....pppp.', '....pppp.', '....ffffff', '.....ffff.']],
-    runback: [3, 26, ['......pppp', '.....pppp.', '...pppp...', '.pppp.....', 'fppp......', 'fff.......']],
+    runfwd: [9, 27, ['pppp.....', '.pppp....', '...ppp...', '....ppp..', '....ffff.', '....fffff']],
+    runback: [5, 27, ['....pppp', 'ff.pppp.', 'ffpppp..', '.pppp...']],          // knee bent, the foot kicked up behind
+    runlift: [9, 27, ['ppppp.', '.ppppp', '....pp', '....fff']],                // the knee up, in the air
+    runtrail: [7, 27, ['..pppp', '..ppp.', '.ppp..', '.pp...', 'fff...']],
     sit: [9, 27, ['pppppppp', 'pppppppp', '......pp', '......pp', '......ffff']],
   };
   const [x, y, rows] = shapes[pose];
@@ -514,9 +516,9 @@ const POSES = {
   walk2: { bob: 1, reach: [-1, 1], swing: [1, -1], front: 1, side: ['back', 'fwd'] },
   walk3: { bob: 0, reach: [0, 0], swing: [0, 0], front: 0, side: ['lift', 'stand'] },
   run0: { bob: 1, reach: [1, -1], swing: [-2, 2], front: -1, side: ['runfwd', 'runback'], lean: 1 },
-  run1: { bob: -1, reach: [0, 0], swing: [0, 0], front: 0, side: ['lift', 'stand'], lean: 1 },
+  run1: { bob: -1, reach: [0, 0], swing: [-1, 1], front: 0, side: ['runlift', 'runtrail'], lean: 1 },
   run2: { bob: 1, reach: [-1, 1], swing: [2, -2], front: 1, side: ['runback', 'runfwd'], lean: 1 },
-  run3: { bob: -1, reach: [0, 0], swing: [0, 0], front: 0, side: ['stand', 'lift'], lean: 1 },
+  run3: { bob: -1, reach: [0, 0], swing: [1, -1], front: 0, side: ['runtrail', 'runlift'], lean: 1 },
   sit: { bob: 2, reach: [0, 0], swing: [0, 0], front: 0, side: ['sit', 'sit'], sit: true },
 };
 
@@ -546,9 +548,10 @@ function compose(spec, dir, frame) {
 
   if (view === 'right') {
     // Far side first: the far arm and leg, shaded; then the near leg, the body, the near arm.
+    const air = Math.min(0, bob);                                // in the air, the legs rise with the body
     draw(armSide(kind, P.swing[1], true), lean, bob);
-    draw(legsSide(P.side[1], false));
-    draw(legsSide(P.side[0], true));
+    draw(legsSide(P.side[1], false), 0, air);
+    draw(legsSide(P.side[0], true), 0, air);
     draw(torsoSide(kind), lean, bob);
     draw(armSide(kind, P.swing[0], false), lean, bob);
   } else {

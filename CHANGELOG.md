@@ -4,6 +4,13 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.15 (2026-10-25)
+
+- People run properly side-on: the back leg bends and kicks up behind, and the arms are bent, where they swung out straight like sticks. The in-between frames are airborne, one knee up, instead of standing still.
+- `?view=sheet&cols=right:run0,…` on sample 006 picks the frames to lay out.
+- Release numbering: `tools/release.sh rc`. 0.1.0-rc1 when the user declares a candidate (`--user-declared`), rc2, rc3… for fixes to it, and 0.1.0 when they validate it. `promote.sh` sorts a release after its candidates.
+- DESIGN.md: the user's pitch (ranks, intelligence, character sheets for everyone, a real-time clock, crowds, varying light), and controls (ZQSD read by physical key, F, I).
+
 ## v0.0.14 (2026-10-25)
 
 - Chibi town, second pass, after the user's scores (camera 95, night 90, environment 80, characters 35: "front view is too boxy"):

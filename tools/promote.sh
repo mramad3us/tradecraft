@@ -14,7 +14,7 @@ DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$DIR"
 PLAY="$DIR/.play"
 
-latest() { git tag -l 'v*' --sort=-v:refname | head -1; }
+latest() { git -c versionsort.suffix=-rc tag -l 'v*' --sort=-v:refname | head -1; }   # v0.1.0 after v0.1.0-rc3
 current() { git -C "$PLAY" describe --tags --exact-match 2>/dev/null || git -C "$PLAY" rev-parse --short HEAD 2>/dev/null || echo none; }
 
 if [ "${1:-}" = "--status" ]; then

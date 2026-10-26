@@ -2,6 +2,7 @@
 # TRADECRAFT: cut a release.
 #
 #   tools/release.sh patch "<summary>" [--trailer "Key: value"]... [--no-test]
+#   tools/release.sh rc    "<summary>" [--user-declared] [...]
 #   tools/release.sh minor "<summary>" --user-validated [...]
 #   tools/release.sh major "<summary>" --user-validated [...]
 #
@@ -18,38 +19,56 @@
 # The play copy is not touched: promotion is tools/promote.sh, on the user's go.
 #
 # The minor and the major move only when the user has declared a release
-# candidate and validated it; --user-validated is that, said out loud.
+# candidate and validated it:
+#   - rc from a plain version (0.0.14) needs --user-declared, the user's word
+#     that this is a candidate: it makes 0.1.0-rc1;
+#   - rc from a candidate (0.1.0-rc1 -> 0.1.0-rc2) is a fix to the candidate,
+#     ours to cut; patch is refused while on a candidate;
+#   - minor --user-validated from a candidate makes its version (0.1.0-rc3 ->
+#     0.1.0); from a plain version it moves the minor (0.1.7 -> 0.2.0).
+#     --user-validated is the user's validation, said out loud.
 set -eu
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$DIR"
 
-usage() { sed -n '4,6p' "$0" | sed 's/^# *//'; exit 1; }
+usage() { sed -n '4,7p' "$0" | sed 's/^# *//'; exit 1; }
 [ $# -ge 2 ] || usage
 PART="$1"; SUMMARY="$2"; shift 2
-TRAILERS=(); VALIDATED=0; TEST=1
+TRAILERS=(); VALIDATED=0; DECLARED=0; TEST=1
 while [ $# -gt 0 ]; do
   case "$1" in
     --trailer) TRAILERS+=(--trailer "$2"); shift 2 ;;
     --user-validated) VALIDATED=1; shift ;;
+    --user-declared) DECLARED=1; shift ;;
     --no-test) TEST=0; shift ;;
     *) echo "unknown option: $1"; usage ;;
   esac
 done
 
 OLD=$(tr -d '[:space:]' < VERSION)
-IFS=. read -r MA MI PA <<< "$OLD"
+BASE=${OLD%%-rc*}; RC=""
+[ "$BASE" != "$OLD" ] && RC=${OLD##*-rc}
+IFS=. read -r MA MI PA <<< "$BASE"
+SUFFIX=""
 case "$PART" in
-  patch) PA=$((PA + 1)) ;;
+  patch)
+    if [ -n "$RC" ]; then echo "On release candidate $OLD: a fix is the next candidate (rc), or the user validates it (minor --user-validated)."; exit 1; fi
+    PA=$((PA + 1)) ;;
+  rc)
+    if [ -n "$RC" ]; then SUFFIX="-rc$((RC + 1))"
+    elif [ $DECLARED = 1 ]; then MI=$((MI + 1)); PA=0; SUFFIX="-rc1"
+    else echo "A first release candidate is the user's call: --user-declared says they declared it."; exit 1; fi ;;
   minor|major)
     if [ $VALIDATED = 0 ]; then
       echo "A $PART bump needs the user's validated release candidate (--user-validated). Patch releases need nothing."
       exit 1
     fi
-    if [ "$PART" = minor ]; then MI=$((MI + 1)); else MA=$((MA + 1)); MI=0; fi
-    PA=0 ;;
+    if [ -n "$RC" ] && [ "$PART" = minor ]; then :                # the candidate becomes its version
+    elif [ "$PART" = minor ]; then MI=$((MI + 1)); PA=0
+    else MA=$((MA + 1)); MI=0; PA=0; fi ;;
   *) usage ;;
 esac
-NEW="$MA.$MI.$PA"
+NEW="$MA.$MI.$PA$SUFFIX"
 TAG="v$NEW"
 SUBJECT="$TAG: $SUMMARY"
 
