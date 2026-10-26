@@ -125,7 +125,7 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
   - a hook spent;
   - needs;
   - the environment: night, darkness, crowds, distance (Q116). The light at a spot comes from the same helper that lights the scene, so what you see is what's rolled.
-- **Contested actions are opposed rolls**, both shown in the log (Q116). A natural 20 wins and a natural 1 loses, unless both sides rolled the same; **ties go to us** (my call).
+- **Contested actions are opposed rolls**, both shown in the log (Q116). The totals decide, naturals included, and **ties go to us** (my calls). If naturals won outright, every contest would fail at least one time in ten whatever the skills, and a tail is a handful of contests.
 
   | Situation | Our roll | Theirs |
   |---|---|---|
@@ -228,6 +228,13 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
   - Meetings you witness are noted by themselves.
   - C takes a photo if you carry a camera.
 - **Tailing** (Q143). The target walks on and the map extends with them. Too close raises their suspicion, too far loses them. Crowds help. The instinct warns before you lose them.
+- **Tailing, the test** (v0.0.20; my calls, for the user to score). Gennady Orlov, a former GRU officer, walks east through a November dusk to a meeting on a boulevard bench; the street grows ahead of him. The numbers live in `src/sim/scenarios/tail.js`.
+  - **Unseen.** At his moments (a look back, a shop window's reflection, coming out of a shop, crossing, doubling back) he rolls Pathfinding against our Deception if we're where he's looking. The modifiers are our choices: distance (under 5 m +6 to him, under 10 m +3, over 15 m −2, over 25 m −4, over 35 m −6), across the road (−3), people about us (alone +2, among people −2, a crowd −4), the light where we stand (dusk −2, dark −4), running (+6), stopping when he stops (+3), right behind him (+1), looking in a window (−2).
+  - **Twice and you're made.** The first sighting sets him dry-cleaning: a little later he doubles back. The second ends the test.
+  - **Keeping him** is a brass marker over his head. Beyond 22 m we roll Tracking every 4 s against a difficulty from the distance, the people round him and the dark, and again when he comes out of a shop or crosses with us more than 15 m off. Lost, the marker goes; within 16 m an Awareness roll finds him again; lost for two minutes, he's gone.
+  - **The instinct** says what a trained eye would: too close, he's stopped, he's pulling away, he's in a shop. T does what it says when there's something to do (look in a shop window: a reason to stop).
+  - **The meeting** is seen from within 18 m, with him in hand, for 15 s. Closer than 5 m, the contact rolls too.
+  - **Balance**, by scripted followers over 30 evenings (`tests/tail.test.mjs`): tailing 10 m behind is made 9 times in 10; the other pavement, 20 m back, sees the meeting 6 times in 10. A player has more tricks (crowds, windows, the dark).
 - **Travel.** Fast travel between points of interest by metro, bus, taxi or your own car. The way to the transport is flavoured: a driveway with the car, the subway entrance below the flat. Transit becomes a playable map when it matters (a tail, a brush pass); otherwise it's a cutscene (Q151). Traffic appears where it matters, and a taxi at the right moment can shake a tail.
 - **CQC.** Rock, paper, scissors, second by second, with time paused until you choose: K hits, L grapples, M guards. Guard beats hit, hit beats grapple, grapple beats guard.
   - **The intent read:** a higher CQC gives a chance to see what the opponent will do next, scaling with the difference. Otherwise a "?" floats over their head.
@@ -315,7 +322,7 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
    - A map renderer: a camera that follows, a crowd of 50 sprites, light from the clock.
    - A generated Moscow street to walk (see World size).
 3. **Mechanic tests**, one map each, scored by the user:
-   1. Tailing a target.
+   1. Tailing a target. Built (v0.0.20): the title's Mechanic tests. How it plays is below (Tailing, the test).
    2. Being tailed: spot it, lose it (a street and the metro).
    3. Watching and photographing.
    4. A conversation: approaches, gauges, hooks, leads.

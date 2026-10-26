@@ -98,10 +98,10 @@ function spawn(state, r, x, z, lane, dir, focusX, lead = []) {
 /** Keep the crowd near its target around focusX: let the gone go, bring new ones in. Once a second. */
 export function populate(state, focusX, { fill = false } = {}) {
   const r = state.rng;
-  state.actors = state.actors.filter(a => !(a.ai?.kind === 'walker' && (a.ai.gone || Math.abs(a.x - focusX) > WINDOW_M + 6)));
+  state.actors = state.actors.filter(a => !(a.ai?.gone || (a.ai?.kind === 'walker' && Math.abs(a.x - focusX) > WINDOW_M + 6)));
   const target = Math.round(CROWD_PER_100M * (2 * WINDOW_M / 100) * density(state.time.ms) * (state.map.crowd ?? 1));
   const walkers = state.actors.filter(a => a.ai?.kind === 'walker').length;
-  const lanes = [['far', 5], ['near', 2.5], ['path', 3]];
+  const lanes = [['far', 5], ['near', 3.5], ['path', 3]];
   for (let n = walkers; n < target; n++) {
     const lane = weighted(r, lanes);
     if (fill) {                                                    // a map just arrived: people are already about
@@ -124,30 +124,45 @@ export function populate(state, focusX, { fill = false } = {}) {
   }
 }
 
-/** A passer-by decides how to move next tick (their velocity, gait and facing). */
-export function think(state, a) {
+/**
+ * Follow a plan of steps (['go', x, z], ['wait', ticks, face, gait], ['gone']): the velocity, gait and
+ * facing for next tick. Returns the step being worked on (null when the plan's done), so a caller
+ * with steps of its own (a scenario's character) can handle those and leave these to it.
+ */
+export function follow(state, a) {
   const ai = a.ai;
   const step = ai.steps[0];
-  if (!step) { ai.gone = true; return; }
-  if (step[0] === 'gone') { ai.gone = true; a.vx = a.vz = 0; return; }
+  if (!step) { a.vx = a.vz = 0; a.gait = 'idle'; return null; }
+  if (step[0] === 'gone') { ai.gone = true; a.vx = a.vz = 0; return step; }
   if (step[0] === 'wait') {
-    a.vx = a.vz = 0; a.face = step[2]; a.gait = step[3];
+    a.vx = a.vz = 0; a.face = step[2] ?? a.face; a.gait = step[3] ?? 'idle';
     if (++ai.wait >= step[1]) { ai.wait = 0; ai.steps.shift(); }
-    return;
+    return step;
   }
+  if (step[0] !== 'go') return step;
   const [, tx, tz] = step;
-  const dx = tx - a.x, dz = tz - a.z, d = Math.hypot(dx, dz);
-  if (d < 0.15) { ai.steps.shift(); a.stuck = 0; return think(state, a); }
-  let ux = dx / d, uz = dz / d, speed = ai.speed;
-  // Make room: slow behind someone in the way, lean away from anyone too close.
+  if (Math.hypot(tx - a.x, tz - a.z) < 0.15) { ai.steps.shift(); a.stuck = 0; return follow(state, a); }
+  steer(state, a, tx, tz, ai.speed);
+  return step;
+}
+
+/** A passer-by decides how to move next tick (their plan done, they've gone). */
+export const think = (state, a) => { if (!follow(state, a)) a.ai.gone = true; };
+
+/**
+ * Head for (tx, tz) at `speed`: slow behind someone in the way, lean away from anyone too close,
+ * step aside (to the right, as people do) for someone coming the other way, keep to the lane.
+ */
+export function steer(state, a, tx, tz, speed) {
+  const dx = tx - a.x, dz = tz - a.z, d = Math.hypot(dx, dz) || 0.01;
+  let ux = dx / d, uz = dz / d;
   let px = 0, pz = 0;
   for (const o of near(state, a.x, a.z, 1.4)) {
-    if (o === a) continue;
+    if (o === a || o.hidden) continue;
     const ox = o.x - a.x, oz = o.z - a.z, od = Math.hypot(ox, oz) || 0.01;
     const ahead = (ox * ux + oz * uz) / od;
     if (ahead > 0.7 && od < 1.0) speed = Math.min(speed, Math.max(0.3, (o.vx * ux + o.vz * uz) || 0.5));
     if (od < SPACE_M) { const k = (SPACE_M - od) / SPACE_M; px -= ox / od * k; pz -= oz / od * k; }
-    // Someone straight ahead coming the other way: step aside, to the right as people do.
     if (ahead > 0.85 && od < 1.4 && (o.vx * ux + o.vz * uz) < 0) { px += -uz * 0.6; pz += ux * 0.6; }
   }
   // Walking along a lane, stay in it: the lanes are laid clear of lamps and kerbs, the margins aren't.

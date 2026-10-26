@@ -12,8 +12,8 @@
 // one (i0 = i1 = null) grows as it's walked.
 //
 // Movement is a circle (RADIUS_M) against the blocker rectangles, axis by axis, so it slides along
-// walls; people don't block each other outright (a crowd would trap the player): overlapping
-// circles are pushed apart, a little a tick.
+// walls. People don't block each other (a crowd would trap the player): passers-by steer round
+// whoever's near (sim/crowd.js), and the player walks through a shoulder or two.
 import { section, sectionsAround, Z } from './map/street.js';
 
 export const BUCKET_M = 4;
@@ -33,10 +33,10 @@ export function attach(state, bus, x = 0) {
   return W;
 }
 
-/** Bring the sections in play up to date around x. */
+/** Bring the sections in play up to date around x (a number, or several: the focus and others to keep). */
 export function refocus(state, bus, x) {
-  const W = state.$world, map = state.map;
-  const want = sectionsAround(map, x, REACH_M);
+  const W = state.$world, map = state.map, xs = [x].flat();
+  const want = [...new Set(xs.flatMap(v => sectionsAround(map, v, REACH_M)))];
   let changed = false;
   for (const i of want) {
     if (W.sections.has(i)) continue;
@@ -45,7 +45,7 @@ export function refocus(state, bus, x) {
     changed = true;
   }
   for (const [i, S] of W.sections) {
-    if (Math.abs((S.x0 + S.x1) / 2 - x) <= DROP_M) continue;
+    if (xs.some(v => Math.abs((S.x0 + S.x1) / 2 - v) <= DROP_M)) continue;
     W.sections.delete(i);
     bus?.emit('section-', S);
     changed = true;

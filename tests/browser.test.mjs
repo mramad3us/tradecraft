@@ -66,4 +66,25 @@ export default [
       });
     },
   },
+  {
+    name: 'mechanic test 1 from the title: the brief, the marker, the instinct, no errors',
+    heavy: true,
+    async fn() {
+      await withGame(async (page, errors) => {
+        await page.goto(`http://localhost:${PORT}/`);
+        await page.waitForFunction("!document.getElementById('title').hidden", null, { timeout: 30000 });
+        await page.getByText('1. Tailing a target').click();
+        await page.waitForSelector('.sheet.brief', { timeout: 30000 });
+        await page.keyboard.press('Enter');
+        await page.waitForFunction('window.__ready === true', null, { timeout: 30000 });
+        await page.keyboard.down('KeyD');
+        await page.waitForTimeout(4000);
+        await page.keyboard.up('KeyD');
+        const seen = await page.evaluate(() => ({ marker: !document.querySelector('.marker').hidden, prompt: document.querySelector('.prompt').hidden ? null : document.querySelector('.prompt').textContent, target: window.__tradecraft.state.scenario.target }));
+        console.log(`      marker over him: ${seen.marker}; instinct: ${seen.prompt ?? '(quiet)'}`);
+        assert(seen.target && seen.marker, 'the target and his marker');
+        assert(errors.length === 0, errors.join('\n'));
+      });
+    },
+  },
 ];

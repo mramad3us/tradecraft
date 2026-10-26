@@ -27,7 +27,7 @@ const settings = { debug: (() => { try { return localStorage.getItem('tradecraft
 
 const input = createInput();
 let state = null, bus = null, view = null;
-let paused = false, running = false;
+let paused = false, running = false, acts = [];
 let prev = new Map(), acc = 0, last = performance.now(), frames = 0;
 
 const ui = createUI({ input, cb: {
@@ -70,13 +70,28 @@ function launch(s, { hour = null } = {}) {
   ui.frame.prepend(view.canvas);
   bus.on('log', (e) => ui.toast(e));
   bus.on('autosave', () => autosave());
+  bus.on('scenario-end', () => setTimeout(() => { if (state === s) result(); }, 1800));
   start(state, bus);
+  view.flush();                                                    // the street around you, before the first frame
   if (Number.isFinite(hour)) skip(state, bus, ((hour - hourOfDay(state.time.ms)) * HOUR % (24 * HOUR) + 24 * HOUR) % (24 * HOUR));
   ui.hideTitle();
-  ui.closeOverlays();
+  ui.closeAll();
   ui.clearToasts();
   for (const e of state.log.slice(-2)) ui.toast(e);
-  prev = new Map(); acc = 0; paused = false; running = true;
+  prev = new Map(); acc = 0; paused = false; running = true; acts = [];
+  const sc = SCENARIOS[state.scenario.kind];
+  if (state.scenario.outcome) result();
+  else if (sc.brief && state.tick === 0) ui.showBrief(sc.brief, () => {});
+}
+
+/** A test's result paper, with the ways on. */
+function result() {
+  const kind = state.scenario.kind, seed = state.seed;
+  ui.showResult(state, {
+    again: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION })),
+    same: () => launch(newGame({ seed, scenario: kind, version: VERSION })),
+    title: async () => { await autosave(); stop(); showTitle(); },
+  });
 }
 
 async function showTitle() {
@@ -89,9 +104,11 @@ async function showTitle() {
 input.onAction((action) => {
   if (!running) return;
   const open = ui.overlay();
+  if (open === 'brief' || open === 'result') return;              // a paper waits for its choice
   if (action === 'menu') { if (open) { ui.closeOverlays(); paused = false; } else { ui.openMenu(settings); } return; }
   if (action === 'log') { if (open === 'log') { ui.closeOverlays(); } else if (!open) ui.openLog(state); return; }
   if (action === 'pause' && !open) paused = !paused;
+  if (action === 'instinct' && !open && !paused) acts.push('instinct');
 });
 addEventListener('keydown', (e) => {                               // debug mode: the clock moves on
   if (!running || !settings.debug || ui.overlay() || e.repeat) return;
@@ -110,12 +127,13 @@ function frame(now) {
       acc += dt;
       while (acc >= TICK_MS / 1000) {
         prev = new Map(state.actors.map(a => [a.id, [a.x, a.z, a.stride]]));
-        step(state, input.poll(), bus);
+        step(state, { ...input.poll(), act: acts }, bus);
+        acts = [];
         acc -= TICK_MS / 1000;
       }
     }
     view.frame(state, prev, live ? acc / (TICK_MS / 1000) : 1, state.time.ms / 1000);
-    ui.update(state, paused);
+    ui.update(state, paused, view);
     if (++frames === 3) window.__ready = true;
   }
   requestAnimationFrame(frame);

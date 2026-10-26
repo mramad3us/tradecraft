@@ -40,7 +40,7 @@ export function sun(ms) {
 const KEYS = [
   { elev: 18, sun: 0xfff2dc, sunK: 0.79, sky: 0xdde6ff, ground: 0x9a8a78, skyK: 0.6, tint: [1, 1, 1] },
   { elev: 7, sun: 0xffe2b4, sunK: 0.74, sky: 0xdcdcf0, ground: 0x9a8470, skyK: 0.56, tint: [1, 0.95, 0.86] },
-  { elev: 0.5, sun: 0xffa266, sunK: 0.5, sky: 0xaeaad2, ground: 0x6e5658, skyK: 0.44, tint: [0.82, 0.64, 0.52] },
+  { elev: 0.5, sun: 0xffb685, sunK: 0.48, sky: 0xa2a8cc, ground: 0x5e5258, skyK: 0.43, tint: [0.76, 0.66, 0.6] },   // a November sunset: cool, a warm glimmer
   { elev: -4, sun: 0x95c1e3, sunK: 0.16, sky: 0x6a8fc4, ground: 0x23294a, skyK: 0.32, tint: [0.14, 0.19, 0.3] },
   { elev: -9, sun: 0x95c1e3, sunK: 0.15, sky: 0x5d8fc2, ground: 0x1b2541, skyK: 0.26, tint: [0.061, 0.118, 0.193] },
 ];

@@ -3,8 +3,9 @@
 // A check is a d20 plus a skill's value plus modifiers, against a difficulty (DC). A natural 1
 // always fails and a natural 20 always succeeds. A contested action is an opposed roll: both sides
 // roll their skill, and the higher total wins.
-//   - Natural results first: a natural 20 wins and a natural 1 loses, unless both sides rolled the
-//     same natural, when the totals decide.
+//   - In an opposed roll the totals decide, naturals included (my call). A natural that won outright
+//     would give every contest a one-in-ten floor of failure whatever the skills, and contests come
+//     often (a tail is a handful of them): skill has to decide, as pillar 1 says.
 //   - Ties go to our side, the player's (my call).
 //   - A hook spent halves the difficulty of a check, or the other side's total in an opposed roll
 //     (rounded up).
@@ -38,11 +39,7 @@ export function check(rng, { skill, value, dc, mods = [], hook = false }) {
 export function opposed(rng, ours, theirs, { hook = false } = {}) {
   const a = side(rng, ours), b = side(rng, theirs);
   if (hook) { b.raw = b.total; b.total = halve(b.total); }
-  let ok;
-  if (a.nat && a.nat === b.nat) ok = a.total >= b.total;
-  else if (a.nat === 20 || b.nat === 1) ok = true;
-  else if (a.nat === 1 || b.nat === 20) ok = false;
-  else ok = a.total >= b.total;
+  const ok = a.total >= b.total;
   return { kind: 'opposed', ours: a, theirs: b, hook, ok, margin: a.total - b.total };
 }
 

@@ -6,7 +6,8 @@
 // to the palette.
 //
 // Each frame:
-//   - sections are built and freed as the sim reports them ('section+' / 'section-' on the bus);
+//   - sections are built and freed as the sim reports them ('section+' / 'section-' on the bus), a
+//     section spread over a few frames (BUILD_MS of building a frame; flush() builds all at once);
 //   - the light is the clock's (sim/light.js sky()): the sun and the sky fill take its colours and
 //     strengths, the sun's shadows fade at sunset, windows light house by house through dusk, the
 //     lamps' heads light and their pools come on. Pools are LAMP_SLOTS pairs of spotlights moved to
@@ -27,6 +28,7 @@ import { focusActor } from '../sim/game.js';
 
 export const RES = [640, 360];
 export const LAMP_SLOTS = 10;
+export const BUILD_MS = 6;
 const LAMP_Y = 2.7;
 const CAMERA_Z = [Z.sideEnd + 5, 14.2];                             // the camera's centre stays within these
 const HALF_W = RES[0] / PX_PER_M / 2;
@@ -38,10 +40,26 @@ export function createView({ parent, bus }) {
   const sections = new Map();
   const crowd = createCrowd(scene);
   const looks = new Map();                                         // passer-by seed → look (generated once)
+  const building = new Map();                                     // i → a section's build, under way
   const off = [
-    bus.on('section+', (S) => { if (!sections.has(S.i)) { const s = buildSection(S); sections.set(S.i, s); scene.add(s.group); } }),
-    bus.on('section-', (S) => { const s = sections.get(S.i); if (s) { scene.remove(s.group); s.dispose(); sections.delete(S.i); } }),
+    bus.on('section+', (S) => { if (!sections.has(S.i) && !building.has(S.i)) building.set(S.i, buildSection(S)); }),
+    bus.on('section-', (S) => {
+      const b = building.get(S.i);
+      if (b) { building.delete(S.i); const r = b.return(); r.value?.dispose(); }
+      const s = sections.get(S.i); if (s) { scene.remove(s.group); s.dispose(); sections.delete(S.i); }
+    }),
   ];
+  /** Build what's queued: for BUILD_MS, or everything (budget Infinity). */
+  function build(budget = BUILD_MS) {
+    const t0 = performance.now();
+    for (const [i, gen] of building) {
+      for (;;) {
+        const r = gen.next();
+        if (r.done) { building.delete(i); sections.set(i, r.value); scene.add(r.value.group); break; }
+        if (performance.now() - t0 > budget) return;
+      }
+    }
+  }
 
   // Lamp light: pairs of spotlights (a core and a ring), moved to the nearest lamps each frame.
   const slots = Array.from({ length: LAMP_SLOTS }, () => {
@@ -75,10 +93,12 @@ export function createView({ parent, bus }) {
   }
 
   const lerp = (a, b, k) => a + (b - a) * k;
+  const drawn = new Map();                                         // id → [x, z] as last drawn
   const sceneSprites = () => [...sections.values()].flatMap(s => s.sprites);
 
   /** Draw the state. prev: id → [x, z, stride] at the last tick; alpha: how far into this one. */
   function frame(state, prev, alpha, t) {
+    build();
     const ms = state.time.ms, S = sky(ms), W = state.$world;
     const lamps = W.lamps;
     // Where everyone is, between the ticks.
@@ -137,8 +157,11 @@ export function createView({ parent, bus }) {
       }
     }
     const people = [];
+    drawn.clear();
     for (const a of state.actors) {
+      if (a.hidden) continue;                                      // (indoors)
       const [x, z, stride] = at(a);
+      drawn.set(a.id, [x, z]);
       const look = a.who ? state.people[a.who]?.look : lookOf(a.seed);
       if (!look) continue;
       people.push({ key: a.who ?? a.seed, look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S) });
@@ -155,8 +178,10 @@ export function createView({ parent, bus }) {
   function clear() {
     for (const s of sections.values()) { scene.remove(s.group); s.dispose(); }
     sections.clear();
+    for (const gen of building.values()) gen.return();
+    building.clear();
   }
   function dispose() { clear(); off.forEach(f => f()); stage.renderer.dispose(); stage.renderer.domElement.remove(); }
 
-  return { stage, frame, clear, dispose, canvas: stage.renderer.domElement, get camera() { return cam; } };
+  return { stage, frame, clear, dispose, flush: () => build(Infinity), canvas: stage.renderer.domElement, get camera() { return cam; }, posOf: (id) => drawn.get(id) };
 }

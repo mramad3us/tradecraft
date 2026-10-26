@@ -4,6 +4,21 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.20 (2026-10-26)
+
+- **Mechanic test 1: tailing a target** (title, Mechanic tests). Gennady Orlov, a former GRU officer, leaves his office on a Tuesday at 16:45 and walks east through the dusk to a meeting. Follow him, don't be seen twice, and see whom he meets.
+  - **A brief** before it starts. **A brass marker** over him while you have him; it goes when you lose him.
+  - **His habits:** looking back, studying a shop window's reflection, going into a shop and coming out looking, crossing the road, a pause on his phone. After a first sighting he dry-cleans: a little later he doubles back.
+  - **The dice:** his Pathfinding against your Deception at each of those moments. The modifiers are your choices: distance, the other pavement, people about you, the dark, not running, not stopping when he stops. Your Tracking keeps him at a distance, your Awareness finds him again. Every roll is in the log with a line of flavour.
+  - **The instinct** (a line at the foot of the picture) warns that you're too close, he's stopped, he's pulling away, he's in a shop. T does what it says when there's something to do: look in a shop window.
+  - **The meeting:** a man in a blue beanie joins him on a boulevard bench. Watch from close enough, not too close: the other man has eyes too.
+  - **A result paper:** seen, made, lost, missed or blown, with the numbers. Play the same evening again, or another.
+  - **Balance**, by scripted followers over 30 evenings: tailing 10 m behind is made 9 times in 10; the other pavement, 20 m back, sees the meeting 6 times in 10.
+- **Opposed rolls:** the totals decide, naturals included (they had given every contest a one-in-ten floor of failure); ties still go to us.
+- **The street:** lamps keep clear of the crossings. Passers-by keep to their lanes and step round what blocks them; nobody gets stuck now.
+- **A new section of street** is built over a few frames (it had cost a 76 ms stall); the endless street holds 60 frames a second.
+- **The log's lines** now come in at the top left, three at most. **The November sunset** is cooler.
+
 ## v0.0.19 (2026-10-26)
 
 - **The look is picked** (the user, 2026-10-26): chibi people in the fine town. Sample 007 shows it with `?people=chibi`, and the gallery has it by day and by night.

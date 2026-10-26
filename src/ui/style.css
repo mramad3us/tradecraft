@@ -28,13 +28,13 @@ button { font: inherit; color: inherit; }
 .watch .date { font-size: 11px; color: var(--muted); }
 
 /* Lines of the log as they come, bottom left. */
-.toasts { position: absolute; left: 14px; bottom: 14px; width: min(560px, 60%); display: flex; flex-direction: column; gap: 4px; }
-.toast { background: var(--hud); border-left: 3px solid var(--muted); padding: 5px 9px; font-size: 13px; transition: opacity 1.2s; }
+.toasts { position: absolute; left: 14px; top: 14px; width: min(520px, 55%); display: flex; flex-direction: column; gap: 4px; }
+.toast { background: var(--hud); border-left: 3px solid var(--muted); padding: 4px 9px; font-size: 12.5px; transition: opacity 1.2s; }
 .toast.roll { border-color: var(--brass); }
 .toast.roll.fail { border-color: var(--red); }
 .toast.instinct { border-color: #95c1e3; font-style: italic; }
 .toast.gone { opacity: 0; }
-.toast .num { color: var(--muted); font-size: 12px; display: block; }
+.toast .num { color: var(--muted); font-size: 11px; display: block; }
 
 /* Keys, bottom right. */
 .keys { position: absolute; right: 14px; bottom: 14px; font-size: 11px; color: var(--muted); text-align: right; background: var(--hud); padding: 5px 8px; border-radius: 4px; }
@@ -71,3 +71,22 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .logsheet li .num { display: block; color: #6a7182; font-size: 12px; }
 .logsheet li.fail .num { color: var(--red); }
 .toggle { display: flex; gap: 10px; align-items: flex-start; padding: 9px 4px; cursor: pointer; }
+
+/* A test's target: a brass chevron over their head, an arrow at the frame's edge when they're off it. */
+.marker { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+.marker[hidden] { display: none; }
+.marker::before { content: ''; position: absolute; left: calc(-4px * var(--k, 2)); top: calc(-5px * var(--k, 2)); width: calc(8px * var(--k, 2)); height: calc(5px * var(--k, 2));
+  background: var(--brass); clip-path: polygon(0 0, 100% 0, 50% 100%); animation: bob 1.4s steps(2) infinite; }
+.marker.off::before { animation: none; }
+@keyframes bob { 50% { transform: translateY(calc(1px * var(--k, 2))); } }
+
+/* The instinct: a line at the foot of the picture. */
+.prompt { position: absolute; left: 50%; bottom: 58px; transform: translateX(-50%); background: var(--hud); border: 1px solid #3b6296; color: #dfe2e8; padding: 6px 12px; font-style: italic; font-size: 13px; white-space: nowrap; border-radius: 3px; }
+.prompt[hidden] { display: none; }
+.prompt kbd { font-style: normal; margin-right: 4px; }
+
+#title .section { font: bold 13px var(--type); letter-spacing: 0.2em; margin: 18px 0 2px; color: var(--ink); }
+.sheet .stamp.good { border-color: #356f42; color: #356f42; }
+.sheet p { margin: 8px 0; }
+.sheet.brief, .sheet.result { width: min(520px, 92%) !important; font-size: 14px; }
+.sheet .lead { background: var(--paper-2); padding: 6px 8px; border-left: 3px solid var(--brass); }

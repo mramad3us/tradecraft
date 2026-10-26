@@ -1,7 +1,9 @@
 // TRADECRAFT render: a street section, drawn from its data (src/sim/map/street.js) with the art's
 // painters (src/art/pixeltown.js, townsprites.js), in the fine finish.
 //
-// buildSection(S) returns { group, fronts, heads, sprites, dispose }:
+// buildSection(S) is a generator: it yields between its costly parts (the ground, each building, the
+// furniture), so the view can spread a section over a few frames (sections arrive 70 m ahead of the
+// camera, so there's time), and returns { group, fronts, heads, sprites, dispose }:
 //   - fronts: each building's box and its front face, painted for day; its night face (some rooms
 //     lit) is painted when dusk first needs it, one a frame (src/render/view.js), so a street doesn't
 //     stall the frame it arrives in. Each building has its own moment (dusk) to switch, so the lights
@@ -47,7 +49,7 @@ const run = (ops, night) => (f) => {
   }
 };
 
-export function buildSection(S) {
+export function* buildSection(S) {
   const g = new THREE.Group();
   const fronts = [], heads = [], sprites = [];
   const at = (m, x, z) => { m.position.set(snap(x), 0, snap(z)); g.add(m); return m; };
@@ -63,6 +65,7 @@ export function buildSection(S) {
   g.add(ground(S.x0, Z.fence, S.x1, Z.pathN, T('grass', 3)), ground(S.x0, Z.pathN, S.x1, Z.pathS, T('gravel', 3)),
     ground(S.x0, Z.pathS, S.x1, Z.fenceS + 0.6, T('grass', 3)), ground(S.x0, Z.fenceS + 0.6, S.x1, Z.farRoad + 8, T('asphalt', 3)));
   if (c) g.add(ground(c.x0, Z.fence, c.x1, Z.pathN, T('gravel', 3), 0.005));   // a worn way across the lawn, from the crossing
+  yield;
 
   // The buildings.
   const r = stream('dusk', S.seed);
@@ -73,6 +76,7 @@ export function buildSection(S) {
     const body = b.userData.body;
     fronts.push({ body, day: body.material[4], night: null, spec, dusk: range(r, 0.08, 0.7),
       paintNight() { this.night = mat(0, facade({ w: B.x1 - B.x0, h: B.h, wall: B.wall, wallColor: B.wallColor, draw: run(B.ops, true), seed: B.seed, night: true, split: true })); } });
+    yield;
   }
 
   // The furniture.
