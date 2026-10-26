@@ -94,6 +94,7 @@ export function goTo(g, me, row, x, z) {
 const memo = new WeakMap();
 export const oblivious = (g, me) => {
   const sc = g.scenario, m = sc.meet;
+  if (me.busy || sc.phase === 'meet') return {};
   if (sc.prompt?.act === 'meet') return { act: ['instinct'] };
   if (g.time.ms < m.from - 20000 && g.map.row === m.row && Math.abs(me.x - m.x) < 25) return {};   // (early: wait about)
   return goTo(g, me, m.row, m.seat2, 13.5);
@@ -102,9 +103,9 @@ export const checker = (g, me) => {
   const sc = g.scenario, m = sc.meet, p = sc.prompt;
   const k = memo.get(me) ?? { glance: g.time.ms + 20000, window: 0 };
   memo.set(me, k);
+  if (me.busy || sc.phase === 'meet') return {};
   if (p?.act === 'abort') return { act: ['instinct'] };
   if (p?.act === 'meet') return { act: ['instinct'] };
-  if (me.busy) return {};
   if (p?.act === 'window' && g.time.ms > k.window) { k.window = g.time.ms + 45000; return { act: ['instinct'] }; }
   if (g.time.ms > k.glance) { k.glance = g.time.ms + 25000; return { ...goTo(g, me, m.row, m.seat2, 13.5), act: ['glance'] }; }
   if (g.time.ms < m.from - 20000 && g.map.row === m.row && Math.abs(me.x - m.x) < 25) return {};

@@ -16,9 +16,8 @@ How to play a test the same way: `node tests/run.mjs tail` (the bots, `tests/bot
 - Pressing T while sitting with SOLOVEY sat you down again, and again.
 
 **Still rough:**
-- A covert team is hard to spot (on purpose), and there's little to go on until a face comes round twice. The instinct could say more when a check finds nothing, or something faint.
+- A covert team is hard to spot (on purpose). Since v0.0.25 a check that catches a face behind you going your way says so, which gives you something to watch for.
 - No metro, cabs or trains yet: the lanes are the only way to lose them.
-- SOLOVEY pops onto his bench if you're already looking at it when he's due.
 - The watchers walk through the boulevard's lawns where the railings let them, and cross the road anywhere; they don't care about being seen, which is right for the overt pair and wrong for the covert team.
 
 ## 2026-10-26, v0.0.21 to v0.0.23: perception, the tail rebuilt, the four sides

@@ -38,7 +38,7 @@ import { LANES, Z, SECTION_M, section, placeName, streetName } from '../map/stre
 import { near, sectionAt } from '../world.js';
 import { follow, steer } from '../crowd.js';
 import { lightBand } from '../light.js';
-import { seesActor, inView, lightHere } from '../perception.js';
+import { eyes, sees, seesActor, inView, lightHere } from '../perception.js';
 import { act, coverHere, crossingAt, laneMid, say1 } from '../acts.js';
 import { waypoint, zoneOf } from '../nav.js';
 
@@ -319,6 +319,7 @@ function look(state, bus, why, bonus = 0) {
   const sc = state.scenario, me = playerOf(state);
   if (!me) return;
   if (why !== 'passive') sc.checks++;
+  sc.lastCheck = why;
   const ours = skill(state.people[state.player], 'pathfinding'), reach = why === 'passive' ? 12 : 32;
   for (const a of near(state, me.x, me.z, reach)) {
     if (a === me || a.hidden || a.who === 'solovey' || !inView(state, a.id)) continue;
@@ -341,6 +342,11 @@ function sighting(state, bus, a, roll) {
   const f = sc.faces[key] ??= { n: 0, look: a.who ? describe(look, p.sex) : null, crew: !!a.who?.startsWith('fsb'), last: null, rows: [], places: [] };
   if (!f.look) f.look = describeSeed(a.seed);
   const row = state.map.row, place = placeName(state.map.seed, row, me.x, me.z);
+  // A first look at a face behind you, going your way, is worth a word: it may be nothing.
+  if (f.n === 0 && roll.ours && sc.lastCheck !== 'passive') {
+    const behind = (a.x - me.x) * sc.heading.dir < -3, along = Math.sign(a.vx) === sc.heading.dir && Math.abs(a.vx) > 0.4;
+    if (behind && along && Math.hypot(a.x - me.x, a.z - me.z) < 28) sc.lead = { look: f.look, ms: state.time.ms };
+  }
   // (Evidence is the same face in another place, both of you having moved on: someone sat on a bench
   // while you stood by it isn't following you.)
   if (f.last && f.last.row === row && (state.time.ms - f.last.ms < FACE_GAP_S * 1000 || Math.abs(me.x - f.last.x) < FACE_GAP_M || Math.hypot(a.x - f.last.ax, a.z - f.last.az) < FACE_GAP_M * 0.7)) {
@@ -431,8 +437,12 @@ function meeting(state, bus, me) {
   const here = state.map.row === g.row;
   let s = actorOf(state, sc.asset);
   if (here && !s && !sc.met && now >= g.from && now < g.to) {
-    const a = { id: `a${state.nextActor++}`, who: 'solovey', seed: null, x: g.seat, z: g.z, vx: 0, vz: 0, face: 'down', head: Math.PI / 2, gait: 'sit', stride: 0, stuck: 0,
-      ai: { kind: 'subject', speed: 1.2, steps: [['wait', Math.round((g.to - now) / TICK_MS), 'down', 'sit'], ['go', g.seat, 14], ['go', g.seat - 60, 14.2], ['gone']], wait: 0 } };
+    // On his bench already; or, if we're watching it, walking up the path to it from the east.
+    const watching = sees(state, eyes(state, me), g.seat, g.z);
+    const sit = [['wait', Math.round((g.to - now) / TICK_MS), 'down', 'sit'], ['go', g.seat, 14], ['go', g.seat - 60, 14.2], ['gone']];
+    const a = { id: `a${state.nextActor++}`, who: 'solovey', seed: null, x: watching ? g.seat + 24 : g.seat, z: watching ? 14.4 : g.z, vx: 0, vz: 0, face: watching ? 'left' : 'down',
+      head: watching ? Math.PI : Math.PI / 2, gait: watching ? 'walk' : 'sit', stride: 0, stuck: 0,
+      ai: { kind: 'subject', speed: 1.2, steps: watching ? [['go', g.seat, 14], ['go', g.seat, g.z], ...sit] : sit, wait: 0 } };
     state.actors.push(a);
     sc.asset = a.id;
     s = a;
@@ -512,6 +522,7 @@ function instinct(state, me, still) {
     return L('lane-out', 'note', 'Out of the lane. Stop somewhere natural and watch the mouth of it: whoever comes out after you came for you.');
   }
   if (familiar.length) return L('familiar', 'note', `${cap(familiar[0].look)}: seen before. Could be nothing. Check again in a while, somewhere else.`);
+  if (sc.lead && now - sc.lead.ms < 12000) return L(`lead-${sc.lead.ms}`, 'note', [`Behind you, going your way: ${sc.lead.look}. You'll know that face again.`, `${cap(sc.lead.look)}, a way back, walking your way. Probably nothing. Remember the face.`]);
   if (now < g.from - 30000) {
     const o = coverHere(state, me);
     if (o === 'window' && (sc.checks < 2 || now % 40000 < 15000)) return L('window', 'calm', 'A shop window. {instinct} look in it: the glass shows who\'s behind you.', 'window');
