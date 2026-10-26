@@ -11,11 +11,13 @@
 // The tick, in this order (decisions made in a tick act the next):
 //   1. The player's input becomes their velocity, gait and heading (where they face: the way they
 //      walk, or, holding E, the way they look).
-//   2. Everyone moves by their velocity, sliding along what blocks them (sim/world.js), in the
-//      order they're listed. The player through a way off the map (a side street's end, a lane
-//      south): the next street (changeMap()), and the tick goes on there.
+//   2. Everyone moves, in the order they're listed: passers-by and the player by their velocity,
+//      sliding along what blocks them (sim/world.js); agents along their routes, on any street
+//      (sim/agents.js). The focus through a way off the map (a side street's end, a lane south): the
+//      next street is loaded (changeMap(), loadRow()), and the tick goes on there.
 //   3. The actor grid is rebuilt, and the player looks: what they see is remembered
-//      (sim/perception.js), and that's all the view will show of anyone else.
+//      (sim/perception.js), and that's all the view will show of anyone else. Followers look for
+//      their targets, and every ROUTE_EVERY ticks walk the trail anew.
 //   4. Everyone else thinks: the velocity they'll move by next tick (sim/crowd.js for passers-by,
 //      the scenario for its own characters).
 //   5. The scenario's rules (its checks and events).
@@ -30,6 +32,7 @@ import { Z, placeName } from './map/street.js';
 import { say } from './log.js';
 import { populate, think, walk, facing } from './crowd.js';
 import { look, headOf, faceOf } from './perception.js';
+import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } from './agents.js';
 import { drift } from './people.js';
 import { SCENARIOS } from './scenarios/index.js';
 
@@ -109,16 +112,24 @@ export function step(state, input = {}, bus) {
       if (--me.glance === 0) { me.head = me.eyesOn; me.eyesOn = undefined; }
     }
   }
-  // 2. Everyone moves; the player may leave the map.
+  // 2. Everyone moves; the focus may leave the map.
   for (const a of state.actors) {
-    if (a.ai) walk(state, a);
+    if (isAgent(a)) stepAgent(state, a, scenario, bus);
+    else if (a.ai) walk(state, a);
     else if (a.vx || a.vz) a.stride += move(state, a, a.vx * DT, a.vz * DT);
   }
-  const way = me && !me.ai && exitAt(state, me);
+  const way = me && !me.ai && focusActor(state) === me && exitAt(state, me);
   if (way) changeMap(state, bus, way);
-  // 3. The grid, and the player looks. 4. Everyone else thinks.
+  const f = focusActor(state);
+  if (f && isAgent(f) && f.row !== state.map.row) loadRow(state, bus, f.row, f.x);
+  // 3. The grid, and the player looks; followers look for their targets. 4. Everyone else thinks.
   rehash(state);
-  if (me) look(state, me, near(state, me.x, me.z, LOOK_M));
+  if (me && onMap(state, me)) look(state, me, near(state, me.x, me.z, LOOK_M));
+  for (const a of state.actors) {
+    if (!a.ai?.follow) continue;
+    watchTarget(state, a);
+    if ((state.tick + hashId(a.id)) % ROUTE_EVERY === 0) routeFollower(state, a);
+  }
   for (const a of state.actors) {
     if (a.ai?.kind === 'walker') think(state, a);
     else if (a.ai) scenario.think?.(state, a, bus);
@@ -180,20 +191,36 @@ export function changeMap(state, bus, way) {
   const scenario = SCENARIOS[state.scenario.kind], me = playerActor(state);
   const from = state.map.row ?? 0, row = from + (way.dir === 'n' ? -1 : 1);
   const carried = scenario.carry?.(state, way) ?? [];
+  me.x = Math.max(way.x0 + 0.5, Math.min(way.x1 - 0.5, me.x));
+  me.z = way.dir === 'n' ? Z.edge - 1 : Z.north + 1;
+  me.row = row;
+  for (const id of carried) { const a = actor(state, id); if (a) a.row = row; }
+  loadRow(state, bus, row, me.x, { way, from });
+}
+
+/**
+ * Load another street as the map, round x: the passers-by of the last one go, agents stay (on
+ * whatever street they're on), the memory of who was where goes with the old street, the crowd is
+ * the new one's. The scenario hears of it (mapChanged), a line goes to the log, and an autosave.
+ */
+export function loadRow(state, bus, row, x, { way = null, from = state.map.row } = {}) {
+  const scenario = SCENARIOS[state.scenario.kind], me = playerActor(state);
   bus?.emit('map-', state.map);
   state.map.row = row;
   state.map.inPlay = [];
-  state.actors = state.actors.filter(a => a === me || carried.includes(a.id));
-  me.x = Math.max(way.x0 + 0.5, Math.min(way.x1 - 0.5, me.x));
-  me.z = way.dir === 'n' ? Z.edge - 1 : Z.north + 1;
+  state.actors = state.actors.filter(a => a === me || isAgent(a) || (a.ai && a.ai.kind !== 'walker') || a.row === row);
   state.mind = { seen: {} };
-  attach(state, bus, me.x);
+  attach(state, bus, x);
   rehash(state);
-  populate(state, me.x, { fill: true });
+  populate(state, x, { fill: true });
   rehash(state);
   scenario.mapChanged?.(state, bus, way, from);
-  const name = placeName(state.map.seed, row, me.x, me.z);
-  say(state, bus, { kind: 'note', text: way.dir === 'n' ? `Up ${way.name}, and out onto the far side of ${placeName(state.map.seed, row, me.x, Z.fence + 5)}.` : `Down ${name}, toward ${placeName(state.map.seed, row, me.x, 0)}.` });
+  const f = focusActor(state), north = row < from;
+  const lane = way?.name ?? placeName(state.map.seed, north ? from : row, f.x, north ? Z.front - 10 : Z.front - 10);
+  say(state, bus, { kind: 'note', text: north ? `Up ${lane}, and out onto the far side of ${placeName(state.map.seed, row, f.x, Z.fence + 5)}.` : `Down ${lane}, toward ${placeName(state.map.seed, row, f.x, 0)}.` });
   bus?.emit('map', state.map);
   bus?.emit('autosave', 'map');
 }
+
+// (a small, stable number from an id, to spread followers' re-routing over the ticks)
+const hashId = (id) => { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0; return Math.abs(h); };

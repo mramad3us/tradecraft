@@ -6,6 +6,7 @@ A game whose design is settled in `docs/DESIGN.md` (the debrief, 2026-10-26). It
 
 - `./play.sh`: serve the play copy (`.play/`, the release the user plays) on :8100 and open the browser. `./play.sh --dev`: the working tree, as it is now, on :8101. Both serve with `Cache-Control: no-store` and a deep listen queue (`tools/serve.py`), because a caching server lets the browser mix old and new modules after an update, and a queue of 5 resets the odd module request.
 - `tools/promote.sh [vX.Y.Z]`: move the play copy to a release (default: the latest). `--status` says where it is and what is newer.
+- On Windows, `play.cmd` (runs `tools/play.ps1`): the same as `play.sh` and `promote.sh` together (`--dev`, `--promote [vX.Y.Z]`, `--status`; the play copy is made from the latest release on first play). Keep it in step with them. `tools/serve.py` sets file types itself, since Windows' registry can serve `.js` as text.
 - `tools/release.sh patch "<summary>" --trailer "Co-Authored-By: …"`: cut a release (CHANGELOG's Unreleased becomes the version, VERSION bumps, tests run, commit, tag, push).
 - `npm test`, or `node tests/run.mjs <filter>`: the tests. `npm run test:quick` (`QUICK=1`) leaves out the ones marked `heavy: true`; use it whenever the user may be playing. `SKIP=a,b` leaves out tests by name.
 - `tools/awake.sh status | off | on | run <cmd…>`: the keep-awake lease (below).

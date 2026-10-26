@@ -114,6 +114,7 @@ export function rehash(state) {
   const H = state.$world.hash;
   H.clear();
   for (const a of state.actors) {
+    if (a.row !== undefined && a.row !== state.map.row) continue;     // (an agent on another street: in the background)
     const k = key(Math.floor(a.x / BUCKET_M), Math.floor(a.z / BUCKET_M));
     if (!H.has(k)) H.set(k, []);
     H.get(k).push(a);

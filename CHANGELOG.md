@@ -4,6 +4,15 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.29 (2026-10-26)
+
+- **Windows:** `play.cmd` serves and opens the game like `play.sh`: the play copy (made from the latest release the first time) on :8100, `--dev` for the working tree on :8101, `--promote [vX.Y.Z]`, `--status`. It needs Git and Python 3. The server now sets file types itself (Windows can serve `.js` as text, which stops the game loading).
+- **The background game, started** (your ask: where NPCs go, pathfinding that never fails):
+  - **The city as a graph** (`sim/city.js`): every street's walking lines, joined by the zebras, the railings' gaps, park paths and the lanes between streets. Routes are planned on it across the city, randomised per walker; a careful walker goes the long way round. Ten streets apart is ten map changes at least.
+  - **Proved walkable:** 915,000 points on the ways of 3 × 13 × 13 street sections are clear at their full width. 60 routes of 10–13 streets, walked at every offset, are never blocked. 4,000 random spots anywhere walkable all find their way onto a line and on.
+  - **Agents** (`sim/agents.js`) walk routes by the clock on any street, loaded or not. Followers walk in their target's footsteps as far as they've seen them, and through the lanes they saw them take. The loaded street follows whoever the camera follows. (The two tests move onto them next.)
+- **The street:** every other section now has at least an alley north, so a way north is never more than two sections off; a lamp or two moved out of the crossings' way. Saves from before load onto a slightly different street.
+
 ## v0.0.28 (2026-10-26)
 
 - **Being tailed:** the result paper no longer says "0 rolls" when the only rolls were your unseen checks.

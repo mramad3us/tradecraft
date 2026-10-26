@@ -71,7 +71,9 @@ export const parkName = (seed, row, i) => at(PARKS, seed, row, Math.floor(i / ST
 export function gapsOf(seed, row, i) {
   const r = stream('street-gaps', seed, row, i), x0 = i * SECTION_M, gaps = [];
   if (chance(r, 0.35)) { const gx = x0 + 6 + int(r, 23); gaps.push({ x0: gx, x1: gx + GAP_M.side, kind: 'side' }); }
-  if (chance(r, 0.35)) {                                          // an alley, a building's width from anything else
+  // An alley, a building's width from anything else; and every other section has one at least, so a
+  // way north is never more than two sections off.
+  if (chance(r, 0.35) || (!gaps.length && (i % 2 + 2) % 2 === 0)) {
     for (let k = 0; k < 6; k++) {
       const ax = x0 + 8 + int(r, 26);
       if (gaps.every(g => ax + GAP_M.alley < g.x0 - 8 || ax > g.x1 + 8)) { gaps.push({ x0: ax, x1: ax + GAP_M.alley, kind: 'alley' }); break; }
@@ -207,7 +209,7 @@ export function section(seed, i, row = 0) {
 // railing where a park begins.
 function boulevard(r, S, zx, sx, block, lamp, near, aside) {
   const { x0, x1 } = S;
-  for (const x of [x0 + 3, x0 + 18, x0 + 33].map(x => aside(aside(x, zx), sx))) lamp(x, 12.55, 13.05);   // (in the lawn's edge, clear of the path)
+  for (const x of [x0 + 3, x0 + 18, x0 + 33].map(x => aside(x, zx))) lamp(x, 12.55, 13.05);   // (in the lawn's edge, clear of the path and the gate's line)
   for (const [z, off, c] of [[11.3, 0, zx], [17.8, 4, sx]]) {
     for (let x = x0 + 1.5 + off + range(r, 0, 1.2); x < x1 - 1; x += 7 + range(r, 0, 2.5)) {
       if (near(x, c, 2.2) || (z < 12 && Math.abs(((x - x0 - 3) % 15 + 15) % 15) < 1.2)) continue;
@@ -252,7 +254,7 @@ function park(r, S, zx, sx, block, lamp, near, aside) {
   S.crossingsS = paths.map(p => ({ x0: p.x0, x1: p.x1 }));
   const onPath = (x, m) => paths.some(p => x > p.x0 - m && x < p.x1 + m);
   for (const x of [x0 + 3, x0 + 18, x0 + 33].map(x => aside(x, zx))) lamp(x, 12.55, 13.05);
-  for (const x of [x0 + 10.5, x0 + 34.5]) if (!onPath(x, 1)) lamp(x, Z.south - 0.22, Z.south - 0.72);
+  for (const x of [x0 + 10.5, x0 + 34.5]) if (!onPath(x, 1) && !S.gapsS.some(g => x > g.x0 - 1 && x < g.x1 + 1)) lamp(x, Z.south - 0.22, Z.south - 0.72);
   benches(r, S, zx, block, near);
   // The thing to see, in the lawn between the path and the south walk, clear of the paths.
   const kind = weighted(r, [['pond', 3], ['fountain', 1.5], ['monument', 2], ['kiosk', 1.5], ['beds', 1]]);

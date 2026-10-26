@@ -9,6 +9,15 @@ A spy game in the browser: a CIA officer in Moscow, pixel art, tradecraft over r
 ./play.sh --dev    # the working tree as it is now, on :8101 (its own saves)
 ```
 
+On Windows (Git and Python 3 installed), from the cloned repo, double-click `play.cmd` or run:
+
+```bat
+play.cmd                  :: the play copy (made from the latest release the first time), on :8100
+play.cmd --dev            :: the working tree, on :8101
+play.cmd --promote        :: move the play copy to the latest release (or --promote v0.0.29), then play
+play.cmd --status         :: where the play copy is
+```
+
 The play copy is pinned to a release and only moves when you say so:
 
 ```sh
