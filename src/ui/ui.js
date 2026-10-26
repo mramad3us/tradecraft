@@ -181,9 +181,10 @@ export function createUI({ input, cb }) {
   }
 
   // ---------- the log (J) ----------
-  // The log shows what the character knows: what they didn't see (e.hidden) only once the scene's over.
-  function openLog(state) {
-    const over = !!state.scenario.outcome;
+  // The log shows what the character knows: what they didn't see (e.hidden) only in debug mode, once
+  // the scene's over.
+  function openLog(state, { debug = false } = {}) {
+    const over = !!state.scenario.outcome && debug;
     const items = state.log.filter(e => over || !e.hidden).reverse().map(e => el('li', { className: `${e.roll && !e.roll.ok ? 'fail' : ''}${e.hidden ? ' unseen' : ''}` },
       el('time', { textContent: stampText(e.ms) }), e.hidden ? el('em', { textContent: 'Unseen: ' }) : null, e.text ?? '', e.roll ? el('span', { className: 'num', textContent: checkText(e.roll) }) : null));
     log.replaceChildren(el('div', { className: 'sheet logsheet' },
@@ -211,11 +212,15 @@ export function createUI({ input, cb }) {
   function unseenOf(state) {
     const hid = state.log.filter(e => e.hidden && e.ms >= state.scenario.began);
     if (!hid.length) return [];
-    return [el('p', { className: 'note', textContent: 'What you didn\'t see:' }),
+    return [el('p', { className: 'note', textContent: 'Debug, what you didn\'t see:' }),
       el('ul', { className: 'unseenlist' }, hid.slice(-6).map(e => el('li', {}, el('time', { textContent: clockText(e.ms) }), ` ${e.text}`)))];
   }
   const OUTCOMES = { seen: 'SEEN', made: 'MADE', lost: 'LOST', missed: 'MISSED', blown: 'BLOWN' };
-  function showResult(state, { again, same, title }) {
+  // (made, but you didn't see him make you: you know only that something spooked him)
+  // (his sightings of you that you saw happen; the rest you can only suspect)
+  const seenText = (sc) => { const n = sc.sightings.filter(x => x.seen !== false).length, m = sc.sightings.length - n; return `you saw him spot you ${n} time${n === 1 ? '' : 's'}${m ? ' (maybe more)' : ''}`; };
+  const stampOf = (sc) => (sc.outcome === 'made' && sc.madeSeen === false ? 'SPOOKED' : OUTCOMES[sc.outcome] ?? sc.outcome);
+  function showResult(state, { again, same, title }, { debug = false } = {}) {
     const sc = state.scenario, secs = Math.round((sc.ended - sc.began) / 1000);
     const go = (fn) => () => { paper.hidden = true; paper.dataset.kind = ''; fn(); };
     const ways = [
@@ -225,7 +230,7 @@ export function createUI({ input, cb }) {
       el('button', { className: 'item', onclick: go(same) }, 'Again, the same evening', el('small', { textContent: 'The same streets and the same people; the dice fall as you play.' })),
       el('button', { className: 'item', onclick: go(title) }, 'Back to the title'),
     ];
-    const own = SCENARIOS[sc.kind].result?.(state);
+    const own = SCENARIOS[sc.kind].result?.(state, { debug });
     if (own) {                                                     // a scenario that writes its own paper
       paper.replaceChildren(el('div', { className: 'sheet result' },
         el('span', { className: `stamp ${own.good ? 'good' : ''}`, textContent: own.stamp }),
@@ -236,12 +241,12 @@ export function createUI({ input, cb }) {
         el('p', { className: 'note', textContent: own.stats }),
         ...ways));
     } else paper.replaceChildren(el('div', { className: 'sheet result' },
-      el('span', { className: `stamp ${sc.outcome === 'seen' ? 'good' : ''}`, textContent: OUTCOMES[sc.outcome] ?? sc.outcome }),
+      el('span', { className: `stamp ${sc.outcome === 'seen' ? 'good' : ''}`, textContent: stampOf(sc) }),
       el('h2', { textContent: SCENARIOS[sc.kind].name.toUpperCase() }), el('hr'),
       el('p', { textContent: sc.endText }),
       sc.lead ? el('p', { className: 'lead', textContent: `Lead. ${sc.lead}` }) : null,
-      ...unseenOf(state),
-      el('p', { className: 'note', textContent: `${Math.floor(secs / 60)} min ${secs % 60} s on his tail · seen ${sc.sightings.length} time${sc.sightings.length === 1 ? '' : 's'} · closest ${sc.closest < 1e8 ? sc.closest.toFixed(1) : '?'} m`
+      ...(debug ? unseenOf(state) : []),
+      el('p', { className: 'note', textContent: `${Math.floor(secs / 60)} min ${secs % 60} s on his tail · ${seenText(sc)} · closest ${sc.closest < 1e8 ? sc.closest.toFixed(1) : '?'} m`
         + `${sc.warned !== undefined ? ` · his checks read in time: ${sc.warned}` : ''}${sc.mixups ? ` · followed the wrong man ${sc.mixups} time${sc.mixups === 1 ? '' : 's'}` : ''} · ${sc.rolls} rolls (the ones that mattered are in the log, ${input.label('log')})` }),
       ...ways,
     ));

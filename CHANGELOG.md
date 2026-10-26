@@ -4,6 +4,13 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.26 (2026-10-26)
+
+- **You only know what your character knows** (your note):
+  - **Being tailed:** what the FSB writes down stays hidden, unless you catch a watcher at it ("She may have seen you check. Maybe it's nothing."). The result paper says only what you know: whether you met him, the faces you marked, what you think they caught you at. The truth comes later, as the world tells it: SOLOVEY's next signal, or an arrest in the papers.
+  - **The signs** of what they made of you (a car outside your building, a face twice on the way to work) need a Pathfinding roll to notice. Fail it, and November passes quietly, as far as you can tell.
+  - **Tailing:** if he makes you while you're not looking, you don't know why the evening ended: he's "spooked". "What you didn't see" and the log's unseen entries show only in debug mode.
+
 ## v0.0.25 (2026-10-26)
 
 - **Being tailed:** a check that catches a face behind you going your way says so ("You'll know that face again"), passers-by included, so a covert team leaves something to go on. SOLOVEY walks up to his bench if you're already watching it, rather than appearing on it.

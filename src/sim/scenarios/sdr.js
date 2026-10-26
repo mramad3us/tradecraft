@@ -20,19 +20,23 @@
 //   - **Being followed.** The watchers keep KEEP metres back, on your pavement or the other, and go
 //     where you go (sim/nav.js), up lanes too. Out of all their sight for LOSE_S they've lost you.
 //     Take a lane none of them saw you take, and they never know where you went.
-//   - **What they write down.** Seen by a watcher, the conspicuous things are noted (flag()): running,
+//   - **What they write down.** Seen by a watcher, the conspicuous things are noted (flag()), and the
+//     character doesn't know it unless they catch the watcher at it (their Awareness against the
+//     watcher's Deception, with the watcher in view): a hedged line, and a face counted. Running,
 //     glancing back (your Deception against their Awareness), crossing away from the zebra, doubling
 //     back, each kind at most FLAGS_MAX times. Each costs FLAG_HEAT at the end; two or more and they
 //     know what you are.
 //   - **The meeting.** T by the bench sits you beside him for MEET_S seconds. A watcher's eyes on
 //     you then and he's burned. Or T calls it off, when the instinct thinks you're followed.
 // The instinct talks you through it (instinct()): the way to him, the time, the faces, the lessons.
+// Everything shown is what the character knows: the result paper too (result()), with the rest told
+// later by the world (epilogue()), and in full only in debug mode.
 import { at, TICK_MS, clockText } from '../clock.js';
 import { handler, sheet, streetLook, describe, passerby } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
 import { say } from '../log.js';
 import { skill } from '../skills.js';
-import { opposed } from '../checks.js';
+import { opposed, check } from '../checks.js';
 import { range, int, chance, pick, weighted, stream } from '../rng.js';
 import { LANES, Z, SECTION_M, section, placeName, streetName } from '../map/street.js';
 import { near, sectionAt } from '../world.js';
@@ -192,26 +196,59 @@ export const sdr = {
     second(state, bus, me);
   },
 
-  /** The result paper's contents: what happened, and what you couldn't see. */
-  result(state) {
+  /**
+   * The result paper: only what the character knows. What they did and saw; the faces they marked;
+   * what they think a watcher caught them at. What really happened comes later, as the world tells
+   * it (an epilogue: his next signal, or an arrest in the papers; a car outside the building more
+   * often). In debug mode, the truth too, for tuning.
+   */
+  result(state, { debug = false } = {}) {
     const sc = state.scenario;
-    const crew = sc.crew.map(c => describe(state.people[c.who].look, state.people[c.who].sex));
-    const truth = sc.team === 'none' ? 'There was nobody behind you. Every face you saw was Moscow going home.'
-      : `There ${sc.team === 'overt' ? 'were two of them, close and not much caring' : 'was a team of three, well back, taking turns'}: ${list(crew)}.${sc.teamLost ? ` They lost you${sc.lostHow ? ` ${sc.lostHow}` : ''}.` : ' They were with you to the end.'}`;
-    const kinds = [...new Set(sc.flags.map(f => f.kind))].map(k => `${FLAGS[k]}${sc.flags.filter(f => f.kind === k).length > 1 ? ' (twice)' : ''}`);
-    const flags = sc.flags.length ? `What they wrote down: ${list(kinds)}.${sc.flags.length >= 2 ? ' Read together, it says you\'re a professional.' : ''}` : (sc.team === 'none' ? null : 'They wrote down nothing worth reading.');
-    const noticed = Object.values(sc.faces).filter(f => f.n >= 2);
+    const marked = Object.values(sc.faces).filter(f => f.n >= 2);
+    const caught = sc.caught ?? [];
+    const notes = [
+      marked.length ? `Faces you'd marked: ${list(marked.map(f => `${f.look} (${f.sure ? 'a tail, you\'d say' : 'seen before'})`))}.` : 'You marked no face as following you.',
+      caught.length ? `You think ${list(caught.map(c => `${c.look} saw you ${CAUGHT[c.kind]}`))}.` : null,
+      epilogue(state),
+    ];
+    if (debug) {
+      const crew = sc.crew.map(c => describe(state.people[c.who].look, state.people[c.who].sex));
+      const truth = sc.team === 'none' ? 'nobody was behind you' : `${sc.team === 'overt' ? 'an overt pair' : 'a covert team of three'} (${list(crew)}), ${sc.teamLost ? `who lost you${sc.lostHow ? ` ${sc.lostHow}` : ''}` : 'with you to the end'}`;
+      const kinds = [...new Set(sc.flags.map(f => f.kind))].map(k => `${FLAGS[k]}${sc.flags.filter(f => f.kind === k).length > 1 ? ' (twice)' : ''}`);
+      notes.push(`Debug, what really happened: ${truth}; the meeting was ${sc.outcome}; written down: ${kinds.length ? list(kinds) : 'nothing'}.`);
+    }
     return {
-      stamp: OUTCOMES[sc.outcome] ?? sc.outcome, good: sc.outcome === 'clean' || sc.outcome === 'right',
+      stamp: OUTCOMES[sc.outcome] ?? sc.outcome, good: sc.met,
       title: sdr.name.toUpperCase(), text: sc.endText,
-      lead: sc.outcome === 'clean' ? `${clockText(sc.ended)}: SOLOVEY handed over a folded newspaper. Inside, next month's procurement schedule for the Western Military District.` : null,
-      notes: [truth, flags, noticed.length ? `Faces you'd marked: ${list(noticed.map(f => `${f.look} (${f.n} times${f.crew ? ', FSB' : ', a passer-by'})`))}.` : null].filter(Boolean),
+      lead: sc.met ? `${clockText(sc.ended)}: SOLOVEY handed over a folded newspaper. Inside, next month's procurement schedule for the Western Military District.` : null,
+      notes: notes.filter(Boolean),
       stats: `${Math.floor((sc.ended - sc.began) / 60000)} min ${Math.round((sc.ended - sc.began) / 1000) % 60} s · ${sc.checks} checks of your back, ${sc.glances} of them glances · ${sc.rolls} rolls (the log, J)`,
     };
   },
 };
 
-const OUTCOMES = { clean: 'CLEAN', burned: 'BURNED', right: 'CALLED OFF', needless: 'CALLED OFF', missed: 'MISSED' };
+// What the world tells you later: how it went for SOLOVEY, and the signs of what the FSB made of you.
+function epilogue(state) {
+  const sc = state.scenario;
+  const him = sc.outcome === 'burned' ? 'Three weeks later SOLOVEY misses his signal, and the one after. In December the evening papers report the arrest of a Ministry of Defence official for espionage.'
+    : sc.outcome === 'clean' ? 'Later: SOLOVEY\'s next signal comes on time, and the one after that.'
+      : 'A week later SOLOVEY makes the fallback meeting, nervous, but whole.';
+  // The signs are there to be read, and only a good eye reads them: a poor one sees a quiet month.
+  const signs = !sc.signs?.level ? '' : sc.signs.read
+    ? (sc.signs.level >= 2 ? ' Through the rest of November there\'s a car outside your building more often than not, and you notice it.' : ' Now and then that month, the same face twice on your way to work. You notice.')
+    : ' November passes quietly, as far as you can tell.';
+  return `${him}${signs}`;
+}
+
+// (the stamp says what the character knows: whether they sat down with him, not how it went)
+const OUTCOMES = { clean: 'MET', burned: 'MET', right: 'CALLED OFF', needless: 'CALLED OFF', missed: 'MISSED' };
+const CAUGHT_LINE = {
+  ran: (who) => `${who} turns to watch you run, and keeps watching a beat too long.`,
+  checked: (who) => `As you turn back, ${who[0].toLowerCase() + who.slice(1)} looks away a moment too late. They may have seen you check.`,
+  jaywalked: (who) => `${who} watches you cross, and doesn't look away when you look up.`,
+  doubled: (who) => `When you turn round, ${who[0].toLowerCase() + who.slice(1)} stops too, and finds a shop window very interesting.`,
+};
+const CAUGHT = { ran: 'run', checked: 'look back', jaywalked: 'cross away from the zebra', doubled: 'double back' };
 const FLAGS = { ran: 'you ran', checked: 'you checked behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back' };
 const SAW = { ran: 'saw you run', checked: 'saw you check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back' };
 export const FLAGS_MAX = 2;                                        // times a kind of thing is written down, at most
@@ -375,7 +412,18 @@ function flag(state, bus, kind) {
   if (!w) return false;
   sc.flagged[kind] = state.time.ms;
   sc.flags.push({ kind, ms: state.time.ms, who: w.who });
-  say(state, bus, { kind: 'note', hidden: true, text: `${cap(describe(state.people[w.who].look, state.people[w.who].sex))} ${SAW[kind]}, and made a note of it.` });
+  const look = describe(state.people[w.who].look, state.people[w.who].sex);
+  say(state, bus, { kind: 'note', hidden: true, text: `${cap(look)} ${SAW[kind]}, and made a note of it.` });
+  // Do we catch them catching us? Only if they're in our view: our Awareness against their Deception.
+  if (inView(state, w.id)) {
+    const r = opposed(state.rng, { skill: 'awareness', value: skill(state.people[state.player], 'awareness') }, { skill: 'deception', value: skill(state.people[w.who], 'deception') });
+    sc.rolls++;
+    if (r.ok) {
+      (sc.caught ??= []).push({ kind, look });
+      say(state, bus, { kind: 'roll', roll: r, text: `${CAUGHT_LINE[kind](cap(look))} Maybe it's nothing.` });
+      sighting(state, bus, w, r);
+    }
+  }
   return true;
 }
 
@@ -448,21 +496,30 @@ function meeting(state, bus, me) {
     s = a;
   }
   if (sc.phase === 'meet') {
-    if (!sc.teamLost && sc.crew.some(c => { const a = actorOf(state, c.id); return a && seesActor(state, a, me); })) sc.burned = true;
+    const w = !sc.teamLost && sc.crew.map(c => actorOf(state, c.id)).find(a => a && seesActor(state, a, me));
+    if (w) {
+      sc.burned = true;
+      // Do we notice them at it? Our Awareness against their Deception, if they're in our view.
+      if (!sc.sawWatching && inView(state, w.id) && !sc.triedSaw?.[w.id]) {
+        (sc.triedSaw ??= {})[w.id] = true;
+        const r = opposed(state.rng, { skill: 'awareness', value: skill(state.people[state.player], 'awareness') }, { skill: 'deception', value: skill(state.people[w.who], 'deception') });
+        sc.rolls++;
+        if (r.ok) sc.sawWatching = describe(state.people[w.who].look, state.people[w.who].sex);
+      }
+    }
     if (me.busy?.what !== 'meet') return end(state, bus, 'missed', 'You got up and walked away. SOLOVEY waits a minute, folds his paper and goes home wondering.');
     if (now - sc.meetMs >= MEET_S * 1000) {
       sc.met = true;
-      if (sc.burned) {
-        addHeat(state, 10);
-        return end(state, bus, 'burned', 'You talked about the weather, and a folded newspaper changed hands. Across the path, somebody watched it happen. SOLOVEY doesn\'t know yet that his two years are over.');
-      }
-      return end(state, bus, 'clean', 'Twenty seconds about the weather, and a folded newspaper changes hands. Nobody watched. SOLOVEY goes home lighter.');
+      const saw = sc.sawWatching;                                 // (a watcher we noticed, watching us at it)
+      const text = saw ? `Twenty seconds about the weather, and a folded newspaper changes hands. Across the path ${saw} is looking at nothing in particular, for too long. You hope you're wrong.`
+        : 'Twenty seconds about the weather, and a folded newspaper changes hands. You saw nobody watching. SOLOVEY goes home lighter.';
+      if (sc.burned) addHeat(state, 10);
+      return end(state, bus, sc.burned ? 'burned' : 'clean', text);
     }
     return;
   }
   if (now > g.to + 20000) {
-    const followed = !sc.teamLost && sc.crew.some(c => c.id);
-    end(state, bus, 'missed', followed ? 'The time came and went, and you never sat down. With them on you, maybe that was right; but you never called it.' : 'The time came and went, and you never sat down with him. SOLOVEY waited, and went home wondering.');
+    end(state, bus, 'missed', 'The time came and went, and you never sat down with him. SOLOVEY waited his eight minutes, and went home wondering.');
   }
 }
 
@@ -475,8 +532,8 @@ function sitDown(state, bus, me) {
 
 function callOff(state, bus) {
   const sc = state.scenario, followed = !sc.teamLost && sc.crew.some(c => c.id);
-  if (followed) end(state, bus, 'right', 'You turn for home without going near him. They follow you to the door and see a diplomat buying bread. SOLOVEY waits his eight minutes and goes home, his two years intact.');
-  else end(state, bus, 'needless', 'You turn for home without going near him. Nobody follows you; nobody was. SOLOVEY waits his eight minutes and goes home with the newspaper still under his arm.');
+  // (we can't know which it was: the text is the same, the outcome kept for the tests and debug)
+  end(state, bus, followed ? 'right' : 'needless', 'You turn for home without going near him, and buy bread on the way, as a diplomat would. Whether anyone followed you to your door, you\'ll never be quite sure. SOLOVEY waits his eight minutes and goes home with the newspaper still under his arm.');
 }
 
 function end(state, bus, outcome, text) {
@@ -487,6 +544,13 @@ function end(state, bus, outcome, text) {
   sc.endText = text;
   sc.ended = state.time.ms;
   if (sc.flags.length) addHeat(state, FLAG_HEAT * sc.flags.length);
+  // What they made of you shows in the weeks after, to whoever can read it (Pathfinding): a car
+  // outside the building (DC 13), a face twice on the way to work (DC 18).
+  const level = sc.flags.length >= 2 ? 2 : sc.flags.length;
+  if (level) {
+    const r = check(state.rng, { skill: 'pathfinding', value: skill(state.people[state.player], 'pathfinding'), dc: level >= 2 ? 13 : 18 });
+    sc.signs = { level, read: r.ok };
+  }
   bus?.emit('scenario-end', outcome);
 }
 

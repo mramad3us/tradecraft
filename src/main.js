@@ -92,7 +92,7 @@ function result() {
     again: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION })),
     same: () => launch(newGame({ seed, scenario: kind, version: VERSION })),
     title: async () => { await autosave(); stop(); showTitle(); },
-  });
+  }, settings);
 }
 
 async function showTitle() {
@@ -107,7 +107,7 @@ input.onAction((action) => {
   const open = ui.overlay();
   if (open === 'brief' || open === 'result') return;              // a paper waits for its choice
   if (action === 'menu') { if (open) { ui.closeOverlays(); paused = false; } else { ui.openMenu(settings); } return; }
-  if (action === 'log') { if (open === 'log') { ui.closeOverlays(); } else if (!open) ui.openLog(state); return; }
+  if (action === 'log') { if (open === 'log') { ui.closeOverlays(); } else if (!open) ui.openLog(state, settings); return; }
   if (action === 'pause' && !open) paused = !paused;
   if ((action === 'instinct' || action === 'glance') && !open && !paused) acts.push(action);
 });

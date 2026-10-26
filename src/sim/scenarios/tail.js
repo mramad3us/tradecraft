@@ -104,6 +104,7 @@ const NAG = ['Something nags at him. He walks on, but he\'s thinking about it.',
 const GONE = 'He\'s gone. Somewhere in Moscow a man in a grey coat is keeping his appointment, and you\'ll never know with whom.';
 const MISSED = 'They part. Whatever passed between them, you weren\'t there to see it.';
 const MADE = 'That\'s twice. He\'s made you. He doesn\'t run; he turns for home, and the evening\'s over.';
+const SPOOKED = 'He stops dead, looks at nothing for a long moment, and turns back the way he came. Something spooked him. Maybe you. The evening\'s over either way.';
 const lostLines = ['The crowd thickens and the grey coat goes into it. When it thins, he isn\'t there.', 'He was further than you thought, and then he wasn\'t anywhere.', 'A knot of people at the corner, and when it loosens he\'s gone from it.'];
 const foundLines = ['There. Fedora, briefcase, that walk.', 'Grey coat, a little way on. Him.', 'You find him again by the hat.'];
 const wrongLines = ['There: grey coat, the hat. You fall in behind him.', 'A grey coat going east. Him, surely.'];
@@ -463,10 +464,13 @@ function moment(state, bus, me, t, d, kind) {
     if (watching) say(state, bus, { kind: 'instinct', text: 'He\'s seen your face. Once. He\'ll be looking for it now.' });
     else sc.sensed = false;                                        // (you may notice the change in him later)
   } else {
-    say(state, bus, { kind: 'note', text: MADE });
+    // We know he's made us if we saw him do it; otherwise we see only what he does next.
+    const text = watching ? MADE : SPOOKED;
+    sc.madeSeen = watching;
+    say(state, bus, { kind: 'note', text });
     addHeat(state, 5);
     t.ai.steps = [['wait', TPS, 'left', 'idle'], ['go', t.x - 70, laneMid(t.z < Z.kerbN ? 'far' : 'near')], ['gone']];
-    end(state, bus, 'made', MADE);
+    end(state, bus, 'made', text);
   }
 }
 
