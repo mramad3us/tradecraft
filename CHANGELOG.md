@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.34 (2026-10-26)
+
+- **The character sheet, on C** (your ask): your name and cover, Tradecraft (the over-skill) as a bar, every skill with its training (course, advanced, expert, master, and practice as dots), what Tradecraft multiplies it by, and its value; your languages; and your **health part by part**: head, torso, each arm, each leg, on a figure and in words. The game pauses while it's open; C or Esc closes it. The camera, when there is one, moves to P.
+- **Health, part by part:** each part takes damage against what it can take (head 6, torso 12, an arm 8, a leg 9, more with Fitness: Fitness 8 takes 40% more), and reads unhurt, bruised, hurt, wounded or out (broken, down, out cold). Hurts cost checks (a hurt arm −1 to fighting and shooting, a broken one no grappling and −6 with a gun; a hurt head −1 to everything), wounded legs slow the walk, and bruises mend in days while wounds wait for care. Nothing hurts you yet: the fight is next.
+
 ## v0.0.33 (2026-10-26)
 
 - **The game fills the window** (your ask). It was drawn at 640 × 360 and scaled up by a whole number only, so a window between two sizes left a wide border. Now it scales by any amount, sharp-bilinear: every pixel the same size, the seam between two blended over a single screen pixel, so nothing crawls as the street goes by. A window of another shape shows a little more street on its longer side (up to 736 × 430, as far as the street is kept alive off screen), and a border only past that: a window like yours in the screenshot keeps a thin band top and bottom; 1920 × 960 and 1280 × 720 fill it all.

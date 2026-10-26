@@ -25,7 +25,7 @@
 //      and the crowd's bubble is kept round the focus: its street and the streets either side.
 //   7. The clock advances; an autosave is due every 30 game minutes ('autosave' on the bus).
 import { seedRng } from './rng.js';
-import { TICK_MS, MIN } from './clock.js';
+import { TICK_MS, MIN, DAY } from './clock.js';
 import { SAVE_SCHEMA } from './state.js';
 import { attach, refocus, rehash, move, near, exitAt } from './world.js';
 import { Z, placeName } from './map/street.js';
@@ -34,6 +34,7 @@ import { populate, think, walk, facing, isPasserby, noticeAgent } from './crowd.
 import { look, headOf, faceOf } from './perception.js';
 import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } from './agents.js';
 import { drift } from './people.js';
+import { heal } from './health.js';
 import { glassAhead } from './acts.js';
 import { SCENARIOS } from './scenarios/index.js';
 
@@ -175,12 +176,12 @@ function busy(me) {
   if (++b.wait >= s[1]) { b.steps.shift(); b.wait = 0; }
 }
 
-/** Let time pass without ticking (ms ≥ 0): the clock jumps, people's gauges drift, the crowd follows the hour. */
+/** Let time pass without ticking (ms ≥ 0): the clock jumps, people's gauges drift and bruises mend, the crowd follows the hour. */
 export function skip(state, bus, ms) {
   if (!(ms > 0)) return;
   const before = Math.floor(state.time.ms / AUTOSAVE_MS);
   state.time.ms += Math.round(ms / TICK_MS) * TICK_MS;
-  for (const p of Object.values(state.people)) drift(p, state.time.ms);
+  for (const p of Object.values(state.people)) { drift(p, state.time.ms); heal(p, ms / DAY); }
   const f = focusActor(state);
   if (f) populate(state, f.x);
   rehash(state);

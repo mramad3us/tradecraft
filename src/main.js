@@ -111,6 +111,7 @@ input.onAction((action) => {
   if (open === 'brief' || open === 'result') return;              // a paper waits for its choice
   if (action === 'menu') { if (open) { ui.closeOverlays(); paused = false; } else { ui.openMenu(settings); } return; }
   if (action === 'log') { if (open === 'log') { ui.closeOverlays(); } else if (!open) ui.openLog(state, settings); return; }
+  if (action === 'sheet') { if (open === 'sheet') { ui.closeOverlays(); } else if (!open) ui.openSheet(state); return; }
   if (action === 'pause' && !open) paused = !paused;
   if ((action === 'instinct' || action === 'glance') && !open && !paused) acts.push(action);
 });

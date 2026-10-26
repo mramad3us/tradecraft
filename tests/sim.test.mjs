@@ -1,4 +1,4 @@
-// The sim's core: dice, calendar, the sun, skills, checks, gauges, heat. Pure modules, run in node.
+// The sim's core: dice, calendar, the sun, skills, checks, gauges, heat, health. Pure modules, run in node.
 import { seedRng, next, d20, stream, int } from '../src/sim/rng.js';
 import { at, calendar, dateText, clockText, HOUR, MIN, DAY } from '../src/sim/clock.js';
 import { sun, sky, lightAt, lightLevel, lightBand } from '../src/sim/light.js';
@@ -6,9 +6,32 @@ import { skill, CLASSES } from '../src/sim/skills.js';
 import { check, opposed, checkText, DC } from '../src/sim/checks.js';
 import { sheet, nudge, drift, passerby, handler } from '../src/sim/people.js';
 import { addHeat, heat, stage } from '../src/sim/heat.js';
+import { PARTS, takes, stateOf, stateText, hurt, mods, heal, canGrapple, canStand, paceOf } from '../src/sim/health.js';
 import { assert, near, fmt } from './helpers.mjs';
 
 export default [
+  {
+    name: 'health: part by part, bruised to out, Fitness takes more, the hurts cost checks, bruises mend and wounds wait',
+    fn() {
+      const unfit = sheet({ id: 'a', name: 'A', cls: 'spook', skills: { fitness: [0, 0] } }), fit = sheet({ id: 'b', name: 'B', cls: 'spook', skills: { fitness: [15, 3] } });
+      assert(Object.keys(PARTS).every(k => stateOf(unfit, k) === 'unhurt'), 'unhurt to start');
+      near(takes(fit, 'torso'), 12 * (1 + 18 / 20), 1e-9, 'Fitness 18: the torso takes 0.9 more');
+      const seq = [1, 2, 3, 3].map(d => hurt(unfit, 'armR', d));
+      assert(seq.join() === 'bruised,hurt,wounded,out', `an arm through its states: ${seq}`);
+      assert(stateText(unfit, 'armR') === 'broken' && !canGrapple(unfit), 'a broken arm: no grapple');
+      assert(mods(unfit, 'weapons').some(m => m.v === -6) && mods(unfit, 'social').length === 0, 'a broken arm costs the gun, not the talk');
+      hurt(unfit, 'head', 2.5);
+      assert(mods(unfit, 'social').some(m => m.v === -1), 'a hurt head dulls every check');
+      hurt(fit, 'head', 2.5);
+      assert(stateOf(fit, 'head') === 'bruised', 'the same blow only bruises a fit head');
+      hurt(unfit, 'legL', 7);
+      assert(paceOf(unfit) === 0.8 && canStand(unfit), 'a wounded leg slows the walk');
+      hurt(unfit, 'legR', 9);
+      assert(canStand(unfit) === true && paceOf(unfit) === 0.5, 'one leg broken: a hobble');
+      heal(unfit, 3);
+      assert(stateOf(unfit, 'head') === 'unhurt' && stateOf(unfit, 'armR') === 'out' && stateOf(unfit, 'legL') === 'wounded', 'three days: the bruise is gone, the wounds are not');
+    },
+  },
   {
     name: 'rng: the same seed gives the same numbers, and d20 is fair',
     fn() {

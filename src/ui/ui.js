@@ -1,7 +1,8 @@
 // TRADECRAFT ui: the screens. The title sheet, the frame the picture sits in, the HUD over it (the
 // watch and where you are, the log's lines as they come, the keys, a scenario's marker over its target and the
-// instinct's line), and the sheets laid over it: the menu (Esc), the log (J), a test's brief before
-// it starts and its result when it ends. Plain DOM over the canvas, sized to it: the picture fills the
+// instinct's line), and the sheets laid over it: the menu (Esc), the log (J), the character sheet (C:
+// the over-skill, the skills, health part by part), a test's brief before it starts and its result
+// when it ends. Plain DOM over the canvas, sized to it: the picture fills the
 // window (fit()), centred, and the HUD is the same box, so nothing sits off the picture.
 //
 // The picture is RES pixels: 640 × 360, or on a window of another shape a little more street on its
@@ -17,6 +18,8 @@ import { SCENARIOS } from '../sim/scenarios/index.js';
 import { placeName } from '../sim/map/street.js';
 import { shownRolls } from '../sim/scenarios/sdr.js';
 import { SCREEN_HALF_M } from '../sim/crowd.js';
+import { SKILLS, CLASSES, TRAINED, skill } from '../sim/skills.js';
+import { PARTS, stateOf, stateText, FITNESS_K } from '../sim/health.js';
 
 const el = (tag, props = {}, ...kids) => {
   const e = Object.assign(document.createElement(tag), props);
@@ -43,7 +46,8 @@ export function createUI({ input, cb }) {
   const menu = el('div', { className: 'overlay', hidden: true });
   const log = el('div', { className: 'overlay', hidden: true });
   const paper = el('div', { className: 'overlay', hidden: true });     // a brief, a result
-  frame.append(hud, menu, log, paper);
+  const card = el('div', { className: 'overlay', hidden: true });      // the character sheet
+  frame.append(hud, menu, log, card, paper);
   const title = el('div', { id: 'title', hidden: true });
   document.body.append(frame, title);
 
@@ -62,7 +66,7 @@ export function createUI({ input, cb }) {
 
   const keyHints = () => {
     const k = (a) => `<kbd>${input.label(a)}</kbd>`;
-    keys.innerHTML = `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
+    keys.innerHTML = `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look · ${k('sheet')} sheet · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
   };
   keyHints();
   setTimeout(keyHints, 300);                                       // once the keyboard's layout is known
@@ -213,6 +217,41 @@ export function createUI({ input, cb }) {
     log.hidden = false;
     menu.hidden = true;
   }
+  // ---------- the character sheet (C) ----------
+  const LEVEL = Object.fromEntries(Object.entries(TRAINED).map(([k, v]) => [v, k]));
+  const LANGS = { en: 'English', ru: 'Russian' };
+  function openSheet(state) {
+    const p = state.people[state.player], cls = CLASSES[p.cls], os = p.os ?? 0;
+    const rows = Object.entries(SKILLS).map(([k, sk]) => {
+      const [base = 0, practice = 0] = p.skills?.[k] ?? [], w = cls?.weights[k] ?? 0;
+      return el('tr', { className: base ? '' : 'none' },
+        el('td', { textContent: sk.name, title: sk.about }),
+        el('td', { className: 'lvl', textContent: `${LEVEL[base] ?? `base ${base}`}${practice ? ` ${'•'.repeat(practice)}` : ''}` }),
+        el('td', { className: 'mult', textContent: w && os ? `× ${(1 + w * os / 100).toFixed(2)}` : '' }),
+        el('td', { className: 'val', textContent: String(skill(p, k)) }));
+    });
+    const part = (k) => el('div', { className: `part ${k} ${stateOf(p, k)}`, title: `${PARTS[k].name}: ${stateText(p, k)}` });
+    const fit = skill(p, 'fitness');
+    card.replaceChildren(el('div', { className: 'sheet charsheet' },
+      el('span', { className: 'stamp', textContent: 'PERSONNEL' }),
+      el('h2', { textContent: p.name.toUpperCase() }),
+      el('p', { className: 'note', textContent: [state.legend?.name, cls?.name].filter(Boolean).join(' · ') }), el('hr'),
+      cls?.overskill ? el('div', { className: 'os' }, el('span', { textContent: cls.overskill }), el('span', { className: 'bar' }, el('i', { style: `width: ${os}%` })), el('b', { textContent: `${os} / 100` })) : null,
+      cls?.overskill ? el('p', { className: 'note', textContent: `The over-skill: it multiplies the skills that matter to a ${cls.name.toLowerCase()} (the × column).` }) : null,
+      el('div', { className: 'cols' },
+        el('div', {},
+          el('table', { className: 'skills' }, el('tbody', {}, rows)),
+          el('p', { className: 'langs', textContent: Object.entries(p.langs ?? {}).map(([c, l]) => `${LANGS[c] ?? c}: ${l}`).join(' · ') })),
+        el('div', { className: 'body' },
+          el('div', { className: 'figure' }, part('head'), part('armR'), part('torso'), part('armL'), part('legR'), part('legL')),
+          el('ul', {}, Object.keys(PARTS).map(k => el('li', { className: stateOf(p, k) }, el('span', { textContent: PARTS[k].name }), el('span', { textContent: stateText(p, k) })))),
+          el('p', { className: 'note', textContent: `Fitness ${fit}: the body takes ${fit ? `${Math.round(100 * fit / FITNESS_K)}% more` : 'only what it takes'} before it gives.` }))),
+      el('p', { className: 'note', textContent: `${input.label('sheet')} or ${input.label('menu')} to close.` }),
+    ));
+    card.hidden = false;
+    menu.hidden = log.hidden = true;
+  }
+
   // ---------- a test's papers: the brief, the result ----------
   function showBrief(brief, onBegin) {
     const begin = () => { paper.hidden = true; paper.dataset.kind = ''; onBegin(); };
@@ -275,9 +314,9 @@ export function createUI({ input, cb }) {
     paper.querySelector('.item').focus();
   }
 
-  const closeOverlays = () => { menu.hidden = log.hidden = true; };
-  const closeAll = () => { menu.hidden = log.hidden = paper.hidden = true; paper.dataset.kind = ''; };
-  const overlay = () => (!menu.hidden ? 'menu' : !log.hidden ? 'log' : !paper.hidden ? paper.dataset.kind : null);
+  const closeOverlays = () => { menu.hidden = log.hidden = card.hidden = true; };
+  const closeAll = () => { menu.hidden = log.hidden = card.hidden = paper.hidden = true; paper.dataset.kind = ''; };
+  const overlay = () => (!menu.hidden ? 'menu' : !log.hidden ? 'log' : !card.hidden ? 'sheet' : !paper.hidden ? paper.dataset.kind : null);
 
-  return { frame, fit, showTitle, hideTitle, update, toast, clearToasts, openMenu, openLog, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
+  return { frame, fit, showTitle, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
 }

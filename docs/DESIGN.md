@@ -236,7 +236,7 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
   - Time passes, and their sheet reveals itself by checks.
   - Staring too long risks their Awareness.
   - Meetings you witness are noted by themselves.
-  - C takes a photo if you carry a camera.
+  - P takes a photo if you carry a camera.
 - **Tailing** (Q143). The target walks on and the map extends with them. Too close raises their suspicion, too far loses them. Crowds help. The instinct warns before you lose them.
 - **Tailing, the test** (v0.0.21, across the city since v0.0.30, no arrow over him since v0.0.31; my calls, for the user to score). Gennady Orlov, a former GRU officer, walks to a meeting on a boulevard bench ten to twelve streets away (some 1.1–1.4 km, near 20 minutes), by a way of his own planned across the city (The background game, below), a little roundabout, much more so on a wary evening. We start on his pavement, behind his first way along it. The numbers live in `src/sim/scenarios/tail.js` and `src/sim/habits.js`. It's played through perception: we see what our character's eyes take in, and so does he.
   - **Evenings:** each run draws one: dusk (16:45), night (19:40), the lunchtime crowd (13:05), or a wary evening (17:30, dark, him jumpy: more checks, less warning).
@@ -276,6 +276,9 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
 - **Knock out or kill.** The player chooses, and each attempt is a check. Low CQC can kill by accident when trying to knock out, or fail to kill when trying to (Q148). A death escalates the police and the opposition.
 - **Guns.** G draws a gun, if there's one in the inventory; R reloads. Every draw, shot and reload is a Weapon handling check, with fumbles on failure; a natural 1 can mean a shot in the foot. Shooting is paused second by second, like CQC: pick a target, then a Weapon handling roll against distance and cover (Q146).
 - **Health** is a few wounds before going down, more with Fitness. Serious wounds need care, and a hospital means exposure. Healing takes days (Q147).
+  - **Part by part** (v0.0.34, the user: "health bodypart by bodypart"; the numbers my call, `src/sim/health.js`). Six parts, each taking damage against what it can take: the head 6 points, the torso 12, an arm 8, a leg 9, more with Fitness (× 1 + Fitness / 20). A part is unhurt, bruised (any damage), hurt (a third), wounded (two thirds: serious, it needs care), or out: an arm or a leg broken, the torso down, the head out cold.
+  - **What it costs:** a hurt head −1 to every check, wounded −3 (dazed); hurt ribs −1 to CQC and Fitness, a torso wound −3; a hurt arm −1 to CQC and Weapon handling, wounded −3, broken −4 to CQC, −6 with a gun, and no grappling; a hurt leg −1 to CQC, wounded −2 and a walk at 0.8, broken −4 and a hobble at 0.5. Shown in the log like any modifier.
+  - **Mending:** bruises and hurts heal by a fifth of what the part takes a day; a wound or worse waits for care (Medicine), which comes later.
 - **Needs** are meters that cost check penalties (Q149):
   - tired (sleep);
   - hungry (every 6 h or so);
@@ -366,7 +369,7 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
    - A pure sim: clock and calendar, the tick order, the seeded rng, saves with export and import, `window.__tradecraft`.
    - Input by physical keys.
    - The check helper and the log.
-   - Character sheets with skills and weights; the gauges; heat.
+   - Character sheets with skills and weights (shown on C since v0.0.34, with health part by part); the gauges; heat.
    - A map renderer: a camera that follows, a crowd of 50 sprites, light from the clock.
    - A generated Moscow street to walk (see World size).
 3. **Mechanic tests**, one map each, scored by the user:
@@ -458,7 +461,8 @@ Keyboard first. Keys are read by physical position (`KeyboardEvent.code`), so th
 | T | Do what the instinct says |
 | E (hold) | Stop and look: the move keys turn your eyes. Later, watch someone. |
 | E (tap) | Glance back over your shoulder, walking on (the user, 2026-10-26) |
-| C | Camera |
+| C | Character sheet: the over-skill, the skills, health part by part (the user, 2026-10-26) |
+| P | Camera (was C) |
 | K, L, M | Hit, grapple, guard. M is the key right of L, which QWERTY prints ";". |
 | G | Draw a gun |
 | R | Reload |
