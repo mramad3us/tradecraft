@@ -1,0 +1,8 @@
+{ "title": "Fine town: sample 006's street in a finer finish", "pixel": "640x360",
+  "about": "After Stoneshard (the user's reference): the same street as sample 006, at 640 × 360 (more of it on screen, as Stoneshard shows), in a finer finish. People are drawn finer (samples/lib/finepeople.js): a 24 × 40 cell, faces with eyes, brows, cheeks and a mouth, legs and boots that show, six hue-shifted tones a colour, outlines softened on the lit side, limbs from joints so the walk has 8 frames, the run 6, and idle breathes and blinks. Surfaces are bevelled brick by brick and slab by slab, plaster weathered down to the brick in places, ivy, puddles, weeds, litter; a 116-colour warm palette and a warm grade. Measured on Stoneshard's screenshots, its people are 2.4 heads tall: close to our chibi; the difference is the finish.",
+  "views": [ { "name": "street, day", "query": "t=2" },
+             { "name": "street, night", "query": "t=2&time=night" },
+             { "name": "closer, day", "query": "t=2&zoom=2&x=-3&z=-3" },
+             { "name": "closer, night", "query": "t=2&zoom=2&x=4&z=-3&time=night" },
+             { "name": "people", "query": "view=lineup&t=0.3" },
+             { "name": "sprites", "query": "view=sheet" } ] }

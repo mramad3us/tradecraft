@@ -4,6 +4,18 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.18 (2026-10-26)
+
+- Sample 007, fine town: sample 006's street in a finer finish, after Stoneshard (Q155).
+  - **People** (`samples/lib/finepeople.js`): a 24 × 40 cell, faces with glinting eyes, brows, cheeks and a mouth, legs and boots that show, six hue-shifted tones a colour, the outline softened on the lit side.
+  - **Motion:** limbs drawn between joints give an 8-frame walk, a 6-frame run, and an idle that breathes and blinks.
+  - **Surfaces:** bevelled bricks and slabs, weathered plaster showing brick, ivy, puddles, weeds, litter.
+  - **Colour:** a 116-colour palette and a warm grade.
+  - **View:** 640 × 360; `?res=480` shows sample 006's frame.
+- Stoneshard measured: its people are 2.4 heads tall, close to our chibi, not the tall, small-headed figures I first described. The difference is the finish. DESIGN.md and PIPELINE.md corrected.
+- `samples/lib/mainstreet.js`: the street of samples 006 and 007, built once; sample 006 renders pixel for pixel as before.
+- `pixelart.js`: OKLCH colour, `tone()`, `noise()`, `nearest()`, the fine palette, a warm grade, any resolution, palettes up to 128 colours.
+
 ## v0.0.17 (2026-10-26)
 
 - The design is settled: DESIGN.md now holds the user's answers to round 2 of the debrief as decisions:

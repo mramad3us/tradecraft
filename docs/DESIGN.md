@@ -305,7 +305,7 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
 
 **My call**, from Q161: each mechanic is built first as a small playable test the user scores (like the look samples), and the mechanics are joined only after.
 
-1. **The look.** Chibi or Stoneshard proportions (Q155: a sample to compare). It sets the sprite size everything else is drawn at.
+1. **The look.** Chibi (sample 006) or the fine finish (sample 007, Q155). It sets the sprite size and the finish everything else is drawn at.
 2. **The skeleton.**
    - A pure sim: clock and calendar, the tick order, the seeded rng, saves with export and import, `window.__tradecraft`.
    - Input by physical keys.
@@ -356,7 +356,18 @@ Explored so far:
   - **Facades, signs and the ground** are painted pixel textures on boxes, flower boxes and posters included.
   - **Night** lights the windows, signs and lamps, with hard-edged pools of lamplight; a sprite takes the light of the pool it stands in.
   - **The user's scores.** For the first build, with box people (2026-10-25): camera angle 95/100, night colour shift 90, environment 80 ("tree needs work, things lack flair"), characters 35. Head-to-body ratio good; front views "too boxy"; some profiles good. After the sprites and trees: "trees are fixed, characters are now a solid 70", and the approach is the right one; "objectively, this would be a 90-95%" with room to improve. The kid's run was off and was redrawn (v0.0.15).
-- **Stoneshard** (Q3, Q155): named for the art and animation style, "if possible". Its people are taller than ours (heads about a fifth of the body, not a third), more detailed, more smoothly animated, in a muted, darker palette. The user asked for a sample with its proportions, to compare with the chibi.
+- **Stoneshard** (Q3, Q155): named for the art and animation style, "if possible". I first described its people as taller, with heads about a fifth of the body. That was wrong. Measured on its screenshots, they're about 33 px with a 14-px head: 2.4 heads tall, close to our chibi. What sets Stoneshard apart is the finish, and the user asked for a sample to compare.
+- **Fine town** (sample 007, 2026-10-26): sample 006's street, in Stoneshard's finish.
+  - **The view** is 640 × 360, wider, as Stoneshard shows more world around its people.
+  - **People** are drawn finer (`samples/lib/finepeople.js`):
+    - a 24 × 40 cell, the head 12 × 12;
+    - faces with glinting eyes, brows, a nose shadow, cheeks and a mouth, and a blink;
+    - legs, boots and hands that show;
+    - six hue-shifted tones a colour, the outline softened on the lit side;
+    - limbs between joints, giving an 8-frame walk, a 6-frame run, and a breathing idle.
+  - **Surfaces** are bevelled brick by brick and slab by slab. Plaster is weathered down to the brick in places. There's ivy, plus puddles, weeds, litter and moss in the joints.
+  - **Colour:** a 116-colour palette and a warm grade.
+  - **What to compare:** sample 006 (chibi: simple, big-headed, 50 colours) against sample 007 (the fine finish). The look is the user's pick.
 
 ## Stack
 
@@ -389,6 +400,6 @@ The mouse is for menus.
 
 ## Open questions
 
-- **The look:** chibi pixel art (sample 006) or Stoneshard proportions (the sample to compare). Settled by the user's pick.
+- **The look:** chibi pixel art (sample 006) or the fine finish (sample 007). Settled by the user's pick.
 - **After a lost character** (needed after 0.1.0, since 0.1.0 is one posting). **My lean:** the world carries on (same geopolitics, same date), and the next officer starts their own career. The lost officer's network goes dormant or is rolled up.
 - **The other agencies and classes' weight tables:** when they're needed.

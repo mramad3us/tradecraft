@@ -49,12 +49,88 @@ export const PALETTE = [
   0x4a2a52, 0x7a4a86, 0x2f6b62,
 ];
 
+// ---------- colour in OKLCH (perceptual lightness, chroma, hue), and the fine palette ----------
+
+const toLin = (c) => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+const toSrgb = (c) => c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055;
+/** A colour's [L 0..1, chroma, hue in degrees]. */
+export function oklch(hex) {
+  const r = toLin(((hex >> 16) & 255) / 255), g = toLin(((hex >> 8) & 255) / 255), b = toLin((hex & 255) / 255);
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const q = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  const L = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * q;
+  const A = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * q;
+  const B = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * q;
+  return [L, Math.hypot(A, B), (Math.atan2(B, A) * 180 / Math.PI + 360) % 360];
+}
+/** The sRGB colour (0xrrggbb) of an OKLCH one, clipped to the gamut. */
+export function fromOklch(L, C, h) {
+  const A = C * Math.cos(h * Math.PI / 180), B = C * Math.sin(h * Math.PI / 180);
+  const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3;
+  const m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3;
+  const q = (L - 0.0894841775 * A - 1.2914855480 * B) ** 3;
+  const to8 = (v) => Math.round(Math.min(1, Math.max(0, toSrgb(Math.max(0, v)))) * 255);
+  return (to8(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * q) << 16)
+    | (to8(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * q) << 8)
+    | to8(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * q);
+}
+// A pixel artist's hue shift: darker tones turn toward violet, lighter toward yellow.
+const toward = (h, target, k) => h + (((target - h + 540) % 360) - 180) * Math.min(1, k);
+export const shiftHue = (h, dL) => dL < 0 ? toward(h, 285, -dL * 1.4) : toward(h, 85, dL * 1.6);
+
+// The fine palette (sample 007, after Stoneshard): 14 families of muted, warm-leaning colour, eight
+// tones each, hue-shifted as above, chroma easing off at the ends; plus ink, paper and the two glows.
+// [hue, chroma] per family.
+const FAMILIES = [[60, 0.016], [265, 0.022], [55, 0.05], [75, 0.095], [35, 0.11], [22, 0.13], [50, 0.07],
+  [115, 0.07], [145, 0.09], [195, 0.06], [250, 0.08], [275, 0.06], [325, 0.07], [85, 0.04]];
+const STEPS = [0.2, 0.29, 0.38, 0.47, 0.56, 0.66, 0.76, 0.86];
+/** The palette colour nearest `hex`, measured as the post pass measures it (luma counts most). */
+export function nearest(hex, palette) {
+  const ch = (h) => [((h >> 16) & 255) / 255, ((h >> 8) & 255) / 255, (h & 255) / 255];
+  const [r, g, b] = ch(hex);
+  let best = palette[0], bd = Infinity;
+  for (const p of palette) {
+    const [pr, pg, pb] = ch(p), dr = r - pr, dg = g - pg, db = b - pb;
+    const e = 0.30 * dr * dr + 0.59 * dg * dg + 0.11 * db * db + 0.25 * (dr * dr + dg * dg + db * db);
+    if (e < bd) { bd = e; best = p; }
+  }
+  return best;
+}
+/** The look's finish: sample 007 sets fine, for richer textures (tile() here, the painters in pixeltown.js). */
+export const finish = { fine: false };
+
+const tones = new Map();
+/** `hex` lighter (dL > 0) or darker by dL of OKLCH lightness, hue-shifted, a little less chroma the further. */
+export function tone(hex, dL) {
+  const key = hex * 1000 + Math.round(dL * 500);
+  if (!tones.has(key)) {
+    const [L, C, h] = oklch(hex);
+    tones.set(key, fromOklch(Math.min(0.97, Math.max(0.08, L + dL)), C * (1 - Math.min(0.5, Math.abs(dL))), shiftHue(h, dL)));
+  }
+  return tones.get(key);
+}
+
+/** Smooth value noise, 0..1, at (x, y) in cells of one unit (scale the coordinates), from a seed. */
+export function noise(x, y, seed = 1) {
+  const hash = (i, j) => { let h = (i * 374761393 + j * 668265263 + seed * 2246822519) >>> 0; h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  const a = hash(ix, iy), b = hash(ix + 1, iy), c = hash(ix, iy + 1), d = hash(ix + 1, iy + 1);
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+}
+
+export const FINE_PALETTE = [
+  ...FAMILIES.flatMap(([h, c]) => STEPS.map(L => fromOklch(L, c * (1 - 0.9 * Math.abs(L - 0.55)), shiftHue(h, L - 0.55)))),
+  0x1a1214, 0xf4efe6, 0xe7b84a, 0xf8e08a,
+];
+
 /**
  * A pixel-art stage: renderer, scene, the 45° camera and a render() that outlines and palettises.
  * The canvas is shown at the largest whole-number scale that fits the window.
  */
-export function pixelStage({ background = 0x23252f, outline = true, palette = PALETTE, zoom = 1 } = {}) {
-  const W = Math.round(RES[0] / zoom), H = Math.round(RES[1] / zoom);
+export function pixelStage({ background = 0x23252f, outline = true, palette = PALETTE, zoom = 1, res = RES, grade = 0 } = {}) {
+  const W = Math.round(res[0] / zoom), H = Math.round(res[1] / zoom);
   const renderer = new THREE.WebGLRenderer({ antialias: false });
   renderer.setPixelRatio(1);
   renderer.setSize(W, H, false);
@@ -119,21 +195,21 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
     uniforms: {
       tColor: { value: rt.texture }, tDepth: { value: rt.depthTexture }, tId: { value: rtId.texture },
       res: { value: new THREE.Vector2(W, H) }, near: { value: camera.near }, far: { value: camera.far },
-      outline: { value: outline ? 1 : 0 },
-      // (padded to the shader's 64: three uploads the array at the declared size)
-      pal: { value: Array.from({ length: 64 }, (_, i) => { const c = pal[Math.min(i, pal.length - 1)]; return new THREE.Vector3(c.r, c.g, c.b); }) },
-      count: { value: Math.min(pal.length, 64) },
+      outline: { value: outline ? 1 : 0 }, grade: { value: grade },
+      // (padded to the shader's 128: three uploads the array at the declared size)
+      pal: { value: Array.from({ length: 128 }, (_, i) => { const c = pal[Math.min(i, pal.length - 1)]; return new THREE.Vector3(c.r, c.g, c.b); }) },
+      count: { value: Math.min(pal.length, 128) },
     },
     vertexShader: `out vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
     fragmentShader: `
       precision highp float;
       in vec2 vUv; out vec4 outColor;
-      uniform sampler2D tColor, tDepth, tId; uniform vec2 res; uniform float near, far, outline;
-      uniform vec3 pal[64]; uniform int count;
+      uniform sampler2D tColor, tDepth, tId; uniform vec2 res; uniform float near, far, outline, grade;
+      uniform vec3 pal[128]; uniform int count;
       float lin(float d) { return near + d * (far - near); }
       vec3 nearest(vec3 c) {
         vec3 best = pal[0]; float bd = 1e9;
-        for (int i = 0; i < 64; i++) {
+        for (int i = 0; i < 128; i++) {
           if (i >= count) break;
           vec3 d = c - pal[i];
           float e = dot(d * d, vec3(0.30, 0.59, 0.11)) + 0.25 * dot(d, d);   // luma counts most
@@ -160,6 +236,12 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
             else if (other && dn > d + 0.02) edge = min(edge, 0.4);
           }
           col *= edge;
+        }
+        if (grade > 0.0) {
+          // A warm grade (the fine look): light a touch warmer, colour a touch muted, shadows toward violet.
+          float l = dot(col, vec3(0.30, 0.59, 0.11));
+          col = mix(col, vec3(l), 0.18 * grade) * mix(vec3(1.0), vec3(1.05, 1.0, 0.9), grade);
+          col += grade * max(0.0, 0.35 - l) * vec3(0.03, -0.01, 0.05);
         }
         outColor = vec4(nearest(col), 1.0);
       }`,
@@ -324,6 +406,7 @@ export function paint(w, h, draw, { repeat = false, glows = null } = {}) {
 export function tile(kind, m = 1) {
   const n = PX_PER_M * m;
   const r = rng(kind.length * 977 + m * 131);
+  if (finish.fine && FINE_TILES[kind]) return paint(n, n, (px) => FINE_TILES[kind](px, n, r), { repeat: true });
   return paint(n, n, (px) => {
     const speckle = (cols, k) => { for (let i = 0; i < n * n * k; i++) px(Math.floor(r() * n), Math.floor(r() * n), 1, 1, cols[Math.floor(r() * cols.length)]); };
     switch (kind) {
@@ -375,6 +458,68 @@ export function tile(kind, m = 1) {
     }
   }, { repeat: true });
 }
+
+// The fine finish of the same tiles: more tones, each brick, slab and tile bevelled (lit along the
+// top, in shade along the bottom and right), surfaces mottled with noise. They tile: patterns run in
+// whole periods of n.
+/** Bricks in half bond, w × 3 each, bevelled and varied, in mortar; over x0, y0, ww × hh of px. */
+export function fineBricks(px, x0, y0, ww, hh, base, r) {
+  px(x0, y0, ww, hh, tone(base, -0.24));                         // mortar, in shadow
+  for (let j = 0; j < hh; j += 4) for (let i = ((j / 4) % 2) * 4 - 4; i < ww; i += 8) {
+    const a = Math.max(0, i), b = Math.min(ww, i + 7), h = Math.min(3, hh - j);
+    if (b <= a) continue;
+    const k = r(), d = k < 0.08 ? -0.12 : k < 0.14 ? 0.07 : [-0.05, -0.02, 0, 0.03][Math.floor(r() * 4)];
+    px(x0 + a, y0 + j, b - a, h, tone(base, d));
+    px(x0 + a, y0 + j, b - a, 1, tone(base, d + 0.06));          // the lit top
+    if (h === 3) px(x0 + a, y0 + j + 2, b - a, 1, tone(base, d - 0.06));
+    if (b === i + 7) px(x0 + b - 1, y0 + j + 1, 1, h - 1, tone(base, d - 0.06));
+    if (r() < 0.35) px(x0 + a + Math.floor(r() * (b - a)), y0 + j + 1, 1, 1, tone(base, d - 0.04));
+  }
+}
+const FINE_TILES = {
+  brick: (px, n, r) => fineBricks(px, 0, 0, n, n, 0x9e3c36, r),
+  plaster(px, n, r) {
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const v = noise(x / 5, y / 5, 3) * 0.6 + noise(x / 2, y / 2, 4) * 0.4;
+      px(x, y, 1, 1, tone(0xe2dac6, v < 0.32 ? -0.05 : v > 0.7 ? 0.02 : -0.02));
+    }
+  },
+  roof(px, n, r) {                                               // tiles in rows, each its own tone
+    const base = 0x9e3c36;
+    for (let y = 0; y < n; y += 4) for (let x = (y / 4) % 2 * 2 - 4; x < n; x += 4) {
+      const d = (r() - 0.5) * 0.08;
+      px(x, y, 4, 4, tone(base, d)); px(x, y, 4, 1, tone(base, d + 0.07));
+      px(x + 3, y, 1, 4, tone(base, d - 0.08)); px(x, y + 3, 4, 1, tone(base, d - 0.14));
+    }
+  },
+  cobble(px, n, r) {                                             // setts, bevelled, dark joints
+    px(0, 0, n, n, 0x5c5650);
+    for (let y = 0; y < n; y += 4) for (let x = (y / 4) % 2 * 2 - 4; x < n; x += 4) {
+      const d = (r() - 0.5) * 0.1, c = 0xa0978a;
+      px(x, y, 3, 3, tone(c, d)); px(x, y, 3, 1, tone(c, d + 0.07)); px(x + 2, y + 1, 1, 2, tone(c, d - 0.07));
+    }
+  },
+  planks(px, n, r) {
+    for (let x = 0; x < n; x += 4) {
+      const d = (r() - 0.5) * 0.08;
+      px(x, 0, 4, n, tone(0x8f6345, d)); px(x, 0, 1, n, tone(0x8f6345, d + 0.06)); px(x + 3, 0, 1, n, tone(0x8f6345, -0.16));
+      for (let k = 0; k < 3; k++) px(x + 1 + Math.floor(r() * 2), Math.floor(r() * n), 1, 2 + Math.floor(r() * 4), tone(0x8f6345, d - 0.05));   // grain
+    }
+  },
+  asphalt(px, n, r) {
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const v = noise(x / 3, y / 3, 9);
+      px(x, y, 1, 1, tone(0x4c5262, v < 0.3 ? -0.04 : v > 0.72 ? 0.03 : 0));
+    }
+  },
+  grass(px, n, r) {
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const v = noise(x / 4, y / 4, 6);
+      px(x, y, 1, 1, tone(0x4f8f45, v < 0.35 ? -0.07 : v > 0.68 ? 0.04 : -0.02));
+    }
+    for (let i = 0; i < n * n / 30; i++) { const x = Math.floor(r() * n), y = 1 + Math.floor(r() * (n - 2)); px(x, y + 1, 1, 1, tone(0x4f8f45, -0.12)); px(x, y, 1, 1, tone(0x4f8f45, 0.08)); }
+  },
+};
 
 // ---------- shapes ----------
 

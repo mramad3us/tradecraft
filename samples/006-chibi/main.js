@@ -7,11 +7,10 @@
 //   ?time=night           night: lamps lit, windows and signs aglow
 //   ?t=1.25               freeze the clock there (for shots)
 import * as THREE from 'three';
-import { pixelStage, nightfall, pool, ground, tile, mat } from '../lib/pixelart.js';
+import { pixelStage, nightfall, ground, tile, mat } from '../lib/pixelart.js';
 import { chibi } from '../lib/chibi.js';
 import { spritePerson } from '../lib/sprites.js';
-import { treeCard, propCard } from '../lib/townsprites.js';
-import { street, building, awning, bladeSign, lamp, tree, bench, bin, cafeTable, chair, car } from '../lib/pixeltown.js';
+import { mainStreet } from '../lib/mainstreet.js';
 import { CAST } from './cast.js';
 
 const q = new URLSearchParams(location.search);
@@ -58,81 +57,11 @@ if (view === 'lineup') {
   });
   stage.look({ x: 0, z: 0.6 });
 } else {
-  // The street: buildings along z = -5, a pavement to -2, the road to 3.5, a pavement beyond.
-  const zB = -5;
-  scene.add(street({ x0: -20, x1: 20, zB, zK1: -2, zK2: 3.5, z1: 8, zebra: [0, 2.2], pits: [[-12, 4.8], [11, 4.8]] }));
-  scene.add(building({ x0: -20, x1: -8.5, z: zB, h: 7.2, roof: 'pitched', seed: 11, night, draw(f) {
-    f.band(3.4);
-    f.door(3.0, 1.1, 2.2, { color: 0x356f42 });
-    for (const x of [1.0, 5.0, 7.0, 9.2]) f.window(x, 0.9, 1.1, 1.4, { curtain: x === 5.0 ? 0xc95c45 : null });
-    for (const x of [1.0, 3.0, 5.0, 7.0, 9.2]) f.window(x, 4.0, 1.1, 1.5, { shutters: 0x356f42, flowers: [0xc95c45, 0xe8896a, 0xf8e08a] });
-    f.cornice(6.9);
-  } }));
-  scene.add(building({ x0: -8.5, x1: -1, z: zB, h: 4.4, wall: 'plaster', wallColor: 0xe2dac6, seed: 12, night, draw(f) {
-    f.shopfront(0.4, 4.4, 2.6, { goods: [0xf6f4ee, 0x8f6345, 0xc95c45, 0xb48459] });
-    f.door(5.4, 1.1, 2.3, { color: 0x6e2a2e, frame: 0x23252f });
-    f.sign(0.6, 3.3, 4.0, 0.7, 'CAFE', { bg: 0x6e2a2e, fg: 0xf8e08a, border: 0x23252f });
-    f.cornice(4.1, 0.3, 0xc4bba9);
-  } }));
-  scene.add(awning(-8.2, -3.9, 3.0, zB, { color: 0x9e3c36 }));
-  scene.add(building({ x0: -1, x1: 7.5, z: zB, h: 9.5, wall: 'plaster', wallColor: 0xdfe2e8, seed: 13, night, draw(f) {
-    f.rect(0, 0, 8.5, 0.5, 0xb8bdc8);                            // a plinth
-    f.door(3.5, 1.6, 2.5, { color: 0x283f6b, frame: 0xb9862e });
-    for (const x of [0.7, 1.9, 5.6, 6.8]) f.window(x, 0.9, 0.9, 1.6, { frame: 0xf6f4ee, lintel: 0xb8bdc8 });
-    f.sign(3.0, 2.95, 2.6, 0.6, 'HOTEL', { bg: 0x1b2541, fg: 0xf8e08a, border: 0xb9862e });
-    f.band(3.8, 0xb8bdc8);
-    for (const x of [0.7, 2.4, 4.1, 5.8]) f.window(x, 4.3, 1.0, 1.7, { frame: 0xf6f4ee, lintel: 0xb8bdc8, shutters: 0x3b6296, lit: x === 4.1, flowers: [0xc95c45, 0xf6f4ee] });
-  } }));
-  scene.add(bladeSign(7.3, 3.2, zB, 'BAR', { bg: 0x4a2a52 }));
-  // An alley between the hotel and the newsagent, with a building at its end.
-  scene.add(ground(7.5, -11, 9.5, zB, mat(0, tile('cobble', 1))));
-  scene.add(building({ x0: 6, x1: 11, z: -10, h: 6, wallColor: 0x6e2a2e, seed: 14, night, draw(f) {
-    f.door(2.0, 1.0, 2.1, { color: 0x353947, frame: 0x7d756c, glass: false });
-    f.poster(1.55, 0.8, 0.6, 0.9, { bg: 0xf8e08a, art: 0x9e3c36, fg: 0x14151c });
-    f.poster(3.2, 0.9, 0.7, 1.0, { bg: 0xdfe2e8, art: 0x283f6b, fg: 0x9e3c36, words: 'JAZZ' });
-  } }));
-  scene.add(bin(8.8, -6.2));
-  scene.add(building({ x0: 9.5, x1: 20, z: zB, h: 6.4, wallColor: 0x8f6345, seed: 15, night, draw(f) {
-    f.shopfront(0.6, 4.6, 2.6, { goods: [0xf6f4ee, 0xdfe2e8, 0x5d8fc2, 0xc95c45, 0xe7b84a] });
-    f.door(5.8, 1.1, 2.3, { color: 0x24503a, frame: 0x23252f });
-    f.sign(0.6, 2.9, 6.4, 0.6, 'NEWS TOBACCO', { bg: 0x24503a, fg: 0xf6f4ee, border: 0x173327 });
-    for (const x of [0.8, 3.0, 5.2, 7.4]) f.window(x, 4.0, 1.1, 1.5, {});
-    f.cornice(6.1, 0.3, 0xc4bba9);
-  } }));
-  scene.add(awning(10.0, 14.9, 2.85, zB, { color: 0x24503a, depth: 1.1 }));
-  // Street furniture.
-  scene.add(lamp(-9.6, -2.5, { lit: night }), lamp(6.4, -2.5, { lit: night }), lamp(-1.5, 4.2, { lit: night }));
-  if (night) for (const x of [-6.1, 12.3]) {                     // shop windows spill light on the pavement
-    scene.add(pool(x, 2.4, zB + 0.2, { r: 1.6, color: 0xe7b84a, core: 0.3, ring: 0.15, aim: [0, 1.6] }));
-  }
-  scene.add(bench(-5.5, 5.4), bin(2.8, 4.3));
-  const at = (m, x, z) => { m.position.set(snap(x), 0, snap(z)); scene.add(m); return m; };
-  at(treeCard({ seed: 3 }), -12, 4.8);
-  at(treeCard({ seed: 8, size: 0.9 }), 11, 4.8);
-  // The café's terrace: tables and chairs, the chalkboard; flair along the street.
-  at(propCard('chair'), -7.2, -4.2); at(propCard('table'), -7.2, -3.6); at(propCard('chair'), -6.4, -3.3);
-  at(propCard('chair'), -5.0, -4.2); at(propCard('table'), -5.0, -3.6);
-  at(propCard('chalkboard'), -3.4, -3.0);
-  at(propCard('shrub', { seed: 5 }), 3.0, -4.6); at(propCard('shrub', { seed: 6 }), 5.6, -4.6);
-  at(propCard('postbox'), -10.6, -2.6);
-  at(propCard('bicycle'), 15.6, -4.5);
-  const pigeons = [[-1.2, -2.9], [-0.6, -3.3], [0.1, -2.7], [13.2, 5.2]].map(([x, z], i) => ({ m: at(propCard('pigeon'), x, z), i }));
-  actors.push({ update(t) { for (const { m, i } of pigeons) m.show(Math.floor(t * 3 + i * 1.7) % 3 === 0 ? 1 : 0); } });
-  const parked = car(0x3b6296); parked.position.set(-14.5, 0, -1.05); scene.add(parked);
-  const parked2 = car(0x9e3c36); parked2.position.set(14.0, 0, -1.05); scene.add(parked2);
-  const taxi = car(0xe7b84a, { taxi: true }); taxi.rotation.y = Math.PI; taxi.position.set(0, 0, 2.2); scene.add(taxi);
-  actors.push({ update(t) { taxi.position.x = wrap(12 - 4.5 * t, -24, 24); } });
-  // The people.
-  person('spy', { x: 5.6, z: -2.9 });
-  person('cop', { x: 4.3, z: -4.3, phase: 0.4 });
-  person('red', { x: -14, z: -3.4, facing: Math.PI / 2, state: 'walk', path: { vx: 1.1, from: -19, to: 19 } });
-  person('suit', { x: 9, z: 4.3, facing: -Math.PI / 2, state: 'walk', phase: 0.2, path: { vx: -1.2, from: -19, to: 19 } });
-  person('kid', { x: 2, z: -2.6, facing: -Math.PI / 2, state: 'run', path: { vx: -2.6, from: -19, to: 19 } });
-  // Sitters: a box person sits at the seat; a sprite's card stands just in front of it, raised so its
-  // seat row meets the seat's front edge on screen (a pixel up for each pixel forward).
-  person('beard', boxes ? { x: -5.5, y: 0.03, z: 5.45, state: 'sit' } : { x: -5.5, y: 0.24, z: 5.7, state: 'sit' });
-  person('long', boxes ? { x: -7.2, y: 0.06, z: -4.05, state: 'sit', phase: 0.3 } : { x: -7.2, y: 0.22, z: -3.85, state: 'sit', phase: 0.3 });
-  person('beanie', { x: 1.1, z: -2.4, state: 'walk', path: { vz: 0.9, from: -2.6, to: 4.2 } });
+  mainStreet({ scene, night, person, actors, seat: (kind, x) => boxes
+    ? (kind === 'bench' ? { x, y: 0.03, z: 5.45 } : { x, y: 0.06, z: -4.05 })
+    // a sprite's card stands just in front of the seat, raised so its seat row meets the seat's front edge
+    // on screen (a pixel up for each pixel forward)
+    : (kind === 'bench' ? { x, y: 0.24, z: 5.7 } : { x, y: 0.22, z: -3.85 }) });
   stage.look({ x: Number(q.get('x') ?? 0), z: Number(q.get('z') ?? -2.4) });
   if (night) {
     nightfall(stage);
