@@ -4,6 +4,23 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.17 (2026-10-26)
+
+- The design is settled: DESIGN.md now holds the user's answers to round 2 of the debrief as decisions:
+  - postings played in chapters (key days in full, the rest summarised); an active day of 20–40 minutes;
+  - leads beside intelligence; intelligence changes the world, seen in the news and briefings;
+  - the ladder Recruit, Officer, Handler, Undercover, Illegal; the classes and over-skills: Tradecraft, Warfighting, Intuition (cops, up to special agent), Streetwise;
+  - checks: a trained base 0–20, practice 0–3, over-skill 0–100 with a weight per skill, opposed rolls with environmental modifiers; Awareness, Tech and Medicine added; a hook halves the difficulty;
+  - one heat number, read only through the instinct's signs;
+  - a lost character is lost (a new one among generated candidates; debug mode allows reloading);
+  - agency services on replenishing credits; two purses; a cover standing gauge;
+  - observation on E, the camera on C, shooting paused like CQC, knockouts that can kill, no driving, transit playable when it matters;
+  - maps larger than a screen with a following camera.
+
+  0.1.0 is a few weeks as a Handler in Moscow, 5–10 hours, with all nine kinds of assignment.
+- My calls to close the last holes, marked as such: what makes a day key, the summary between chapters, heat thresholds, Tradecraft's weights per skill, who rolls against whom.
+- Road to 0.1.0: the look, a skeleton, eight mechanic tests the user scores, then joining them.
+
 ## v0.0.16 (2026-10-26)
 
 - DESIGN.md rewritten from the user's 101 answers to the design debrief (round 1), as decisions:

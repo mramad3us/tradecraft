@@ -1,6 +1,6 @@
 # TRADECRAFT: working notes
 
-A game, in design: nothing is built yet, and `docs/DESIGN.md` is where the design gets settled. This file is the method (how we version, play, test and work), carried over from longhaul (`../longhaul`) and tightened where longhaul taught us something.
+A game whose design is settled in `docs/DESIGN.md` (the debrief, 2026-10-26); nothing of the game itself is built yet, and its Road to 0.1.0 says what comes first. This file is the method (how we version, play, test and work), carried over from longhaul (`../longhaul`) and tightened where longhaul taught us something.
 
 ## Commands
 

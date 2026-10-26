@@ -1,49 +1,56 @@
 # Design
 
-To be settled before anything is built. Each section is decisions, with the reasoning behind them. **Decided** is the user's answer (the design debrief, round 1, 2026-10-26, Q1–Q101). **Proposed** is mine, waiting on the user's word in round 2 (Q102 on). What's still open stays under Open questions.
+The game as settled with the user, through the design debrief (round 1, Q1–Q101, and round 2, Q102–Q162, 2026-10-26: https://claude.ai/artifact/F3YQnnfxy2WcybuczDZJDY). Everything here is decided unless marked **my call**: details I settled after round 2 to close holes it left, which stand until the user says otherwise. What's still open is under Open questions. Question numbers point back to the debrief.
 
 ## Pitch
 
 A spy game. Single player, present day, one character controlled: a spook, an intelligence officer. Not the analyst, not the special forces, though we work with both. The player is always in the field collecting intelligence, and the shape of the work changes with rank: from a recruit doing counter-intelligence legwork at home to an illegal living for decades as a citizen of the target country.
 
-- **Tone (decided).** Grounded and procedural (le Carré, Le Bureau des Légendes, The Americans). The character is squishy, counter-intelligence is unforgiving, and tradecraft is what keeps a spook from getting burned. Mistakes carry a real price. The humour is in the words: dry, dark, situational, Slow Horses-like dialogue and internal monologue.
-- **The feeling (decided).** After a good session the player doesn't want to stop: there is always another step, another assignment, another hill to climb.
-- **Touchstones (decided).** *Papers, Please*: the cold, half-serious tone, and the papers themselves: sheets you move about, read and file. *Stoneshard*: the art and animation style, if possible (see Look). *Heat Signature*: one character at a time, the next one when they die (later).
-- **Never (decided).** A shooter (though there is combat) or a hero story. Ethics take a back seat to the mission and to survival. You can fight and kill with almost anything, but being burned is a nightmare, and security forces are overwhelming.
+- **Tone.** Grounded and procedural (le Carré, Le Bureau des Légendes, The Americans). The character is squishy, counter-intelligence is unforgiving, and tradecraft is what keeps a spook from getting burned. Mistakes carry a real price. The humour is in the words: dry, dark, situational, Slow Horses-like dialogue and internal monologue.
+- **The feeling.** After a good session the player doesn't want to stop: there is always another step, another assignment, another hill to climb.
+- **Touchstones.**
+  - *Papers, Please*: the cold, half-serious tone, and the papers themselves: sheets you move about, read and file.
+  - *Stoneshard*: the art and animation style, if possible (see Look).
+  - *Heat Signature*: one character at a time, and another when they're lost.
+- **Never.** A shooter (though there is combat) or a hero story. Ethics take a back seat to the mission and to survival. You can fight and kill with almost anything, but being burned is a nightmare, and security forces are overwhelming.
 
 ## Pillars
 
 1. **Tradecraft decides.** Success rests on the character's skill more than the player's reflexes. The player's craft is choosing what to try, where and when: each task has a few approaches and some puzzle in it, and the dice settle the execution.
-2. **Mistakes cost.** No karma, no good/bad score: only efficiency and consequences. A lie that's caught costs a person's trust; a careless meeting adds to the other side's file; a failed review costs a posting.
+2. **Mistakes cost.** No karma, no good/bad score: only efficiency and consequences. A lie that's caught costs a person's trust; a careless meeting raises the heat; a lost character stays lost.
 3. **Always another step.** A direct task, longer goals behind it, several assignments in parallel. The loop must never leave the player with nothing worth doing.
 4. **Text carries it.** Dialogue, monologue, briefs, chat apps, the log of rolls. Medium reading, abundant flavour.
 5. **Generated, but it should feel authored.** Geopolitics produces postings, postings produce assignments, and assignments produce places and people. Characters who matter persist; the rest are throwaway.
 
-The user's worries are the guardrails: **clunky mechanics, an inconsistent experience, empty gameplay**. Every mechanic must feed the loop, and every number must mean the same thing everywhere (one shared helper per quantity, as in longhaul).
+The user's worries are the guardrails: **clunky mechanics, an inconsistent experience, empty gameplay**. So:
+- Every mechanic feeds the loop.
+- Every number means the same thing everywhere: one shared helper per quantity, as in longhaul.
+- Each mechanic is built first as a playable test the user scores, before the mechanics are joined (Q161; see Road to 0.1.0).
 
 ## The player's loop
 
-Nested by scale. Decided in substance; the pacing of the longest scales is proposed (Q104).
-
 - **Seconds (a map).** Walk; run (which draws attention). Watch people, follow them, notice who's following you, blend in, talk (choose an approach, roll a check), hand over or pick up, hide when the instinct says so, fight when it comes to that.
-- **Hours (a day).** A schedule: the cover job, meetings, training, errands. Travel jumps from place to place with a flavoured transition. Actions that take time (sleep, read a brief, work out, do the cover job, wait in a café) jump the clock.
+- **Hours (a day).** A schedule: the cover job, meetings, training, errands. Travel jumps from place to place with a flavoured transition. Actions that take time (sleep, read a brief, work out, do the cover job, wait in a café) jump the clock. An active day takes **20–40 real minutes** (Q105).
 - **Days to weeks (an assignment).** Investigate until you know who or what holds the intelligence, get access (approach people, collect hooks, recruit), obtain it, and get out clean. Most assignments have deadlines.
-- **Months to years (a posting).** A country, a city, a goal (intelligence on a subject), a legend and a role to play, a handful of assets, persistent people, safe houses, and the other side's growing file on you.
+- **Months to years (a posting), in chapters** (Q104). A posting is a country, a city, a goal (intelligence on a subject), a legend and a role to play, a handful of assets, persistent people, safe houses, and the heat. It is played in **chapters**: the key days are played in full, and the stretches between them are summarised.
+  - **My call:** a day is key when something on it needs the player: a meeting, a deadline, a briefing, an event, a summons. The player can also choose to play any day.
+  - **My call:** a summary is a paper on the desk, with what the days brought: the cover job done, pay, needs, gauges drifting, heat cooling, small events. Before it the player sets how the time is spent: train, work the cover, lie low, see people, rest. So a quiet stretch is a choice, not a wait.
 - **A career.** Tradecraft grows, and harder kinds of posting open. It ends in retirement, or in injury, death, capture, firing, or being burned beyond repair.
 
 ## World and setting
 
-- **Decided.** Present day: smartphones, CCTV, social media. Chat apps (fictional versions of real ones) carry a lot of the communication and the gameplay. Hacking exists, but HUMINT stays the main source.
-- **Decided.** Eventually a dozen cities with dozens of locations each. We start in **Moscow**, as the **CIA**. The agency is one of many to come, so agencies are data.
-- **Decided.** The opposition: foreign intelligence services, terrorist networks, organised crime.
-- **Decided.** No home city. There is the agency and its building, and safe houses everywhere (each can be burned). Postings move the player between countries.
-- **Decided: languages.** Text in a language the character doesn't know is undecipherable. Translation apps work on written text. Support teams and real-time translation tech can handle speech and recordings. Proposed (Q120): five levels per language, with partly readable text between them.
+- Present day: smartphones, CCTV, social media. Chat apps (fictional versions of real ones) carry a lot of the communication and the gameplay. They carry the cover life and other people's lives, read through SIGINT and OSINT, never the spy work itself (Q157). Hacking exists, but HUMINT stays the main source.
+- Eventually a dozen cities with dozens of locations each. We start in **Moscow**, as the **CIA**. The agency is one of many to come, so agencies are data.
+- The opposition: foreign intelligence services, terrorist networks, organised crime.
+- No home city. There is the agency and its building, and safe houses everywhere (each can be burned). Postings move the player between countries.
+- **The world moves.** A simple, balanced backbone of geopolitics gives interests, and interests give postings and assignments.
+  - What we bring in changes it. The agency's knowledge of a subject grows with our intelligence. Enough of it turns into events (sanctions, arrests, an expulsion, a raid by allied special forces), which shift tensions and create new subjects and assignments (Q102).
+  - The player sees the world move in the news (papers, TV, chat apps) and in briefings at the agency or the station (Q103).
+- **Languages.** Text in a language the character doesn't know is undecipherable: it shows in its script, Cyrillic in Moscow. Five levels per language: none, basic, working, fluent, native. Between the levels, some words come through (Q120). Translation apps work on written text; support teams and real-time translation tech can handle speech and recordings.
 
 ## Career: ranks and classes
 
-**Decided.** One ladder, leading to the illegal. Risk rises with rank. A rank is less a title than a fact: whether you've taken and completed enough assignments of that kind. The early ranks come mostly from Tradecraft level (training and experience), the later ones from completed assignments. The player can refuse an assignment of the next kind, illegal postings included. There are no technical or support careers. The playable ranks still need refining.
-
-**Proposed (Q109):** the ladder as I read it. "Agent" is renamed Officer, because agents are the people we recruit:
+One ladder, leading to the illegal. Risk rises with rank. A rank is less a title than a fact: whether you've taken and completed enough assignments of that kind. The early ranks come mostly from Tradecraft level, the later ones from completed assignments. The player can refuse an assignment of the next kind, illegal postings included. There are no technical or support careers.
 
 | Rank | Where | The work |
 |---|---|---|
@@ -53,144 +60,272 @@ Nested by scale. Decided in substance; the pacing of the longest scales is propo
 | Undercover | Abroad, under a legend (e.g. a translator at a news agency) | Runs the work from inside a fake life. No immunity. The cover job matters, and losing it fails the posting. |
 | Illegal | Abroad, as a citizen of the target country | A legally earned identity, never an obviously spooky post. Years to decades. Few contacts with a handler (a retired illegal, deep undercover too). Uses their own analysis to find their own assignments. |
 
-**Decided: demotion and failure.** Bad reviews pile up and lead to a desk job or firing. A high rank can be knocked down a rank and lose access to that kind of posting for a while. Being fired or captured ends the game, as death does. The player as a double agent is a later major update.
+"Agent" was the user's first name for the second rank. It became Officer because agents are the people we recruit (Q109).
 
-**Decided: classes.** Only spooks are playable. Every class has an **over-skill**, its "XP", which multiplies the skills that matter to the class. Civilians have none, so their skills sit much lower (little situational awareness, no tracking, no CQC, no weapon handling). The high tiers of every class should be as prestigious and scary as an illegal: an illegal fights at tier-2-operator level, and a tier 1 operator still most likely kills one in a straight fight.
-- Spooks: **Tradecraft**. It pushes forward deception, tracking (finding a target and following without being seen), pathfinding (spotting a tail and losing it), social, and more.
-- Soldiers: **Warfighting** (the user left the name to me, Q111). Ranks up to tier 1 operator.
-- Proposed (Q112): two more classes. Cops (police and investigators), with **Detection**. Criminals (organised crime), with **Streetwise**, whose top tier is the *vor v zakone*, the thief-in-law.
+- **Failure.** Bad reviews pile up and lead to a desk job or firing. A high rank can be knocked down a rank and lose access to that kind of posting for a while. A Handler caught under official cover is expelled (persona non grata), and the asset pays the price. The posting ends and the career goes on elsewhere, burned for that country; it hurts the career, possibly costing a rank (Q131). The player as a double agent is a later major update.
+- **A good review** weighs the intelligence brought in against what was expected, the exposure caused, the cover kept, the assets kept safe, the time taken, and the collateral (police, injuries, deaths) (Q107).
+- **Classes.** Only spooks are playable. Every class has an **over-skill**, 0 to 100, which multiplies the skills that matter to the class. Civilians have none, so their skills sit much lower.
+
+| Class | Over-skill | Top tier |
+|---|---|---|
+| Spooks | **Tradecraft** | The illegal: fights at tier-2-operator level. |
+| Soldiers | **Warfighting** | The tier 1 operator, who still most likely kills an illegal in a straight fight. |
+| Cops (police, investigators) | **Intuition** | The special agent (Q112). |
+| Criminals (organised crime) | **Streetwise** | The *vor v zakone*, the thief-in-law. |
 
 ## Postings, assignments and the day
 
-- **Decided: work.** Procedural, out of a simulated backbone of geopolitics that is simple, balanced and powerful. Geopolitics gives interests, and interests give assignments. Each posting is a long-running mission to get intelligence on a subject. Within it run several assignments, each with a direct task and longer goals. This gets more entangled with rank.
-- **Decided: tasking.** It depends on the posting. Counter-intelligence postings get a lot of briefings at the agency. Illegals hear from their handler through dead drops or, most often, direct contact. Electronic communication is almost never used, because in enemy territory it can be listened to all the time.
-- **Decided: failure.** At low rank a failure costs a bad review (a recruit who loses the target gets one); enough bad reviews and you're demoted or fired. At high rank it can mean death, or being burned. Reporting is flavour: an assignment is complete when its completion point is reached.
-- **Decided: the day.** It depends on rank. A recruit lives their own life at home. They wake up, take the subway (a cutscene), swipe into the agency building, follow the day's planning (a sheet on the phone), do some spooky work or training, and go home. An undercover officer runs the same day inside a fake life: the job is the cover, lying is a skill, enough mistakes in a day can burn them, and the real work has to be stolen out of the expected one. An illegal's day is the same with a deeper identity, over years.
-- **Decided: colleagues.** Paired with other officers only on a few assignments, mostly at low rank (group surveillance, event security). No office politics, rivals or budgets at HQ.
-- **Proposed (Q104):** routine skips. With real time and postings of months to decades, the player needs a way through the quiet weeks: "live your cover until the next thing that needs you". The sim rolls the days forward (needs, the cover job, small events) and stops at anything the player must handle.
-- **Proposed (Q140):** a cover standing gauge for the cover job, fed by its duties. Neglect brings reprimands, then recall (for official cover) or firing (for a legend, which fails the posting).
+- **Work.** Procedural, out of the geopolitics. Each posting is a long-running mission to get intelligence on a subject. Within it run several assignments, each with a direct task and longer goals; this gets more entangled with rank.
+- **Tasking.** It depends on the posting.
+  - Counter-intelligence postings get a lot of briefings at the agency.
+  - Illegals hear from their handler through dead drops or, most often, direct contact.
+  - Electronic communication is almost never used: in enemy territory it can be listened to all the time.
+- **Failure.** At low rank a failure costs a bad review; at high rank it can mean death, or being burned. Reporting is flavour: an assignment is complete when its completion point is reached.
+- **The day.** It depends on rank.
+  - A recruit lives their own life at home: wakes up, takes the subway (a cutscene), swipes into the agency building, follows the day's planning (a sheet on the phone), does some spooky work or training, and goes home.
+  - An undercover officer runs the same day inside a fake life. The job is the cover, lying is a skill, enough mistakes in a day can burn them, and the real work has to be stolen out of the expected one.
+  - An illegal's day is the same with a deeper identity, over years.
+- **The cover job.** Its duties sit in the schedule and feed a **cover standing** gauge. Neglect brings reprimands, then recall (official cover) or firing (a legend, which fails the posting) (Q140).
+- **Colleagues.** Paired with other officers only on a few assignments, mostly at low rank (group surveillance, event security). No office politics, rivals or budgets at HQ.
 
 ## Time
 
-- **Decided.** Real time, one second for one second. Pause any time. No speed controls; time moves through actions that take time: sleeping (an alarm on a clock or phone; usually 7–8 h, and can be disturbed), travel (much longer when flying abroad), the cover job (skips a good part of the working day), reading, training, and waiting on a bench or in a café.
-- **Decided.** A full calendar: weekdays, seasons, office hours. Some things need a time of day, others a date. Most operations are time-critical.
-- **Decided.** Only permanent characters keep routines (a schedule, habits, relationships, a home). Everyone else is throwaway.
-- **Proposed (Q105):** an active day takes 20–40 real minutes.
+- Real time, one second for one second. Pause any time. No speed controls; time moves through actions that take time: sleeping (an alarm on a clock or phone; usually 7–8 h, and can be disturbed), travel (much longer when flying abroad), the cover job (skips a good part of the working day), reading, training, and waiting on a bench or in a café. Longer stretches pass between chapters (above).
+- A full calendar: weekdays, seasons, office hours. Some things need a time of day, others a date. Most operations are time-critical.
+- Only permanent characters keep routines (a schedule, habits, relationships, a home). Everyone else is throwaway.
 
-## Intelligence
+## Intelligence and leads
 
-- **Decided.** Intelligence is literally "intelligence": a blue object named intelligence, never specific, so it generates easily. It is rare, found in many ways and many quantities, and finding it should feel like a "YEAH" moment. It is never wrong and never expires. If you get it, you have it; what can expire are the opportunities that lead to it. It is fungible.
-- **Decided.** Assignments are almost always about collecting intelligence; some only improve our position to get it later.
-- **Decided.** Every source exists: SIGINT (phones, computers, networks; abstracted as a skill check and time), HUMINT (conversation without them knowing they told, recruitment, coercion or blackmail, interrogation, overhearing, and more), surveillance, OSINT, physical evidence, documents. Who holds it must be found by investigation.
-- **Proposed (Q106):** leads versus intelligence. Investigation also needs specific, usable knowledge: this man meets that one on Thursdays at this café; she has a secret. I call these **leads**. They point to the next step and become hooks. Intelligence stays the abstract reward.
-- **Proposed (Q102):** what intelligence changes. The agency's knowledge of a subject grows with what we bring in. Enough of it turns into events (sanctions, arrests, an expulsion, a raid by allied special forces), and those shift tensions and create new subjects and assignments. The player sees them in the news.
+- **Intelligence** is literally "intelligence": a blue object named intelligence, never specific, so it generates easily. It is rare, found in many ways and many quantities, and finding it should feel like a "YEAH" moment. It is never wrong and never expires. If you get it, you have it; what can expire are the opportunities that lead to it. It is fungible.
+- **Leads** are the specific, usable knowledge that investigation needs: this man meets that one on Thursdays at this café; she has a secret. They point to the next step, and secrets become hooks (Q106). Intelligence stays the abstract reward.
+- Assignments are almost always about collecting intelligence; some only improve our position to get it later.
+- Every source exists: SIGINT (phones, computers, networks; abstracted as a Tech check and time), HUMINT (conversation without them knowing they told, recruitment, coercion or blackmail, interrogation, overhearing, and more), surveillance, OSINT, physical evidence, documents. Who holds it must be found by investigation.
 
 ## Characters: skills and checks
 
-- **Decided.** No attributes (no STR or INT), only skills, plus the class's over-skill. A spook's skills:
-  - Tradecraft, the over-skill.
-  - Languages: each one separate, learned by formal training and practice, at levels.
-  - Analysis: how smart we really are, and our ability to do an analyst's work. It matters most to high ranks, who are far from the agency's support.
-  - CQC, weapon handling, fitness.
-  - Tracking, pathfinding.
-  - Social: managing agents, and more.
-  - Deception: blending into a place, staying unseen while tailing someone, lying, being hard to remember. It covers the inconspicuous things (pulling up a hood, putting on a cap) that won't be drawn.
+- **Skills only.** No attributes (no STR or INT), only skills, plus the class's over-skill. A spook's skills:
+
+  | Skill | What it's for |
+  |---|---|
+  | Tradecraft | The over-skill. |
+  | Deception | Blending in, staying unseen, lying, being hard to remember, and the inconspicuous things that aren't drawn: a hood pulled up, a cap put on. |
+  | Tracking | Finding a target and keeping them. |
+  | Pathfinding | Spotting a tail and losing it. |
+  | Awareness | Noticing (Q117). |
+  | Social | Reading people and working them. |
+  | Analysis | How smart we really are: an analyst's work. It matters most at high rank, far from the agency's support. |
+  | Tech | SIGINT and devices (Q117). |
+  | Medicine | Wounds and their care (Q117). |
+  | CQC, Weapon handling, Fitness | Fighting, guns, and the body. |
+  | Languages | Each language separate, at levels. |
 
   More may come and some may merge, so the list must scale.
-- **Decided: checks.** A d20 plus the skill against a difficulty. A natural 1 always fails and a natural 20 always succeeds. The roll is shown in the log, with a line of flavour: *"Social check: 12 + 8 = 20, success. …"*.
-- **Decided: growth.** Practice raises a skill a little (at most +3), and rust takes it back to +0. Formal training raises it much more. The over-skill multiplies skills by 1 to 2.
-- **Proposed (Q115):** the numbers.
-  - The trained base runs from 0 to 20: untrained 0, a course 5, advanced 10, expert 15, master 20.
-  - A skill is (trained base + practice) × (1 + over-skill / 100), so it can reach 46.
+- **A check** is a d20 plus the skill, plus modifiers, against a difficulty. A natural 1 always fails and a natural 20 always succeeds. The roll is shown in the log, with a line of flavour: *"Social check: 12 + 8 = 20, success. …"*. The modifiers:
+  - the target's gauges toward us;
+  - a hook spent;
+  - needs;
+  - the environment: night, darkness, crowds, distance (Q116). The light at a spot comes from the same helper that lights the scene, so what you see is what's rolled.
+- **Contested actions are opposed rolls**, both shown in the log (Q116):
+
+  | Situation | Our roll | Theirs |
+  |---|---|---|
+  | Tailing someone unseen | Deception | Pathfinding |
+  | Keeping them | Tracking | Pathfinding, when they try to lose us; otherwise a difficulty from distance and crowd |
+  | Spotting our own tail | Pathfinding | Deception |
+  | Losing that tail | Pathfinding | Tracking |
+  | Doing something covert in view (a drop, a pass, a photo, staring) | Deception | Each observer's Awareness |
+  | A lie | Deception | Social (Q125) |
+  | Other social approaches | Social | A difficulty, plus their gauges |
+- **The scale** (Q115).
+  - The trained base runs from 0 to 20: untrained 0, a course 5, advanced 10, expert 15, master 20. Practice adds 0 to 3; rust takes it back to 0.
+  - The over-skill runs from 0 to 100.
+  - A skill is (trained base + practice) × (1 + weight × over-skill / 100), so it can reach 46.
   - Difficulties: easy 10, average 15, hard 20, very hard 25, expert 30, elite 40.
-  - Contested actions are opposed rolls (Q116).
-- **Proposed (Q117):** skills to add. Awareness (noticing; what Deception is rolled against), Tech (SIGINT and devices), Driving.
-- **Decided: hidden traits.** Secrets, loyalties, motivation (money, ideology, coercion, ego), relationships.
-- **Decided: reading people.** People are discovered by interaction and surveillance. How much you learn is governed by your relevant skill, and Analysis speeds it up. Fighting someone reveals bounds: a karate master who beats you in a training bout shows a CQC above 20, and nothing more.
-- **Decided: the player character.** Procedurally generated. When they die, you pick another from a selection set by the rank you'd reached. Hundreds of hours per character. Needs: sleep, stress, food, injury and health. A private life per posting, real or cover.
+  - A civilian sits around 0–8, an illegal's CQC near 30, enemy special forces near 40.
+- **Tradecraft's weights** (Q113: Deception, Tracking and Pathfinding are more Tradecraft-heavy than Analysis and Social). **My call**, to be tuned in playtests:
+
+  | Weight | Skills |
+  |---|---|
+  | 1 | Deception, Tracking, Pathfinding, Awareness |
+  | 0.6 | Social, Analysis |
+  | 0.5 | CQC, Weapon handling (an illegal's fighting comes mostly from training) |
+  | 0 | Fitness, Languages, Tech, Medicine |
+
+  Other classes get their own weight tables.
+- **Growth.**
+  - Tradecraft grows with training, with experience from spook checks (more for harder ones), and with a bonus per completed assignment (Q118).
+  - Formal training happens in three places: in the schedule at low rank, in courses at HQ between postings (weeks skipped), and in cover-friendly practice abroad, like a gym, a language tutor or a boxing club (Q119).
+- **Hidden traits.** Secrets, loyalties, motivation (money, ideology, coercion, ego), relationships.
+- **Reading people.** People are discovered by interaction and surveillance. How much you learn is governed by your relevant skill, and Analysis speeds it up. Fighting someone reveals bounds: a karate master who beats you in a training bout shows a CQC above 20, and nothing more.
+- **The player character.** Procedurally generated; hundreds of hours per character. Needs: sleep, stress, food, injury and health (below). A private life per posting, real or cover.
 
 ## People: bonds and persistence
 
-- **Decided.** There are three social gauges, each from −5 to +5, and they're added to the relevant checks and saves:
+- **Three social gauges**, each from −5 to +5, added to the relevant checks and saves:
   - **Fear:** how wary someone is of acting against us, and how they react to our hostility. A terrified civilian can be talked out of reporting something. Negative fear makes them likely to turn aggressive if they also dislike us.
   - **Trust:** how likely they are to believe us and do what we say. Suspicion is negative trust. Falling trust hurts checks with them, and makes them more likely to report us when they catch us in something illegal.
   - **Affinity:** whether they like us. People who like us are less likely to turn hostile.
-- **Decided: hooks.** Surveillance surfaces secrets, which become **hooks**: single-use, tied to one person, and fungible like intelligence. A hook makes a relevant check easier: getting someone to do what they otherwise wouldn't, or to give up intelligence. Proposed (Q122): it lowers the difficulty by 10 for one check.
-- **Decided: persistence.** Each assignment carries its own people, and they persist with it. A posting carries its own: cover friends, a few colleagues at the cover job. Some belong to the character for life: family and friends, who matter less once an illegal disappears from their lives.
-- **Decided: memory.** When the authorities search for us, or we're caught up in a commotion, people identify things about us. A guard who sees us and survives reports what he saw. Deception limits what they get, and how much they get decides how compromised we are.
 
-## Cover, exposure and the hunt
+  They move ±1 for a notable exchange and ±2–3 for a big moment, and drift back toward 0 over weeks without contact (Q123).
+- **Hooks.** Surveillance surfaces secrets, and secrets become hooks: single-use, tied to one person, fungible like intelligence.
+  - Spending a hook **halves the difficulty** of one check with that person that it bears on (Q122). Against an opposed roll, it halves their total.
+  - A hook isn't an approach of its own: it's spent on one.
+- **Conversation approaches** (Q124): charm, convince, elicit, lie, intimidate, bribe, ask a favour, reassure, threaten, pitch (recruit). Each leads to a check. Cover relationships can turn romantic, off-screen, through the gauges (Q126).
+- **Persistence.** Each assignment carries its own people, and they persist with it. A posting carries its own: cover friends, a few colleagues at the cover job. Some belong to the character for life: family and friends, who matter less once an illegal disappears from their lives.
 
-- **Decided.** One legend per posting, generated from the posting.
-- **Decided: what strains a cover.** Being seen in the wrong place, contradicting your story, who you're seen with, document checks.
-- **Decided: tails are the core activity.** Tradecraft sharply raises Deception and Pathfinding, so you shake tails, and Tracking, so you keep your targets.
-- **Decided: disguise.** Clothes and disguises matter. High Tradecraft brings the **instinct**, a voice in the head that warns when to change route, step clear or buy clothes. The T key does what it says.
-- **Decided: blown.** The game switches to the **hunted** state: reach a predefined extraction point. You can lie low in safe houses for a while to regroup and get resources. Capture is game over. If the stakes are high, the opposition's special forces come after you.
-- **Decided: ordinary law.** Police patrol and react. An arrest is survivable unless it also blows the cover, which will be under scrutiny. Captured alone costs time: deadlines pass, and posting objectives can fail badly. Captured and burned is game over.
-- **Proposed (Q128):** **the file**. Each posting, the other side keeps a file on us: a description (build, clothes, face), photos, the cover name, places, associates. Every report adds to it. Deception limits what goes in, and a change of clothes breaks the link between sightings. How strong the file is sets their attention: unknown, noticed, watched, suspected, identified, blown. Shown only through the instinct, sharper with more Tradecraft (Q129).
-- **Proposed (Q130):** losing a tail too obviously tells them you're trained. The Moscow Rules: an embassy officer who shakes surveillance like a professional confirms what they suspected.
+## Cover, heat and the hunt
+
+- One legend per posting, generated from the posting.
+- **What strains a cover.** Being seen in the wrong place, contradicting your story, who you're seen with, document checks.
+- **Heat** is one number (Q128). It rises when the authorities learn things about us: a witness reports (a guard who saw us and got away, a crowd in a commotion), and Deception limits what they get. It falls when we lie low. The player never sees the number (Q129). The instinct's flavour text describes the signs: the same car twice, a neighbour asked questions. High skill reads them in time to get out or lie low until it cools. Low skill may be burned without noticing, until special agents knock at the door.
+  - **My call:** there's one heat per legend per country, from 0 to 100. As it climbs, the other side does more: occasional surveillance, then regular tails and provocations, then an investigation, special agents included. At 100 we're blown.
+  - **My call:** official cover starts warm. The other side presumes embassy staff are spooks and tails them from time to time, so a Handler in Moscow begins with some surveillance and has to find the gaps.
+- **Per-person suspicion** is that person's trust (above), separate from heat.
+- **Tails are the core activity.** Tradecraft sharply raises Deception and Pathfinding, so you shake tails, and Tracking, so you keep your targets. Shaking a tail too obviously is not punished as such: part of tradecraft is knowing how to do it right, and that's the roll (Q130).
+- **Disguise.** Clothes and disguises matter, and clothes changes are drawn (hats, coats, glasses). Subtle things like a hood or posture are abstracted into Deception (Q156). High Tradecraft brings the **instinct**, a voice in the head that warns when to change route, step clear or buy clothes. The T key does what it says.
+- **Blown.** The game switches to the **hunted** state (Q133). You get to a predefined extraction point across generated map sections, with safe houses as stops to regroup and get resources. It lasts from hours to a few days. If the stakes are high, the opposition's special forces come after you. Capture is game over.
+- **Ordinary law.** Police patrol and react.
+  - A stop is a scene, Papers, Please-like (Q134). They read your papers, ask questions (Deception), and may search your pockets. A hidden compartment needs a search check to be found.
+  - An arrest is survivable unless it also blows the cover, which will be under scrutiny. Captured alone costs time: deadlines pass, and posting objectives can fail badly. Captured and burned is game over.
 
 ## Networks and handling
 
-- **Decided.** A simplified cycle: approach, recruit, handle. Targets are posting-level characters we know can lead to intelligence. They persist at least until we have it.
-- **Decided: motives.** Money, coercion, ideology, ego, revenge, friendship or romance. Social checks and surveillance hint at what will work on someone, which improves the recruitment check.
-- **Decided: handling.** Regular meetings, payments, keeping their nerve and trust, tasking them, protecting them. Assets can lie, be doubled, or be arrested.
-- **Decided: covert comms.** Dead drops, brush passes, safe houses, car pick-ups, burner phones.
-- **Decided.** A handful of agents per posting, more in the most complex postings. The network shows as a **mind map**, which holds much more besides.
+- A simplified cycle: approach, recruit, handle. Targets are posting-level characters we know can lead to intelligence. They persist at least until we have it.
+- **Motives.** Money, coercion, ideology, ego, revenge, friendship or romance. Social checks and surveillance hint at what will work on someone, which improves the recruitment check.
+- **Handling.** Regular meetings, payments, keeping their nerve and trust, tasking them, protecting them. Assets can lie, be doubled, or be arrested.
+- **A doubled asset** stops yielding intelligence and may lead you into a trap (Q136). Intelligence is so rare that working hard to get it isn't suspicious, so a turned asset doesn't show until they betray us openly or our skills catch something off in their behaviour.
+- **Covert comms.** Dead drops, brush passes, safe houses, car pick-ups, burner phones.
+- A handful of agents per posting, more in the most complex postings.
 
 ## The agency, analysts and special forces
 
-- **Decided.** Analysts are the agency's workforce: fixed resources on call. Proposed (Q137, Q138): which services there are, and how they're limited and requested.
-- **Decided.** Allied special forces run high-risk kinetic operations for us as an agency service. They capture a high-value target we identified, free a captured agent, and, rarely, pull us out if we're captured before we're burned. The player meets them only at a black site, before interrogating a target they caught. Enemy special forces are the bogeyman: almost certain death if a squad makes contact, near-maxed CQC and weapon handling. The goal is to evade them.
+- **Services.** Analysts are the agency's workforce, a resource on call. They give us:
+  - a background check on a person;
+  - a translated recording;
+  - an exploited device (SIGINT);
+  - forged documents;
+  - a surveillance team;
+  - allied special forces to capture a target or rescue an agent;
+  - extraction.
+
+  Services are asked for only from secure places (the station's secure room, a safe house), never by phone. Each takes time. They cost **credits**: each operative has an allowance that refills over time, and it's larger at high rank, because a senior officer is more precious (Q137, Q138).
+- **Money.** Two purses (Q139):
+  - a salary;
+  - an operational fund, for payments, taxis, clothes and bribes, checked at review.
+- **Special forces.**
+  - Allied special forces run high-risk kinetic operations for us: capturing a high-value target we identified, freeing a captured agent, and, rarely, pulling us out if we're captured before we're burned. The player meets them only at a black site, before interrogating a target they caught.
+  - Enemy special forces are the bogeyman. A squad that makes contact means almost certain death: their CQC and weapon handling are near the maximum. The goal is to evade them.
 
 ## Moment to moment
 
-- **Decided: movement.** Walk; Shift to run, which draws attention. No sneaking; Deception covers it.
-- **Decided: F** is context-sensitive, with a drop-down menu when there are several options.
-- **Decided: talk.** Abstract, so it generates: pick an approach (convince, recruit, charm, intimidate, and more). Almost every choice leads to a check.
-- **Decided: stealth.** There is no stealth system (sight lines, noise). Sneaking assignments are played through disguise and the instinct: T does what instinct says ("Hide now!"), whenever there's something to hide behind.
-- **Decided.** Observation (watching, photographing, noting who meets whom) is central. Following someone unseen is a mechanic.
-- **Decided: travel.** Fast travel between points of interest by metro, bus, taxi or your own car. The way to the transport is flavoured: a driveway with the car, the subway entrance below the flat. Traffic appears where it matters, and a taxi at the right moment can shake a tail.
-- **Decided: CQC.** Rock, paper, scissors, second by second, with time paused until you choose: K hits, L grapples, M guards. Guard beats hit, hit beats grapple, grapple beats guard.
-  - The intent read: a higher CQC gives a chance to see what the opponent will do next, scaling with the difference; otherwise a "?" floats over their head.
-  - Advantage points: a successful guard against a hit grants one, up to one per 10 CQC. A point doubles the damage of your next successful hit, or cancels the damage of a hit taken, or fends off a grapple when guarding.
-- **Decided: weapons.** A key to draw a gun, if there's one in the inventory; R reloads. Every draw, shot and reload is a weapon handling check, with fumbles on failure; a natural 1 can mean a shot in the foot.
-- **Decided: inventory.** Very limited and realistic: a bag holds what it holds, pockets if the clothes have them.
-- **Decided: the phone.** One tool, used anonymously. Using a smartphone is bad tradecraft 90% of the time.
-- **Decided.** The mouse is for menus.
+- **Movement.** Walk; Shift to run, which draws attention. No sneaking; Deception covers it. No driving: a car is fast travel, with its tail risk (Q150).
+- **F** is context-sensitive, with a drop-down menu when there are several options.
+- **Talk.** Abstract, so it generates: pick an approach (above) and roll the check.
+- **No stealth system** (sight lines, noise). Sneaking assignments are played through disguise and the instinct: T does what it says ("Hide now!"), whenever there's something to hide behind.
+- **Observation** (central) (Q142). Hold E to watch someone.
+  - Time passes, and their sheet reveals itself by checks.
+  - Staring too long risks their Awareness.
+  - Meetings you witness are noted by themselves.
+  - C takes a photo if you carry a camera.
+- **Tailing** (Q143). The target walks on and the map extends with them. Too close raises their suspicion, too far loses them. Crowds help. The instinct warns before you lose them.
+- **Travel.** Fast travel between points of interest by metro, bus, taxi or your own car. The way to the transport is flavoured: a driveway with the car, the subway entrance below the flat. Transit becomes a playable map when it matters (a tail, a brush pass); otherwise it's a cutscene (Q151). Traffic appears where it matters, and a taxi at the right moment can shake a tail.
+- **CQC.** Rock, paper, scissors, second by second, with time paused until you choose: K hits, L grapples, M guards. Guard beats hit, hit beats grapple, grapple beats guard.
+  - **The intent read:** a higher CQC gives a chance to see what the opponent will do next, scaling with the difference. Otherwise a "?" floats over their head.
+  - **Advantage points:** a successful guard against a hit grants one, up to one per 10 CQC. A point does one of three things: doubles the damage of your next successful hit, cancels the damage of a hit taken, or fends off a grapple when guarding.
+- **Knock out or kill.** The player chooses, and each attempt is a check. Low CQC can kill by accident when trying to knock out, or fail to kill when trying to (Q148). A death escalates the police and the opposition.
+- **Guns.** G draws a gun, if there's one in the inventory; R reloads. Every draw, shot and reload is a Weapon handling check, with fumbles on failure; a natural 1 can mean a shot in the foot. Shooting is paused second by second, like CQC: pick a target, then a Weapon handling roll against distance and cover (Q146).
+- **Health** is a few wounds before going down, more with Fitness. Serious wounds need care, and a hospital means exposure. Healing takes days (Q147).
+- **Needs** are meters that cost check penalties (Q149):
+  - tired (sleep);
+  - hungry (every 6 h or so);
+  - stressed: it rises with danger and falls with sleep and leisure, and high stress brings mistakes;
+  - hurt.
+- **Inventory.** Very limited and realistic: a bag holds what it holds, pockets if the clothes have them.
+- **The phone.** One tool, used anonymously. Using a smartphone is bad tradecraft 90% of the time.
+- **The mind map and the papers** (Q144).
+  - The **mind map** (Tab) is what the character knows, open anywhere: people, places, links, traits found, hooks, leads, the network.
+  - **Papers** are physical: briefs, photos, documents. They're read, moved and filed at a desk (home, office, safe house), Papers, Please-style. Carrying papers is a risk in a search.
 
 ## Presentation
 
-- **Decided.** English. Medium reading: most information is abstracted, but text is abundant in the interface and in flavour. No portraits: persistent characters already have a face (their sprite); a discreet app shows only an initial.
-- **Decided: HUD.** A clock only if the character carries something that tells the time. The instinct's prompts when relevant, with the key that does it.
-- **Decided: light.** Continuous, from the clock. Weather comes later, but the system must take it. Sound much later.
-- **Proposed (Q144):** the mind map is what the character knows, open anywhere. Papers are physical: briefs, photos, documents. You read, move and file them at a desk (home, office, safe house), Papers, Please-style. Carrying papers is a risk in a search.
+- English. Medium reading: most information is abstracted, but text is abundant in the interface and in flavour.
+- No portraits. Persistent characters already have a face, their sprite; a discreet app shows only an initial.
+- **HUD.** A clock only if the character carries something that tells the time. The instinct's prompts when relevant, with the key that does it.
+- **Light** is continuous, from the clock. Weather comes later, but the system must take it. Sound much later.
 
 ## World size and maps (scale)
 
-- **Decided.** No city simulation. What's simulated is geopolitics and the persistent characters. The places an assignment needs are generated pieces of city: points of interest with the city's flavour, generated from a base plus variation where that serves, fixed where that serves. A building, or part of one, that the player can enter is its own map; only the relevant ones exist.
-- **Decided.** Maps are compact, with **about 50 people on screen** at the busiest. A tail that reaches the edge of a map continues into a newly generated, similar section, so we need solid procedural variety.
+- **No city simulation.** What's simulated is geopolitics and the persistent characters. The places an assignment needs are generated pieces of city: points of interest with the city's flavour, generated from a base plus variation where that serves, fixed where that serves. A building, or part of one, that the player can enter is its own map; only the relevant ones exist.
+- **Maps are compact but larger than a screen.** The camera follows the player (Q153). **About 50 people on screen** at the busiest. A tail that reaches the edge of a map continues into a newly generated, similar section, so we need solid procedural variety.
 - **What this means for the engine.** The groundwork is smaller than first proposed (2026-10-25). There's no city streaming and no simulated population. What's needed:
   - one sprite sheet and one draw for a crowd of 50;
   - lights per map, a dozen or two;
+  - a camera that follows the player;
   - a generator for map sections, from kits plus variation;
   - a store for a few hundred persistent characters.
 
-  Built only on the user's go (Q101: wait for the design).
+## Saves and losing a character
 
-## Saves and difficulty
-
-- **Decided.** Autosaves on every map change, on major events (obtaining intelligence), every 30 in-game minutes, and on exit. Manual saves only with debug mode on (in the settings menu). No difficulty settings. One character, saves allowed. Permanent death with a roster of characters (Heat Signature) may come later. Proposed (Q132): what happens on game over.
+- **Autosaves** on every map change, on major events (obtaining intelligence), every 30 in-game minutes, and on exit. They're for continuing, not for undoing.
+- **Losing.** Death, capture or firing loses the character. The player then picks a new one among generated candidates; a higher career rank reached offers candidates past the recruit stage (Q132, Q51).
+- **Debug mode** (in the settings) allows manual saves and loading a save after a loss.
+- No difficulty settings.
 - From CLAUDE.md: saves can be exported and imported as a JSON file from day one, so any bug can be replayed.
 
 ## The first playable (0.1.0)
 
-- **Decided.** A CIA officer at the US embassy in Moscow, with a cover identity and a job at the embassy.
-- **Decided: the start of a full game.** The end of a recruit's basic training, then a first assignment that's mostly a scripted tutorial showing the mechanics. The first playable starts later in the career, at the embassy (Q110).
-- **Proposed (Q160):** three moments the game must have (the user left these to me).
+- **The posting.** A CIA officer, a **Handler**, at the US embassy in Moscow, with a cover identity and a job at the embassy (Q98, Q110). **A few weeks of the posting, 5–10 hours of play** (Q159). The full game's start (a recruit's basic training ending, then a scripted tutorial assignment) comes later.
+- **Places** (Q154):
+  - the embassy (lobby, offices, the secure room);
+  - the flat in the diplomatic compound;
+  - generated streets;
+  - a metro station and its train;
+  - a park with dead drop sites;
+  - a café and a restaurant;
+  - a market;
+  - a reception hall;
+  - a hotel lobby;
+  - a target's office.
+- **Assignments** (Q158):
+  - a surveillance detection run to a meeting;
+  - a brush pass;
+  - loading or emptying a dead drop;
+  - an asset meeting (pay, task, reassure);
+  - spotting and assessing at a reception;
+  - developing a candidate (gauges, hooks);
+  - the pitch;
+  - surveilling a target and photographing a meeting;
+  - an emergency: exfiltrating a blown asset, like Gordievsky in 1985.
+- **Three moments it must have** (Q160):
   - **The grey coat.** The instinct notices the same man on the metro and at the café, and you lose him so naturally he never knows you tried.
   - **Two seconds on the platform.** A brush pass in a crowded metro station, with surveillance on you.
   - **The pitch.** You recruit a source with the hook you spent weeks earning. The roll lands in the log.
+
+## Road to 0.1.0
+
+**My call**, from Q161: each mechanic is built first as a small playable test the user scores (like the look samples), and the mechanics are joined only after.
+
+1. **The look.** Chibi or Stoneshard proportions (Q155: a sample to compare). It sets the sprite size everything else is drawn at.
+2. **The skeleton.**
+   - A pure sim: clock and calendar, the tick order, the seeded rng, saves with export and import, `window.__tradecraft`.
+   - Input by physical keys.
+   - The check helper and the log.
+   - Character sheets with skills and weights; the gauges; heat.
+   - A map renderer: a camera that follows, a crowd of 50 sprites, light from the clock.
+3. **Mechanic tests**, one map each, scored by the user:
+   1. Tailing a target.
+   2. Being tailed: spot it, lose it (a street and the metro).
+   3. Watching and photographing.
+   4. A conversation: approaches, gauges, hooks, leads.
+   5. A brush pass and a dead drop under watch.
+   6. A fight: CQC, then guns.
+   7. A police stop.
+   8. The desk and the mind map.
+4. **Joining.**
+   - The day (schedule, cover job, travel, needs) and chapters.
+   - A minimal geopolitics: a few subjects; intelligence turns into events and news.
+   - The Moscow posting generator, assignments, agency services, the hunted state.
+5. **The content of 0.1.0** (the places, the posting's people, the nine kinds of assignment), then a release candidate when the user declares one.
 
 ## Look
 
@@ -221,33 +356,39 @@ Explored so far:
   - **Facades, signs and the ground** are painted pixel textures on boxes, flower boxes and posters included.
   - **Night** lights the windows, signs and lamps, with hard-edged pools of lamplight; a sprite takes the light of the pool it stands in.
   - **The user's scores.** For the first build, with box people (2026-10-25): camera angle 95/100, night colour shift 90, environment 80 ("tree needs work, things lack flair"), characters 35. Head-to-body ratio good; front views "too boxy"; some profiles good. After the sprites and trees: "trees are fixed, characters are now a solid 70", and the approach is the right one; "objectively, this would be a 90-95%" with room to improve. The kid's run was off and was redrawn (v0.0.15).
-- **Stoneshard** (round 1, Q3): named for the art and animation style, "if possible". Its people are taller than ours (heads about a fifth of the body, not a third), more detailed, more smoothly animated, in a muted, darker palette. That pulls against "simple, big heads"; settled by the user in Q155.
+- **Stoneshard** (Q3, Q155): named for the art and animation style, "if possible". Its people are taller than ours (heads about a fifth of the body, not a third), more detailed, more smoothly animated, in a muted, darker palette. The user asked for a sample with its proportions, to compare with the chibi.
 
 ## Stack
 
 - In the browser if it stays the most convenient, like longhaul: the same save logic (IndexedDB, a save schema, additive upgrades on load), the same method (CLAUDE.md).
 - three.js (0.186.1), vendored as ES module files in `vendor/three/` (`tools/vendor-three.mjs`) and loaded through an import map, so there is still no build step, no network and no package install to play. A departure from longhaul's hand-written WebGL2, made for skinned characters, glTF, shadows and post-processing.
-- Content is made by scripts (see docs/PIPELINE.md). The chibi look needs no Blender or MPFB: sprites and textures are drawn by code.
+- Content is made by scripts (see docs/PIPELINE.md). The pixel look needs no Blender or MPFB: sprites and textures are drawn by code.
 
 ## Controls
 
-- Keyboard first. Keys are read by physical position (`KeyboardEvent.code`), so they work on any layout, and labels on screen show the player's own layout (`navigator.keyboard.getLayoutMap()` where the browser has it). On the user's AZERTY keyboard: ZQSD to move, Shift to run.
-- **Decided:**
-  - F interacts (a menu when there are several options);
-  - I opens the inventory;
-  - T does what the instinct says;
-  - K, L and M are hit, grapple and guard. M is the key right of L on AZERTY; QWERTY prints it ";".
-  - R reloads, and a further key draws a gun;
-  - the mouse is for menus.
-- **Proposed (Q145):** Space to pause, Esc for the menu, Tab for the mind map, E (hold) to watch someone, C for the camera, G to draw a gun, J for the log.
+Keyboard first. Keys are read by physical position (`KeyboardEvent.code`), so they work on any layout, and labels on screen show the player's own layout (`navigator.keyboard.getLayoutMap()` where the browser has it). Named here as the user's AZERTY keyboard prints them:
+
+| Key | Does |
+|---|---|
+| Z Q S D | Move |
+| Shift | Run |
+| F | Interact (a menu when there are several options) |
+| I | Inventory |
+| T | Do what the instinct says |
+| E (hold) | Watch someone |
+| C | Camera |
+| K, L, M | Hit, grapple, guard. M is the key right of L, which QWERTY prints ";". |
+| G | Draw a gun |
+| R | Reload |
+| Tab | Mind map |
+| J | The log |
+| Space | Pause |
+| Esc | Menu |
+
+The mouse is for menus.
 
 ## Open questions
 
-- **Round 2 of the debrief** (Q102 on), in the same page: holes and tensions found in round 1, each with my proposal to accept or change. The biggest are:
-  - the pacing of long postings;
-  - what intelligence changes in the world;
-  - the numbers behind the checks;
-  - the other side's file;
-  - doubled assets, given that intelligence is never wrong;
-  - what the first playable contains.
-- **The look:** chibi pixel art (sample 006) against the Stoneshard reference (Q155).
+- **The look:** chibi pixel art (sample 006) or Stoneshard proportions (the sample to compare). Settled by the user's pick.
+- **After a lost character** (needed after 0.1.0, since 0.1.0 is one posting). **My lean:** the world carries on (same geopolitics, same date), and the next officer starts their own career. The lost officer's network goes dormant or is rolled up.
+- **The other agencies and classes' weight tables:** when they're needed.
