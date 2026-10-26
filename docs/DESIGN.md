@@ -125,7 +125,7 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
   - a hook spent;
   - needs;
   - the environment: night, darkness, crowds, distance (Q116). The light at a spot comes from the same helper that lights the scene, so what you see is what's rolled.
-- **Contested actions are opposed rolls**, both shown in the log (Q116):
+- **Contested actions are opposed rolls**, both shown in the log (Q116). A natural 20 wins and a natural 1 loses, unless both sides rolled the same; **ties go to us** (my call).
 
   | Situation | Our roll | Theirs |
   |---|---|---|
@@ -166,7 +166,7 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
   - **Trust:** how likely they are to believe us and do what we say. Suspicion is negative trust. Falling trust hurts checks with them, and makes them more likely to report us when they catch us in something illegal.
   - **Affinity:** whether they like us. People who like us are less likely to turn hostile.
 
-  They move ±1 for a notable exchange and ±2–3 for a big moment, and drift back toward 0 over weeks without contact (Q123).
+  They move ±1 for a notable exchange and ±2–3 for a big moment, and drift back toward 0 over weeks without contact (Q123): **one step a week** (my call).
 - **Hooks.** Surveillance surfaces secrets, and secrets become hooks: single-use, tied to one person, fungible like intelligence.
   - Spending a hook **halves the difficulty** of one check with that person that it bears on (Q122). Against an opposed roll, it halves their total.
   - A hook isn't an approach of its own: it's spent on one.
@@ -178,7 +178,7 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
 - One legend per posting, generated from the posting.
 - **What strains a cover.** Being seen in the wrong place, contradicting your story, who you're seen with, document checks.
 - **Heat** is one number (Q128). It rises when the authorities learn things about us: a witness reports (a guard who saw us and got away, a crowd in a commotion), and Deception limits what they get. It falls when we lie low. The player never sees the number (Q129). The instinct's flavour text describes the signs: the same car twice, a neighbour asked questions. High skill reads them in time to get out or lie low until it cools. Low skill may be burned without noticing, until special agents knock at the door.
-  - **My call:** there's one heat per legend per country, from 0 to 100. As it climbs, the other side does more: occasional surveillance, then regular tails and provocations, then an investigation, special agents included. At 100 we're blown.
+  - **My call:** there's one heat per legend per country, from 0 to 100. As it climbs, the other side does more: occasional surveillance (20+), then regular tails and provocations (40+), then an investigation (60+), special agents on it (80+). At 100 we're blown. Lying low cools it 2 a day, going about the cover 1 a day, never below where the cover started.
   - **My call:** official cover starts warm. The other side presumes embassy staff are spooks and tails them from time to time, so a Handler in Moscow begins with some surveillance and has to find the gaps.
 - **Per-person suspicion** is that person's trust (above), separate from heat.
 - **Tails are the core activity.** Tradecraft sharply raises Deception and Pathfinding, so you shake tails, and Tracking, so you keep your targets. Shaking a tail too obviously is not punished as such: part of tradecraft is knowing how to do it right, and that's the roll (Q130).
@@ -257,6 +257,7 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
 
 - **No city simulation.** What's simulated is geopolitics and the persistent characters. The places an assignment needs are generated pieces of city: points of interest with the city's flavour, generated from a base plus variation where that serves, fixed where that serves. A building, or part of one, that the player can enter is its own map; only the relevant ones exist.
 - **Maps are compact but larger than a screen.** The camera follows the player (Q153). **About 50 people on screen** at the busiest. A tail that reaches the edge of a map continues into a newly generated, similar section, so we need solid procedural variety.
+- **The street** (the skeleton's map, my call): a Moscow street running east–west in sections of 45 m, each generated from the map's seed and its index, so a map can grow at either end as someone walks on. North to south: a terrace (pre-revolutionary plaster in ochres, pinks and greens with white trim, red brick, or a Stalinist block with a heavy base; shops with Cyrillic signs, entrances, arches to the courtyards; now and then a side street), a wide pavement with lamps, the road with parked cars and a zebra, the near pavement, a railing, and a boulevard (lawns with trees, a gravel path, benches facing it). Passers-by walk its lanes, look in windows, cross at the zebra, sit on benches, go into shops and arches: up to 40 per 100 m of street at the busiest hours, a handful in the small hours.
 - **What this means for the engine.** The groundwork is smaller than first proposed (2026-10-25). There's no city streaming and no simulated population. What's needed:
   - one sprite sheet and one draw for a crowd of 50;
   - lights per map, a dozen or two;
@@ -305,13 +306,14 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
 
 **My call**, from Q161: each mechanic is built first as a small playable test the user scores (like the look samples), and the mechanics are joined only after.
 
-1. **The look.** Chibi (sample 006) or the fine finish (sample 007, Q155). It sets the sprite size and the finish everything else is drawn at.
-2. **The skeleton.**
+1. **The look.** Picked by the user (2026-10-26): sample 006's chibi people ("I like the smaller figures") in sample 007's fine environment. See Look.
+2. **The skeleton.** Built (v0.0.19), played as the free walk:
    - A pure sim: clock and calendar, the tick order, the seeded rng, saves with export and import, `window.__tradecraft`.
    - Input by physical keys.
    - The check helper and the log.
    - Character sheets with skills and weights; the gauges; heat.
    - A map renderer: a camera that follows, a crowd of 50 sprites, light from the clock.
+   - A generated Moscow street to walk (see World size).
 3. **Mechanic tests**, one map each, scored by the user:
    1. Tailing a target.
    2. Being tailed: spot it, lose it (a street and the metro).
@@ -367,13 +369,25 @@ Explored so far:
     - limbs between joints, giving an 8-frame walk, a 6-frame run, and a breathing idle.
   - **Surfaces** are bevelled brick by brick and slab by slab. Plaster is weathered down to the brick in places. There's ivy, plus puddles, weeds, litter and moss in the joints.
   - **Colour:** a 116-colour palette and a warm grade.
-  - **What to compare:** sample 006 (chibi: simple, big-headed, 50 colours) against sample 007 (the fine finish). The look is the user's pick.
+  - **What to compare:** sample 006 (chibi: simple, big-headed, 50 colours) against sample 007 (the fine finish).
+- **The pick** (2026-10-26): "I like the smaller figures, but the new environment". So the game is drawn in **chibi people (sample 006's sprites) in the fine town (sample 007's finish)**: the 640 × 360 frame, a metre 16 pixels, the 116-colour palette and its warm grade, the bevelled, weathered surfaces. Seen together in sample 007 with `?people=chibi`. The art lives in `src/art/` now (pixelart.js, pixeltown.js, sprites.js, townsprites.js), shared by the game and the samples.
+  - **In the game** (my calls, from building it):
+    - The asphalt is one tone with a sparse grain: the fine mottling snapped into blotches under the palette, worst at night.
+    - Shops are lit at night only; by day their glass is glass.
+    - Windows light up house by house through dusk; the lamps come on as the sun goes.
+    - The sun's direction stays the art's (from the upper left): the sprites are shaded that way. Its height, colour and strength follow the real sun over Moscow.
+    - A tree or a post box in front of the player is seen through (every other pixel left out), so it never hides who you're playing.
 
 ## Stack
 
 - In the browser if it stays the most convenient, like longhaul: the same save logic (IndexedDB, a save schema, additive upgrades on load), the same method (CLAUDE.md).
 - three.js (0.186.1), vendored as ES module files in `vendor/three/` (`tools/vendor-three.mjs`) and loaded through an import map, so there is still no build step, no network and no package install to play. A departure from longhaul's hand-written WebGL2, made for skinned characters, glTF, shadows and post-processing.
 - Content is made by scripts (see docs/PIPELINE.md). The pixel look needs no Blender or MPFB: sprites and textures are drawn by code.
+- **The code** (v0.0.19): `index.html` and `src/main.js` (the loop), then:
+  - `src/sim/`: the pure sim. Time is whole milliseconds since 2026-01-01 00:00 Moscow time; the tick is 50 ms (20 a second), in a fixed order (`sim/game.js`); the sun and the light from it (`sim/light.js`), shared by the renderer and the checks; skills, checks, people, heat; the street (`sim/map/street.js`), the world at runtime (`sim/world.js`), the crowd (`sim/crowd.js`); scenarios (the free walk now, each mechanic test as it's built).
+  - `src/render/`: the view (`render/view.js`), the street's meshes (`render/town.js`), everyone in one instanced draw (`render/crowd.js`).
+  - `src/ui/`: keys, the screens (title, HUD, log, menu), saves (IndexedDB and files).
+  - `src/art/`: the look's painters and sprites.
 
 ## Controls
 
@@ -400,6 +414,5 @@ The mouse is for menus.
 
 ## Open questions
 
-- **The look:** chibi pixel art (sample 006) or the fine finish (sample 007). Settled by the user's pick.
 - **After a lost character** (needed after 0.1.0, since 0.1.0 is one posting). **My lean:** the world carries on (same geopolitics, same date), and the next officer starts their own career. The lost officer's network goes dormant or is rolled up.
 - **The other agencies and classes' weight tables:** when they're needed.

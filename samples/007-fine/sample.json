@@ -5,4 +5,6 @@
              { "name": "closer, day", "query": "t=2&zoom=2&x=-3&z=-3" },
              { "name": "closer, night", "query": "t=2&zoom=2&x=4&z=-3&time=night" },
              { "name": "people", "query": "view=lineup&t=0.3" },
+             { "name": "the pick: chibi people, day", "query": "t=2&people=chibi" },
+             { "name": "the pick: chibi people, night", "query": "t=2&people=chibi&time=night" },
              { "name": "sprites", "query": "view=sheet" } ] }

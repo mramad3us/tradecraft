@@ -4,6 +4,32 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.19 (2026-10-26)
+
+- **The look is picked** (the user, 2026-10-26): chibi people in the fine town. Sample 007 shows it with `?people=chibi`, and the gallery has it by day and by night.
+- **The game's skeleton, played as the free walk** (the title's first choice): a Handler from the US embassy on a Moscow boulevard, Monday 2 November 2026, 15:40.
+  - **The street** is generated in 45 m sections, the same every time for a seed:
+    - a terrace in Moscow ochres, pinks and greens, red brick or Stalinist stone, with shops signed in Cyrillic (АПТЕКА, ПРОДУКТЫ, ОДЕЖДА…), entrances, arches to the courtyards and side streets;
+    - a wide pavement with lamps, the road with parked cars and a zebra;
+    - a boulevard with railings, lawns, trees, a gravel path and benches.
+  - **Passers-by:** about 30 on the map in the afternoon, up to 40 per 100 m at the busiest hours, a handful at night. They walk the lanes, look in shop windows, cross at the zebra, sit on benches, and go into shops, arches and side streets.
+  - **Light from the clock:** the real sun over Moscow sets at 16:50 that day. The light warms, then goes blue; windows light up house by house; the lamps come on, with their pools of light. People and trees take the light where they stand, the same light the dice will read.
+  - **Moving:** walk at 1.45 m/s, run at 3.6. The camera follows, snapped to the pixel grid. A tree in front of you is seen through.
+  - **Screens:** the watch, the log's lines as they come, the keys labelled as your keyboard prints them; J opens the log, Space pauses, Esc opens the menu.
+  - **Saves:** an autosave every 30 game minutes, on leaving the page and on quitting. The menu saves to a file and loads one. Debug mode (menu) adds a manual save, and ] / [ move the clock on.
+- **Under it** (`src/sim`, pure):
+  - the tick: 20 a second, in a fixed order, the same game twice from a seed and across a save and a load (tested);
+  - the calendar;
+  - the sun;
+  - skills, as (base + practice) × (1 + weight × Tradecraft / 100);
+  - checks and opposed rolls, with natural 1s and 20s, hooks, and ties to us, each written in the log;
+  - the three gauges, drifting back a step a week;
+  - heat per legend per country, starting at 20 under official cover;
+  - generated passers-by with Russian names.
+
+  In the browser: one draw for the whole crowd; 60 frames a second.
+- Art moved to `src/art/`, shared by the game and the samples (samples 006 and 007 render pixel for pixel as before).
+
 ## v0.0.18 (2026-10-26)
 
 - Sample 007, fine town: sample 006's street in a finer finish, after Stoneshard (Q155).

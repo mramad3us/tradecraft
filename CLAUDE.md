@@ -1,6 +1,6 @@
 # TRADECRAFT: working notes
 
-A game whose design is settled in `docs/DESIGN.md` (the debrief, 2026-10-26); nothing of the game itself is built yet, and its Road to 0.1.0 says what comes first. This file is the method (how we version, play, test and work), carried over from longhaul (`../longhaul`) and tightened where longhaul taught us something.
+A game whose design is settled in `docs/DESIGN.md` (the debrief, 2026-10-26). Its skeleton is built (v0.0.19: the pure sim in `src/sim`, the view in `src/render`, the screens in `src/ui`, the look's art in `src/art`), played as the free walk; the Road to 0.1.0 in DESIGN.md says what comes next (the mechanic tests). This file is the method (how we version, play, test and work), carried over from longhaul (`../longhaul`) and tightened where longhaul taught us something.
 
 ## Commands
 

@@ -1,0 +1,73 @@
+/* TRADECRAFT: the interface. The picture is pixel art (the canvas, scaled by a whole number); the
+   interface around it is type: a watch, a log, and paper (the menu and the title are typed sheets,
+   Papers, Please-cold). Colours are the game's palette: ink, paper, brass, a typewriter red. */
+:root {
+  --ink: #1a1214;
+  --ink-2: #23252f;
+  --paper: #f4efe6;
+  --paper-2: #e2dac6;
+  --rule: #c4bba9;
+  --brass: #e7b84a;
+  --red: #9e3c36;
+  --muted: #8f96a6;
+  --hud: rgba(20, 21, 28, 0.78);
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --type: "Courier New", Courier, ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--ink); color: var(--paper); overflow: hidden; font: 14px/1.4 var(--mono); }
+button { font: inherit; color: inherit; }
+
+#frame { position: absolute; overflow: hidden; background: #000; }
+#frame canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+#hud { position: absolute; inset: 0; pointer-events: none; }
+
+/* The watch, top right. */
+.watch { position: absolute; top: 14px; right: 14px; background: var(--hud); border: 1px solid #353947; border-radius: 4px; padding: 6px 10px 5px; text-align: right; }
+.watch .time { font-size: 20px; letter-spacing: 0.06em; color: var(--paper); font-variant-numeric: tabular-nums; }
+.watch .date { font-size: 11px; color: var(--muted); }
+
+/* Lines of the log as they come, bottom left. */
+.toasts { position: absolute; left: 14px; bottom: 14px; width: min(560px, 60%); display: flex; flex-direction: column; gap: 4px; }
+.toast { background: var(--hud); border-left: 3px solid var(--muted); padding: 5px 9px; font-size: 13px; transition: opacity 1.2s; }
+.toast.roll { border-color: var(--brass); }
+.toast.roll.fail { border-color: var(--red); }
+.toast.instinct { border-color: #95c1e3; font-style: italic; }
+.toast.gone { opacity: 0; }
+.toast .num { color: var(--muted); font-size: 12px; display: block; }
+
+/* Keys, bottom right. */
+.keys { position: absolute; right: 14px; bottom: 14px; font-size: 11px; color: var(--muted); text-align: right; background: var(--hud); padding: 5px 8px; border-radius: 4px; }
+kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid #4c5262; border-bottom-width: 2px; border-radius: 3px; text-align: center; color: var(--paper); font: 11px/1.5 var(--mono); }
+
+.banner { position: absolute; top: 18%; left: 50%; transform: translate(-50%, -50%); background: var(--hud); padding: 10px 22px; letter-spacing: 0.3em; font-size: 16px; display: none; }
+.paused .banner { display: block; }
+
+/* Sheets of paper: the title, the menu, the log. */
+.sheet { background: var(--paper); color: var(--ink); font-family: var(--type); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); border-radius: 2px; }
+.sheet h1, .sheet h2 { font-weight: bold; letter-spacing: 0.25em; margin: 0; }
+.sheet .stamp { display: inline-block; border: 2px solid var(--red); color: var(--red); padding: 1px 8px; letter-spacing: 0.2em; font-weight: bold; transform: rotate(-3deg); }
+.sheet hr { border: 0; border-top: 1px dashed var(--rule); margin: 14px 0; }
+.sheet .item { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--paper-2); padding: 9px 4px; cursor: pointer; font-family: var(--type); font-size: 15px; color: var(--ink); }
+.sheet .item:hover, .sheet .item:focus-visible { background: var(--paper-2); outline: none; }
+.sheet .item small { display: block; color: #6a7182; font-size: 12px; margin-top: 2px; }
+.sheet .item[disabled] { color: #a0978a; cursor: default; background: none; }
+.sheet .note { color: #6a7182; font-size: 12px; }
+
+.overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(20, 21, 28, 0.55); }
+.overlay[hidden] { display: none; }
+.overlay .sheet { width: min(460px, 92%); max-height: 92%; overflow: auto; padding: 22px 26px; }
+
+#title { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, #23252f 0%, var(--ink) 70%); }
+#title[hidden] { display: none; }
+#title .sheet { width: min(520px, 92%); padding: 28px 32px; }
+#title h1 { font-size: 30px; }
+#title .sub { color: #6a7182; margin: 4px 0 0; font-size: 13px; }
+
+.logsheet { width: min(640px, 94%) !important; height: 86%; display: flex; flex-direction: column; }
+.logsheet ol { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; font-size: 13px; }
+.logsheet li { padding: 6px 0; border-bottom: 1px dashed var(--paper-2); }
+.logsheet li time { color: #6a7182; margin-right: 8px; }
+.logsheet li .num { display: block; color: #6a7182; font-size: 12px; }
+.logsheet li.fail .num { color: var(--red); }
+.toggle { display: flex; gap: 10px; align-items: flex-start; padding: 9px 4px; cursor: pointer; }
