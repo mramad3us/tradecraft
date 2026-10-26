@@ -4,6 +4,20 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.16 (2026-10-26)
+
+- DESIGN.md rewritten from the user's 101 answers to the design debrief (round 1), as decisions:
+  - pillars, and the loop at every scale from seconds to a career;
+  - world and setting, ranks and classes, postings and the day, time, intelligence;
+  - skills and d20 checks, the fear/trust/affinity gauges and hooks;
+  - cover, exposure and the hunted state; networks; the agency and special forces;
+  - moment-to-moment play (CQC as rock, paper, scissors on K/L/M; the T instinct), presentation, saves;
+  - the first playable: a CIA officer at the US embassy in Moscow.
+
+  My proposals are marked as such, each tied to a round-2 question.
+- Scale settled: compact maps, about 50 people on screen at the busiest, no city simulation (geopolitics and persistent characters only). The technical base waits for the design, as the user asked (Q101).
+- Design debrief round 2 (Q102–Q162, same page): the holes and tensions in round 1, each section opening with a read-back to correct, most questions leading with my proposal.
+
 ## v0.0.15 (2026-10-25)
 
 - People run properly side-on: the back leg bends and kicks up behind, and the arms are bent, where they swung out straight like sticks. The in-between frames are airborne, one knee up, instead of standing still.
