@@ -130,13 +130,19 @@ export const FINE_PALETTE = [
  * The canvas goes into `parent`, shown at the largest whole-number scale that fits the window
  * (unless autoFit is false: the game fits it with its interface).
  *
+ * size(w, h, outW, outH): the picture w × h pixels, shown on a canvas of outW × outH device pixels.
+ * The last pass scales it up sharp-bilinear: each pixel a solid square, and where a scale that isn't
+ * a whole number puts a pixel's edge inside a screen pixel, that one screen pixel blends the two. So
+ * every pixel shows the same size at any scale (nearest-neighbour would make some a screen pixel
+ * wider than others, and they'd crawl as the camera moves), and a whole-number scale is exact.
+ *
  * setFog(texture, x0, z0, w, h) dims what lies where a ground-plane mask says it's unseen: the mask
  * (one channel, 1 seen … 0 unseen) covers x0 … x0 + w, z0 … z0 + h in world metres, and each pixel
  * looks it up at the ground position under it (from the depth buffer: a wall's pixels at its foot, a
  * person's at their feet), dithered between seen and dimmed. setFog(null) turns it off.
  */
 export function pixelStage({ background = 0x23252f, outline = true, palette = PALETTE, zoom = 1, res = RES, grade = 0, parent = document.body, autoFit = true } = {}) {
-  const W = Math.round(res[0] / zoom), H = Math.round(res[1] / zoom);
+  let W = Math.round(res[0] / zoom), H = Math.round(res[1] / zoom);
   const renderer = new THREE.WebGLRenderer({ antialias: false });
   renderer.setPixelRatio(1);
   renderer.setSize(W, H, false);
@@ -189,6 +195,7 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
   const rt = new THREE.WebGLRenderTarget(W, H, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
     type: THREE.HalfFloatType, depthTexture: new THREE.DepthTexture(W, H) });
   const rtId = new THREE.WebGLRenderTarget(W, H, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+  const rtOut = new THREE.WebGLRenderTarget(W, H, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });   // the finished picture
   const idMats = new Map();
   const idMat = (id) => {
     if (!idMats.has(id)) idMats.set(id, new THREE.MeshBasicMaterial({ color: new THREE.Color(((id * 2654435761) >>> 8 & 0xffffff) || 1) }));
@@ -273,6 +280,35 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
   post.add(quad);
   const postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const U = quad.material.uniforms;
+  // The finished picture onto the canvas, sharp-bilinear (scale: screen pixels a picture pixel).
+  const blit = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+    glslVersion: THREE.GLSL3, depthTest: false, depthWrite: false,
+    uniforms: { tPic: { value: rtOut.texture }, res: { value: new THREE.Vector2(W, H) }, scale: { value: new THREE.Vector2(1, 1) } },
+    vertexShader: `out vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
+    fragmentShader: `
+      precision highp float;
+      in vec2 vUv; out vec4 outColor;
+      uniform sampler2D tPic; uniform vec2 res, scale;
+      void main() {
+        vec2 t = vUv * res, c = fract(t) - 0.5, edge = 0.5 - 0.5 / max(scale, vec2(1.0));
+        vec2 f = (c - clamp(c, -edge, edge)) * scale + 0.5;           // (0.5, the pixel's own colour, but at its edge)
+        outColor = texture(tPic, (floor(t) + f) / res);
+      }`,
+  }));
+  const out = new THREE.Scene();
+  out.add(blit);
+  let outW = W, outH = H;
+  const size = (w, h, ow = w, oh = h) => {
+    W = w; H = h; outW = ow; outH = oh;
+    for (const t of [rt, rtId, rtOut]) t.setSize(W, H);
+    Object.assign(rt.depthTexture.image, { width: W, height: H });
+    Object.assign(camera, { left: -W / PX_PER_M / 2, right: W / PX_PER_M / 2, top: H / PX_PER_M * s45 / 2, bottom: -H / PX_PER_M * s45 / 2 });
+    camera.updateProjectionMatrix();
+    U.res.value.set(W, H);
+    blit.material.uniforms.res.value.set(W, H);
+    blit.material.uniforms.scale.value.set(outW / W, outH / H);
+    renderer.setSize(outW, outH, false);
+  };
   const setFog = (tex, x0 = 0, z0 = 0, w = 1, h = 1) => { U.tFog.value = tex; U.fogOn.value = tex ? 1 : 0; U.fogBox.value.set(x0, z0, w, h); };
   const render = () => {
     renderer.setRenderTarget(rt);
@@ -292,10 +328,12 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
       scene.background = bg;
       for (const [o, m, v] of saved) { o.material = m; o.visible = v; }
     }
-    renderer.setRenderTarget(null);
+    renderer.setRenderTarget(rtOut);
     renderer.render(post, postCam);
+    renderer.setRenderTarget(null);
+    renderer.render(out, postCam);
   };
-  return { THREE, renderer, scene, camera, sun, hemi, look, render, setFog, W, H, lightAt: null };
+  return { THREE, renderer, scene, camera, sun, hemi, look, render, setFog, size, get W() { return W; }, get H() { return H; }, lightAt: null };
 }
 
 /**

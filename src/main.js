@@ -45,6 +45,7 @@ const ui = createUI({ input, cb: {
   resume: () => { ui.closeOverlays(); paused = false; },
   quit: async () => { await autosave(); stop(); showTitle(); },
   setDebug: (on) => { settings.debug = on; try { localStorage.setItem('tradecraft.debug', on ? '1' : '0'); } catch {} },
+  fit: (w, h, outW, outH) => view?.resize(w, h, outW, outH),
 } });
 
 function randomSeed() { return crypto.getRandomValues(new Uint32Array(1))[0]; }
@@ -69,6 +70,7 @@ function launch(s, { hour = null } = {}) {
   bus = createBus();
   view = createView({ parent: ui.frame, bus });
   ui.frame.prepend(view.canvas);
+  ui.fit();                                                        // (the picture to the window)
   bus.on('log', (e) => ui.toast(e));
   bus.on('autosave', () => autosave());
   bus.on('scenario-end', () => setTimeout(() => { if (state === s) result(); }, 1800));

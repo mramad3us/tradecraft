@@ -1,4 +1,4 @@
-/* TRADECRAFT: the interface. The picture is pixel art (the canvas, scaled by a whole number); the
+/* TRADECRAFT: the interface. The picture is pixel art (the canvas, filling the window); the
    interface around it is type: a watch, a log, and paper (the menu and the title are typed sheets,
    Papers, Please-cold). Colours are the game's palette: ink, paper, brass, a typewriter red. */
 :root {

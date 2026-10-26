@@ -1,7 +1,8 @@
 // TRADECRAFT render: the view of the map. What the player sees, drawn from the state, never the reverse.
 //
 // The look (picked 2026-10-26): chibi people (src/art/sprites.js) in the fine town (finish.fine, the
-// 116-colour FINE_PALETTE, a warm grade) at 640 × 360, through the pixel stage of src/art/pixelart.js:
+// 116-colour FINE_PALETTE, a warm grade) at 640 × 360 (on a window of another shape, a little more
+// street: resize(), src/ui/ui.js), through the pixel stage of src/art/pixelart.js:
 // a camera looking north and 45° down, orthographic, a metre 16 pixels, outlines, every pixel snapped
 // to the palette.
 //
@@ -44,12 +45,19 @@ export const FOG_N = [96, 128];                                    // cells: 48 
 const FOG_AT = [-24, -18];                                         // the mask's corner from the camera, m
 const FOG_IN_S = 0.08, FOG_OUT_S = 0.4;
 const LAMP_Y = 2.7;
-const CAMERA_Z = [Z.north + 8, Z.edge - 8];                        // the camera's centre stays within these
-const HALF_W = RES[0] / PX_PER_M / 2;
+const CAMERA_Z = [Z.north + 8, Z.edge - 8];                        // the camera's centre stays within these (at RES)
 
 export function createView({ parent, bus }) {
   finish.fine = true;
   const stage = pixelStage({ res: RES, palette: FINE_PALETTE, grade: 1, background: 0x1a1214, parent, autoFit: false });
+  let halfW = RES[0] / PX_PER_M / 2, camZ = CAMERA_Z;
+  /** The picture w × h pixels (RES, or more on a window of another shape: src/ui/ui.js), on a canvas of outW × outH. */
+  function resize(w, h, outW, outH) {
+    stage.size(w, h, outW, outH);
+    halfW = w / PX_PER_M / 2;
+    const more = (h - RES[1]) / PX_PER_M / 2;                      // (taller: the camera stays as far in from the map's ends)
+    camZ = [CAMERA_Z[0] + more, CAMERA_Z[1] - more];
+  }
   const { scene, camera, sun, hemi } = stage;
   const sections = new Map();
   const crowd = createCrowd(scene);
@@ -198,8 +206,8 @@ export function createView({ parent, bus }) {
     if (f) {
       const [fx, fz] = at(f);
       let x = fx;
-      if (state.map.i0 !== null) x = Math.max(state.map.i0 * SECTION_M + HALF_W, Math.min((state.map.i1 + 1) * SECTION_M - HALF_W, x));
-      look(x, Math.max(CAMERA_Z[0], Math.min(CAMERA_Z[1], fz)));
+      if (state.map.i0 !== null) x = Math.max(state.map.i0 * SECTION_M + halfW, Math.min((state.map.i1 + 1) * SECTION_M - halfW, x));
+      look(x, Math.max(camZ[0], Math.min(camZ[1], fz)));
     }
     // The light.
     hemi.color.setHex(S.sky); hemi.groundColor.setHex(S.ground); hemi.intensity = S.skyK * Math.PI;
@@ -286,6 +294,6 @@ export function createView({ parent, bus }) {
   }
   function dispose() { clear(); off.forEach(f => f()); stage.renderer.dispose(); stage.renderer.domElement.remove(); }
 
-  return { stage, frame, clear, dispose, flush: () => build(Infinity), canvas: stage.renderer.domElement, get camera() { return cam; }, posOf: (id) => drawn.get(id),
+  return { stage, frame, resize, clear, dispose, flush: () => build(Infinity), canvas: stage.renderer.domElement, get camera() { return cam; }, posOf: (id) => drawn.get(id),
     fogAt: (x, z) => { if (!fogO) return 1; const i = Math.floor(x / FOG_CELL_M) - fogO[0], j = Math.floor(z / FOG_CELL_M) - fogO[1]; return i >= 0 && i < FNX && j >= 0 && j < FNZ ? fogVal[j * FNX + i] : 0; } };
 }

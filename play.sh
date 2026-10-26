@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # TRADECRAFT: serve the game and open the browser.
 #
-#   ./play.sh          the play copy (.play/, the release you play) on :8100
+#   ./play.sh          the play copy (.play/, the release you play) on :8100; made from the
+#                      latest release the first time (as play.cmd does on Windows)
 #   ./play.sh --dev    the working tree, as it is right now, on :8101
 #
 # Two copies on two ports, on purpose. The play copy is a release pinned by
@@ -19,8 +20,8 @@ if [ "${1:-}" = "--dev" ]; then
 else
   ROOT="$DIR/.play"; PORT=$PLAY_PORT; WHAT="play copy"
   if [ ! -e "$ROOT/.git" ]; then
-    echo "No play copy yet. Promote a release first: tools/promote.sh (or ./play.sh --dev for the working tree)."
-    exit 1
+    echo "No play copy yet: making it from the latest release."
+    "$DIR/tools/promote.sh" || exit 1
   fi
 fi
 

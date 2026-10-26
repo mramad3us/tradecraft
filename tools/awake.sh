@@ -19,11 +19,13 @@
 # Sleep' while `caffeinate -dims` held its assertions, once macOS had declared
 # the user idle (pmset log, 2026-10-25 09:33). So on battery the keeper also
 # declares user activity every PULSE_S (`caffeinate -u`; it doesn't reset the
-# HID idle time, so a real return still shows). Whatever the power, with nobody
-# at the keyboard for as long as the system's own display sleep, it turns the
-# backlight off (tools/bright.swift, built on first use), and puts it back the
-# moment someone touches a key or the trackpad. Not while something else wants
-# the display on (a video playing holds its own assertion).
+# HID idle time, so a real return still shows). The screen stays on as it is:
+# the user wants it lit (2026-10-26). Only with AWAKE_DIM=1, and with nobody at
+# the keyboard for as long as the system's own display sleep, it turns the
+# backlight off (tools/bright.swift, built on first use) and puts it back the
+# moment someone touches a key or the trackpad; not while something else wants
+# the display on (a video playing holds its own assertion), and not when it's
+# dark already (there'd be nothing to put back: once it "restored" 0).
 #
 # A closed lid on battery sleeps whatever this does.
 set -u
@@ -32,6 +34,7 @@ ST="$DIR/.run/awake"
 LEASE="$ST/lease"; PIDF="$ST/keeper.pid"; OFF="$ST/off"; LOG="$ST/log"; BRIGHT="$ST/bright"
 LEASE_MIN=${AWAKE_LEASE_MIN:-60}
 PULSE_S=${AWAKE_PULSE_S:-40}
+DIM=${AWAKE_DIM:-0}
 level=""; dimmed=0        # the keeper's backlight, global so the exit trap still sees it
 
 keeper_pid() { [ -f "$PIDF" ] || return 1; local p; p=$(cat "$PIDF"); ps -p "$p" -o command= 2>/dev/null | grep -q 'awake.sh _keeper' && echo "$p"; }
@@ -64,14 +67,15 @@ keeper() {
   trap 'restore; rm -f "$PIDF"; log "keeper $$ stops"' EXIT
   echo "$LEASE_MIN" > "$ST/lease_min"
   log "keeper $$ starts (lease $LEASE_MIN min)"
-  if [ ! -x "$BRIGHT" ] && command -v swiftc >/dev/null; then
+  if [ "$DIM" = 1 ] && [ ! -x "$BRIGHT" ] && command -v swiftc >/dev/null; then
     swiftc -O "$DIR/tools/bright.swift" -o "$BRIGHT" 2>>"$LOG" || log "no backlight control (bright.swift did not build)"
   fi
   while [ ! -e "$OFF" ] && [ "$(lease_age)" -lt $((LEASE_MIN * 60)) ]; do
     on_battery && caffeinate -u -t 5
     idle=$(hid_idle)
-    if [ $dimmed = 0 ] && [ "${idle:-0}" -ge "$(dim_after)" ] && [ -x "$BRIGHT" ] && ! others_want_display; then
-      level=$("$BRIGHT"); "$BRIGHT" 0 >/dev/null; dimmed=1; log "nobody about for ${idle}s: backlight off (was $level)"
+    if [ "$DIM" = 1 ] && [ $dimmed = 0 ] && [ "${idle:-0}" -ge "$(dim_after)" ] && [ -x "$BRIGHT" ] && ! others_want_display; then
+      level=$("$BRIGHT")
+      if awk -v l="${level:-0}" 'BEGIN { exit !(l > 0.02) }'; then "$BRIGHT" 0 >/dev/null; dimmed=1; log "nobody about for ${idle}s: backlight off (was $level)"; fi
     elif [ $dimmed = 1 ] && [ "${idle:-0}" -lt 30 ]; then
       restore; dimmed=0
     fi

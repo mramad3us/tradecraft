@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.33 (2026-10-26)
+
+- **The game fills the window** (your ask). It was drawn at 640 × 360 and scaled up by a whole number only, so a window between two sizes left a wide border. Now it scales by any amount, sharp-bilinear: every pixel the same size, the seam between two blended over a single screen pixel, so nothing crawls as the street goes by. A window of another shape shows a little more street on its longer side (up to 736 × 430, as far as the street is kept alive off screen), and a border only past that: a window like yours in the screenshot keeps a thin band top and bottom; 1920 × 960 and 1280 × 720 fill it all.
+- **`./play.sh` makes the play copy the first time** (from the latest release), as `play.cmd` does on Windows. It used to stop and tell you to promote first.
+- **The keep-awake leaves the screen lit** (your ask). It used to turn the backlight off after 20 minutes with nobody at the keyboard, and once, finding the screen already dark when it did, "restored" it to dark when you came back. Turning it off is now opt-in (`AWAKE_DIM=1`), and it never turns off a screen that's already dark.
+
 ## v0.0.32 (2026-10-26)
 
 - **Shop windows are mirrors** (your ask). Stand at a shop's glass facing it and you're looking in the window, however you got there (T, or walking up to it): its reflection shows the street behind you, lit on the screen like anything else you see.

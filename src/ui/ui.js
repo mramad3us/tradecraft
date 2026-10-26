@@ -1,8 +1,13 @@
 // TRADECRAFT ui: the screens. The title sheet, the frame the picture sits in, the HUD over it (the
 // watch and where you are, the log's lines as they come, the keys, a scenario's marker over its target and the
 // instinct's line), and the sheets laid over it: the menu (Esc), the log (J), a test's brief before
-// it starts and its result when it ends. Plain DOM over the canvas, sized to it: the canvas shows at a whole-number scale of
-// 640 × 360, centred, and the HUD is the same box, so nothing sits off the picture.
+// it starts and its result when it ends. Plain DOM over the canvas, sized to it: the picture fills the
+// window (fit()), centred, and the HUD is the same box, so nothing sits off the picture.
+//
+// The picture is RES pixels: 640 × 360, or on a window of another shape a little more street on its
+// longer side, up to RES_MAX (as far as the street is kept alive off screen: sim/crowd.js,
+// SCREEN_HALF_M, where nobody comes or goes in view), and a border only beyond that. It's scaled to
+// fill (any scale: the view's last pass keeps every pixel the same size, src/art/pixelart.js).
 //
 // It shows the state and routes the player's choices to the callbacks it's given (src/main.js); it
 // never changes the state itself. Times are game time (sim/clock.js); rolls read through checkText().
@@ -11,13 +16,16 @@ import { checkText } from '../sim/checks.js';
 import { SCENARIOS } from '../sim/scenarios/index.js';
 import { placeName } from '../sim/map/street.js';
 import { shownRolls } from '../sim/scenarios/sdr.js';
+import { SCREEN_HALF_M } from '../sim/crowd.js';
 
 const el = (tag, props = {}, ...kids) => {
   const e = Object.assign(document.createElement(tag), props);
   for (const k of kids.flat()) if (k !== null && k !== undefined) e.append(k);
   return e;
 };
-export const RES = [640, 360];
+export const RES = [640, 360];                                     // (live: fit() sets it)
+export const RES_BASE = [640, 360];
+export const RES_MAX = [2 * SCREEN_HALF_M[0] * 16, 430];
 const TOAST_S = 8;
 
 export function createUI({ input, cb }) {
@@ -39,9 +47,15 @@ export function createUI({ input, cb }) {
   const title = el('div', { id: 'title', hidden: true });
   document.body.append(frame, title);
 
+  /** The picture to the window: its size in pixels (RES), the frame's, and the view told (cb.fit: the canvas in device pixels). */
   function fit() {
-    const s = Math.max(1, Math.floor(Math.min(innerWidth / RES[0], innerHeight / RES[1])));
-    Object.assign(frame.style, { width: `${RES[0] * s}px`, height: `${RES[1] * s}px`, left: `${Math.floor((innerWidth - RES[0] * s) / 2)}px`, top: `${Math.floor((innerHeight - RES[1] * s) / 2)}px` });
+    const ww = innerWidth, wh = innerHeight, dpr = devicePixelRatio || 1;
+    let w = RES_BASE[0], h = RES_BASE[1];
+    if (ww * h > wh * w) w = Math.min(RES_MAX[0], Math.round(h * ww / wh)); else h = Math.min(RES_MAX[1], Math.round(w * wh / ww));
+    const s = Math.min(ww / w, wh / h), fw = Math.round(w * s), fh = Math.round(h * s);
+    RES[0] = w; RES[1] = h;
+    Object.assign(frame.style, { width: `${fw}px`, height: `${fh}px`, left: `${Math.floor((ww - fw) / 2)}px`, top: `${Math.floor((wh - fh) / 2)}px` });
+    cb.fit?.(w, h, Math.round(fw * dpr), Math.round(fh * dpr));
   }
   fit();
   addEventListener('resize', fit);

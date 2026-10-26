@@ -4,7 +4,7 @@ A game whose design is settled in `docs/DESIGN.md` (the debrief, 2026-10-26). It
 
 ## Commands
 
-- `./play.sh`: serve the play copy (`.play/`, the release the user plays) on :8100 and open the browser. `./play.sh --dev`: the working tree, as it is now, on :8101. Both serve with `Cache-Control: no-store` and a deep listen queue (`tools/serve.py`), because a caching server lets the browser mix old and new modules after an update, and a queue of 5 resets the odd module request.
+- `./play.sh`: serve the play copy (`.play/`, the release the user plays) on :8100 and open the browser; the first time, it makes the play copy from the latest release. `./play.sh --dev`: the working tree, as it is now, on :8101. Both serve with `Cache-Control: no-store` and a deep listen queue (`tools/serve.py`), because a caching server lets the browser mix old and new modules after an update, and a queue of 5 resets the odd module request.
 - `tools/promote.sh [vX.Y.Z]`: move the play copy to a release (default: the latest). `--status` says where it is and what is newer.
 - On Windows, `play.cmd` (runs `tools/play.ps1`): the same as `play.sh` and `promote.sh` together (`--dev`, `--promote [vX.Y.Z]`, `--status`; the play copy is made from the latest release on first play). Keep it in step with them. `tools/serve.py` sets file types itself, since Windows' registry can serve `.js` as text.
 - `tools/release.sh patch "<summary>" --trailer "Co-Authored-By: …"`: cut a release (CHANGELOG's Unreleased becomes the version, VERSION bumps, tests run, commit, tag, push).
@@ -48,7 +48,7 @@ A game whose design is settled in `docs/DESIGN.md` (the debrief, 2026-10-26). It
 
 - The user leaves long runs going and doesn't want to come back to a Mac that slept and stopped the work. The hooks in `.claude/settings.json` renew a one-hour lease on every prompt and tool call. `tools/awake.sh` holds the Mac awake while the lease is fresh and lets it go an hour after work stops. Nothing needs renewing by hand.
 - A job that runs over an hour without tool calls (a long background simulation) is started with `tools/awake.sh run <cmd…>`.
-- On battery, caffeinate alone failed once in longhaul. So the keeper also declares user activity, and turns the backlight off while nobody is at the keyboard (back on at the first touch). A closed lid on battery still sleeps: say so if the user is about to leave the Mac on battery.
+- On battery, caffeinate alone failed once in longhaul. So the keeper also declares user activity. It leaves the screen lit (the user, 2026-10-26: stop killing the brightness); turning the backlight off while nobody is at the keyboard is opt-in (`AWAKE_DIM=1`). A closed lid on battery still sleeps: say so if the user is about to leave the Mac on battery.
 - "Kill caffeinate" means `tools/awake.sh off` (it stays off until `on`). Check `tools/awake.sh status` before saying anything about it.
 - Hooks load when a session starts: a new or changed hook needs a restart, or a look at `/hooks`.
 
