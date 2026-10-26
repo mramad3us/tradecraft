@@ -31,7 +31,7 @@ import { placeAt, routeFrom, finish, sectionOf, clearAt, LINE } from './city.js'
 import { Z, SECTION_M } from './map/street.js';
 import { near } from './world.js';
 import { seesActor, headOf, gazeInto, openAir, SIGHT_M, LIGHT_M } from './perception.js';
-import { paneAt } from './acts.js';
+import { paneAt, seatTaken } from './acts.js';
 
 const DT = TICK_MS / 1000;
 const TPS = 1000 / TICK_MS;
@@ -179,6 +179,8 @@ function yieldTo(state, a, v) {
 
 function startStop(state, a, stop, scenario, bus) {
   const ai = a.ai;
+  // (a passer-by who finds their seat taken, or kept for someone, walks on)
+  if (stop.gait === 'sit' && ai.civ && seatTaken(state, a.x, a, rowOf(state, a))) { ai.stop++; return; }
   ai.stop++;
   ai.waiting = stop;
   ai.wait = Math.max(1, stop.ticks | 0);

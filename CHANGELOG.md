@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.36 (2026-10-26)
+
+- **What's at hand is the game's, not the scene's** (your ask): in the free walk, tailing and being tailed alike, the instinct's line ends with what you can do where you stand (look in the shop window, sit on a free seat, cross at the zebra) and T does it. A scene still offers its own moves first (sit down with SOLOVEY, call it off, a shoelace as he looks back). Being tailed now offers benches, which it never did; sitting is a quiet way to check your back.
+- **One to a seat** (your report): people sat on top of each other, and T could sit you on someone (on SOLOVEY, in your shot). Now a passer-by who finds their seat taken walks on, T picks a free seat (and offers none when there isn't one), and the bench a scene's meeting needs (Orlov's, SOLOVEY's) is kept free of passers-by. Six minutes of a busy day on the boulevard: 32 people sat down, never two to a seat, none on his bench.
+
 ## v0.0.35 (2026-10-26)
 
 - **Close combat, and the Farm** (your ask). A new start on the title, *The Farm: hand to hand*: the agency's training hall at Camp Peary, week six of the course, an instructor (Hale), a class, a mat. It's the tutorial for fighting.

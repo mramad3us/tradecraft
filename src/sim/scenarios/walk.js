@@ -4,15 +4,15 @@
 // side streets, alleys and lanes lead on to the streets north and south.
 //
 // The instinct walks with you (instinct(), once a second): where a lane leads, where to cross, what
-// T would do here (look in a window, sit on a bench, cross), and between those a lesson or two. A
-// shop window at hand is offered whatever else is said.
+// T would do here (what's at hand, the engine's: sim/acts.js affordance()), and between those a lesson
+// or two.
 import { at, TICK_MS, hourOfDay } from '../clock.js';
 import { handler, seedFrom } from '../people.js';
 import { heatKey } from '../heat.js';
 import { say } from '../log.js';
 import { Z, streetName, parkName } from '../map/street.js';
 import { sectionAt } from '../world.js';
-import { act, coverHere, offer, crossingNear, say1 } from '../acts.js';
+import { act, crossingNear, paneNear, benchNear, say1 } from '../acts.js';
 import { openAir } from '../perception.js';
 
 const TPS = 1000 / TICK_MS;
@@ -73,20 +73,19 @@ function instinct(state, me) {
   if (me.z > Z.south) { const g = S.gapsS.find(inside); if (g) return L('lane-s', `${g.name}. It goes on south to ${streetName(seed, row + 1)}.`); }
   // A crossing at hand.
   const cr = crossingNear(state, me, 4);
-  if (cr?.road === 'main') return L('cross', me.z < Z.kerbN ? `A zebra. {instinct} cross, for the ${S.band === 'park' ? 'park' : 'boulevard'}.` : 'A zebra. {instinct} cross back to the shops.', 'cross');
+  if (cr?.road === 'main') return L('cross', me.z < Z.kerbN ? `A zebra, for the ${S.band === 'park' ? 'park' : 'boulevard'}.` : 'A zebra, back to the shops.');
   if (cr?.road === 'far') {
     const g = S.gapsS[0];
-    return L('cross-far', me.z < Z.roadN ? `The far road. {instinct} cross${g ? `: ${g.name} goes on south from the far pavement` : ''}.` : '{instinct} cross back to the boulevard.', 'cross');
+    return L('cross-far', me.z < Z.roadN ? `The far road${g ? `: ${g.name} goes on south from the far pavement` : ''}.` : 'The far road, back to the boulevard.');
   }
   // A way north or south close by.
-  const gn = me.z < Z.kerbN && S.gapsN.find(g => Math.abs((g.x0 + g.x1) / 2 - me.x) < 8), o = offer(state, me, ['window']);
-  if (gn) return L('gap-n', `${gn.name}, ${side(gn)}: up it to ${streetName(seed, row - 1)}.${o.text}`, o.act);
+  const gn = me.z < Z.kerbN && S.gapsN.find(g => Math.abs((g.x0 + g.x1) / 2 - me.x) < 8);
+  if (gn) return L('gap-n', `${gn.name}, ${side(gn)}: up it to ${streetName(seed, row - 1)}.`);
   const gs = me.z > Z.roadS - 0.5 && S.gapsS.find(g => Math.abs((g.x0 + g.x1) / 2 - me.x) < 8);
   if (gs) return L('gap-s', `${gs.name}, ${side(gs)}: down it to ${streetName(seed, row + 1)}.`);
-  // Something to do here.
-  const c = coverHere(state, me);
-  if (c === 'window') return L('window', 'A shop window. {instinct} look in it: its glass shows the street behind you.', 'window');
-  if (c === 'bench') return L('bench', 'A bench. {instinct} sit, and let the boulevard go by.', 'bench');
+  // Something here: what to make of it (T, what's at hand, is the engine's).
+  if (paneNear(state, me)) return L('window', 'A shop window: its glass shows the street behind you.');
+  if (benchNear(state, me) !== null) return L('bench', 'A bench: a seat for watching the boulevard go by.');
   const f = S.park?.feature;
   if (f && Math.hypot((f.x0 + f.x1) / 2 - me.x, (f.z0 + f.z1) / 2 - me.z) < 9) {
     return L('park', { pond: `${cap(parkName(seed, row, S.i))}'s pond. Ducks, an old man with bread, and a view of every path.`, fountain: 'A fountain, off for the winter.',

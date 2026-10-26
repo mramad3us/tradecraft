@@ -1,5 +1,9 @@
-// TRADECRAFT sim: what the player can do on a street with T, whatever the scene: the instinct offers
-// it (a scenario's instinct, or the free walk's), act() does it.
+// TRADECRAFT sim: what the player can do on a street with T, whatever the scene. It's the engine's,
+// not a scenario's (the user, 2026-10-26: "it's a game engine thing"): affordance() is what's at hand
+// (a shop window, a free seat, a zebra), shown at the end of the instinct's line whenever the scene's
+// own line offers nothing (and isn't urgent), and T does it (sim/game.js). A scene may still offer a
+// cover of its own (a shoelace, a window as he looks), and acts of its own (sit with him, call it off).
+// act() does it:
 //   - 'window': step to a shop window's glass and look in it (it shows the street behind:
 //     sim/perception.js), a reason to stop: at the end of the pane that has the glass run the way
 //     you'd watch (opts.toward: −1 west, 1 east; by default back the way you were going). Looking in
@@ -42,10 +46,20 @@ export function crossingNear(state, a, m = 6) {
   return null;
 }
 
-/** The nearest bench seat within reach of the actor on the path, or null. */
+export const SEAT_Z = 12.96;
+/**
+ * Whether the seat at x (on the map's row) is taken: someone else sat there, or kept for a scene
+ * (state.scenario.seats: [{ row, x }], a meeting's bench, which only the scene's own moves sit on).
+ */
+export function seatTaken(state, x, who = null, row = state.map.row) {
+  if (state.actors.some(o => o !== who && o.gait === 'sit' && (o.row ?? state.map.row) === row && Math.abs(o.x - x) < 0.6 && Math.abs(o.z - SEAT_Z) < 0.6)) return true;
+  return !!state.scenario.seats?.some(s => s.row === row && Math.abs(s.x - x) < 0.3);
+}
+
+/** The nearest free bench seat within reach of the actor on the path, or null. */
 export function benchNear(state, a) {
   if (a.z < 11.8 || a.z > 16) return null;
-  const seats = (sectionAt(state, a.x)?.props ?? []).filter(p => p.kind === 'bench').flatMap(p => p.seats);
+  const seats = (sectionAt(state, a.x)?.props ?? []).filter(p => p.kind === 'bench').flatMap(p => p.seats).filter(x => !seatTaken(state, x, a));
   const s = seats.map(x => [x, Math.abs(x - a.x)]).sort((p, q) => p[1] - q[1])[0];
   return s && s[1] < 2.6 ? s[0] : null;
 }
@@ -73,7 +87,14 @@ export function coverHere(state, a) {
   return state.time.ms - (state.scenario.laceMs ?? -1e12) > LACE_AGAIN_S * 1000 ? 'lace' : null;
 }
 
-const COVER = { window: 'look in the window', bench: 'sit on the bench', lace: 'tie a shoelace' };
+const COVER = { window: 'look in the window', bench: 'sit on the bench', lace: 'tie a shoelace', cross: 'cross' };
+
+/** What's at hand for T, the engine's: a shop window, a free seat, a zebra ({ act, text }), or null. */
+export function affordance(state, me) {
+  if (!me || me.ai || me.busy || me.glass || me.gait === 'sit' || state.map.kind !== 'street' || !sectionAt(state, me.x)) return null;
+  const act = paneNear(state, me) ? 'window' : benchNear(state, me) !== null ? 'bench' : crossingNear(state, me, 4) ? 'cross' : null;
+  return act && { act, text: ` {instinct} ${COVER[act]}.` };
+}
 /** What T would do here, for the end of an instinct's line: { act, text } (only: the covers allowed). */
 export function offer(state, me, only = null) {
   const c = coverHere(state, me), ok = c && (!only || only.includes(c));
@@ -95,7 +116,8 @@ function act1(state, bus, me, what, { toward = Math.cos(me.head ?? 0) >= 0 ? -1 
     say(state, bus, { kind: 'instinct', text: 'You find something in a shop window worth a look. In the glass, the street behind you.' });
   } else if (what === 'bench') {
     const sx = benchNear(state, me);
-    me.busy = { what: 'bench', steps: [['go', sx, 13.3], ['go', sx, 12.96], ['wait', 3600 * TPS, 'down', 'sit']], wait: 0 };
+    if (sx === null) return;
+    me.busy = { what: 'bench', steps: [['go', sx, 13.3], ['go', sx, SEAT_Z], ['wait', 3600 * TPS, 'down', 'sit']], wait: 0 };
     say(state, bus, { kind: 'instinct', text: 'You sit, as people do on a boulevard. Moving gets you up.' });
   } else if (what === 'lace') {
     state.scenario.laceMs = state.time.ms;

@@ -176,7 +176,9 @@ export function createUI({ input, cb }) {
       if (bout.textContent !== txt) bout.textContent = txt;
     }
     // The instinct: always a line, its tone in its border; {key} in the text shows as that key.
-    const p = !sc.outcome && sc.prompt;
+    // What's at hand (the engine's: sim/acts.js affordance()) ends a line that offers nothing itself.
+    const sp = !sc.outcome && sc.prompt, off = !sc.outcome && !sp?.act && sp?.tone !== 'urgent' && state.$offer;
+    const p = sp || off ? { tone: sp?.tone ?? 'calm', text: `${sp?.text ?? ''}${off ? off.text : ''}`.trim() } : null;
     prompt.hidden = !p;
     if (p && prompt.dataset.text !== p.text + p.tone) {
       prompt.dataset.text = p.text + p.tone;

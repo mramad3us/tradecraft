@@ -45,7 +45,7 @@ import { near, sectionAt } from '../world.js';
 import { follow, steer, isPasserby } from '../crowd.js';
 import { lightBand } from '../light.js';
 import { eyes, sees, seesActor, inView, lightHere, gazeInto } from '../perception.js';
-import { act, offer, paneAt, crossingAt, laneMid, say1 } from '../acts.js';
+import { act, paneAt, paneNear, crossingAt, laneMid, say1 } from '../acts.js';
 import { waypoint, zoneOf } from '../nav.js';
 
 const TPS = 1000 / TICK_MS;
@@ -114,7 +114,7 @@ export const sdr = {
       return { who, role, keep: Math.round(range(r, ...KEEP_M[team])), side: role === 'back' && team === 'covert' ? 'across' : role === 'back' ? pick(r, ['same', 'across']) : 'same', id: null };
     });
     state.scenario = {
-      kind: 'sdr', hour: hour.id, team, crew, meet, phase: 'walk', asset: null, teamLost: team === 'none', teamSeenMs: state.time.ms, pending: [],
+      kind: 'sdr', hour: hour.id, team, crew, meet, seats: meet.seats.map(x => ({ row: meet.row, x })), phase: 'walk', asset: null, teamLost: team === 'none', teamSeenMs: state.time.ms, pending: [],
       nextHandover: state.time.ms + Math.round(range(r, ...HANDOVER_S)) * 1000, heading: { dir: 1, s: 0 },
       faces: {}, suspects: {}, flags: [], flagged: {}, checks: 0, glances: 0, windows: 0, glassS: 0, stillS: 0, onRoad: false, sinceMap: null, check: null, moves: 0, snap: null,
       prompt: null, outcome: null, rolls: 0, began: state.time.ms, met: false, burned: false,
@@ -151,6 +151,9 @@ export const sdr = {
   },
 
   anchors(state) { return []; },
+
+  /** A shop window's glass, to run back the way you came. */
+  toward(state) { return -state.scenario.heading.dir; },
 
   /** Where you're going, for the picture's edge: the bench, until it's done. */
   goal(state) {
@@ -273,7 +276,7 @@ export const rowsText = (row) => (row === 0 ? 'on this street' : `${Math.abs(row
 // some 200–500 m east.
 function placeMeeting(state, r) {
   const seed = state.map.seed, row = weighted(r, [[-1, 3], [-2, 2], [1, 1.5]]);
-  const pickIn = (S) => { const b = pick(r, S.props.filter(p => p.kind === 'bench')); return b && { row, i: S.i, x: b.seats[0], z: 12.96, seat: b.seats[0], seat2: b.seats.at(-1) }; };   // (the far end: room between)
+  const pickIn = (S) => { const b = pick(r, S.props.filter(p => p.kind === 'bench')); return b && { row, i: S.i, x: b.seats[0], z: 12.96, seat: b.seats[0], seat2: b.seats.at(-1), seats: b.seats.slice() }; };   // (the far end: room between)
   let found = null;
   for (let i = 4; i <= 11 && !found; i++) { const S = section(seed, i, row); if (S.band === 'park') found = pickIn(S); }
   for (let i = 5; i <= 11 && !found; i++) found = pickIn(section(seed, i, row));
@@ -647,8 +650,7 @@ function instinct(state, me, still) {
     return L('bench', 'warn', 'There he is: bald, glasses, the paper. If you\'re sure you\'re clean, {instinct} sit down beside him.', 'meet');
   }
   if (sure) return L('sure', 'warn', [`You've a tail. Don't take them to him: {instinct} call it off, or lose them first where they can't see you do it.`, 'They\'re on you. A lane they don\'t see you take, or home. {instinct} call it off.'], 'abort');
-  // (a shop window at hand is offered whatever else is said, so it shows as you come to it)
-  const o = offer(state, me, ['window']), A = (line) => (o.act && !line.act ? { ...line, text: line.text + o.text, act: o.act } : line);
+  const A = (line) => line;                                       // (what's at hand ends the line: the engine's)
   if (sc.sinceMap && now - sc.sinceMap < 20000) {
     if (still) return L('lane-watch', 'note', ['Good. Watch the mouth of the lane. Whoever comes out after you may be going your way, or may be coming for you: the second kind stops when you do.', 'Watch the lane\'s mouth. People come through lanes all day; the one who comes for you looks for you when they come out.']);
     return A(L('lane-out', 'note', 'Out of the lane. Stop somewhere natural and watch the mouth of it: whoever comes out after you, see what they do when you don\'t move.'));
@@ -660,7 +662,7 @@ function instinct(state, me, still) {
     ? ['In the glass, the street behind you, all but the middle of it: that\'s your own back. Who stops when you stop?', 'The glass shows the road behind you. Hold {watch} and slant your eyes along it for the pavement.']
     : ['Long enough at one window and it\'s not the goods you\'re looking at. Walk on when you\'ve seen what you need.', 'Slant your eyes along the glass ({watch} held) for the pavement behind you; straight in, it\'s the road.']);
   if (now < g.from - 30000) {
-    if (o.act) return L('early', 'calm', 'A shop window. {instinct} look in it: the glass shows who\'s behind you.', 'window');
+    if (paneNear(state, me)) return L('early', 'calm', 'A shop window: the glass shows who\'s behind you.');
     return L('early', 'calm', [`SOLOVEY from ${clockText(g.from)}: ${wayText(state, me)} Time to check your back on the way.`, ...LESSONS]);
   }
   if (now < g.to) {

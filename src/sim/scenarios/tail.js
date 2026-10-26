@@ -48,7 +48,7 @@ import { say } from '../log.js';
 import { skill } from '../skills.js';
 import { opposed, check } from '../checks.js';
 import { range, int, chance, pick, weighted, hash } from '../rng.js';
-import { act, offer, paneNear, crossingAt, crossingNear, say1 } from '../acts.js';
+import { act, offer, paneNear, seatTaken, crossingAt, crossingNear, say1 } from '../acts.js';
 import { Z, SECTION_M } from '../map/street.js';
 import { near, sectionAt } from '../world.js';
 import { planRoute, routeFrom, sectionOf, pointAt, LINE } from '../city.js';
@@ -170,7 +170,7 @@ export const tail = {
     const dir = chance(r, 0.6) ? -1 : 1, row = dir * (MEET_ROWS[0] + int(r, MEET_ROWS[1] - MEET_ROWS[0] + 1));
     const along = door.x + (chance(r, 0.7) ? 1 : -1) * range(r, ...MEET_EAST_M);
     const bench = benchNear(seed, row, along);
-    const meet = { row, x: bench.seats[0], z: 12.96, seat2: bench.seats.at(-1), place: null };   // (the contact at the far end)
+    const meet = { row, x: bench.seats[0], z: 12.96, seat2: bench.seats.at(-1), place: null, seats: bench.seats.slice() };   // (the contact at the far end)
     // The way there, his way: a little roundabout always; a wary man much more.
     const route = withEnd(withHabits(seed, planRoute(seed, { row: 0, x: door.x, z: Z.front + 0.3 }, meet, { walker: hash(seed, 'orlov'), evasive: ev.wary ? 4 : 1, rng: r }), r, ev.wary ? 'wary' : 'calm'),
       { kind: 'meet', ticks: 75 * TPS, face: 'down', gait: 'sit' });
@@ -183,6 +183,7 @@ export const tail = {
     state.actors.unshift(mePlace);
     state.scenario = {
       kind: 'tail', evening: ev.id, wary: ev.wary, phase: 'tail', target: t.id, contact: null, twins: [], meet,
+      seats: meet.seats.map(x => ({ row: meet.row, x })),           // (his bench, kept for them: nobody else sits there)
       marked: t.id, lastSeen: { row: 0, x: t.x, z: t.z, ms: state.time.ms }, lastSeenT: state.time.ms, unseenS: 0, keepS: 0, findS: 0, startX: door.x,
       alert: ev.wary ? 25 : 0, sightings: [], scan: null, lastScanMs: null, tell: null, shop: null, warned: 0, mixups: 0, stillS: 0, mirrorMs: -1e12, gap: [],
       witnessS: 0, meetS: 0, closest: 1e9, farthest: 0, prompt: null, outcome: null, lead: null, rolls: 0, began: state.time.ms, turn: null,
@@ -227,9 +228,11 @@ export const tail = {
     const p = sc.prompt;
     if (!p?.act) return say(state, bus, { kind: 'instinct', text: me.busy || me.ai?.cover || me.glass ? 'You\'re at it. Moving stops it.' : 'Nothing to do but walk. Keep him in sight.' });
     if (me.ai) return agentCover(state, bus, me, p.act);
-    const t = actorOf(state, sc.target);
-    act(state, bus, me, p.act, { toward: t ? Math.sign(t.x - me.x) || 1 : undefined });   // (a window: its glass running his way)
+    act(state, bus, me, p.act, { toward: tail.toward(state, me) });
   },
+
+  /** A shop window's glass, to run his way: he's watched in it. */
+  toward(state, me) { const t = actorOf(state, state.scenario.target); return t ? Math.sign(t.x - me.x) || 1 : undefined; },
 
   think(state, a, bus) {
     // (agents walk by themselves; in autoplay the player's character does what its instinct offers)
@@ -338,7 +341,7 @@ function agentCover(state, bus, me, what) {
     stop = { kind: 'window', ticks: 5 * TPS, face: 'up', glass: true };
   } else if (what === 'lace') { stop = { kind: 'lace', ticks: 3 * TPS, face: me.face, gait: 'crouch' }; state.scenario.laceMs = state.time.ms; }
   else if (what === 'bench') {
-    const seats = (sectionAt(state, me.x)?.props ?? []).filter(p => p.kind === 'bench').flatMap(p => p.seats).sort((a, b) => Math.abs(a - me.x) - Math.abs(b - me.x));
+    const seats = (sectionAt(state, me.x)?.props ?? []).filter(p => p.kind === 'bench').flatMap(p => p.seats).filter(x => !seatTaken(state, x, me)).sort((a, b) => Math.abs(a - me.x) - Math.abs(b - me.x));
     if (!seats.length) return;
     pts = [here, { row, x: seats[0], z: me.z, w: 0 }, { row, x: seats[0], z: 12.96, w: 0 }];
     stop = { kind: 'bench', ticks: 8 * TPS, face: 'down', gait: 'sit' };
@@ -723,18 +726,11 @@ const clockOf = (state) => { const m = Math.floor(state.time.ms / 60000) % 1440;
 /**
  * What a trained eye tells you now: { id, text, tone ('calm' | 'note' | 'warn' | 'urgent'), act,
  * log }. act is what T does ('window', 'bench', 'lace', 'cross'); {instinct}, {slow}, {watch} in the
- * text show as those keys. The first rule that holds speaks; a shop window at hand is offered at the
- * end of any line with nothing else to offer, but an urgent one (as he looks, stopping is the thing
- * he'd see) and the meeting's.
+ * text show as those keys. The first rule that holds speaks. What's at hand ends a line with nothing
+ * of its own to offer (the engine's: sim/acts.js affordance()), but an urgent one: as he looks,
+ * stopping is the thing he'd see.
  */
 function instinct(state, me, t, d, still) {
-  const p = rule(state, me, t, d, still);
-  if (p.act || p.tone === 'urgent' || state.scenario.phase === 'meet' || me.busy || me.ai?.cover || me.glass) return p;
-  const o = offer(state, me, ['window']);
-  return o.act ? { ...p, text: p.text + o.text, act: o.act } : p;
-}
-
-function rule(state, me, t, d, still) {
   const sc = state.scenario, seen = inView(state, t.id), marked = sc.marked === t.id;
   const L = (id, tone, text, extra = {}) => ({ id, tone, text: Array.isArray(text) ? say1(state, id, text) : text, act: null, ...extra });
   const busy = me.busy?.what ?? me.ai?.cover?.what ?? (me.glass ? 'window' : null);

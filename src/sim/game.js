@@ -35,7 +35,7 @@ import { look, headOf, faceOf } from './perception.js';
 import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } from './agents.js';
 import { drift } from './people.js';
 import { heal } from './health.js';
-import { glassAhead } from './acts.js';
+import { glassAhead, affordance, act as doAct } from './acts.js';
 import { SCENARIOS } from './scenarios/index.js';
 
 export const WALK_MS = 1.45;                                       // the player's walk, m/s
@@ -91,6 +91,9 @@ export function step(state, input = {}, bus) {
   const me = playerActor(state);
   for (const act of input.act ?? []) {
     if (act === 'glance' && me && !me.glance) me.glance = Math.round(GLANCE_S * TICKS_PER_S);
+    // T, when the scene's line offers nothing of its own: what's at hand (sim/acts.js affordance()).
+    const here = act === 'instinct' && !state.scenario.prompt?.act && state.scenario.prompt?.tone !== 'urgent' && affordance(state, me);
+    if (here) { doAct(state, bus, me, here.act, { toward: scenario.toward?.(state, me) }); continue; }
     scenario.act?.(state, bus, act);
   }
   // A fight waiting for a choice: time stands still until it's made (sim/cqc.js).
@@ -148,8 +151,9 @@ export function step(state, input = {}, bus) {
     else if (a.ai?.kind === 'walker') think(state, a);
     else if (a.ai) scenario.think?.(state, a, bus);
   }
-  // 5. The scenario.
+  // 5. The scenario; and what's at hand, for the instinct's line (runtime: sim/acts.js).
   scenario.tick?.(state, bus);
+  state.$offer = me ? affordance(state, me) : null;
   // 6. The map and the crowd, once a second.
   if (state.tick % TICKS_PER_S === 0) {
     const f = focusActor(state);

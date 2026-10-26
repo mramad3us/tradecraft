@@ -97,24 +97,34 @@ export default [
     },
   },
   {
-    name: 'a shop window: every scene\'s instinct offers it on the shops\' pavement, and T takes you to the glass to look in it',
+    name: 'what\'s at hand is the engine\'s: every scene offers a shop window and a free seat the same, and T does it',
     fn() {
       const out = [];
       for (const scenario of ['walk', 'sdr', 'tail']) {
-        const g = newGame({ seed: 5, scenario });
-        start(g, null);
-        for (let t = 0; t < 20 * 3; t++) step(g, {}, null);
-        const me = playerActor(g), mid = (p) => (p.x0 + p.x1) / 2;
-        const pane = [...g.$world.sections.values()].flatMap(S => S.doors).map(d => d.pane).filter(p => p && !crossingNear(g, { x: mid(p), z: -2.7 }, 6))
-          .sort((a, b) => Math.abs(mid(a) - me.x) - Math.abs(mid(b) - me.x))[0];
-        Object.assign(me, { x: mid(pane), z: -2.7, head: 0, face: 'right', busy: null });   // walking past it
-        for (let t = 0; t < 20 * 8; t++) step(g, {}, null);                                    // (a calm line holds 7 s)
-        const p = { ...g.scenario.prompt };
-        assert(p?.act === 'window' && /\{instinct\} look in/.test(p.text), `${scenario}: the window offered ("${p?.text}")`);
-        step(g, { act: ['instinct'] }, null);
-        for (let t = 0; t < 20 * 4; t++) step(g, {}, null);
-        assert(me.glass, `${scenario}: T takes you to the glass, and you look in it`);
-        out.push(`${scenario}: "${p.text.replace(/\{instinct\}/, 'T')}"`);
+        for (const want of ['window', 'bench']) {
+          const g = newGame({ seed: 5, scenario });
+          start(g, null);
+          for (let t = 0; t < 20 * 3; t++) step(g, {}, null);
+          const me = playerActor(g), mid = (p) => (p.x0 + p.x1) / 2;
+          const S = [...g.$world.sections.values()];
+          let at;
+          if (want === 'window') {
+            const pane = S.flatMap(S => S.doors).map(d => d.pane).filter(p => p && !crossingNear(g, { x: mid(p), z: -2.7 }, 6)).sort((a, b) => Math.abs(mid(a) - me.x) - Math.abs(mid(b) - me.x))[0];
+            at = { x: mid(pane), z: -2.7 };
+          } else {
+            const seat = S.flatMap(S => S.props.filter(p => p.kind === 'bench')).flatMap(b => b.seats).filter(x => !crossingNear(g, { x, z: 15.6 }, 6)).sort((a, b) => Math.abs(a - me.x) - Math.abs(b - me.x))[0];
+            at = { x: seat + 0.5, z: 14.4 };
+          }
+          Object.assign(me, { ...at, head: 0, face: 'right', busy: null });
+          for (let t = 0; t < 20 * 2; t++) step(g, {}, null);
+          const offer = g.$offer, own = g.scenario.prompt;
+          assert(offer?.act === want, `${scenario}: ${want} at hand (${JSON.stringify(offer)})`);
+          if (own?.act || own?.tone === 'urgent') { out.push(`${scenario} ${want}: the scene's own "${own.text}" first`); continue; }
+          step(g, { act: ['instinct'] }, null);
+          for (let t = 0; t < 20 * 5; t++) step(g, {}, null);
+          assert(want === 'window' ? me.glass : me.gait === 'sit', `${scenario}: T ${want === 'window' ? 'looks in the window' : 'sits'}`);
+          out.push(`${scenario} ${want}: "${(own?.text ?? '')}${offer.text}"`.replace('{instinct}', 'T'));
+        }
       }
       console.log(`      ${out.join('\n      ')}`);
     },

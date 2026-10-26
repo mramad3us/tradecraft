@@ -60,6 +60,29 @@ export default [
     },
   },
   {
+    name: 'crowd: one to a seat, and a scene\'s bench kept for it',
+    fn() {
+      const g = newGame({ seed: 8, scenario: 'tail' });
+      start(g, null);
+      g.time.ms = at(2026, 11, 3, 13, 0);                            // (the busiest benches: by day)
+      let most = 0, kept = 0, sitters = 0;
+      const seen = new Set();
+      for (let t = 0; t < 20 * 60 * 6; t++) {
+        step(g, {}, null);
+        if (t % 20) continue;
+        const sit = g.actors.filter(a => a.gait === 'sit');
+        for (const a of sit) seen.add(a.id);
+        for (const a of sit) most = Math.max(most, sit.filter(o => (o.row ?? g.map.row) === (a.row ?? g.map.row) && Math.abs(o.x - a.x) < 0.6 && Math.abs(o.z - a.z) < 0.6).length);
+        kept += sit.filter(a => a.ai?.civ && g.scenario.seats.some(s => s.row === (a.row ?? g.map.row) && Math.abs(s.x - a.x) < 0.3)).length;
+      }
+      sitters = seen.size;
+      console.log(`      six minutes: ${sitters} sat down; at most ${most} to a seat; passers-by on his bench: ${kept}`);
+      assert(sitters >= 3, 'people sit');
+      assert(most === 1, 'never two to a seat');
+      assert(kept === 0, 'nobody on the bench his meeting needs');
+    },
+  },
+  {
     name: 'crowd: a passer-by followed leads 2–5 streets away, and the tail ends at their door',
     fn() {
       const runs = [];
