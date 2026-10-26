@@ -11,7 +11,7 @@
 //   country, legend { id, name, cover, floor }   where we are and as whom (heat is per legend per country)
 //   player (a person id), focus (the actor the map follows: usually the player's)
 //   people { id: sheet }       persistent people, the player among them (sim/people.js)
-//   map { kind, seed, i0, i1, crowd }   the map being played: enough to generate it again
+//   map { kind, seed, row, i0, i1, crowd, inPlay }   the map being played: enough to generate it again
 //   actors [ … ]               who's on it, where, doing what (sim/crowd.js, sim/game.js)
 //   nextActor, heat { 'legend@country': 0–100 }, log [ … ] (sim/log.js), flags { }
 //   mind { seen { actor id: [x, z, face, gait, stride, ms, look key] } }   what the player last saw of
@@ -40,6 +40,7 @@ export function upgradeState(s) {
   s.log ??= [];
   s.focus ??= null;
   s.map.crowd ??= 1;
+  s.map.row ??= 0;
   s.mind ??= { seen: {} };
   for (const a of s.actors) { a.stride ??= 0; a.stuck ??= 0; a.head ??= headOf(a.face); }
   s.schema = SAVE_SCHEMA;

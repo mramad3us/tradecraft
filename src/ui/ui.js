@@ -1,5 +1,5 @@
 // TRADECRAFT ui: the screens. The title sheet, the frame the picture sits in, the HUD over it (the
-// watch, the log's lines as they come, the keys, a scenario's marker over its target and the
+// watch and where you are, the log's lines as they come, the keys, a scenario's marker over its target and the
 // instinct's line), and the sheets laid over it: the menu (Esc), the log (J), a test's brief before
 // it starts and its result when it ends. Plain DOM over the canvas, sized to it: the canvas shows at a whole-number scale of
 // 640 × 360, centred, and the HUD is the same box, so nothing sits off the picture.
@@ -9,6 +9,7 @@
 import { clockText, stampText, dateText } from '../sim/clock.js';
 import { checkText } from '../sim/checks.js';
 import { SCENARIOS } from '../sim/scenarios/index.js';
+import { placeName } from '../sim/map/street.js';
 
 const el = (tag, props = {}, ...kids) => {
   const e = Object.assign(document.createElement(tag), props);
@@ -20,7 +21,7 @@ const TOAST_S = 8;
 
 export function createUI({ input, cb }) {
   const frame = el('div', { id: 'frame' });
-  const watch = el('div', { className: 'watch' }, el('div', { className: 'time' }), el('div', { className: 'date' }));
+  const watch = el('div', { className: 'watch' }, el('div', { className: 'time' }), el('div', { className: 'date' }), el('div', { className: 'place' }));
   const toasts = el('div', { className: 'toasts' });
   const keys = el('div', { className: 'keys' });
   const banner = el('div', { className: 'banner', textContent: 'PAUSED' });
@@ -75,6 +76,8 @@ export function createUI({ input, cb }) {
   function update(state, paused, view) {
     watch.querySelector('.time').textContent = clockText(state.time.ms);
     watch.querySelector('.date').textContent = stampText(state.time.ms).split(',')[0];
+    const me = state.actors.find(a => a.who === state.player);
+    if (me && state.map?.kind === 'street') watch.querySelector('.place').textContent = placeName(state.map.seed, state.map.row ?? 0, me.x, me.z);
     frame.classList.toggle('paused', paused && menu.hidden && log.hidden && paper.hidden);
     // The marker: over whom we take for the target (sc.marked), as we last saw them (live, or their
     // memory in the dimmed street), at the frame's edge when they're off it; hollow when out of view.

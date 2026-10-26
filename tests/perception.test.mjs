@@ -32,16 +32,18 @@ export default [
       assert(sees(g, e, 8, Z.front + 0.25), 'the foot of the facade ahead');
       assert(!sees(g, e, 8, -20), 'not through the building');
       // A side street is seen down its length from its mouth, not through the houses beside it.
-      let g2 = g, S = null;
-      for (let seed = 4; !S; seed++) { g2 = street(13, seed); S = [...g2.$world.sections.values()].find(s => s.side && s.side.x0 > -60); }
+      let g2 = g;
+      let side = null;
+      for (let seed = 4; !side && seed < 200; seed++) { g2 = street(13, seed); side = [...g2.$world.sections.values()].flatMap(s => s.gapsN).find(gp => gp.kind === 'side' && gp.x0 > -60 && gp.x1 < 60); }
+      assert(side, 'a side street somewhere');
       {
         const g = g2, me = playerActor(g);
-        const mx = (S.side.x0 + S.side.x1) / 2;
+        const mx = (side.x0 + side.x1) / 2;
         Object.assign(me, { x: mx, z: -3, head: -Math.PI / 2 });
         const up = eyes(g, me);
         assert(sees(g, up, mx, -18), 'up the side street');
-        assert(!sees(g, up, S.side.x0 - 6, -18), 'not through the corner house');
-        console.log(`      side street at x ${fmt(S.side.x0, 0)}…${fmt(S.side.x1, 0)}: seen up its length, not through its corners`);
+        assert(!sees(g, up, side.x0 - 6, -18), 'not through the corner house');
+        console.log(`      ${side.name} at x ${fmt(side.x0, 0)}…${fmt(side.x1, 0)}: seen up its length, not through its corners`);
       }
     },
   },

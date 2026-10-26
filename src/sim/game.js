@@ -12,7 +12,8 @@
 //   1. The player's input becomes their velocity, gait and heading (where they face: the way they
 //      walk, or, holding E, the way they look).
 //   2. Everyone moves by their velocity, sliding along what blocks them (sim/world.js), in the
-//      order they're listed.
+//      order they're listed. The player through a way off the map (a side street's end, a lane
+//      south): the next street (changeMap()), and the tick goes on there.
 //   3. The actor grid is rebuilt, and the player looks: what they see is remembered
 //      (sim/perception.js), and that's all the view will show of anyone else.
 //   4. Everyone else thinks: the velocity they'll move by next tick (sim/crowd.js for passers-by,
@@ -24,7 +25,9 @@
 import { seedRng } from './rng.js';
 import { TICK_MS, MIN } from './clock.js';
 import { SAVE_SCHEMA } from './state.js';
-import { attach, refocus, rehash, move, near } from './world.js';
+import { attach, refocus, rehash, move, near, exitAt } from './world.js';
+import { Z, placeName } from './map/street.js';
+import { say } from './log.js';
 import { populate, think, walk, facing } from './crowd.js';
 import { look, headOf, faceOf } from './perception.js';
 import { drift } from './people.js';
@@ -105,11 +108,13 @@ export function step(state, input = {}, bus) {
       if (--me.glance === 0) { me.head = me.eyesOn; me.eyesOn = undefined; }
     }
   }
-  // 2. Everyone moves.
+  // 2. Everyone moves; the player may leave the map.
   for (const a of state.actors) {
     if (a.ai) walk(state, a);
     else if (a.vx || a.vz) a.stride += move(state, a, a.vx * DT, a.vz * DT);
   }
+  const way = me && !me.ai && exitAt(state, me);
+  if (way) changeMap(state, bus, way);
   // 3. The grid, and the player looks. 4. Everyone else thinks.
   rehash(state);
   if (me) look(state, me, near(state, me.x, me.z, LOOK_M));
@@ -161,4 +166,33 @@ export function skip(state, bus, ms) {
   if (f) populate(state, f.x);
   rehash(state);
   if (Math.floor(state.time.ms / AUTOSAVE_MS) !== before) bus?.emit('autosave', 'skip');
+}
+
+/**
+ * The player goes off the map through `way` (an exit of sim/map/street.js): the next street north or
+ * south becomes the map. They arrive at the same way's other end (a row's north lanes are the next
+ * row's south ones), facing on; the crowd is the new street's; the scenario keeps whom it carries
+ * (carry(): the target who went this way first) and hears of it (mapChanged()). The memory of who was
+ * where goes with the old street. An autosave, as on every map change.
+ */
+export function changeMap(state, bus, way) {
+  const scenario = SCENARIOS[state.scenario.kind], me = playerActor(state);
+  const from = state.map.row ?? 0, row = from + (way.dir === 'n' ? -1 : 1);
+  const carried = scenario.carry?.(state, way) ?? [];
+  bus?.emit('map-', state.map);
+  state.map.row = row;
+  state.map.inPlay = [];
+  state.actors = state.actors.filter(a => a === me || carried.includes(a.id));
+  me.x = Math.max(way.x0 + 0.5, Math.min(way.x1 - 0.5, me.x));
+  me.z = way.dir === 'n' ? Z.edge - 1 : Z.north + 1;
+  state.mind = { seen: {} };
+  attach(state, bus, me.x);
+  rehash(state);
+  populate(state, me.x, { fill: true });
+  rehash(state);
+  scenario.mapChanged?.(state, bus, way, from);
+  const name = placeName(state.map.seed, row, me.x, me.z);
+  say(state, bus, { kind: 'note', text: way.dir === 'n' ? `Up ${way.name}, and out onto the far side of ${placeName(state.map.seed, row, me.x, Z.fence + 5)}.` : `Down ${name}, toward ${placeName(state.map.seed, row, me.x, 0)}.` });
+  bus?.emit('map', state.map);
+  bus?.emit('autosave', 'map');
 }

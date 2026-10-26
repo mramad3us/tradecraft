@@ -40,16 +40,16 @@ import { heatKey, addHeat } from '../heat.js';
 import { say } from '../log.js';
 import { skill } from '../skills.js';
 import { opposed, check } from '../checks.js';
-import { range, int, chance, pick, weighted, hash } from '../rng.js';
+import { range, int, chance, pick, weighted } from '../rng.js';
+import { act, coverHere, crossingAt, crossingNear, laneMid, say1 } from '../acts.js';
 import { LANES, Z } from '../map/street.js';
 import { near, sectionAt } from '../world.js';
 import { follow, steer } from '../crowd.js';
 import { lightBand } from '../light.js';
-import { eyes, sees, seesActor, inView, lightHere, headOf, wrap } from '../perception.js';
+import { eyes, sees, seesActor, inView, lightHere, openAir, headOf, wrap } from '../perception.js';
 
 export const KEEP_M = 22;
 export const KEEP_EVERY_S = 6;
-export const LACE_AGAIN_S = 40;
 export const FIND_EVERY_S = 2;
 export const REVEAL_M = 9;
 export const LOST_S = 90;
@@ -60,6 +60,10 @@ export const ROUTE_M = [380, 480];
 export const TELL_S = { calm: [1.6, 2.6], wary: [1.0, 1.8] };
 export const SCAN_M = { look: 45, window: 25, exit: 30, cross: 32, double: 22 };
 export const TWINS = 3;
+const RANK = { calm: 0, note: 1, warn: 2, urgent: 3 };
+export const HOLD_S = { calm: 7, note: 5, warn: 3, urgent: 2 };      // the least time the instinct's line holds, by tone
+export const TURNS = 1;                                            // times an evening he turns off up a lane, at most
+export const TURN_CHANCE = 0.5;                                    // when a lane comes up on his stretch
 export const TWIN_CHANCE = 0.02;                                 // a second, for each twin not about
 const TPS = 1000 / TICK_MS;
 
@@ -144,7 +148,7 @@ export const tail = {
       const [look, tell] = looks.splice(int(r, looks.length), 1)[0];
       state.people[`twin${i}`] = { ...sheet({ id: `twin${i}`, name: 'a man in a grey coat', sex: 'm', look, skills: { awareness: [2, 0] } }), tell };
     }
-    state.map = { kind: 'street', seed: seedFrom(r), i0: null, i1: null, crowd: 1 };
+    state.map = { kind: 'street', seed: seedFrom(r), row: 0, i0: null, i1: null, crowd: 1 };
     state.actors.push({ id: 'a0', who: me.id, seed: null, x: 0, z: -2.6, vx: 0, vz: 0, face: 'right', head: 0, gait: 'idle', stride: 0, stuck: 0, ai: null });
     state.scenario = {
       kind: 'tail', evening: ev.id, wary: ev.wary, phase: 'tail', target: null, contact: null, twins: [],
@@ -173,7 +177,32 @@ export const tail = {
 
   anchors(state) {
     const t = actorOf(state, state.scenario.target);
-    return t ? [t.x] : [];
+    return t && !t.offmap ? [t.x] : [];
+  },
+
+  /** Taking a way off the map: we bring him along if it's the way he went. */
+  carry(state, way) {
+    const sc = state.scenario, t = actorOf(state, sc.target);
+    return t?.offmap && sc.away && way.dir === sc.away.dir && way.x0 === sc.away.x0 ? [t.id] : [];
+  },
+
+  /**
+   * On the next street. Followed through the way he went, he's ahead of us by what he's walked since
+   * (out of the lane, along the far pavement east); otherwise he's left behind on the last street.
+   */
+  mapChanged(state, bus) {
+    const sc = state.scenario, t = actorOf(state, sc.target), me = playerOf(state);
+    sc.gap = []; sc.lastSeen = null; sc.scan = null; sc.tell = null;
+    if (!t) return;
+    const d = Math.max(2.5, Math.min(30, (state.time.ms - sc.away.ms) / 1000 * 1.3)), up = me.z - laneMid('south');
+    t.hidden = t.offmap = false;
+    t.x = me.x; t.z = me.z;
+    if (d < up) { t.z = me.z - d; t.ai.steps = [['go', t.x + 1, laneMid('south')]]; }
+    else { t.x += d - up; t.z = laneMid('south'); t.ai.steps = []; }
+    t.ai.lane = 'south'; t.ai.wait = 0;
+    t.face = 'right'; t.head = 0;
+    sc.away = null; sc.turn = null;
+    sc.lastSeen = { x: t.x, z: t.z, ms: state.time.ms };
   },
 
   /** T: do what the instinct offers. E tapped: a glance back, which he may catch. */
@@ -184,7 +213,7 @@ export const tail = {
     if (action !== 'instinct') return;
     const p = sc.prompt;
     if (!p?.act) return say(state, bus, { kind: 'instinct', text: me.busy ? 'You\'re at it. Moving stops it.' : 'Nothing to do but walk. Keep him in sight.' });
-    cover(state, bus, me, p.act);
+    act(state, bus, me, p.act);
   },
 
   think(state, a, bus) {
@@ -209,7 +238,6 @@ export const tail = {
 
 // ---------- Orlov ----------
 
-const laneMid = (lane) => (LANES[lane][0] + LANES[lane][1]) / 2;
 const actorOf = (state, id) => (id ? state.actors.find(a => a.id === id) : null);
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
 const ticks = (r, [a, b]) => Math.round(range(r, a, b) * TPS);
@@ -257,6 +285,10 @@ function thinkOrlov(state, a, bus) {
       if (++ai.wait >= step[1]) { ai.wait = 0; ai.steps.shift(); }
       return;
     case 'phase': ai.steps.shift(); sc.phase = step[1]; return thinkOrlov(state, a, bus);
+    case 'away':                                                  // off up the lane, to the next street: waits there for us
+      if (!a.offmap) { a.offmap = true; a.hidden = true; sc.away = { ...sc.turn, ms: state.time.ms }; }
+      a.vx = a.vz = 0;
+      return;
     default: follow(state, a);
   }
 }
@@ -277,8 +309,17 @@ function nextLeg(state, a) {
   }
   if (a.x - sc.startX >= sc.routeM && sc.phase === 'tail') return toMeeting(state, a);
   const leg = range(r, 30, 60) * (sc.alert > 50 ? 0.75 : 1), x = a.x + leg;
+  // Now and then, up a side street or an alley to the next street north: a glance back at the
+  // corner, and he's gone into it, and off this street (['away']).
+  const gap = lane === 'far' && (sc.turns ?? 0) < TURNS && a.x - sc.startX < sc.routeM - 60 && S?.gapsN.find(g => g.x0 > a.x + 8 && g.x0 < x + 10);
+  if (gap && chance(r, TURN_CHANCE)) {
+    sc.turns = (sc.turns ?? 0) + 1;
+    const gx = gap.kind === 'side' ? (chance(r, 0.5) ? gap.x0 + 1.4 : gap.x1 - 1.4) : (gap.x0 + gap.x1) / 2;   // (up a pavement, clear of its lamps and bin)
+    sc.turn = { name: gap.name, dir: 'n', x0: gap.x0, x1: gap.x1 };
+    return [['go', gx, z], ['tell', 'turn', tellT, gx, -4.2], ['scan', 'look', ticks(r, [1.2, 2]), 'left'], ['go', gx, -12], ['go', gx, Z.north + 0.3], ['away']];
+  }
   const steps = [['go', x, z]];
-  const crossing = S?.crossings.find(c => c.x0 > a.x + 4 && c.x0 < x + 10);
+  const crossing = lane !== 'south' && lane !== 'path' ? S?.crossings.find(c => c.x0 > a.x + 4 && c.x0 < x + 10) : null;
   const shops = (S?.doors ?? []).filter(d => d.kind === 'shop' && d.x > a.x + 6 && d.x < x + 5);
   const checks = 4 + sc.alert / 20 + (sc.sightings.length ? 1.5 : 0);
   const habit = weighted(r, [['look', checks], ['window', lane === 'far' && shops.length ? 2.5 : 0], ['shop', lane === 'far' && shops.length ? 1.2 : 0],
@@ -303,17 +344,21 @@ function nextLeg(state, a) {
 }
 
 // To the meeting: over at the next crossing to the boulevard's path, along it to a bench, sit.
+// (From the far pavement over the street; from the far pavement south of the boulevard, back over its
+// far road or up through the park.)
 function toMeeting(state, a) {
   const S = [...state.$world.sections.values()].sort((p, q) => p.x0 - q.x0);
-  const c = S.flatMap(s => s.crossings).find(c => c.x0 > a.x + 3);
+  const south = a.z > Z.roadS - 0.5;
+  const c = S.flatMap(s => (south ? s.crossingsS : s.crossings)).find(c => c.x0 > a.x + 3);
   const bench = c && S.flatMap(s => s.props).find(p => p.kind === 'bench' && p.x > c.x1 + 4);
   if (!c || !bench) return [['go', a.x + 20, a.z]];               // the street hasn't grown that far yet
   const cx = (c.x0 + c.x1) / 2, seat = bench.seats[0];
   a.ai.lane = 'path';
   const steps = [];
-  if (a.z < Z.kerbN) steps.push(['go', cx, laneMid('far')], ['tell', 'cross', TPS, cx, -0.9], ['scan', 'cross', Math.round(1.5 * TPS), 'down', 'wide'], ['go', cx, laneMid('near')]);
-  else steps.push(['go', cx, laneMid('near')]);
-  steps.push(['go', cx, 13.6], ['go', seat, 13.6], ['go', seat, 12.96], ['phase', 'meet'], ['sit', 75 * TPS], ['phase', 'after'], ['go', seat, 13.6], ['go', seat - 80, 13.8], ['gone']);
+  if (south) steps.push(['go', cx, laneMid('south')], ['tell', 'cross', TPS, cx, Z.roadS + 0.6], ['scan', 'cross', Math.round(1.5 * TPS), 'up', 'wide'], ['go', cx, 15.4]);
+  else if (a.z < Z.kerbN) steps.push(['go', cx, laneMid('far')], ['tell', 'cross', TPS, cx, -0.9], ['scan', 'cross', Math.round(1.5 * TPS), 'down', 'wide'], ['go', cx, laneMid('near')], ['go', cx, 13.6]);
+  else steps.push(['go', cx, laneMid('near')], ['go', cx, 13.6]);
+  steps.push(['go', seat, 13.6], ['go', seat, 12.96], ['phase', 'meet'], ['sit', 75 * TPS], ['phase', 'after'], ['go', seat, 13.6], ['go', seat - 80, 13.8], ['gone']);
   return steps;
 }
 
@@ -340,7 +385,7 @@ function twins(state, t) {
   for (let i = 0; i < TWINS; i++) {
     const who = `twin${i}`;
     if (state.actors.some(a => a.who === who) || !chance(r, TWIN_CHANCE)) continue;
-    const his = t.z < Z.kerbN ? 'far' : t.z > 11 ? 'path' : 'near';
+    const his = t.z < Z.kerbN ? 'far' : t.z > LANES.south[0] - 0.5 ? 'south' : t.z > 11 ? 'path' : 'near';
     const how = weighted(r, [['behind', 4], ['shop', his === 'far' ? 2 : 0], ['ahead', 2]]);
     let x, z, east, speed, lane = his;
     if (how === 'behind') { x = me.x - range(r, 24, 30); east = true; speed = range(r, 1.75, 1.95); }
@@ -452,8 +497,6 @@ function exposure(state, me, t, d, kind) {
   return mods;
 }
 
-// The light of the open air, to tell a lamp's pool from the street round it.
-const openAir = (state) => { const s = state.$sky?.s; return s ? 0.3 * s.tint[0] + 0.59 * s.tint[1] + 0.11 * s.tint[2] : 0; };
 
 /** What we're doing that gives us a reason to be where we are, as a modifier to his roll (or null). */
 function coverNow(state, me) {
@@ -511,7 +554,6 @@ function keepDC(state, t, d) {
 }
 
 const crowdAround = (state, who, r) => near(state, who.x, who.z, r).filter(o => o.ai?.kind === 'walker' && !o.hidden).length;
-const crossingAt = (state, me) => sectionAt(state, me.x)?.crossings.find(c => me.x > c.x0 - 0.5 && me.x < c.x1 + 0.5) ?? null;
 
 // ---------- once a second: keeping him, finding him, his mood, the meeting, the instinct ----------
 
@@ -559,10 +601,9 @@ function second(state, bus, me, t, d) {
   if (sc.phase === 'meet') meeting(state, bus, me, t, d);
   if (sc.outcome) return;
   const p = instinct(state, me, t, d, still);
-  const rank = { calm: 0, note: 1, warn: 2, urgent: 3 };
   if (sc.prompt && p.id === sc.prompt.id) Object.assign(sc.prompt, { text: p.text, act: p.act });
-  else if (!sc.prompt || rank[p.tone] > rank[sc.prompt.tone] || state.time.ms - sc.prompt.ms >= 2500) {
-    // (a line holds a couple of seconds, unless something more pressing comes)
+  else if (!sc.prompt || RANK[p.tone] > RANK[sc.prompt.tone] || state.time.ms - sc.prompt.ms >= HOLD_S[sc.prompt.tone] * 1000) {
+    // (a line holds a while, the calmer the longer, unless something more pressing comes)
     sc.prompt = { id: p.id, tone: p.tone, text: p.text, act: p.act, ms: state.time.ms };
     if (p.log) say(state, bus, { kind: 'instinct', text: p.text.replace(/\s*\{[a-z]+\}.*$/, '') });
   }
@@ -623,53 +664,8 @@ function meeting(state, bus, me, t, d) {
 
 const clockOf = (state) => { const m = Math.floor(state.time.ms / 60000) % 1440; return hhmm(Math.floor(m / 60), m % 60); };
 
-// ---------- cover: what T does ----------
-
-/** What gives us a reason to stop here: 'window' (a shop's glass at hand), 'bench' (a seat), or 'lace'. */
-function coverHere(state, me) {
-  const S = sectionAt(state, me.x);
-  if (!S) return null;
-  if (me.z < LANES.far[1] + 0.4 && me.z > Z.front && S.doors.some(d => d.kind === 'shop' && Math.abs(d.x - me.x) < 3.2)) return 'window';
-  if (benchNear(state, me) !== null) return 'bench';
-  return state.time.ms - (state.scenario.laceMs ?? -1e12) > LACE_AGAIN_S * 1000 ? 'lace' : null;   // (a shoelace twice in a minute is a story)
-}
-function benchNear(state, me) {
-  if (me.z < 11.8 || me.z > 16) return null;
-  const seats = (sectionAt(state, me.x)?.props ?? []).filter(p => p.kind === 'bench').flatMap(p => p.seats);
-  const s = seats.map(x => [x, Math.abs(x - me.x)]).sort((a, b) => a[1] - b[1])[0];
-  return s && s[1] < 2.6 ? s[0] : null;
-}
-
-function cover(state, bus, me, act) {
-  cover1(state, bus, me, act);
-  if (me.busy) me.busy.since = state.time.ms;
-}
-function cover1(state, bus, me, act) {
-  if (act === 'window') {
-    const S = sectionAt(state, me.x), door = S.doors.filter(d => d.kind === 'shop').sort((a, b) => Math.abs(a.x - me.x) - Math.abs(b.x - me.x))[0];
-    const wx = Math.abs(me.x - door.x) < 0.9 ? door.x + (me.x < door.x ? -1.4 : 1.4) : me.x;   // beside the door, at the glass
-    me.busy = { what: 'window', steps: [['go', wx, -4.35], ['wait', 5 * TPS, 'up', 'idle']], wait: 0 };
-    say(state, bus, { kind: 'instinct', text: 'You find something in a shop window worth a look. In the glass, the street behind you.' });
-  } else if (act === 'bench') {
-    const sx = benchNear(state, me);
-    me.busy = { what: 'bench', steps: [['go', sx, 13.3], ['go', sx, 12.96], ['wait', 3600 * TPS, 'down', 'sit']], wait: 0 };
-    say(state, bus, { kind: 'instinct', text: 'You sit, as people do on a boulevard. Moving gets you up.' });
-  } else if (act === 'lace') {
-    state.scenario.laceMs = state.time.ms;
-    me.busy = { what: 'lace', steps: [['wait', 3 * TPS, me.face, 'crouch']], wait: 0 };
-    say(state, bus, { kind: 'instinct', text: 'You stop to tie a shoelace that didn\'t need it.' });
-  } else if (act === 'cross') {
-    const S = sectionAt(state, me.x), c = crossingAt(state, me) ?? S?.crossings.find(c => Math.abs((c.x0 + c.x1) / 2 - me.x) < 7);
-    if (!c) return;
-    const cx = Math.max(c.x0 + 0.5, Math.min(c.x1 - 0.5, me.x)), far = me.z < Z.kerbN;
-    me.busy = { what: 'cross', steps: [['go', cx, far ? -1.0 : 7.5], ['go', cx, far ? laneMid('near') : laneMid('far')]], wait: 0 };
-  }
-}
-
 // ---------- the instinct ----------
 
-// A line from a few, the same for a while (no dice: the instinct mustn't move the game's rolls).
-const say1 = (state, id, lines) => lines[hash(id, Math.floor(state.time.ms / 12000)) % lines.length];
 const COVER = { window: 'look in the window', bench: 'sit on the bench', lace: 'tie a shoelace' };
 const offer = (state, me) => { const c = coverHere(state, me); return { act: c, text: c ? ` {instinct} ${COVER[c]}` : '' }; };
 
@@ -694,7 +690,7 @@ function instinct(state, me, t, d, still) {
   // His tells, read in time; his checks under way.
   if (sc.tell?.read && !sc.scan && state.time.ms - sc.tell.ms < 4000) {
     const o = offer(state, me);
-    const what = { look: 'He\'s slowing. He\'s going to look back.', window: 'He\'s drifting to a shop window. He\'ll use the glass.', cross: 'He\'s going to cross. He\'ll look both ways, and that means at you.', double: 'He\'s stopping short. He\'s going to turn round.' }[sc.tell.kind];
+    const what = { turn: 'He\'s slowing at the corner. He\'ll look back before he turns.', look: 'He\'s slowing. He\'s going to look back.', window: 'He\'s drifting to a shop window. He\'ll use the glass.', cross: 'He\'s going to cross. He\'ll look both ways, and that means at you.', double: 'He\'s stopping short. He\'s going to turn round.' }[sc.tell.kind];
     if (busy) return L(`tell-${sc.tell.kind}`, 'urgent', `${what} Stay at it.`, { log: true });
     return L(`tell-${sc.tell.kind}`, 'urgent', `${what}${d < 12 ? ' Don\'t be the face behind him.' : ''}${o.text}`, { act: o.act, log: true });
   }
@@ -716,6 +712,12 @@ function instinct(state, me, t, d, still) {
     if (wd < 14) return L('twin-close', 'warn', 'Closer than you\'d like. Is that the briefcase? Hard to say from here.');
     return L('twin', 'calm', ['Steady. Keep him in sight.', 'Grey coat, a good way on. Keep the pace.']);
   }
+  if (t.offmap) {
+    const w = sc.away, inLane = me.z < Z.front && me.x > w.x0 - 0.5 && me.x < w.x1 + 0.5;
+    const gd = Math.round(inLane ? me.z - Z.north : Math.abs((w.x0 + w.x1) / 2 - me.x) + Math.max(0, me.z - Z.front) + (Z.front - Z.north));
+    return L('away', 'warn', [`He's gone up ${w.name}: ${gd} m to the far end. Through it after him, or you've lost him.`, `${w.name}: he's through it and out the other end by now. Follow, or lose him.`]);
+  }
+  if (sc.turn && t.z < Z.front + 0.5 && seen) return L('turn', 'warn', [`He's turned up ${sc.turn.name}. Give him the corner: it's empty in there, and narrow.`, `Up ${sc.turn.name}. Don't follow him straight in: let him get to the top.`]);
   if (t.hidden) {
     const shop = SHOPS[sc.shop] ?? 'a shop', o = offer(state, me);
     if (d < 8) return L('shop-door', 'warn', [`He's in ${shop}. Don't hover at the door: walk on, or cross over.`, `He's in ${shop}. Hovering at the door is how you end up in the same queue. Walk on.`]);
@@ -750,7 +752,7 @@ function instinct(state, me, t, d, still) {
   if (crowdMe === 0 && crowdT === 0 && d < 22) return L('empty', 'note', ['The street\'s emptied. Hang back further.', 'The street\'s emptied: just you, him and your conscience. Hang back.']);
   // The sides of the street.
   const sameSide = (me.z < Z.kerbN) === (t.z < Z.kerbN);
-  const c = crossingAt(state, me) ?? (sectionAt(state, me.x)?.crossings.find(c => Math.abs((c.x0 + c.x1) / 2 - me.x) < 6) ?? null);
+  const c = crossingNear(state, me)?.road === 'main';
   if (sameSide && d < 16 && c && t.z < Z.kerbN && !busy) return L('cross-offer', 'note', 'A crossing. Take the other pavement and keep level with him: {instinct} cross here.', { act: 'cross' });
   if (!sameSide && d > 26 && c && !busy) return L('cross-back', 'note', 'He\'s pulling ahead across the road. Cross back here: {instinct} cross.', { act: 'cross' });
   if (!sameSide) return L('parallel', 'calm', ['Good. Across the road and level with him. Hold it.', 'Parallel him. He looks behind, not across.']);

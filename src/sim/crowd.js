@@ -5,10 +5,12 @@
 //   ['go', x, z]                walk to a point
 //   ['wait', ticks, face, gait] stand (or sit) there, facing a way
 //   ['gone']                    leave the map (through a door, off the end of the street)
-// They come in from beyond the screen's edges, out of doors and down side streets, and leave the
+// They come in from beyond the screen's edges, out of doors, down the side streets and alleys from the
+// north and up the lanes from the south, never where the player would see them appear, and leave the
 // same ways, so the count around the focus holds near a target that follows the hour (density()).
-// On the way some look in a shop window, cross at the zebra, take the boulevard's path, sit a while
-// on a bench, go into a shop or an arch.
+// On the way some look in a shop window, cross at the zebra, cross to the far pavement (or through
+// the park to its south walk), sit a while on a bench, go into a shop or an arch, or turn off north
+// or south.
 //
 // Steering is plain: head for the step's point, slow behind someone in the way, and lean away from
 // whoever's closer than SPACE_M. Lanes are laid clear of the street's furniture (sim/map/street.js),
@@ -16,6 +18,7 @@
 import { next, int, range, chance, pick, weighted } from './rng.js';
 import { LANES, Z } from './map/street.js';
 import { near, move, blocked, sectionAt } from './world.js';
+import { eyes, sees } from './perception.js';
 import { seedFrom } from './people.js';
 import { hourOfDay, TICK_MS } from './clock.js';
 import { headOf } from './perception.js';
@@ -46,12 +49,14 @@ function plan(state, r, x, lane, dir, focusX) {
   let z = laneZ(r, lane);
   const end = focusX + dir * (WINDOW_M + 3);
   const S = sectionAt(state, x + dir * 6) ?? sectionAt(state, x);
-  // Most walk through; some stop at a shop, cross over, sit on a bench, or go in somewhere.
+  const ahead = (v) => (v - x) * dir > 2 && (v - x) * dir < 40;
+  // Most walk through; some stop at a shop, cross over, sit on a bench, go in somewhere, or turn off.
+  const north = S?.gapsN.filter(g => ahead(g.x0)) ?? [], south = S?.gapsS.filter(g => ahead(g.x0)) ?? [];
   const choice = weighted(r, [['through', 5], ['browse', lane === 'far' ? 1.2 : 0], ['enter', lane === 'far' ? 1.5 : 0],
-    ['cross', S?.crossings.length ? 1.6 : 0], ['sit', lane === 'path' ? 1.2 : 0], ['side', lane === 'far' && S?.side ? 0.8 : 0]]);
-  const ahead = (d) => (d.x - x) * dir > 2 && (d.x - x) * dir < 40;
+    ['cross', S?.crossings.length && lane !== 'south' ? 1.6 : 0], ['crossS', S?.crossingsS.length && (lane === 'path' || lane === 'south') ? 1.2 : 0],
+    ['sit', lane === 'path' ? 1.2 : 0], ['north', lane === 'far' && north.length ? 1.1 : 0], ['south', lane === 'south' && south.length ? 1.1 : 0]]);
   if (choice === 'browse' || choice === 'enter') {
-    const doors = S ? S.doors.filter(d => ahead(d) && (choice === 'enter' || d.kind === 'shop')) : [];
+    const doors = S ? S.doors.filter(d => d.z === Z.front && ahead(d.x) && (choice === 'enter' || d.kind === 'shop')) : [];
     if (doors.length) {
       const d = pick(r, doors);
       if (choice === 'browse') {
@@ -70,16 +75,23 @@ function plan(state, r, x, lane, dir, focusX) {
       steps.push(['go', cx, z], ['go', cx, z2]);
       if (to === 'path') { z = laneZ(r, 'path'); steps.push(['go', cx, z]); } else z = z2;
     }
+  } else if (choice === 'crossS') {                                // over the far road, or through the park
+    const c = S.crossingsS[0], cx = range(r, c.x0 + 0.5, c.x1 - 0.5);
+    if ((cx - x) * dir > 0) {
+      z = laneZ(r, lane === 'path' ? 'south' : 'path');
+      steps.push(['go', cx, lane === 'path' ? LANES.path[1] : LANES.south[0]], ['go', cx, z]);
+    }
   } else if (choice === 'sit') {
-    const benches = S ? S.props.filter(p => p.kind === 'bench' && ahead(p)) : [];
+    const benches = S ? S.props.filter(p => p.kind === 'bench' && ahead(p.x)) : [];
     if (benches.length) {
       const b = pick(r, benches), sx = pick(r, b.seats);
       // (a sitter stands just in front of the bench; the renderer sets the card on the seat)
       steps.push(['go', sx, 13.2], ['go', sx, 12.96], ['wait', Math.round(range(r, 20, 120) / DT), 'down', 'sit'], ['go', sx, z]);
     }
-  } else if (choice === 'side') {
-    const sx = S.side.x0 + range(r, 1.5, 8.5);
-    if ((sx - x) * dir > 0) { steps.push(['go', sx, z], ['go', sx, Z.sideEnd + 1.5], ['gone']); return steps; }
+  } else if (choice === 'north' || choice === 'south') {         // up a side street or an alley, or down a lane south
+    const g = pick(r, choice === 'north' ? north : south), gx = range(r, g.x0 + 0.7, g.x1 - 0.7);
+    steps.push(['go', gx, z], ['go', gx, choice === 'north' ? Z.north + 0.6 : Z.edge - 0.4], ['gone']);
+    return steps;
   }
   steps.push(['go', end, z], ['gone']);
   return steps;
@@ -102,7 +114,10 @@ export function populate(state, focusX, { fill = false } = {}) {
   state.actors = state.actors.filter(a => !(a.ai?.gone || (a.ai?.kind === 'walker' && Math.abs(a.x - focusX) > WINDOW_M + 6)));
   const target = Math.round(CROWD_PER_100M * (2 * WINDOW_M / 100) * density(state.time.ms) * (state.map.crowd ?? 1));
   const walkers = state.actors.filter(a => a.ai?.kind === 'walker').length;
-  const lanes = [['far', 5], ['near', 3.5], ['path', 3]];
+  const lanes = [['far', 5], ['near', 3.5], ['path', 3], ['south', 2]];
+  // Nobody appears where the player would see it happen: on screen and in their sight.
+  const me = state.actors.find(a => a.who === state.player), e = me && !fill ? eyes(state, me) : null;
+  const unseen = (x, z) => !e || Math.abs(x - me.x) > 21 || Math.abs(z - me.z) > 17 || !sees(state, e, x, z);
   for (let n = walkers; n < target; n++) {
     const lane = weighted(r, lanes);
     if (fill) {                                                    // a map just arrived: people are already about
@@ -110,13 +125,17 @@ export function populate(state, focusX, { fill = false } = {}) {
       spawn(state, r, x, laneZ(r, lane), lane, chance(r, 0.5) ? 1 : -1, focusX);
       continue;
     }
-    const where = weighted(r, [['edge', 6], ['door', 2], ['side', 1]]);
-    if (where === 'door' || where === 'side') {
+    const where = weighted(r, [['edge', 6], ['door', 2], ['north', 1], ['south', 0.6]]);
+    if (where !== 'edge') {
       const S = sectionAt(state, focusX + range(r, -SPAWN_M[1], SPAWN_M[1]));
-      const d = where === 'door' ? (S?.doors.length ? pick(r, S.doors) : null) : S?.side ? { x: range(r, S.side.x0 + 1.5, S.side.x1 - 1.5), side: true } : null;
-      if (d && Math.abs(d.x - focusX) > 21) {                      // out of sight: nobody pops out of a wall on screen
-        const dir = chance(r, 0.5) ? 1 : -1, z0 = d.side ? Z.sideEnd + 1.5 : Z.front + 0.3, zl = laneZ(r, 'far');
-        spawn(state, r, d.x, z0, 'far', dir, focusX, [['go', d.x, zl]]);
+      let x = null, z0, zl, l = 'far';
+      if (where === 'door' && S?.doors.length) { const d = pick(r, S.doors.filter(d => d.z === Z.front)); if (d) { x = d.x; z0 = Z.front + 0.3; } }
+      else if (where === 'north' && S?.gapsN.length) { const g = pick(r, S.gapsN); x = range(r, g.x0 + 0.7, g.x1 - 0.7); z0 = Z.north + 0.6; }
+      else if (where === 'south' && S?.gapsS.length) { const g = pick(r, S.gapsS); x = range(r, g.x0 + 0.7, g.x1 - 0.7); z0 = Z.edge - 0.4; l = 'south'; }
+      if (x !== null && unseen(x, z0)) {
+        const dir = chance(r, 0.5) ? 1 : -1;
+        zl = laneZ(r, l);
+        spawn(state, r, x, z0, l, dir, focusX, [['go', x, zl]]);
         continue;
       }
     }

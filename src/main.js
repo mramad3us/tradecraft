@@ -71,6 +71,7 @@ function launch(s, { hour = null } = {}) {
   bus.on('log', (e) => ui.toast(e));
   bus.on('autosave', () => autosave());
   bus.on('scenario-end', () => setTimeout(() => { if (state === s) result(); }, 1800));
+  bus.on('map', () => { prev = new Map(); view.flush(); });         // the next street: no gliding there from the last
   start(state, bus);
   view.flush();                                                    // the street around you, before the first frame
   if (Number.isFinite(hour)) skip(state, bus, ((hour - hourOfDay(state.time.ms)) * HOUR % (24 * HOUR) + 24 * HOUR) % (24 * HOUR));

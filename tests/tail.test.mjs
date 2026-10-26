@@ -6,36 +6,22 @@
 // These are the bots' numbers, not a player's: a player reads the street better than they do.
 import { newGame, start, step } from '../src/sim/game.js';
 import { toJSON, fromJSON } from '../src/sim/state.js';
+import { naive, careful, trained } from './bots.mjs';
 import { assert, fmt } from './helpers.mjs';
 
 function play(seed, follow) {
+  let rows = 0;
   const g = newGame({ seed, scenario: 'tail' });
   start(g, null);
   for (let t = 0; t < 20 * 60 * 18 && !g.scenario.outcome; t++) {
     const me = g.actors.find(a => a.who === g.player), tg = g.actors.find(a => a.id === g.scenario.target);
+    const row = g.map.row;
     step(g, tg ? follow(g, me, tg) : {}, null);
+    if (g.map.row !== row) rows++;
   }
   const sc = g.scenario;
-  return { outcome: sc.outcome, evening: sc.evening, sightings: sc.sightings.length, warned: sc.warned, mixups: sc.mixups, minutes: (g.time.ms - sc.began) / 60000 };
+  return { outcome: sc.outcome, evening: sc.evening, sightings: sc.sightings.length, warned: sc.warned, mixups: sc.mixups, minutes: (g.time.ms - sc.began) / 60000, turns: sc.turns ?? 0, rows };
 }
-const toward = (me, x, z, slack, extra = {}) => { const dx = x - me.x, dz = z - me.z, d = Math.hypot(dx, dz); return d > slack ? { mx: dx / d, mz: Math.abs(dz) > 0.3 ? dz / d : 0, ...extra } : { ...extra }; };
-const naive = (g, me, t) => (Math.hypot(t.x - me.x, t.z - me.z) > 10 ? toward(me, t.x, t.z, 0) : {});
-const careful = (g, me, t) => {
-  const sc = g.scenario, meeting = sc.phase === 'meet' || t.z > 11, have = sc.marked === sc.target && sc.unseenS < 3;
-  const want = toward(me, t.x - (have ? (meeting ? 8 : 20) : 8), meeting || t.z < -0.5 ? 8.6 : -2.6, 1);
-  if (!want.mx && meeting) return { look: true, mx: Math.sign(t.x - me.x) * 0.6, mz: 1 };   // stood: eyes on the bench
-  return want;
-};
-// Trained: careful, and when the instinct warns of a check, it does what it offers (T); it strolls
-// when told it's gaining, and stays put while busy at its cover.
-const trained = (g, me, t) => {
-  const sc = g.scenario, p = sc.prompt;
-  if (me.busy && me.busy.what !== 'cross') return sc.tell || sc.scan ? {} : (Math.hypot(t.x - me.x, t.z - me.z) > 26 ? careful(g, me, t) : {});
-  if (p?.act && p.tone === 'urgent' && p.act !== 'cross' && Math.hypot(t.x - me.x, t.z - me.z) < 30) return { act: ['instinct'] };
-  const c = careful(g, me, t);
-  if (p?.id === 'gaining') c.slow = true;
-  return c;
-};
 const tally = (runs) => runs.reduce((o, r) => ((o[r.outcome ?? 'none'] = (o[r.outcome ?? 'none'] || 0) + 1), o), {});
 const mean = (runs, k) => fmt(runs.reduce((s, r) => s + r[k], 0) / runs.length, 2);
 
@@ -66,7 +52,7 @@ export default [
       const runs = { naive: [], careful: [], trained: [] };
       for (let i = 1; i <= N; i++) { runs.naive.push(play(i, naive)); runs.careful.push(play(i, careful)); runs.trained.push(play(i, trained)); }
       for (const [k, rs] of Object.entries(runs)) {
-        console.log(`      ${k.padEnd(8)} ${JSON.stringify(tally(rs))}, ${mean(rs, 'minutes')} game min a run, seen ${mean(rs, 'sightings')} times, checks read ${mean(rs, 'warned')}, wrong man ${mean(rs, 'mixups')}`);
+        console.log(`      ${k.padEnd(8)} ${JSON.stringify(tally(rs))}, ${mean(rs, 'minutes')} game min a run, seen ${mean(rs, 'sightings')} times, checks read ${mean(rs, 'warned')}, wrong man ${mean(rs, 'mixups')}, he turned up a lane ${mean(rs, 'turns')}, we followed ${mean(rs, 'rows')}`);
       }
       const byEvening = {};
       for (const r of runs.trained) (byEvening[r.evening] ??= []).push(r.outcome === 'seen' ? 1 : 0);

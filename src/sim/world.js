@@ -7,6 +7,9 @@
 // buildings' rectangles (walls) are kept apart too: they're what blocks a line of sight
 // (sim/perception.js).
 //
+// The map is one row of the city's streets (state.map.row; sim/map/street.js); its exits lead to the
+// rows north and south (exitAt(), and sim/game.js changeMap()).
+//
 // Sections come and go around a focus (the player, or a target the scenario follows): those within
 // REACH_M are generated, those beyond DROP_M are dropped, and the bus hears of both so the renderer
 // builds and frees their meshes. Which are in play is saved (state.map.inPlay), so a loaded game
@@ -22,14 +25,14 @@ export const BUCKET_M = 4;
 export const RADIUS_M = 0.25;
 export const REACH_M = 70;                                         // sections within this of the focus are in play
 export const DROP_M = 115;                                         // and dropped beyond this
-export const BOUNDS_Z = [Z.sideEnd + 0.5, Z.fenceS - 0.3];
+export const BOUNDS_Z = [Z.north + 0.2, Z.edge - 0.2];
 
 const key = (ix, iz) => ix * 73856093 ^ iz * 19349663;
 
 /** Build state.$world for state.map, with the sections around x. */
 export function attach(state, bus, x = 0) {
   const W = state.$world = { sections: new Map(), grid: new Map(), hash: new Map(), lamps: [], walls: [], bx: [0, 0] };
-  for (const i of state.map.inPlay ?? []) { W.sections.set(i, section(state.map.seed, i)); bus?.emit('section+', W.sections.get(i)); }
+  for (const i of state.map.inPlay ?? []) { W.sections.set(i, section(state.map.seed, i, state.map.row ?? 0)); bus?.emit('section+', W.sections.get(i)); }
   reindex(W);
   refocus(state, bus, x);
   return W;
@@ -42,7 +45,7 @@ export function refocus(state, bus, x) {
   let changed = false;
   for (const i of want) {
     if (W.sections.has(i)) continue;
-    W.sections.set(i, section(map.seed, i));
+    W.sections.set(i, section(map.seed, i, map.row ?? 0));
     bus?.emit('section+', W.sections.get(i));
     changed = true;
   }
@@ -131,5 +134,17 @@ export function near(state, x, z, r) {
 /** The section holding x, if it's in play. */
 export function sectionAt(state, x) {
   for (const S of state.$world.sections.values()) if (x >= S.x0 && x < S.x1) return S;
+  return null;
+}
+
+/** The way off the map the actor is going through, if any: an exit of its section (sim/map/street.js) crossed. */
+export function exitAt(state, a) {
+  const S = sectionAt(state, a.x);
+  if (!S) return null;
+  for (const ex of S.exits) {
+    if (a.x < ex.x0 || a.x > ex.x1) continue;
+    if (ex.dir === 'n' && a.z < Z.north + 0.5) return ex;
+    if (ex.dir === 's' && a.z > Z.edge - 0.5) return ex;
+  }
   return null;
 }

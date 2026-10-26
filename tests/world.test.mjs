@@ -22,15 +22,18 @@ export default [
   {
     name: 'street: a section is the same every time, and its terrace fills it',
     fn() {
-      for (let i = -3; i <= 3; i++) {
-        const a = section(77, i), b = section(77, i);
-        assert(JSON.stringify(a) === JSON.stringify(b), `section ${i} differs`);
-        const front = a.buildings.filter(B => B.z === Z.front).reduce((w, B) => w + B.x1 - B.x0, 0) + (a.side ? 10 : 0);
-        assert(Math.abs(front - SECTION_M) < 1e-6, `section ${i}: terrace + side street ${front} m, not ${SECTION_M}`);
+      for (let i = -3; i <= 3; i++) for (const row of [0, -1, 2]) {
+        const a = section(77, i, row), b = section(77, i, row);
+        assert(JSON.stringify(a) === JSON.stringify(b), `section ${i} of row ${row} differs`);
+        const front = a.buildings.filter(B => B.z === Z.front).reduce((w, B) => w + B.x1 - B.x0, 0) + a.gapsN.reduce((w, g) => w + g.x1 - g.x0, 0);
+        assert(Math.abs(front - SECTION_M) < 1e-6, `section ${i}: terrace + side streets and alleys ${front} m, not ${SECTION_M}`);
+        // A row's ways south are the next row's ways north: the same lanes, from either end.
+        assert(JSON.stringify(a.gapsS) === JSON.stringify(section(77, i, row + 1).gapsN), `section ${i}: the ways south of row ${row} don't meet row ${row + 1}'s`);
       }
       const many = Array.from({ length: 40 }, (_, i) => section(5, i));
       const n = (f) => many.reduce((k, S) => k + f(S), 0);
-      console.log(`      40 sections: ${n(S => S.buildings.length)} buildings, ${n(S => S.doors.filter(d => d.kind === 'shop').length)} shops, ${n(S => S.doors.filter(d => d.kind === 'arch').length)} arches, ${n(S => S.side ? 1 : 0)} side streets, ${n(S => S.props.filter(p => p.kind === 'car').length)} parked cars, ${n(S => S.lamps.length)} lamps`);
+      console.log(`      40 sections: ${n(S => S.buildings.length)} buildings, ${n(S => S.doors.filter(d => d.kind === 'shop').length)} shops, ${n(S => S.doors.filter(d => d.kind === 'arch').length)} arches, ${n(S => S.gapsN.filter(g => g.kind === 'side').length)} side streets and ${n(S => S.gapsN.filter(g => g.kind === 'alley').length)} alleys north, ${n(S => S.gapsS.length)} ways south, ${n(S => S.band === 'park' ? 1 : 0)} of park, ${n(S => S.props.filter(p => p.kind === 'car').length)} parked cars, ${n(S => S.lamps.length)} lamps`);
+      console.log(`      e.g. ${many.flatMap(S => S.gapsN).slice(0, 3).map(g => g.name).join(', ')}; a park: ${many.find(S => S.park?.feature)?.park.feature.kind}`);
     },
   },
   {
@@ -47,6 +50,12 @@ export default [
         }
         for (const c of S.crossings) for (let z = LANES.far[0]; z < LANES.path[1]; z += 0.25) {
           assert(!blocked(g, (c.x0 + c.x1) / 2, z), `crossing blocked at z ${z} (section ${S.i})`);
+        }
+        for (const c of S.crossingsS) for (let z = LANES.path[0]; z < LANES.south[1]; z += 0.25) {
+          assert(!blocked(g, (c.x0 + c.x1) / 2, z), `the way south blocked at z ${z} (section ${S.i}, ${S.band})`);
+        }
+        for (const ex of S.exits) for (let z = ex.dir === 'n' ? Z.north + 0.3 : LANES.south[1]; ex.dir === 'n' ? z < LANES.far[0] : z < Z.edge - 0.3; z += 0.25) {
+          assert(!blocked(g, (ex.x0 + ex.x1) / 2, z), `${ex.name} blocked at z ${z} (section ${S.i})`);
         }
         for (const p of S.props.filter(p => p.kind === 'bench')) for (const sx of p.seats) assert(!blocked(g, sx, 12.96), `a seat is blocked at ${sx}`);
       }
@@ -74,6 +83,39 @@ export default [
       assert(a === c, 'a save and a load changed the course of the game');
       const g = fromJSON(a);
       console.log(`      3000 ticks (2.5 game minutes) in ${fmt(ms, 0)} ms (${fmt(ms / 3000 * 1000, 0)} µs a tick), ${g.actors.length} on the map, save ${fmt(a.length / 1024)} KB`);
+    },
+  },
+  {
+    name: 'exits: up a lane to the street north and back down it; the crowd comes and goes by them',
+    fn() {
+      const g = newGame({ seed: 8 });
+      const bus = createBus(), notes = [];
+      bus.on('log', e => notes.push(e.text));
+      start(g, bus);
+      const me = playerActor(g);
+      const way = [...g.$world.sections.values()].flatMap(S => S.exits).filter(e => e.dir === 'n').sort((a, b) => Math.abs(a.x0) - Math.abs(b.x0))[0];
+      assert(way, 'a way north near the start');
+      const mx = (way.x0 + way.x1) / 2;
+      const go = (x, z, max = 4000) => { for (let t = 0; t < max; t++) { const m = playerActor(g), dx = x - m.x, dz = z - m.z, d = Math.hypot(dx, dz); if (d < 0.3) return true; step(g, { mx: dx / d, mz: dz / d }, bus); if (g.map.row !== row0) return true; } return false; };
+      let row0 = 0;
+      assert(go(mx, -2.6), 'to the mouth of the lane');
+      assert(go(mx, Z.north - 2), 'up the lane');
+      assert(g.map.row === -1, `in the row north (row ${g.map.row})`);
+      const m1 = playerActor(g);
+      assert(!blocked(g, m1.x, m1.z), 'arrived somewhere free');
+      const back = g.$world.sections.size && [...g.$world.sections.values()].flatMap(S => S.exits).find(e => e.dir === 's' && m1.x >= e.x0 && m1.x <= e.x1);
+      assert(back, 'the way back south is where we came out');
+      row0 = -1;
+      for (let t = 0; t < 400; t++) step(g, {}, bus);
+      assert(go(m1.x, Z.edge + 2), 'back down');
+      assert(g.map.row === 0 && playerActor(g).z < Z.front, `back in the first street, in the lane (row ${g.map.row}, z ${fmt(playerActor(g).z)})`);
+      console.log(`      ${notes.filter(t => /^(Up|Down)/.test(t)).join(' / ')}`);
+      // Over four game minutes, people go off north and south, and come in from there.
+      let north = 0, south = 0;
+      const seenAt = new Map();
+      for (let t = 0; t < 20 * 240; t++) { step(g, {}, bus); for (const a of g.actors) if (a.ai?.kind === 'walker') { if (a.z < Z.north + 1) north++; if (a.z > Z.edge - 1) south++; seenAt.set(a.id, a); } }
+      console.log(`      people in the lanes' far ends over 4 min: ${north} ticks north, ${south} south`);
+      assert(north > 0 && south > 0, 'the crowd uses the ways north and south');
     },
   },
   {

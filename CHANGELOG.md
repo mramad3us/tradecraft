@@ -4,6 +4,19 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.22 (2026-10-26)
+
+- **Every side of the map leads somewhere** (you asked for it). The city is rows of streets, each its own map:
+  - **North:** side streets and narrow, dark alleys run through the terrace to the next street.
+  - **South:** past the boulevard there's now its far road (with a zebra) and far pavement, or, a stretch at a time, a park with a pond, a fountain, a monument, a kiosk or flower beds; then a hedge with lanes leading on south.
+  - **East and west:** the street goes on (the free walk is endless now too).
+  - Walk off through a lane and you come out at its other end on the next street, with an autosave. Streets, boulevards, parks and lanes have Moscow names, shown under the watch.
+  - Passers-by use all of it, and never pop into view.
+- **The free walk's instinct:** it names the lanes and where they lead, offers to cross at the zebras (T), to sit on a bench, to look in a window, and between those, a lesson or two.
+- **Tailing:** once an evening he may turn up a side street or an alley to the next street. Give him the corner, then follow him through, or lose him. The instinct's lines hold longer when calm (no more flicking between two).
+- **Balance** (40 evenings): naive made 34; careful sees the meeting 22, trained 24 to 28.
+- Saves from before this load onto a regenerated street.
+
 ## v0.0.21 (2026-10-26)
 
 - **Perception** (you asked for it: where we look, what characters are aware of). Everyone faces a way and sees a cone ahead, as far as the light allows, plus a small radius of awareness all round; walls block the view. Awareness widens both.

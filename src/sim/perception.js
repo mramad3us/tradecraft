@@ -72,6 +72,9 @@ export function skyNow(state) {
   return s;
 }
 
+/** The light of the open air this tick (no lamp), on the same scale: a lamp's pool shows against it. */
+export const openAir = (state) => { const t = skyNow(state).tint; return 0.3 * t[0] + 0.59 * t[1] + 0.11 * t[2]; };
+
 /** How lit (x, z) is, as checks read it, this tick. */
 export const lightHere = (state, x, z) => lightLevel(state.$world.lamps, x, z, state.time.ms, skyNow(state));
 

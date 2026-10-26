@@ -433,7 +433,7 @@ export function paint(w, h, draw, { repeat = false, glows = null } = {}) {
   return t;
 }
 
-/** A repeating pixel texture of m metres square, by kind: grass, cobble, asphalt, brick, plaster, roof, planks, leaves, awning. */
+/** A repeating pixel texture of m metres square, by kind: grass, cobble, asphalt, brick, plaster, roof, planks, leaves, gravel, water, awning. */
 export function tile(kind, m = 1) {
   const n = PX_PER_M * m;
   const r = rng(kind.length * 977 + m * 131);
@@ -484,6 +484,10 @@ export function tile(kind, m = 1) {
       case 'gravel':
         px(0, 0, n, n, 0xc4bba9);
         speckle([0xa0978a, 0xe2dac6, 0x7d756c], 0.12);
+        break;
+      case 'water':
+        px(0, 0, n, n, 0x283f6b);
+        for (let i = 0; i < n * n / 24; i++) { const x = Math.floor(r() * n), y = Math.floor(r() * n); px(x, y, 3, 1, r() < 0.7 ? 0x3b6296 : 0x5d8fc2); }
         break;
       case 'awning':
         for (let x = 0; x < n; x++) px(x, 0, 1, n, Math.floor(x / 4) % 2 ? 0xf6f4ee : 0x9e3c36);
@@ -553,6 +557,13 @@ const FINE_TILES = {
       px(x, y, 1, 1, tone(0xc4b08a, v < 0.3 ? -0.05 : v > 0.7 ? 0.02 : -0.02));
     }
     for (let i = 0; i < n * n / 7; i++) { const x = Math.floor(r() * n), y = Math.floor(r() * n), d = r(); px(x, y, 1, 1, tone(0xc4b08a, d < 0.5 ? -0.12 : d < 0.8 ? 0.06 : -0.2)); }
+  },
+  water(px, n, r) {                                              // a pond: deep, a slow ripple, a glint here and there
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const v = noise(x / 6, y / 2.5, 21);
+      px(x, y, 1, 1, tone(0x283f6b, v < 0.3 ? -0.05 : v > 0.72 ? 0.05 : 0));
+    }
+    for (let i = 0; i < n * n / 40; i++) { const x = Math.floor(r() * n), y = Math.floor(r() * n), w = 2 + Math.floor(r() * 3); px(x, y, w, 1, r() < 0.75 ? tone(0x3b6296, -0.02) : 0x5d8fc2); }
   },
   grass(px, n, r) {
     for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {

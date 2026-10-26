@@ -8,6 +8,7 @@
 // Each frame:
 //   - sections are built and freed as the sim reports them ('section+' / 'section-' on the bus), a
 //     section spread over a few frames (BUILD_MS of building a frame; flush() builds all at once);
+//     a change of map ('map-': the player has gone on to the next street) frees them all;
 //   - the light is the clock's (sim/light.js sky()): the sun and the sky fill take its colours and
 //     strengths, the sun's shadows fade at sunset, windows light house by house through dusk, the
 //     lamps' heads light and their pools come on. Pools are LAMP_SLOTS pairs of spotlights moved to
@@ -38,11 +39,12 @@ export const RES = [640, 360];
 export const LAMP_SLOTS = 10;
 export const BUILD_MS = 6;
 export const FOG_CELL_M = 0.5;
-export const FOG_N = [96, 80];                                     // cells: 48 × 40 m round the camera
+// (deep to the south: a facade whose foot is well below the picture shows its upper floors in it)
+export const FOG_N = [96, 128];                                    // cells: 48 × 64 m round the camera
 const FOG_AT = [-24, -18];                                         // the mask's corner from the camera, m
 const FOG_IN_S = 0.08, FOG_OUT_S = 0.4;
 const LAMP_Y = 2.7;
-const CAMERA_Z = [Z.sideEnd + 5, 14.2];                             // the camera's centre stays within these
+const CAMERA_Z = [Z.north + 8, Z.edge - 8];                        // the camera's centre stays within these
 const HALF_W = RES[0] / PX_PER_M / 2;
 
 export function createView({ parent, bus }) {
@@ -54,6 +56,7 @@ export function createView({ parent, bus }) {
   const looks = new Map();                                         // passer-by seed → look (generated once)
   const building = new Map();                                     // i → a section's build, under way
   const off = [
+    bus.on('map-', () => clear()),                                // another street: its sections share the old one's indices
     bus.on('section+', (S) => { if (!sections.has(S.i) && !building.has(S.i)) building.set(S.i, buildSection(S)); }),
     bus.on('section-', (S) => {
       const b = building.get(S.i);
