@@ -1,68 +1,78 @@
-// Mechanic test 1, tailing: played by scripted followers over many evenings, so the balance is read as
-// numbers. A naive tail (10 m behind him, same pavement) should nearly always be made; a careful one
-// (the other pavement, 20 m back, closing in when it's lost him) should see the meeting more often
-// than not; a trained one (careful, and doing what the instinct offers when it warns) more often
-// still. Over 100 evenings (TAIL_N=100): naive made 91, careful seen 60, trained seen 67.
-// These are the bots' numbers, not a player's: a player reads the street better than they do.
+// Mechanic test 1, tailing: played by the game's own follower (autoplay: sim/agents.js), over many
+// evenings, so the balance is read as numbers. Skill against skill: our Deception, Tracking and
+// Awareness against his Pathfinding and Awareness, at trained bases from a course (5) to a master
+// (20). A better follower should see the meeting more often, a better watcher should make the tail
+// more often, and the far corners should be near-certain. These are the game's follower's numbers,
+// not a player's: a player who uses the street does better.
 import { newGame, start, step } from '../src/sim/game.js';
 import { toJSON, fromJSON } from '../src/sim/state.js';
-import { naive, careful, trained } from './bots.mjs';
+import { skill } from '../src/sim/skills.js';
 import { assert, fmt } from './helpers.mjs';
 
-function play(seed, follow) {
-  let rows = 0;
-  const g = newGame({ seed, scenario: 'tail' });
+/** An evening in autoplay, the follower's bases f and the watcher's w (null: as drawn). */
+export function play(seed, f = null, w = null, limitMin = 45) {
+  const g = newGame({ seed, scenario: 'tail', autoplay: { keep: 20 } });
   start(g, null);
-  for (let t = 0; t < 20 * 60 * 18 && !g.scenario.outcome; t++) {
-    const me = g.actors.find(a => a.who === g.player), tg = g.actors.find(a => a.id === g.scenario.target);
-    const row = g.map.row;
-    step(g, tg ? follow(g, me, tg) : {}, null);
-    if (g.map.row !== row) rows++;
-  }
+  const me = g.people[g.player], o = g.people.orlov;
+  if (f !== null) for (const k of ['deception', 'tracking', 'awareness']) me.skills[k] = [f, 1];
+  if (w !== null) for (const k of ['pathfinding', 'awareness']) o.skills[k] = [w, 1];
+  let rows = 0, row = g.map.row;
+  for (let t = 0; t < 20 * 60 * limitMin && !g.scenario.outcome; t++) { step(g, {}, null); if (g.map.row !== row) { rows++; row = g.map.row; } }
   const sc = g.scenario;
-  return { outcome: sc.outcome, evening: sc.evening, sightings: sc.sightings.length, warned: sc.warned, mixups: sc.mixups, minutes: (g.time.ms - sc.began) / 60000, turns: sc.turns ?? 0, rows };
+  return { outcome: sc.outcome, evening: sc.evening, sightings: sc.sightings.length, warned: sc.warned, minutes: (g.time.ms - sc.began) / 60000, rows,
+    eff: `${skill(me, 'deception')} v ${skill(o, 'pathfinding')}` };
 }
-const tally = (runs) => runs.reduce((o, r) => ((o[r.outcome ?? 'none'] = (o[r.outcome ?? 'none'] || 0) + 1), o), {});
-const mean = (runs, k) => fmt(runs.reduce((s, r) => s + r[k], 0) / runs.length, 2);
+const share = (runs, o) => runs.filter(r => r.outcome === o).length / runs.length;
+const pct = (x) => `${Math.round(100 * x)}%`;
 
 export default [
   {
-    name: 'tailing: a save and a load in the middle of a tail (before and after a change of street) change nothing',
+    name: 'tailing: a save and a load in the middle of a tail (after a change of street) change nothing',
     fn() {
       const run = (cut) => {
-        let g = newGame({ seed: 7, scenario: 'tail' });
+        let g = newGame({ seed: 2, scenario: 'tail', autoplay: { keep: 20 } });
         start(g, null);
-        for (let t = 0; t < 6000; t++) {
-          if (t === cut) { g = fromJSON(toJSON(g)); start(g, null); }
-          const me = g.actors.find(a => a.who === g.player), tg = g.actors.find(a => a.id === g.scenario.target);
-          step(g, tg ? trained(g, me, tg) : {}, null);
+        let changed = false;
+        for (let t = 0; t < 8000; t++) {
+          if (t === cut) { assert(changed, 'the cut comes after a change of street (the case this seed tests)'); g = fromJSON(toJSON(g)); start(g, null); }
+          const row = g.map.row;
+          step(g, {}, null);
+          changed ||= g.map.row !== row;
         }
         return toJSON(g);
       };
-      const a = run(-1), b = run(3000), c = run(2400);
+      const a = run(-1), b = run(3000), c = run(6000);
       assert(a === b && a === c, 'the tail went differently after a load');
       const g = fromJSON(a);
-      assert(g.map.row === -1, 'he turned up a lane, and we followed him to the next street (the case this seed tests)');
-      console.log(`      after 5 game minutes (${g.scenario.evening}): ${g.scenario.phase}, ${g.scenario.outcome ?? 'going on'}, ${g.scenario.rolls} rolls, he's ${fmt(g.actors.find(x => x.who === 'orlov')?.x - g.scenario.startX, 0)} m along`);
+      console.log(`      after ${fmt(8000 / 1200, 1)} game minutes (${g.scenario.evening}): ${g.scenario.phase}, ${g.scenario.outcome ?? 'going on'}, ${g.scenario.rolls} rolls, on street ${g.map.row}`);
     },
   },
   {
-    name: 'tailing: a naive tail is made, a careful one often sees the meeting, a trained one more often',
-    async fn() {
-      const N = Number(process.env.TAIL_N ?? 40);
-      const runs = { naive: [], careful: [], trained: [] };
-      for (let i = 1; i <= N; i++) { runs.naive.push(play(i, naive)); runs.careful.push(play(i, careful)); runs.trained.push(play(i, trained)); }
-      for (const [k, rs] of Object.entries(runs)) {
-        console.log(`      ${k.padEnd(8)} ${JSON.stringify(tally(rs))}, ${mean(rs, 'minutes')} game min a run, seen ${mean(rs, 'sightings')} times, checks read ${mean(rs, 'warned')}, wrong man ${mean(rs, 'mixups')}, he turned up a lane ${mean(rs, 'turns')}, we followed ${mean(rs, 'rows')}`);
-      }
-      const byEvening = {};
-      for (const r of runs.trained) (byEvening[r.evening] ??= []).push(r.outcome === 'seen' ? 1 : 0);
-      console.log(`      trained, seen by evening: ${Object.entries(byEvening).map(([e, v]) => `${e} ${v.reduce((a, b) => a + b, 0)}/${v.length}`).join(', ')}`);
-      const t = (k) => tally(runs[k]);
-      assert((t('naive').made ?? 0) >= N * 0.7, 'a naive tail should nearly always be made');
-      assert((t('careful').seen ?? 0) >= N * 0.35, 'a careful tail should see the meeting often');
-      assert((t('trained').seen ?? 0) >= (t('careful').seen ?? 0) - 2, 'doing what the instinct says should help (over 100 evenings: careful 60, trained 67)');
-      assert(!t('careful').none && !t('naive').none && !t('trained').none, 'every run ends');
+    name: 'tailing: every evening ends (the meeting seen or missed, made, lost or blown)',
+    fn() {
+      const runs = Array.from({ length: 6 }, (_, i) => play(30 + i));
+      console.log(`      ${runs.map(r => `${r.evening}: ${r.outcome} after ${fmt(r.minutes, 1)} min and ${r.rows} streets`).join('; ')}`);
+      assert(runs.every(r => r.outcome), 'every run ends');
+    },
+  },
+  {
+    name: 'tailing: skill against skill, a better follower sees more, a better watcher makes more',
+    heavy: true,
+    fn() {
+      const N = Number(process.env.TAIL_N ?? 24);
+      const cell = (f, w) => {
+        const runs = Array.from({ length: N }, (_, i) => play(100 + i, f, w));
+        const c = { f, w, seen: share(runs, 'seen'), made: share(runs, 'made'), lost: share(runs, 'lost'), sightings: runs.reduce((a, r) => a + r.sightings, 0) / N, eff: runs[0].eff };
+        console.log(`      follower ${String(f).padStart(2)} v watcher ${String(w).padStart(2)} (${c.eff}): seen ${pct(c.seen)}, made ${pct(c.made)}, lost ${pct(c.lost)}; seen by him ${fmt(c.sightings, 1)} times an evening`);
+        return c;
+      };
+      const byF = [5, 10, 15, 20].map(f => cell(f, 10)), byW = [5, 10, 15, 20].map(w => cell(15, w));
+      const rising = (cs, k, slack) => cs.every((c, i) => i === 0 || c[k] >= cs[i - 1][k] - slack);
+      assert(rising(byF, 'seen', 0.1), 'a better follower sees the meeting more often');
+      assert(rising(byW, 'made', 0.1), 'a better watcher makes the tail more often');
+      assert(byF[0].made >= 0.8, 'a follower off a course is made by a trained man');
+      assert(byW[0].seen >= 0.7, 'an expert follower sees a novice\'s meeting');
+      assert(byF.concat(byW).every(c => c.lost <= 0.15), 'the follower seldom just loses him');
     },
   },
 ];

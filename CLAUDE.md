@@ -62,7 +62,7 @@ A game whose design is settled in `docs/DESIGN.md` (the debrief, 2026-10-26). It
 - **Stack, by default:** vanilla ES modules, no build step, no runtime dependencies, browser, IndexedDB saves, fully playable offline. It changes only by decision, recorded in DESIGN.md.
 - **The sim is pure.** It never touches the DOM. It reports facts on the bus it is given, and the UI decides how to show them.
 - **One tick at a time**, in a fixed, documented order. Decisions made in a tick act the next.
-- **State is plain data.** Keys starting with `$` are runtime-only and stripped from saves. A `SAVE_SCHEMA`: prefer additive changes that an `upgradeState` fills in on load, so players keep their games, and bump the schema only for a change that can't be filled in.
+- **State is plain data.** Keys starting with `$` are runtime-only and stripped from saves. A `SAVE_SCHEMA`: prefer additive changes that an `upgradeState` fills in on load, so players keep their games, and bump the schema only for a change that can't be filled in. Before 1.0, old saves are kept only where it comes naturally: no work to carry them over a change (the user, 2026-10-26).
 - **Randomness only through one seeded rng module**, so tests can seed it.
 - **Units in constant names** (`rangeM`, `speedMs`). In longhaul, a wrong unit once made pirates charge to 800 km instead of 800,000 km.
 - **Scale:** DESIGN.md sets the target entity count early, and the code is built for it from the start: spatial indexes, no per-tick work over every entity, and far-away things get outcomes, not simulation.

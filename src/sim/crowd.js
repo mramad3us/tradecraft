@@ -4,7 +4,8 @@
 // and a plan: a list of steps, made when they appear, from the sections in play.
 //   ['go', x, z]                walk to a point
 //   ['wait', ticks, face, gait] stand (or sit) there, facing a way
-//   ['gone']                    leave the map (through a door, off the end of the street)
+//   ['gone']                    leave the map (through a door, off the end of the street: never in the
+//                               open on screen, where they walk on instead)
 // They come in from beyond the screen's edges, out of doors, down the side streets and alleys from the
 // north and up the lanes from the south, never where the player would see them appear, and leave the
 // same ways, so the count around the focus holds near a target that follows the hour (density()).
@@ -26,6 +27,7 @@ import { headOf } from './perception.js';
 export const CROWD_PER_100M = 40;                                  // at the busiest hours, along the street
 export const WINDOW_M = 45;                                        // passers-by live within this of the focus
 export const SPAWN_M = [27, 40];                                   // and come in from this far (off screen: it's 20 m to an edge)
+export const SCREEN_HALF_M = [23, 19];                             // the screen round the player, and a margin (nobody leaves in it)
 export const SPACE_M = 0.8;
 export const STUCK_S = 3;
 const DT = TICK_MS / 1000;
@@ -153,7 +155,17 @@ export function follow(state, a) {
   const ai = a.ai;
   const step = ai.steps[0];
   if (!step) { a.vx = a.vz = 0; a.gait = 'idle'; return null; }
-  if (step[0] === 'gone') { ai.gone = true; a.vx = a.vz = 0; return step; }
+  if (step[0] === 'gone') {
+    // Gone through a door or off the map's edge, in sight or not; gone anywhere else (the end of a
+    // walk that was out of sight when it was planned, a step given up) only out of sight: in sight,
+    // walk on along the street, away from the player, until they're off the screen.
+    if (inOpenSight(state, a)) {
+      const me = playerOf(state), away = Math.sign(a.x - me.x) || Math.sign(a.vx) || 1;
+      ai.steps = [['go', a.x + away * 15, laneOf(a.z)], ['gone']];
+      return follow(state, a);
+    }
+    ai.gone = true; a.vx = a.vz = 0; return step;
+  }
   if (step[0] === 'wait') {
     a.vx = a.vz = 0; a.gait = step[3] ?? 'idle';
     if (step[2]) { a.face = step[2]; a.head = headOf(step[2]); }
@@ -165,6 +177,24 @@ export function follow(state, a) {
   if (Math.hypot(tx - a.x, tz - a.z) < 0.15) { ai.steps.shift(); a.stuck = 0; return follow(state, a); }
   steer(state, a, tx, tz, ai.speed);
   return step;
+}
+
+const playerOf = (state) => state.actors.find(o => o.who === state.player);
+
+// The lane band nearest a z (a passer-by out in the street walks on along it).
+function laneOf(z) {
+  let best = LANES.far, bd = Infinity;
+  for (const b of Object.values(LANES)) { const d = Math.abs(z - (b[0] + b[1]) / 2); if (d < bd) { bd = d; best = b; } }
+  return Math.min(best[1], Math.max(best[0], z));
+}
+
+/** Whether a passer-by stands out in the street (not at a door, not at the map's edge) on the player's screen. */
+function inOpenSight(state, a) {
+  const me = playerOf(state);
+  if (!me || Math.abs(a.x - me.x) > SCREEN_HALF_M[0] || Math.abs(a.z - me.z) > SCREEN_HALF_M[1]) return false;
+  if (a.z < Z.north + 2 || a.z > Z.edge - 2) return false;         // (off the map's edge, up or down a lane)
+  if (Math.abs(a.z - (Z.front + 0.3)) < 0.8) return !sectionAt(state, a.x)?.doors.some(d => d.z === Z.front && Math.abs(d.x - a.x) < 1.5);
+  return true;
 }
 
 /** A passer-by decides how to move next tick (their plan done, they've gone), and minds the player. */

@@ -8,7 +8,8 @@
 //
 // Saves: an autosave every 30 game minutes, on leaving the page and on quitting to the title
 // (src/ui/store.js); the menu exports and imports save files. ?play=<scenario>&seed=<n>&hour=<h>
-// skips the title and starts a new game there (for shots and smoke tests). window.__tradecraft is
+// skips the title and starts a new game there (for shots and smoke tests); &autoplay[=<m>] has the
+// game's own AI play the character (sim/agents.js; a follower m metres back). window.__tradecraft is
 // the debug handle: { state, step(n, input), start(state or JSON), newGame(opts), save() (the JSON),
 // skip(ms), autosave(), pause(on), view }.
 import { newGame, start, step, skip } from './sim/game.js';
@@ -152,6 +153,9 @@ window.__tradecraft = {
   autosave,
 };
 
-if (q.has('play') && SCENARIOS[q.get('play')]) launch(newGame({ seed: Number(q.get('seed') ?? 1), scenario: q.get('play'), version: VERSION }), { hour: q.has('hour') ? Number(q.get('hour')) : null });
+if (q.has('play') && SCENARIOS[q.get('play')]) {
+  const autoplay = q.has('autoplay') ? { keep: Number(q.get('autoplay')) || 20 } : null;
+  launch(newGame({ seed: Number(q.get('seed') ?? 1), scenario: q.get('play'), version: VERSION, autoplay }), { hour: q.has('hour') ? Number(q.get('hour')) : null });
+}
 else showTitle();
 requestAnimationFrame(frame);

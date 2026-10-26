@@ -191,21 +191,24 @@ function planIn(seed, from, to, walker, windowM) {
   const path = [];
   for (let key = B.n.key; key; key = prev.get(key)?.[0]) path.unshift([g.nodes.get(key), prev.get(key)]);
   // As points: off the start place onto its line, along, through the portals, off the line to the goal.
-  const pts = [{ row: from.row, x: from.x, z: from.z, w: 0 }];
-  const at = (row, x, z, w, extra) => { const p = pts[pts.length - 1]; if (p.row === row && Math.abs(p.x - x) < 1e-6 && Math.abs(p.z - z) < 1e-6) { p.w = w; return; } pts.push({ row, x, z, w, ...extra }); };
-  at(from.row, from.x, LINE[A.line], HALF[A.line]);
+  // Each point says what the way on from it is (way: a line's letter, 'zebra', 'gate', 'path', a
+  // lane's kind, 'attach') and how wide (w).
+  const pts = [{ row: from.row, x: from.x, z: from.z, w: 0, way: 'attach' }];
+  const at = (row, x, z, w, way, extra) => { const p = pts[pts.length - 1]; if (p.row === row && Math.abs(p.x - x) < 1e-6 && Math.abs(p.z - z) < 1e-6) { p.w = w; p.way = way; return; } pts.push({ row, x, z, w, way, ...extra }); };
+  at(from.row, from.x, LINE[A.line], HALF[A.line], A.line);
   for (let j = 1; j < path.length; j++) {
     const [n, [, kind, w]] = path[j], [p] = path[j - 1];
-    pts[pts.length - 1].w = w;
+    const last = pts[pts.length - 1];
+    last.w = w; last.way = kind === 'line' ? n.line : kind;
     if (n.row !== p.row) {                                         // a lane: up its length, the seam, on to the line
       const up = n.row < p.row;
-      at(p.row, n.x, up ? Z.north : Z.edge, w, { lane: kind });
-      pts.push({ row: n.row, x: n.x, z: up ? Z.edge : Z.north, w, jump: true });
-      at(n.row, n.x, LINE[n.line], HALF[n.line]);
-    } else at(n.row, n.x, LINE[n.line], kind === 'line' ? w : HALF[n.line]);
+      at(p.row, n.x, up ? Z.north : Z.edge, w, kind, { lane: kind });
+      pts.push({ row: n.row, x: n.x, z: up ? Z.edge : Z.north, w, way: kind, jump: true });
+      at(n.row, n.x, LINE[n.line], HALF[n.line], n.line);
+    } else at(n.row, n.x, LINE[n.line], HALF[n.line], n.line);
   }
-  pts[pts.length - 1].w = 0;
-  at(to.row, to.x, to.z, 0);
+  Object.assign(pts[pts.length - 1], { w: 0, way: 'attach' });
+  at(to.row, to.x, to.z, 0, 'attach');
   return pts;
 }
 

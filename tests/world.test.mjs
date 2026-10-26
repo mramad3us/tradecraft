@@ -119,6 +119,33 @@ export default [
     },
   },
   {
+    name: 'crowd: nobody vanishes in the open on screen (they go in at doors, or off the map up a lane)',
+    fn() {
+      // The player walks along the street one way, then the other, at the lunchtime rush: passers-by
+      // planned their way off the street when it was off screen, and the screen comes to them.
+      const g = newGame({ seed: 9 });
+      const bus = createBus();
+      start(g, bus);
+      let vanished = 0, left = 0;
+      const where = new Map();
+      for (let t = 0; t < 20 * 60 * 6; t++) {
+        const me = playerActor(g);
+        step(g, t < 20 * 150 ? { mx: 1, mz: 0 } : t < 20 * 300 ? { mx: -1, mz: 0 } : {}, bus);
+        const now = new Set(g.actors.map(a => a.id));
+        for (const [id, [x, z, mx, mz]] of where) {
+          if (now.has(id)) continue;
+          left++;
+          const door = Math.abs(z - (Z.front + 0.3)) < 0.8, edge = z < Z.north + 2 || z > Z.edge - 2;
+          if (!door && !edge && Math.abs(x - mx) < 21 && Math.abs(z - mz) < 17) vanished++;
+          where.delete(id);
+        }
+        for (const a of g.actors) if (a.ai?.kind === 'walker') where.set(a.id, [a.x, a.z, me.x, me.z]);
+      }
+      console.log(`      6 game minutes walking the street both ways (${fmt(playerActor(g).x, 0)} m from where we began): ${left} passers-by left, ${vanished} of them in the open on screen`);
+      assert(vanished === 0, 'someone vanished in the middle of the street');
+    },
+  },
+  {
     name: 'crowd: the street holds its people through the day, and nobody stays stuck',
     fn() {
       const g = newGame({ seed: 5 });

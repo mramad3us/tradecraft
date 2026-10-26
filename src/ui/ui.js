@@ -86,7 +86,8 @@ export function createUI({ input, cb }) {
     // The marker: over whom we take for the target (sc.marked), as we last saw them (live, or their
     // memory in the dimmed street), at the frame's edge when they're off it; hollow when out of view.
     const sc = state.scenario, mk = sc.marked && !sc.outcome ? sc.marked : null;
-    const t = mk && (view?.posOf(mk) ?? (sc.lastSeen && [sc.lastSeen.x, sc.lastSeen.z]));
+    const ls = sc.lastSeen && (sc.lastSeen.row ?? state.map.row) === state.map.row ? sc.lastSeen : null;   // (of this street)
+    const t = mk && (view?.posOf(mk) ?? (ls && [ls.x, ls.z]));
     marker.hidden = !t;
     if (t) {
       marker.classList.toggle('memory', state.mind?.seen?.[mk]?.[5] !== state.mind?.at);

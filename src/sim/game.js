@@ -45,10 +45,14 @@ export const AUTOSAVE_MS = 30 * MIN;
 const DT = TICK_MS / 1000;
 const TICKS_PER_S = Math.round(1000 / TICK_MS);
 
-/** A new game: a scenario (SCENARIOS) from a seed. Call start() before stepping it. */
-export function newGame({ seed = 1, scenario = 'walk', version = '' } = {}) {
+/**
+ * A new game: a scenario (SCENARIOS) from a seed. Call start() before stepping it. autoplay: the
+ * player's character played by the game's own AI (an agent: sim/agents.js), with its options (as the
+ * scenario reads them, e.g. { keep } for a follower); null, by hand.
+ */
+export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = null } = {}) {
   const state = {
-    game: 'tradecraft', schema: SAVE_SCHEMA, version, seed, rng: seedRng(seed), tick: 0, time: { ms: 0 },
+    game: 'tradecraft', schema: SAVE_SCHEMA, version, seed, rng: seedRng(seed), tick: 0, time: { ms: 0 }, autoplay,
     scenario: { kind: scenario }, country: 'ru', legend: null, player: null, focus: null,
     people: {}, map: null, actors: [], nextActor: 1, heat: {}, log: [], flags: {}, mind: { seen: {} },
   };
