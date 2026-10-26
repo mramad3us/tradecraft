@@ -522,12 +522,12 @@ export function tree(x, z, { seed = 3, scale = 1 } = {}) {
   return g;
 }
 
-export function bench(x, z, { facing = 0 } = {}) {
+export function bench(x, z, { facing = 0, len = 2.1 } = {}) {
   const g = new THREE.Group();
-  const wood = mat(0, tile('planks', 1)), iron = mat(0x23252f);
-  const seat = box(1.7, 0.08, 0.5, { sides: mat(0x6b4636), top: wood }); seat.position.y = 0.42; g.add(seat);
-  const backr = box(1.7, 0.42, 0.07, { sides: mat(0x8f6345), front: wood }); backr.position.set(0, 0.55, -0.25); g.add(backr);
-  for (const sx of [-0.75, 0.75]) { const l = box(0.08, 0.42, 0.46, { sides: iron }); l.position.x = sx; g.add(l); }
+  const wood = mat(0, tile('planks', 1)), iron = mat(0x23252f), h = len / 2 - 0.1;
+  const seat = box(len, 0.08, 0.5, { sides: mat(0x6b4636), top: wood }); seat.position.y = 0.42; g.add(seat);
+  const backr = box(len, 0.42, 0.07, { sides: mat(0x8f6345), front: wood }); backr.position.set(0, 0.55, -0.25); g.add(backr);
+  for (const sx of len > 3 ? [-h, 0, h] : [-h, h]) { const l = box(0.08, 0.42, 0.46, { sides: iron }); l.position.x = sx; g.add(l); }
   g.position.set(x, 0, z);
   g.rotation.y = facing;
   return part(g);

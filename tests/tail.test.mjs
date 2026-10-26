@@ -7,6 +7,9 @@
 import { newGame, start, step } from '../src/sim/game.js';
 import { toJSON, fromJSON } from '../src/sim/state.js';
 import { skill } from '../src/sim/skills.js';
+import { at } from '../src/sim/clock.js';
+import { MARKER_S } from '../src/sim/scenarios/tail.js';
+import { inView } from '../src/sim/perception.js';
 import { assert, fmt } from './helpers.mjs';
 
 /** An evening in autoplay, the follower's bases f and the watcher's w (null: as drawn). */
@@ -45,6 +48,32 @@ export default [
       assert(a === b && a === c, 'the tail went differently after a load');
       const g = fromJSON(a);
       console.log(`      after ${fmt(8000 / 1200, 1)} game minutes (${g.scenario.evening}): ${g.scenario.phase}, ${g.scenario.outcome ?? 'going on'}, ${g.scenario.rolls} rolls, on street ${g.map.row}`);
+    },
+  },
+  {
+    name: 'tailing: the marker shows him only at his door; a close look (E on a grey coat) tells him from the rest',
+    fn() {
+      let saidEyes = 0, reached = 0, looks = [];
+      for (let seed = 3; seed < 40 && reached < 4; seed++) {
+        const g = newGame({ seed, scenario: 'tail', autoplay: { keep: 18 } });
+        start(g, null);
+        g.time.ms = at(2026, 11, 3, 13, 5);                            // (by day: a close look needs light to see by)
+        g.scenario.began = g.time.ms; g.scenario.markUntil = g.time.ms + MARKER_S * 1000;
+        const sc = g.scenario, t = g.actors.find(a => a.id === sc.target);
+        let n = 0, held = 0;
+        // The game's follower walks; once the marker's gone, E held on him whenever he's in sight, for a few close looks.
+        for (let k = 0; k < 20 * 60 * 4 && !sc.outcome && looks.length < 12; k++) {
+          const look = g.time.ms >= sc.markUntil && inView(g, t.id) && held < 20 * 6;
+          if (look) held++;
+          g.actors.find(a => a.who === g.player).looking = look;          // (E held, for the game's follower: its eyes are on him)
+          step(g, {}, null);
+          while (n < g.log.length) { const e = g.log[n++]; if (/from here on it's your eyes/.test(e.text ?? '')) saidEyes++; if (/^(That's him:|Him\.|Not him|A grey coat, a hat)/.test(e.text ?? '')) looks.push(e.text.split(':')[0].split('.')[0]); }
+        }
+        if (g.time.ms > sc.markUntil) reached++;                        // (an evening over sooner doesn't count)
+      }
+      console.log(`      marker gone, and said so, ${saidEyes} times in ${reached}; close looks: ${looks.join(', ')}`);
+      assert(reached === 4 && saidEyes === reached, 'the instinct says when the marker goes');
+      assert(looks.length >= 3, 'a close look, by day, tells something');
     },
   },
   {

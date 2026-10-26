@@ -10,16 +10,18 @@
 //            when told it's gaining.
 import { sectionAt } from '../src/sim/world.js';
 
+// A bot's memory is kept on its actor as plain data (me.bot), so it's saved and loaded with the game
+// and a run plays on the same across a load.
+const mem = (me, key, init) => ((me.bot ??= {})[key] ??= init());
+
 // Toward (x, z), stopping within slack; a bot that hasn't moved for a few ticks against something
 // (a lamp post, a parked car) sidesteps a while, as anyone would.
-const stuck = new WeakMap();
 export const toward = (me, x, z, slack, extra = {}) => {
   const dx = x - me.x, dz = z - me.z, d = Math.hypot(dx, dz);
-  if (d <= slack) { stuck.delete(me); return { ...extra }; }
-  const k = stuck.get(me) ?? { x: me.x, z: me.z, n: 0, side: 0, flip: -1 };   // (the first sidestep toward the target)
+  if (d <= slack) { if (me.bot) delete me.bot.stuck; return { ...extra }; }
+  const k = mem(me, 'stuck', () => ({ x: me.x, z: me.z, n: 0, side: 0, flip: -1 }));   // (the first sidestep toward the target)
   k.n = Math.hypot(me.x - k.x, me.z - k.z) < 0.01 ? k.n + 1 : 0; k.x = me.x; k.z = me.z;
   if (k.n > 3) { k.side = 12; k.flip = -k.flip; k.n = 0; }      // (stuck again: the other way this time)
-  stuck.set(me, k);
   let mx = dx / d, mz = Math.abs(dz) > 0.3 ? dz / d : 0;
   if (k.side > 0) {                                                  // along the other axis, toward the target on it
     k.side--;
@@ -91,7 +93,6 @@ export function goTo(g, me, row, x, z) {
   return toward(me, wx, wz, Math.hypot(wx - x, wz - z) < 0.01 ? 0.6 : 0.15);
 }
 
-const memo = new WeakMap();
 export const oblivious = (g, me) => {
   const sc = g.scenario, m = sc.meet;
   if (me.busy || sc.phase === 'meet') return {};
@@ -101,8 +102,7 @@ export const oblivious = (g, me) => {
 };
 export const checker = (g, me) => {
   const sc = g.scenario, m = sc.meet, p = sc.prompt;
-  const k = memo.get(me) ?? { glance: g.time.ms + 20000, window: 0 };
-  memo.set(me, k);
+  const k = mem(me, 'checker', () => ({ glance: g.time.ms + 20000, window: 0 }));
   if (me.busy || sc.phase === 'meet') return {};
   if (p?.act === 'abort') return { act: ['instinct'] };
   if (p?.act === 'meet') return { act: ['instinct'] };
@@ -113,8 +113,7 @@ export const checker = (g, me) => {
 };
 export const pro = (g, me) => {
   const sc = g.scenario, m = sc.meet;
-  const k = memo.get(me) ?? { glance: g.time.ms + 20000, window: 0, shake: null, shook: 0 };
-  memo.set(me, k);
+  const k = mem(me, 'pro', () => ({ glance: g.time.ms + 20000, window: 0, shake: null, shook: 0 }));
   if (sc.sinceMap && g.time.ms - sc.sinceMap < 12000) return {};          // out of a lane: watch its mouth
   if (k.shake !== null) {                                                    // shaking them: off up a lane
     if (g.map.row !== k.shake) return goTo(g, me, k.shake, me.x + 8, -2.6);

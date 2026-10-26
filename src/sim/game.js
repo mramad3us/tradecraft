@@ -11,18 +11,18 @@
 // The tick, in this order (decisions made in a tick act the next):
 //   1. The player's input becomes their velocity, gait and heading (where they face: the way they
 //      walk, or, holding E, the way they look).
-//   2. Everyone moves, in the order they're listed: passers-by and the player by their velocity,
-//      sliding along what blocks them (sim/world.js); agents along their routes, on any street
-//      (sim/agents.js). The focus through a way off the map (a side street's end, a lane south): the
+//   2. Everyone moves, in the order they're listed: the player (and a scenario's walkers) by their
+//      velocity, sliding along what blocks them (sim/world.js); agents (passers-by among them) along
+//      their routes, on any street (sim/agents.js). The focus through a way off the map (a side street's end, a lane south): the
 //      next street is loaded (changeMap(), loadRow()), and the tick goes on there.
 //   3. The actor grid is rebuilt, and the player looks: what they see is remembered
 //      (sim/perception.js), and that's all the view will show of anyone else. Followers look for
 //      their targets, and every ROUTE_EVERY ticks walk the trail anew.
-//   4. Everyone else thinks: the velocity they'll move by next tick (sim/crowd.js for passers-by,
-//      the scenario for its own characters).
+//   4. Everyone else thinks: passers-by on the street mind the player (sim/crowd.js); the scenario's
+//      own characters decide what they'll do next tick.
 //   5. The scenario's rules (its checks and events).
 //   6. Once a second: the map's sections follow the focus (and whatever else the scenario anchors),
-//      and the crowd is kept to its count around the focus.
+//      and the crowd's bubble is kept round the focus: its street and the streets either side.
 //   7. The clock advances; an autosave is due every 30 game minutes ('autosave' on the bus).
 import { seedRng } from './rng.js';
 import { TICK_MS, MIN } from './clock.js';
@@ -30,7 +30,7 @@ import { SAVE_SCHEMA } from './state.js';
 import { attach, refocus, rehash, move, near, exitAt } from './world.js';
 import { Z, placeName } from './map/street.js';
 import { say } from './log.js';
-import { populate, think, walk, facing } from './crowd.js';
+import { populate, think, walk, facing, isPasserby, noticeAgent } from './crowd.js';
 import { look, headOf, faceOf } from './perception.js';
 import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } from './agents.js';
 import { drift } from './people.js';
@@ -135,7 +135,8 @@ export function step(state, input = {}, bus) {
     if ((state.tick + hashId(a.id)) % ROUTE_EVERY === 0) routeFollower(state, a);
   }
   for (const a of state.actors) {
-    if (a.ai?.kind === 'walker') think(state, a);
+    if (isPasserby(a)) { if (onMap(state, a)) noticeAgent(state, a); }
+    else if (a.ai?.kind === 'walker') think(state, a);
     else if (a.ai) scenario.think?.(state, a, bus);
   }
   // 5. The scenario.

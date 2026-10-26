@@ -41,7 +41,16 @@ export default [
     },
   },
   {
+    name: 'being tailed: every evening ends, with a team or without',
+    fn() {
+      const rs = [1, 2, 3, 4].map(i => play(i, checker));
+      console.log(`      ${rs.map(r => `${r.team}: ${r.outcome} after ${fmt(r.minutes, 1)} min`).join('; ')}`);
+      assert(rs.every(r => r.outcome !== 'none'), 'every run ends');
+    },
+  },
+  {
     name: 'being tailed: walking straight there burns him when they\'re on you; checking calls it off',
+    heavy: true,
     fn() {
       const N = Number(process.env.SDR_N ?? 30);
       const bots = { oblivious, checker, pro };
@@ -54,7 +63,7 @@ export default [
       }
       const o = bots.oblivious, c = bots.checker;
       const burned = (rs) => rs.filter(r => r.team !== 'none' && r.outcome === 'burned').length;
-      assert(burned(o) >= o.filter(r => r.team !== 'none').length * 0.6, 'walking straight there with a team on you should mostly burn him');
+      assert(burned(o) > o.filter(r => r.team !== 'none').length * 0.5, 'walking straight there with a team on you should mostly burn him');
       assert(o.every(r => r.outcome !== 'none') && c.every(r => r.outcome !== 'none'), 'every run ends');
       assert(burned(c) < burned(o), 'checking your back should burn him less often');
     },

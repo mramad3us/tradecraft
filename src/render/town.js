@@ -145,7 +145,7 @@ export function* buildSection(S) {
         break;
       }
       case 'tree': sprites.push(seeThrough(at(treeCard({ seed: p.seed, size: p.size }), p.x, p.z))); break;
-      case 'bench': g.add(bench(p.x, p.z)); break;
+      case 'bench': g.add(bench(p.x, p.z, { len: p.len })); break;
       case 'bin': g.add(bin(p.x, p.z)); break;
       case 'postbox': sprites.push(seeThrough(at(propCard('postbox'), p.x, p.z))); break;
       case 'railing': {

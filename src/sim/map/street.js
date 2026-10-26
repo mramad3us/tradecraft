@@ -232,14 +232,20 @@ function boulevard(r, S, zx, sx, block, lamp, near, aside) {
   if (S.east === 'park') { S.props.push({ kind: 'railing', x0: x1, x1, z0: Z.fenceS, z1: Z.roadS }); block(x1 - 0.1, Z.fenceS, x1, Z.roadS, 'railing'); }
 }
 
-// Benches along the path, facing it, not by a crossing or a lamp; a bin by some.
+// Benches along the path, facing it, not by a crossing or a lamp; a bin by some. Two seats with room
+// between them (SEAT_GAP_M: the figures are drawn 1.25 m wide, their heads big: 40 cm of air), or (BENCH3)
+// three; whoever sits takes a seat (seats: the x of each).
+export const SEAT_GAP_M = 1.65;
+export const BENCH = { 2: { len: SEAT_GAP_M + 1, seats: [-SEAT_GAP_M / 2, SEAT_GAP_M / 2] }, 3: { len: 2 * SEAT_GAP_M + 1, seats: [-SEAT_GAP_M, 0, SEAT_GAP_M] } };
+export const BENCH3 = 0.35;
 function benches(r, S, zx, block, near) {
   const { x0, x1 } = S;
   for (let x = x0 + 9 + int(r, 4); x < x1 - 2; x += 12 + int(r, 6)) {
-    if (near(x, zx, 3) || Math.abs(((x - x0 - 3) % 15 + 15) % 15 - 7.5) > 5.5) continue;
-    S.props.push({ kind: 'bench', x, z: 12.45, seats: [x - 0.45, x + 0.45] });
-    block(x - 0.85, 12.15, x + 0.85, 12.7, 'bench');
-    if (chance(r, 0.5)) { S.props.push({ kind: 'bin', x: x + 1.3, z: 12.35 }); block(x + 1.05, 12.1, x + 1.55, 12.6, 'bin'); }
+    const B = BENCH[chance(r, BENCH3) ? 3 : 2], half = B.len / 2;
+    if (near(x, zx, 2.1 + half) || Math.abs(((x - x0 - 3) % 15 + 15) % 15 - 7.5) > 6.4 - half) continue;
+    S.props.push({ kind: 'bench', x, z: 12.45, len: B.len, seats: B.seats.map(o => x + o) });
+    block(x - half, 12.15, x + half, 12.7, 'bench');
+    if (chance(r, 0.5)) { S.props.push({ kind: 'bin', x: x + half + 0.45, z: 12.35 }); block(x + half + 0.2, 12.1, x + half + 0.7, 12.6, 'bin'); }
   }
 }
 

@@ -85,7 +85,8 @@ export function createUI({ input, cb }) {
     frame.classList.toggle('paused', paused && menu.hidden && log.hidden && paper.hidden);
     // The marker: over whom we take for the target (sc.marked), as we last saw them (live, or their
     // memory in the dimmed street), at the frame's edge when they're off it; hollow when out of view.
-    const sc = state.scenario, mk = sc.marked && !sc.outcome ? sc.marked : null;
+    // Only until sc.markUntil, when a scenario says so (the tail: from there on, our eyes).
+    const sc = state.scenario, mk = sc.marked && !sc.outcome && !(sc.markUntil && state.time.ms >= sc.markUntil) ? sc.marked : null;
     const ls = sc.lastSeen && (sc.lastSeen.row ?? state.map.row) === state.map.row ? sc.lastSeen : null;   // (of this street)
     const t = mk && (view?.posOf(mk) ?? (ls && [ls.x, ls.z]));
     marker.hidden = !t;
@@ -142,10 +143,7 @@ export function createUI({ input, cb }) {
     if (p && prompt.dataset.text !== p.text + p.tone) {
       prompt.dataset.text = p.text + p.tone;
       prompt.className = `prompt ${p.tone}`;
-      prompt.replaceChildren(...p.text.split(/(\{[a-z]+\})/).filter(Boolean).map(part => {
-        const m = part.match(/^\{([a-z]+)\}$/);
-        return m ? el('kbd', { textContent: input.label(m[1]) }) : el('span', { textContent: part });
-      }));
+      prompt.replaceChildren(...keyed(p.text));
     }
     const now = performance.now();
     for (const t of [...toasts.children]) {
@@ -153,9 +151,15 @@ export function createUI({ input, cb }) {
       if (now - t.born > (TOAST_S + 1.5) * 1000) t.remove();
     }
   }
+  // A line with {key} placeholders, the keys as this player has them (a prompt, a toast, the log).
+  const keyed = (text) => text.split(/(\{[a-z]+\})/).filter(Boolean).map(part => {
+    const m = part.match(/^\{([a-z]+)\}$/);
+    return m ? el('kbd', { textContent: input.label(m[1]) }) : el('span', { textContent: part });
+  });
+
   function toast(e) {
     if (e.hidden) return;                                          // (what the character didn't see)
-    const t = el('div', { className: `toast ${e.kind}${e.roll && !e.roll.ok ? ' fail' : ''}` }, e.text ?? '', e.roll ? el('span', { className: 'num', textContent: checkText(e.roll) }) : null);
+    const t = el('div', { className: `toast ${e.kind}${e.roll && !e.roll.ok ? ' fail' : ''}` }, ...keyed(e.text ?? ''), e.roll ? el('span', { className: 'num', textContent: checkText(e.roll) }) : null);
     t.born = performance.now();
     toasts.append(t);
     while (toasts.children.length > 3) toasts.firstChild.remove();
@@ -188,7 +192,7 @@ export function createUI({ input, cb }) {
   function openLog(state, { debug = false } = {}) {
     const over = !!state.scenario.outcome && debug;
     const items = state.log.filter(e => over || !e.hidden).reverse().map(e => el('li', { className: `${e.roll && !e.roll.ok ? 'fail' : ''}${e.hidden ? ' unseen' : ''}` },
-      el('time', { textContent: stampText(e.ms) }), e.hidden ? el('em', { textContent: 'Unseen: ' }) : null, e.text ?? '', e.roll ? el('span', { className: 'num', textContent: checkText(e.roll) }) : null));
+      el('time', { textContent: stampText(e.ms) }), e.hidden ? el('em', { textContent: 'Unseen: ' }) : null, ...keyed(e.text ?? ''), e.roll ? el('span', { className: 'num', textContent: checkText(e.roll) }) : null));
     log.replaceChildren(el('div', { className: 'sheet logsheet' },
       el('h2', { textContent: 'LOG' }), el('p', { className: 'note', textContent: `${dateText(state.time.ms)}. ${input.label('log')} or ${input.label('menu')} to close.` }), el('hr'),
       el('ol', {}, items)));

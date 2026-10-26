@@ -7,11 +7,11 @@
 // undrawn, and where it should be when its street is loaded. The loaded street follows the focus
 // (sim/game.js): an agent that's the focus takes the map with it through a lane.
 //
-// A route can carry stops (route.stops, sorted by s: { s, ticks, face, gait, hidden, glass, wide,
-// kind, check, slowM }): the agent slows over the slowM metres before one (a tell), then waits there,
-// facing a way, perhaps out of sight (a shop) or at a window's glass; the scenario hears of each
-// (onStop: 'tell', 'start', 'end'). A stop that's a check (stop.check) is one a follower looks away
-// from.
+// A route (ai.route, or one rebuilt from a plan: routeOf(), PLANNERS) can carry stops (route.stops,
+// sorted by s: { s, ticks, face, gait, hidden, glass, wide, kind, check, slowM }): the agent slows
+// over the slowM metres before one (a tell), then waits there, facing a way, perhaps out of sight (a
+// shop) or at a window's glass; the scenario hears of each (onStop: 'tell', 'start', 'end'). A stop
+// that's a check (stop.check) is one a follower looks away from.
 //
 // A follower (ai.follow: { id, keep, trail, … }) walks in its target's footsteps, as far as it has
 // seen them: the trail is the places it saw them, bridged by the planner where it lost sight of them
@@ -94,6 +94,16 @@ export const rowOf = (state, a) => a.row ?? state.map.row;
 export const onMap = (state, a) => rowOf(state, a) === state.map.row;
 export const isAgent = (a) => a.ai?.kind === 'agent';
 
+// Routes made from a plan (ai.plan: { kind, … }) by the planner of that kind, and not saved: a
+// passer-by's route is 2 KB, its plan a few numbers (sim/crowd.js registers its planner). The route
+// is planned again on load, the same.
+export const PLANNERS = {
+  way: (state, plan) => routeFrom(state.map.seed, plan.from, plan.to),     // (just a way from one place to another)
+};
+
+/** An agent's route: its own (ai.route), or the one its plan makes (runtime: ai.$route). */
+export const routeOf = (state, a) => a.ai.route ?? a.ai.$route ?? (a.ai.plan ? (a.ai.$route = PLANNERS[a.ai.plan.kind](state, a.ai.plan)) : null);
+
 /** A new agent actor at a place, with a look's owner (who) or a passer-by's seed. */
 export function makeAgent(state, { who = null, seed = null, row, x, z, speed = 1.35, f = 0, face = 'right' }) {
   const a = { id: `a${state.nextActor++}`, who, seed, row, x, z, vx: 0, vz: 0, face, head: headOf(face), gait: 'idle', stride: 0, stuck: 0,
@@ -123,7 +133,7 @@ export function stepAgent(state, a, scenario, bus) {
     if (--ai.wait === 0) endStop(state, a, scenario, bus);
     return;
   }
-  const route = ai.route;
+  const route = routeOf(state, a);
   const stop = route?.stops?.[ai.stop];
   if (stop && stop.s <= ai.s + 1e-6) { startStop(state, a, stop, scenario, bus); return; }
   if (!route || ai.s >= route.length - 1e-6) { a.vx = a.vz = 0; a.gait = ai.sit ? 'sit' : 'idle'; return; }
@@ -146,9 +156,9 @@ export function stepAgent(state, a, scenario, bus) {
   if (stop && ai.s >= stop.s - 1e-6) startStop(state, a, stop, scenario, bus);
 }
 
-/** Slow behind someone in the way, and lean aside from them, within the way's width. */
+/** Slow behind someone in the way (unless in a hurry: then squeeze past), and lean aside from them, within the way's width. */
 function yieldTo(state, a, v) {
-  const ai = a.ai, p = placeAt(ai.route, ai.s, ai.f), ux = p.ux, uz = p.uz;
+  const ai = a.ai, p = placeAt(routeOf(state, a), ai.s, ai.f), ux = p.ux, uz = p.uz;
   let ahead = null, lean = 0;
   for (const o of near(state, a.x, a.z, 1.6)) {
     if (o === a || o.hidden) continue;
@@ -157,6 +167,7 @@ function yieldTo(state, a, v) {
   }
   if (ahead) {
     ai.f = Math.max(-1, Math.min(1, ai.f + lean * LEAN));
+    if ((ai.pace ?? 1) > 1.2) return v * 0.85;                    // (in a hurry: squeezes past, as people do)
     const theirs = (ahead.vx * ux + ahead.vz * uz) || 0;
     return Math.max(0.35, Math.min(v, theirs > 0 ? theirs : v * 0.6));
   }

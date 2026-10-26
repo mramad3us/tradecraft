@@ -12,11 +12,12 @@
 //   - **Spotting them.** At the moments a person checks their back (a glance over the shoulder, E
 //     tapped; a shop window's glass; crossing the road; standing still a while; and, weakly, all the
 //     time) the player rolls Pathfinding against the Deception of each face in view (look()). A face
-//     noticed again, FACE_GAP_S later, both of you having moved on (FACE_GAP_M), or on another street,
-//     counts again: twice is familiar,
-//     three times (or twice on two different streets) is a tail. Passers-by are faces too: one may
-//     walk your way long enough to look like a tail. Whoever comes up a lane after you is noticed
-//     more easily.
+//     noticed again counts again if it's copied a move of ours it had no reason to copy (stood behind
+//     us, close, when we stood STOP_MOVE_S, at a window or anywhere; came over the road when we did;
+//     turned when we turned; not a lane, which people going places take too), or simply stayed with us (STAYED_S and
+//     STAYED_M on), and not from ahead of us: twice is familiar, three times is a tail.
+//     Passers-by are faces too, going places of their own: one may go your way long enough to look
+//     like a tail. Whoever comes up a lane after you is noticed more easily.
 //   - **Being followed.** The watchers keep KEEP metres back, on your pavement or the other, and go
 //     where you go (sim/nav.js), up lanes too. Out of all their sight for LOSE_S they've lost you.
 //     Take a lane none of them saw you take, and they never know where you went.
@@ -40,7 +41,7 @@ import { opposed, check } from '../checks.js';
 import { range, int, chance, pick, weighted, stream } from '../rng.js';
 import { LANES, Z, SECTION_M, section, placeName, streetName } from '../map/street.js';
 import { near, sectionAt } from '../world.js';
-import { follow, steer } from '../crowd.js';
+import { follow, steer, isPasserby } from '../crowd.js';
 import { lightBand } from '../light.js';
 import { eyes, sees, seesActor, inView, lightHere } from '../perception.js';
 import { act, coverHere, crossingAt, laneMid, say1 } from '../acts.js';
@@ -53,8 +54,9 @@ export const MEET_S = 20;
 export const LOSE_S = { overt: 40, covert: 30 };
 export const KEEP_M = { overt: [8, 13], covert: [17, 26] };
 export const HANDOVER_S = [70, 110];
-export const FACE_GAP_S = 30;
-export const FACE_GAP_M = 35;
+export const STOP_MOVE_S = 5;                                     // standing this long is a move a tail must copy
+export const STAYED_S = 90;                                        // or a face still behind us this long
+export const STAYED_M = 100;                                       // and this far on
 export const FLAG_HEAT = 3;
 export const TEAMS = [['none', 3], ['overt', 3.5], ['covert', 3.5]];
 export const HOURS = [{ id: 'afternoon', h: 15, m: 20, w: 1 }, { id: 'dusk', h: 16, m: 40, w: 2 }, { id: 'night', h: 19, m: 30, w: 1.5 }];
@@ -110,7 +112,7 @@ export const sdr = {
     state.scenario = {
       kind: 'sdr', hour: hour.id, team, crew, meet, phase: 'walk', asset: null, teamLost: team === 'none', teamSeenMs: state.time.ms, pending: [],
       nextHandover: state.time.ms + Math.round(range(r, ...HANDOVER_S)) * 1000, heading: { dir: 1, s: 0 },
-      faces: {}, suspects: {}, flags: [], flagged: {}, checks: 0, glances: 0, stillS: 0, onRoad: false, sinceMap: null, check: null,
+      faces: {}, suspects: {}, flags: [], flagged: {}, checks: 0, glances: 0, stillS: 0, onRoad: false, sinceMap: null, check: null, moves: 0, snap: null,
       prompt: null, outcome: null, rolls: 0, began: state.time.ms, met: false, burned: false,
     };
     say(state, null, { kind: 'note', text: `${me.name}. ${clockText(state.time.ms)}, out of the embassy on ${streetName(state.map.seed, 0)}. SOLOVEY: ${meet.place}, ${rowsText(meet.row)}, from ${clockText(meet.from)}.` });
@@ -266,7 +268,7 @@ export const rowsText = (row) => (row === 0 ? 'on this street' : `${Math.abs(row
 // some 200–500 m east.
 function placeMeeting(state, r) {
   const seed = state.map.seed, row = weighted(r, [[-1, 3], [-2, 2], [1, 1.5]]);
-  const pickIn = (S) => { const b = pick(r, S.props.filter(p => p.kind === 'bench')); return b && { row, i: S.i, x: b.seats[0], z: 12.96, seat: b.seats[0], seat2: b.seats[1] }; };
+  const pickIn = (S) => { const b = pick(r, S.props.filter(p => p.kind === 'bench')); return b && { row, i: S.i, x: b.seats[0], z: 12.96, seat: b.seats[0], seat2: b.seats.at(-1) }; };   // (the far end: room between)
   let found = null;
   for (let i = 4; i <= 11 && !found; i++) { const S = section(seed, i, row); if (S.band === 'park') found = pickIn(S); }
   for (let i = 5; i <= 11 && !found; i++) found = pickIn(section(seed, i, row));
@@ -365,7 +367,7 @@ function look(state, bus, why, bonus = 0) {
   const ours = skill(state.people[state.player], 'pathfinding'), reach = why === 'passive' ? 12 : 32;
   for (const a of near(state, me.x, me.z, reach)) {
     if (a === me || a.hidden || a.who === 'solovey' || !inView(state, a.id)) continue;
-    const d = Math.hypot(a.x - me.x, a.z - me.z), crowd = near(state, a.x, a.z, 3).filter(o => o !== a && o.ai?.kind === 'walker').length;
+    const d = Math.hypot(a.x - me.x, a.z - me.z), crowd = near(state, a.x, a.z, 3).filter(o => o !== a && isPasserby(o)).length;
     const light = lightBand(lightHere(state, a.x, a.z));
     const mods = [bonus && { why: { glance: 'a straight look', cross: 'crossing, looking both ways', window: 'in the glass', stop: 'stood, looking about', passive: 'not looking' }[why], v: bonus },
       d > 20 ? { why: 'far off', v: -3 } : d > 12 ? { why: 'a way off', v: -1 } : null, crowd >= 2 && { why: 'among people', v: -2 },
@@ -377,7 +379,21 @@ function look(state, bus, why, bonus = 0) {
   }
 }
 
-/** A face we noticed: counted again if it's been a while, or we've come a way, or it's another street. */
+// Which side of the road a z is on.
+const sideOf = (z) => (z < (Z.kerbN + Z.kerbS) / 2 ? 'n' : 's');
+
+/**
+ * At the start of a move of ours a tail would have to copy (a stop, a crossing, a doubling back),
+ * what everyone about was doing: so that afterwards, someone who copied it can be told from someone
+ * who was doing it already (sat on a bench, crossing anyway).
+ */
+function snapshot(state, kind) {
+  const sc = state.scenario, me = playerOf(state), faces = {};
+  for (const a of near(state, me.x, me.z, 45)) if (a !== me) faces[a.id] = { moving: Math.hypot(a.vx, a.vz) >= 0.5, side: sideOf(a.z), dir: Math.sign(a.vx), behind: (a.x - me.x) * sc.heading.dir < -2 };
+  sc.snap = { kind, side: sideOf(me.z), faces };
+}
+
+/** A face we noticed: counted again when it's followed us (it copied a move of ours, or stayed with us). */
 function sighting(state, bus, a, roll) {
   const sc = state.scenario, me = playerOf(state), key = String(a.who ?? a.seed);
   const p = a.who ? state.people[a.who] : null, look = p?.look ?? null;
@@ -389,20 +405,35 @@ function sighting(state, bus, a, roll) {
     const behind = (a.x - me.x) * sc.heading.dir < -3, along = Math.sign(a.vx) === sc.heading.dir && Math.abs(a.vx) > 0.4;
     if (behind && along && Math.hypot(a.x - me.x, a.z - me.z) < 28) sc.lead = { look: f.look, ms: state.time.ms };
   }
-  // (Evidence is the same face in another place, both of you having moved on: someone sat on a bench
-  // while you stood by it isn't following you.)
-  if (f.last && f.last.row === row && (state.time.ms - f.last.ms < FACE_GAP_S * 1000 || Math.abs(me.x - f.last.x) < FACE_GAP_M || Math.hypot(a.x - f.last.ax, a.z - f.last.az) < FACE_GAP_M * 0.7)) {
-    f.last.ms = state.time.ms; return;
-  }
-  f.n++; f.last = { row, x: me.x, ms: state.time.ms, ax: a.x, az: a.z };
+  // Evidence is following, not merely going the same way (the crowd goes places too, by the same
+  // lanes): a face counts again when it's copied a move of ours it had no reason to copy (moving when
+  // we stopped, and stood now; on the side we crossed from, and on ours now; going our old way when we
+  // turned, and our new way now: once a move, by snapshot()), or when it's simply
+  // stayed with us, STAYED_S and STAYED_M on from its last count. And not from ahead of us: going our
+  // way in front isn't following (stood still: ahead of the way we were going, so someone who walks
+  // past us as we stand has shown they aren't).
+  const sp = Math.hypot(me.vx, me.vz), ahead = sp > 0.5 ? ((a.x - me.x) * me.vx + (a.z - me.z) * me.vz) / sp > 3 : (a.x - me.x) * sc.heading.dir > 3;
+  const was = sc.snap?.faces[a.id], still = Math.hypot(a.vx, a.vz) < 0.5, sn = sc.snap, d = Math.hypot(a.x - me.x, a.z - me.z);
+  const behind = (a.x - me.x) * sc.heading.dir < -2 && sideOf(a.z) === sideOf(me.z);
+  const copied = f.last && was && sc.moves > f.last.moves && {
+    stop: was.moving && still && behind && d < 30,                 // (stood behind us when we stood: not anyone who happened to stop)
+    cross: was.behind && was.side === sn.side && sideOf(a.z) === sideOf(me.z) && sideOf(me.z) !== sn.side && d > 3 && d < 40,   // (after us, not beside us)
+    double: was.dir === -sc.heading.dir && (still || Math.sign(a.vx) === sc.heading.dir) && d < 40,
+  }[sn.kind];
+  const stayed = f.last && state.time.ms - f.last.ms >= STAYED_S * 1000 && (f.last.row !== row || Math.abs(me.x - f.last.x) >= STAYED_M);
+  if (f.last && (ahead || !(copied || stayed))) return;
+  if (!copied && f.n >= 2) return;                                // (time alone makes a face familiar; only a copied move makes a tail)
+  f.n++; f.last = { row, x: me.x, ms: state.time.ms, ax: a.x, az: a.z, moves: sc.moves };
   if (!f.rows.includes(row)) f.rows.push(row);
   f.places.push(place);
-  const sure = f.n >= 3 || (f.n >= 2 && f.rows.length >= 2);
+  // (Three times is a tail. Twice, even on two streets, could be someone going your way: the crowd
+  // goes places too, and by the same lanes.)
+  const sure = f.n >= 3;
   sc.suspects[a.id] = sure ? 2 : f.n >= 2 ? 1 : 0;
   if (f.n === 2 && !sure) say(state, bus, { kind: 'roll', roll, text: `${cap(f.look)} again: ${f.places[0] === place ? 'here before, and here still' : `on ${f.places[0]} before, and now here`}. Could be nothing.` });
   else if (sure && !f.sure) {
     f.sure = true;
-    say(state, bus, { kind: 'roll', roll, text: `${cap(f.look)}, ${f.rows.length >= 2 ? 'on two streets now' : 'three times now'}. That's not Moscow being a small town. That's a tail.` });
+    say(state, bus, { kind: 'roll', roll, text: `${cap(f.look)}, ${f.rows.length >= 2 ? 'three times now, and on two streets' : 'three times now'}. That's not Moscow being a small town. That's a tail.` });
   }
 }
 
@@ -455,7 +486,10 @@ function second(state, bus, me) {
   sc.stillS = still ? sc.stillS + 1 : 0;
   // Our heading along the street, and doubling back (a sharp reversal after a steady stretch).
   const vdir = Math.abs(me.vx) > 0.5 ? Math.sign(me.vx) : 0;
-  if (vdir && vdir !== sc.heading.dir) { if (sc.heading.s >= 8) flag(state, bus, 'doubled'); sc.heading = { dir: vdir, s: 0 }; }
+  if (vdir && vdir !== sc.heading.dir) { if (sc.heading.s >= 8) { flag(state, bus, 'doubled'); snapshot(state, 'double'); sc.moves++; } sc.heading = { dir: vdir, s: 0 }; }
+  sc.stopS = still || me.busy?.what === 'window' ? (sc.stopS ?? 0) + 1 : 0;   // (stood, or at a shop's window)
+  if (sc.stopS === 1) snapshot(state, 'stop');
+  if (sc.stopS === STOP_MOVE_S) sc.moves++;
   else if (vdir) sc.heading.s++;
   // The team.
   if (!sc.teamLost) {
@@ -469,7 +503,7 @@ function second(state, bus, me) {
   }
   // Our checks: crossing (looking both ways), a shop window's glass, standing a while; weakly, always.
   const onRoad = me.z > Z.kerbN + 0.3 && me.z < Z.kerbS - 0.3;
-  if (onRoad && !sc.onRoad) look(state, bus, 'cross', 1);
+  if (onRoad && !sc.onRoad) { snapshot(state, 'cross'); sc.moves++; look(state, bus, 'cross', 1); }
   sc.onRoad = onRoad;
   if (me.busy?.what === 'window' && me.busy.steps[0]?.[0] === 'wait' && !me.busy.looked) { me.busy.looked = true; look(state, bus, 'window', 0); }
   else if (sc.stillS >= 3 && sc.stillS % 6 === 3) look(state, bus, 'stop', -1);
@@ -561,7 +595,7 @@ function end(state, bus, outcome, text) {
 
 // ---------- the instinct ----------
 
-const LESSONS = ['Check without looking like you\'re checking: shop glass, a crossing, a reason to turn round.', 'Same face twice is a coincidence. Three times, or on two streets, is a tail.',
+const LESSONS = ['Check without looking like you\'re checking: shop glass, a crossing, a reason to turn round.', 'Same face twice is a coincidence. Three times, through your turns and stops, is a tail.',
   'If they\'re on you, don\'t take them to him. A boring walk home is a win.', 'Lose them where they can\'t see you do it: a lane they didn\'t see you take.',
   'They write down what a professional would do. So don\'t do it where they can see.', 'Nobody behind you is also an answer. Don\'t invent a tail.'];
 
@@ -587,8 +621,8 @@ function instinct(state, me, still) {
   }
   if (sure) return L('sure', 'warn', [`You've a tail. Don't take them to him: {instinct} call it off, or lose them first where they can't see you do it.`, 'They\'re on you. A lane they don\'t see you take, or home. {instinct} call it off.'], 'abort');
   if (sc.sinceMap && now - sc.sinceMap < 20000) {
-    if (still) return L('lane-watch', 'note', 'Good. Watch the mouth of the lane: whoever comes out after you came for you.');
-    return L('lane-out', 'note', 'Out of the lane. Stop somewhere natural and watch the mouth of it: whoever comes out after you came for you.');
+    if (still) return L('lane-watch', 'note', ['Good. Watch the mouth of the lane. Whoever comes out after you may be going your way, or may be coming for you: the second kind stops when you do.', 'Watch the lane\'s mouth. People come through lanes all day; the one who comes for you looks for you when they come out.']);
+    return L('lane-out', 'note', 'Out of the lane. Stop somewhere natural and watch the mouth of it: whoever comes out after you, see what they do when you don\'t move.');
   }
   if (familiar.length) return L('familiar', 'note', `${cap(familiar[0].look)}: seen before. Could be nothing. Check again in a while, somewhere else.`);
   if (sc.lead && now - sc.lead.ms < 12000) return L(`lead-${sc.lead.ms}`, 'note', [`Behind you, going your way: ${sc.lead.look}. You'll know that face again.`, `${cap(sc.lead.look)}, a way back, walking your way. Probably nothing. Remember the face.`]);

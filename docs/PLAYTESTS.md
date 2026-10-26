@@ -2,7 +2,19 @@
 
 What was played, how, what turned up and what was done about it: a dated log, newest first. Claude plays as the player while the user's away (scripted followers driving the real game in headless Chrome, and the sim at speed for the numbers); the user's own scores and notes go here too when they come.
 
-How to play a test the same way: `node tests/run.mjs tail` (the bots, `tests/bots.mjs`; `TAIL_N=100` for 100 evenings), or in the browser, the dev server and `window.__tradecraft` (`?play=tail&seed=7`).
+How to play a test the same way: `node tests/run.mjs tail` (the game's own follower, autoplay; `TAIL_N=100` for 100 evenings a cell of the skill grid), `node tests/run.mjs sdr` (the being-tailed bots, `tests/bots.mjs`), or in the browser, the dev server and `window.__tradecraft` (`?play=tail&seed=7`, `&autoplay` to watch the game play it).
+
+## 2026-10-26, v0.0.30–v0.0.31: the background game, the follower, the living crowd
+
+**Played:** the game's own follower after a careful man across ten streets and more, 960 chases (by day, dusk and night, 10 to 30 m back, half on seeds it was never tuned on); the tail skill against skill, 30 evenings a cell, follower bases 5–20 against watcher bases 5–20 (the user's ask); being tailed, 30 evenings a bot, before and after the crowd went places; a dozen evenings in the browser with pictures.
+
+**Found and fixed (the follower):** it stood still while he walked off (its trail cut at a whole stretch); went back up a lane it had just come down (a guess kept after he was seen again); gave up on a man in a shop after 8 s (now it waits on the door, or watches the shopfronts from the pavement); hung back a lamp's reach at night, then lost him in the dark between lamps (now it keeps back by the sky's light); dithered at a zebra (now it walks out a way back on to its trail); overtook him on a stale plan through a seam, then was placed on the wrong street; closed in on his face when he came its way (now it walks on ahead of him); stared at him through his checks (now it looks away); crawled behind strollers in a busy alley (now it squeezes past when it's hurrying).
+
+**Found and fixed (the world):** passers-by vanished in the middle of the street (the user, on Windows); seated people sat beside their seats; a corner of a longer bench clipped a way.
+
+**Found and fixed (being tailed):** a crowd that goes places by the same lanes made every third civilian "a tail"; now only following counts (a copied move), and time alone makes a face familiar, never a tail.
+
+**Open:** at equal skill the watcher wins three tails in four (DESIGN: Balancing objectives); a covert team shows itself only to a player who tests it with moves.
 
 ## 2026-10-26, v0.0.24: being tailed
 

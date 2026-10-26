@@ -11,7 +11,8 @@
 //     ('exit');
 //   - 'cross': at a zebra's kerb, a look both ways (wide);
 //   - 'turn': at a lane's mouth, before he turns into it, a look back along the street;
-//   - 'pause': he stops, on his phone: no look, but a test of nerve for whoever stops with him.
+//   - 'pause': he stops, on his phone: no look, but a test of nerve for whoever stops with him;
+//   - 'sit': on the boulevard's path, a while on a bench (civilians: a check is no habit of theirs).
 // All but the pause are checks (stop.check: a follower looks away). How often, by style (STYLES): a
 // calm man, a wary one. A detour only where its way is clear (checked
 // against the street: clearAt), so a route with habits is as walkable as without.
@@ -24,11 +25,14 @@ const TPS = 1000 / TICK_MS;
 // (A long walk crosses a dozen roads and turns a dozen corners: a check at every one would be one
 // every half-minute, so they're a chance each. Calm, some 14 checks on a walk across ten streets;
 // wary, some 23.)
+// A civilian (a passer-by: sim/crowd.js) checks nothing: now and then a shop window, a bench, a call.
 export const STYLES = {
-  calm: { lookEvery: [55, 100], window: 0.3, shop: 0.12, pause: 0.12, cross: 0.35, turn: 0.45, tell: [1.6, 2.6] },
-  wary: { lookEvery: [35, 65], window: 0.4, shop: 0.15, pause: 0.12, cross: 0.6, turn: 0.75, tell: [1.0, 1.8] },
-  none: { lookEvery: [1e9, 1e9], window: 0, shop: 0, pause: 0, cross: 0, turn: 0, tell: [1, 1] },
+  calm: { lookEvery: [55, 100], looks: true, window: 0.3, shop: 0.12, pause: 0.12, cross: 0.35, turn: 0.45, sit: 0, checks: true, tell: [1.6, 2.6] },
+  wary: { lookEvery: [35, 65], looks: true, window: 0.4, shop: 0.15, pause: 0.12, cross: 0.6, turn: 0.75, sit: 0, checks: true, tell: [1.0, 1.8] },
+  civil: { lookEvery: [70, 160], looks: false, window: 0.15, shop: 0, pause: 0.25, cross: 0, turn: 0, sit: 0.3, checks: false, tell: [1, 1] },
+  none: { lookEvery: [1e9, 1e9], looks: true, window: 0, shop: 0, pause: 0, cross: 0, turn: 0, sit: 0, checks: true, tell: [1, 1] },
 };
+export const SEAT_Z = 12.96;                                       // a sitter stands here, before the bench (the renderer seats them)
 const LINES = new Set(['F', 'N', 'P', 'S']);
 const ticks = (r, a, b) => Math.round(range(r, a, b) * TPS);
 
@@ -36,7 +40,7 @@ const ticks = (r, a, b) => Math.round(range(r, a, b) * TPS);
 const backOf = (ux, uz) => (Math.abs(ux) >= Math.abs(uz) ? (ux > 0 ? 'left' : 'right') : (uz > 0 ? 'up' : 'down'));
 
 /** A clear straight way between two points on a row (a detour's spur). */
-function spur(seed, row, x0, z0, x1, z1) {
+export function spur(seed, row, x0, z0, x1, z1) {
   const d = Math.hypot(x1 - x0, z1 - z0);
   for (let t = 0; t <= d; t += 0.1) if (!clearAt(seed, row, x0 + (x1 - x0) * t / d, z0 + (z1 - z0) * t / d)) return false;
   return true;
@@ -79,6 +83,12 @@ export function withHabits(seed, route, r, style = 'calm') {
           events.push({ t: (door.x - a.x) * ux, kind: c < H.window ? 'window' : 'shop', door });
         }
       }
+      if (a.way === 'P' && Math.abs(uz) < 0.1 && len > 6 && H.sit && chance(r, H.sit)) {   // a bench on the boulevard's path
+        const lo = Math.min(a.x, b.x) + 2, hi = Math.max(a.x, b.x) - 2;
+        const seats = [...new Set([Math.floor(lo / SECTION_M), Math.floor(hi / SECTION_M)])].flatMap(i => sectionOf(seed, a.row, i).props)
+          .filter(q => q.kind === 'bench').flatMap(q => q.seats).filter(x => x > lo && x < hi);
+        if (seats.length) { const sx = seats[Math.floor(range(r, 0, seats.length))]; events.push({ t: (sx - a.x) * ux, kind: 'sit' }); }
+      }
       events.sort((p, q) => p.t - q.t);
       for (const ev of events) {
         const x = a.x + ux * ev.t, z = a.z + uz * ev.t;
@@ -105,14 +115,22 @@ export function withHabits(seed, route, r, style = 'calm') {
           }
           continue;
         }
+        if (ev.kind === 'sit') {
+          if (spur(seed, a.row, x, z, x, SEAT_Z)) {
+            const g = push({ row: a.row, x, z: SEAT_Z, w: 0, way: 'attach' });
+            marks.push([g, { kind: 'sit', ticks: ticks(r, 20, 120), face: 'down', gait: 'sit' }]);
+            push({ row: a.row, x, z, w: a.w, way: a.way });
+          }
+          continue;
+        }
         if (range(r, 0, 1) < H.pause) marks.push([i, { kind: 'pause', ticks: ticks(r, 4, 7), face: 'down' }]);
-        else marks.push([i, { kind: 'look', check: true, ticks: ticks(r, 2, 3.5), face: backOf(ux, uz), slowM: range(r, ...H.tell) }]);
+        else if (H.looks) marks.push([i, { kind: 'look', check: true, ticks: ticks(r, 2, 3.5), face: backOf(ux, uz), slowM: range(r, ...H.tell) }]);
       }
     }
     push({ ...b });
   }
   const done = finish(out);
-  done.stops = marks.map(([i, st]) => ({ ...st, s: done.cum[i] })).sort((p, q) => p.s - q.s);
+  done.stops = marks.map(([i, st]) => ({ ...st, s: done.cum[i], check: H.checks && st.check ? true : undefined })).sort((p, q) => p.s - q.s);
   return done;
 }
 

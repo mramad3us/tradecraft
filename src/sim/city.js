@@ -269,7 +269,8 @@ export function placeAt(route, s, f = 0) {
   const off = (k) => {
     const A = pts[k - 1], B = pts[k], dx = B.x - A.x, dz = B.z - A.z, d = Math.hypot(dx, dz);
     if (d < 1e-9) return [0, 0];
-    const w = (A.w ?? 0) * f;
+    // (no wider than its narrower end: a step off a line to a seat or a door ends on it, not beside it)
+    const w = Math.min(A.w ?? 0, B.w ?? A.w ?? 0) * f;
     return [-dz / d * w, dx / d * w];
   };
   let [ox, oz] = off(j);
@@ -283,6 +284,7 @@ export function placeAt(route, s, f = 0) {
 
 /** The nearest walkable way onto a line from a place anywhere walkable: a short search on a grid. */
 export const JOIN_CELL = 0.25;
+const JOIN_R = 0.27;                                               // a walker's radius, and 2 cm to spare
 export function joinLine(seed, row, x, z, maxM = 14) {
   // Already on a line's band?
   for (const [line, lz] of Object.entries(LINE)) if (Math.abs(z - lz) <= HALF[line] && lineOf(seed, row, x, z) === line) return [{ row, x, z, w: 0 }, { row, x, z: lz, w: 0 }];
@@ -305,8 +307,8 @@ export function joinLine(seed, row, x, z, maxM = 14) {
     for (const [di, dk] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
       const n = [i + di, k + dk], nk = key(...n);
       if (prev.has(nk) || Math.hypot(n[0] * JOIN_CELL - x, n[1] * JOIN_CELL - z) > maxM) continue;
-      // (the step itself clear, not only its ends: a step past a corner can clip it)
-      if (!clearAt(seed, row, n[0] * JOIN_CELL, n[1] * JOIN_CELL) || !clearAt(seed, row, (i + di / 2) * JOIN_CELL, (k + dk / 2) * JOIN_CELL)) continue;
+      // (the step itself clear all along it, with a little to spare: a step past a corner can clip it)
+      if (!clearAt(seed, row, n[0] * JOIN_CELL, n[1] * JOIN_CELL) || !straight(seed, { row, x: cx, z: cz }, { row, x: n[0] * JOIN_CELL, z: n[1] * JOIN_CELL }, JOIN_R)) continue;
       prev.set(nk, [i, k]);
       queue.push(n);
     }
@@ -323,9 +325,10 @@ function simplify(seed, path) {
   out.push(path[path.length - 1]);
   return out;
 }
-function straight(seed, a, b) {
+function straight(seed, a, b, r = JOIN_R) {
   const d = Math.hypot(b.x - a.x, b.z - a.z);
-  for (let t = 0; t <= d; t += 0.1) if (!clearAt(seed, a.row, a.x + (b.x - a.x) * t / d, a.z + (b.z - a.z) * t / d)) return false;
+  // (the margin along the way, not at its ends: a walker may stand closer than that already)
+  for (let t = 0; t <= d; t += 0.05) if (!clearAt(seed, a.row, a.x + (b.x - a.x) * t / d, a.z + (b.z - a.z) * t / d, t < 0.1 || d - t < 0.1 ? 0.25 : r)) return false;
   return true;
 }
 

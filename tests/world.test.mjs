@@ -4,6 +4,8 @@ import { section, SECTION_M, LANES, Z } from '../src/sim/map/street.js';
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
 import { toJSON, fromJSON } from '../src/sim/state.js';
 import { blocked } from '../src/sim/world.js';
+import { isPasserby } from '../src/sim/crowd.js';
+import { onMap } from '../src/sim/agents.js';
 import { createBus } from '../src/sim/bus.js';
 import { stream, range } from '../src/sim/rng.js';
 import { assert, fmt } from './helpers.mjs';
@@ -113,7 +115,7 @@ export default [
       // Over four game minutes, people go off north and south, and come in from there.
       let north = 0, south = 0;
       const seenAt = new Map();
-      for (let t = 0; t < 20 * 240; t++) { step(g, {}, bus); for (const a of g.actors) if (a.ai?.kind === 'walker') { if (a.z < Z.north + 1) north++; if (a.z > Z.edge - 1) south++; seenAt.set(a.id, a); } }
+      for (let t = 0; t < 20 * 240; t++) { step(g, {}, bus); for (const a of g.actors) if (isPasserby(a) && onMap(g, a)) { if (a.z < Z.north + 1) north++; if (a.z > Z.edge - 1) south++; seenAt.set(a.id, a); } }
       console.log(`      people in the lanes' far ends over 4 min: ${north} ticks north, ${south} south`);
       assert(north > 0 && south > 0, 'the crowd uses the ways north and south');
     },
@@ -131,7 +133,7 @@ export default [
       for (let t = 0; t < 20 * 60 * 6; t++) {
         const me = playerActor(g);
         step(g, t < 20 * 150 ? { mx: 1, mz: 0 } : t < 20 * 300 ? { mx: -1, mz: 0 } : {}, bus);
-        const now = new Set(g.actors.map(a => a.id));
+        const now = new Set(g.actors.filter(a => onMap(g, a)).map(a => a.id));   // (gone in, or off to another street)
         for (const [id, [x, z, mx, mz]] of where) {
           if (now.has(id)) continue;
           left++;
@@ -139,7 +141,7 @@ export default [
           if (!door && !edge && Math.abs(x - mx) < 21 && Math.abs(z - mz) < 17) vanished++;
           where.delete(id);
         }
-        for (const a of g.actors) if (a.ai?.kind === 'walker') where.set(a.id, [a.x, a.z, me.x, me.z]);
+        for (const a of g.actors) if (isPasserby(a) && onMap(g, a)) where.set(a.id, [a.x, a.z, me.x, me.z]);
       }
       console.log(`      6 game minutes walking the street both ways (${fmt(playerActor(g).x, 0)} m from where we began): ${left} passers-by left, ${vanished} of them in the open on screen`);
       assert(vanished === 0, 'someone vanished in the middle of the street');
@@ -155,11 +157,11 @@ export default [
       let stuckMax = 0, gaveUp = 0, seen = 0;
       for (let t = 0; t < 20 * 60 * 4; t++) {                     // four game minutes
         step(g, {}, bus);
-        if (t % (20 * 30) === 0) counts.push(g.actors.length);
+        if (t % (20 * 30) === 0) counts.push(g.actors.filter(a => isPasserby(a) && onMap(g, a)).length);
         for (const a of g.actors) { stuckMax = Math.max(stuckMax, a.stuck); if (a.stuck > 2.9) gaveUp++; }
         seen = Math.max(seen, g.nextActor);
       }
-      console.log(`      people on the map every 30 s, 15:40–15:44: ${counts.join(', ')}; ${seen} came and went; longest stuck ${fmt(stuckMax, 2)} s, ${gaveUp} gave up a step`);
+      console.log(`      passers-by on the street every 30 s, 15:40–15:44: ${counts.join(', ')}; ${seen} came and went (the streets either side too); longest stuck ${fmt(stuckMax, 2)} s, ${gaveUp} gave up a step`);
       assert(gaveUp === 0, 'passers-by get stuck');
       assert(Math.min(...counts) >= 12 && Math.max(...counts) <= 45, 'the crowd holds');
       const me = playerActor(g);
