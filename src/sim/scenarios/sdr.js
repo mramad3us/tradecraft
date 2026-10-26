@@ -222,7 +222,7 @@ export const sdr = {
       title: sdr.name.toUpperCase(), text: sc.endText,
       lead: sc.met ? `${clockText(sc.ended)}: SOLOVEY handed over a folded newspaper. Inside, next month's procurement schedule for the Western Military District.` : null,
       notes: notes.filter(Boolean),
-      stats: `${Math.floor((sc.ended - sc.began) / 60000)} min ${Math.round((sc.ended - sc.began) / 1000) % 60} s · ${sc.checks} checks of your back, ${sc.glances} of them glances · ${shownRolls(state)} rolls (the log, J)`,
+      stats: `${Math.floor((sc.ended - sc.began) / 60000)} min ${Math.round((sc.ended - sc.began) / 1000) % 60} s · ${sc.checks} checks of your back, ${sc.glances} of them glances${shownRolls(state) ? ` · ${shownRolls(state)} rolls in the log (J)` : ''}`,
     };
   },
 };
