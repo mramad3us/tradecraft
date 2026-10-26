@@ -4,6 +4,19 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.24 (2026-10-26)
+
+- **Mechanic test 2: being tailed** (title, Mechanic tests). A surveillance detection run: SOLOVEY, a source in the Ministry of Defence, will be on a bench in a park a street or two away for eight minutes. Walk there, and find out first whether the FSB is behind you.
+  - **Some evenings nobody is.** Some, an overt pair, close and not caring if you see. Some, a covert team of three, well back, taking turns.
+  - **Check your back the way people do:** a shop window's glass, a crossing, standing a while, or a glance over your shoulder (E tapped). A face seen again somewhere else is marked "seen before"; three times, or on two streets, "tail".
+  - **They write down** what a professional does: running, glancing back where they can see, crossing away from the zebra, doubling back. It costs heat, and two together tell them what you are.
+  - **Losing them:** take a lane none of them saw you take, and they never know where you went. Watch the lane's mouth from the other end: whoever comes out after you came for you.
+  - **Then sit down with him (T), or call it off (T)** when the instinct says you're followed. A watcher's eyes on that bench and he's burned.
+  - **The result paper** tells you who was really there, what they wrote down, and the faces you'd marked.
+  - **Balance**, 60 evenings of scripted players: walking straight there burns him nearly every time a team is on you; checking your back calls it off rightly, though a covert team gets past a quarter of the time; shaking them up a lane works against a covert team about four times in ten.
+- **An arrow at the picture's edge** shows the way to where you're going, with the streets and metres.
+- **Getting about:** a helper (`sim/nav.js`) takes the watchers, and the scripted players, round railings and hedges and through the crossings and lanes. People in a hurry go round slow walkers.
+
 ## v0.0.23 (2026-10-26)
 
 - **What characters are aware of, shown:** a ? over him when he half-notices something, a ! when he's seen you, if you're watching him. Passers-by turn their heads to look at someone running past, or at you if you stare at them close up (E held, 1.5 s).

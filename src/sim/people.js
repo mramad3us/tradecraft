@@ -99,6 +99,25 @@ export function streetLook(r, sex, age = 40) {
   return look;
 }
 
+// Colours by name, for describing someone the way you'd remember them ("the woman in the beige coat").
+const COLOUR_NAMES = {
+  0x353947: 'charcoal', 0x4c5262: 'grey', 0x23252f: 'black', 0x47302a: 'brown', 0x6b4636: 'brown', 0x8f6345: 'tan', 0xd6ad7a: 'beige',
+  0x24503a: 'green', 0x283f6b: 'navy', 0x6e2a2e: 'maroon', 0x6a7182: 'grey', 0x2f6b62: 'teal', 0x4a2a52: 'plum', 0x9e3c36: 'red',
+  0xc95c45: 'rust', 0xe7b84a: 'yellow', 0x3b6296: 'blue', 0x5d8fc2: 'light blue', 0x7a4a86: 'purple', 0x356f42: 'green', 0xf6f4ee: 'white',
+  0x8f96a6: 'pale grey',
+};
+const TOPS = { coat: 'coat', suit: 'suit', sweater: 'jumper', tee: 'T-shirt', dress: 'dress', jacket: 'jacket' };
+
+/** How you'd remember someone by their look: "the man in the beige coat", "the woman in the red beanie". */
+export function describe(look, sex = 'm') {
+  const who = sex === 'f' ? 'woman' : 'man';
+  const top = look?.top ? `${COLOUR_NAMES[look.top.color] ?? 'dark'} ${TOPS[look.top.kind] ?? 'coat'}` : 'coat';
+  if (look?.hat && look.hat.kind !== 'fedora' && (look.hat.kind === 'beanie' ? (COLOUR_NAMES[look.hat.color] ?? '') !== (COLOUR_NAMES[look.top?.color] ?? '') : true)) {
+    return `the ${who} in the ${COLOUR_NAMES[look.hat.color] ?? 'dark'} ${look.hat.kind}`;
+  }
+  return `the ${who} in the ${top}`;
+}
+
 /** A passer-by, the same every time for a seed: a civilian sheet with a look. */
 export function passerby(seed) {
   const r = stream('passerby', seed);

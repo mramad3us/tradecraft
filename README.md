@@ -1,6 +1,6 @@
 # TRADECRAFT
 
-A spy game in the browser: a CIA officer in Moscow, pixel art, tradecraft over reflexes. The design is settled in [docs/DESIGN.md](docs/DESIGN.md); the game is being built toward its first playable (0.1.0), a mechanic at a time. Today it opens on the free walk (generated Moscow streets, their lanes and parks, their people, the light going with the clock) and the first mechanic test, tailing a target.
+A spy game in the browser: a CIA officer in Moscow, pixel art, tradecraft over reflexes. The design is settled in [docs/DESIGN.md](docs/DESIGN.md); the game is being built toward its first playable (0.1.0), a mechanic at a time. Today it opens on the free walk (generated Moscow streets, their lanes and parks, their people, the light going with the clock) and two mechanic tests: tailing a target, and being tailed on the way to a meeting.
 
 ## Play
 

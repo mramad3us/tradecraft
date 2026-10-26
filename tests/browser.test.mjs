@@ -67,6 +67,30 @@ export default [
     },
   },
   {
+    name: 'mechanic test 2 from the title: the brief, the way to the bench, the instinct, no errors',
+    heavy: true,
+    async fn() {
+      await withGame(async (page, errors) => {
+        await page.goto(`http://localhost:${PORT}/`);
+        await page.waitForFunction("!document.getElementById('title').hidden", null, { timeout: 30000 });
+        await page.getByText('2. Being tailed').click();
+        await page.waitForSelector('.sheet.brief', { timeout: 30000 });
+        await page.keyboard.press('Enter');
+        await page.waitForFunction('window.__ready === true', null, { timeout: 30000 });
+        await page.keyboard.down('KeyD');
+        await page.waitForTimeout(3000);
+        await page.keyboard.up('KeyD');
+        await page.keyboard.press('KeyE');                                   // a glance back
+        await page.waitForTimeout(1500);
+        const seen = await page.evaluate(() => ({ goal: document.querySelector('.goal').hidden ? null : document.querySelector('.goal').textContent,
+          prompt: document.querySelector('.prompt').hidden ? null : document.querySelector('.prompt').textContent, team: window.__tradecraft.state.scenario.team, glances: window.__tradecraft.state.scenario.glances }));
+        console.log(`      ${seen.team} evening; the way: ${seen.goal}; instinct: ${seen.prompt}; glances ${seen.glances}`);
+        assert(seen.goal && seen.prompt && seen.glances === 1, 'the way to the bench, the instinct, and a glance taken');
+        assert(errors.length === 0, errors.join('\n'));
+      });
+    },
+  },
+  {
     name: 'mechanic test 1 from the title: the brief, the marker, the instinct, no errors',
     heavy: true,
     async fn() {

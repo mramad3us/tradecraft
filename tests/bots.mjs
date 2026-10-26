@@ -63,3 +63,64 @@ export const trained = (g, me, t) => {
   if (p?.id === 'gaining') c.slow = true;
   return c;
 };
+
+// ---------- test 2, being tailed: players walking to a meeting ----------
+//   oblivious  straight there, sits down;
+//   checker    straight there, checking its back on the way (shop windows, a glance now and
+//              then), and calls it off when the instinct says it's followed;
+//   pro        a checker that, with a face marked, takes a lane where nobody it's marked can see
+//              it go, watches the lane's mouth from the other end, and only then goes on.
+import { waypoint } from '../src/sim/nav.js';
+import { Z } from '../src/sim/map/street.js';
+import { inView } from '../src/sim/perception.js';
+
+/** The way to (row, x, z) across the city: lanes north or south first, then the spot. */
+export function goTo(g, me, row, x, z) {
+  if (g.map.row !== row) {
+    const north = row < g.map.row;
+    const gaps = [...g.$world.sections.values()].flatMap(S => (north ? S.gapsN : S.gapsS))
+      .map(gp => ({ gp, c: (gp.x0 + gp.x1) / 2 })).filter(o => (o.c - me.x) * Math.sign(x - me.x || 1) > -6)
+      .sort((p, q) => Math.abs(p.c - me.x) - Math.abs(q.c - me.x));
+    const gp = gaps[0]?.gp;
+    if (!gp) return toward(me, me.x + Math.sign(x - me.x || 1) * 20, -2.6, 0.5);
+    const cx = Math.max(gp.x0 + 0.8, Math.min(gp.x1 - 0.8, (gp.x0 + gp.x1) / 2));
+    const [wx, wz] = waypoint(g, me, cx, north ? Z.north - 3 : Z.edge + 3);
+    return toward(me, wx, wz, 0.15);
+  }
+  const [wx, wz] = waypoint(g, me, x, z);
+  return toward(me, wx, wz, Math.hypot(wx - x, wz - z) < 0.01 ? 0.6 : 0.15);
+}
+
+const memo = new WeakMap();
+export const oblivious = (g, me) => {
+  const sc = g.scenario, m = sc.meet;
+  if (sc.prompt?.act === 'meet') return { act: ['instinct'] };
+  if (g.time.ms < m.from - 20000 && g.map.row === m.row && Math.abs(me.x - m.x) < 25) return {};   // (early: wait about)
+  return goTo(g, me, m.row, m.seat2, 13.5);
+};
+export const checker = (g, me) => {
+  const sc = g.scenario, m = sc.meet, p = sc.prompt;
+  const k = memo.get(me) ?? { glance: g.time.ms + 20000, window: 0 };
+  memo.set(me, k);
+  if (p?.act === 'abort') return { act: ['instinct'] };
+  if (p?.act === 'meet') return { act: ['instinct'] };
+  if (me.busy) return {};
+  if (p?.act === 'window' && g.time.ms > k.window) { k.window = g.time.ms + 45000; return { act: ['instinct'] }; }
+  if (g.time.ms > k.glance) { k.glance = g.time.ms + 25000; return { ...goTo(g, me, m.row, m.seat2, 13.5), act: ['glance'] }; }
+  if (g.time.ms < m.from - 20000 && g.map.row === m.row && Math.abs(me.x - m.x) < 25) return {};
+  return goTo(g, me, m.row, m.seat2, 13.5);
+};
+export const pro = (g, me) => {
+  const sc = g.scenario, m = sc.meet;
+  const k = memo.get(me) ?? { glance: g.time.ms + 20000, window: 0, shake: null, shook: 0 };
+  memo.set(me, k);
+  if (sc.sinceMap && g.time.ms - sc.sinceMap < 12000) return {};          // out of a lane: watch its mouth
+  if (k.shake !== null) {                                                    // shaking them: off up a lane
+    if (g.map.row !== k.shake) return goTo(g, me, k.shake, me.x + 8, -2.6);
+    k.shake = null;
+  }
+  const marked = Object.entries(sc.suspects ?? {}).filter(([, v]) => v >= 1).map(([id]) => g.actors.find(a => a.id === id)).filter(Boolean);
+  const watched = marked.some(a => inView(g, a.id) && Math.hypot(a.x - me.x, a.z - me.z) < 30);
+  if (marked.length && !watched && k.shook < 2 && !me.busy && sc.prompt?.act !== 'meet') { k.shook++; k.shake = g.map.row - 1; return goTo(g, me, k.shake, me.x + 8, -2.6); }
+  return checker(g, me);
+};

@@ -27,8 +27,10 @@ export function createUI({ input, cb }) {
   const banner = el('div', { className: 'banner', textContent: 'PAUSED' });
   const marker = el('div', { className: 'marker', hidden: true });
   const bubble = el('div', { className: 'bubble', hidden: true });   // what a character's just become aware of: ? or !
+  const tags = el('div', { className: 'tags' });                   // faces you've marked: seen before, a tail
+  const goal = el('div', { className: 'goal', hidden: true });      // where you're going, when it's off the picture
   const prompt = el('div', { className: 'prompt', hidden: true });
-  const hud = el('div', { id: 'hud' }, marker, bubble, prompt, watch, toasts, keys, banner);
+  const hud = el('div', { id: 'hud' }, tags, marker, bubble, goal, prompt, watch, toasts, keys, banner);
   const menu = el('div', { className: 'overlay', hidden: true });
   const log = el('div', { className: 'overlay', hidden: true });
   const paper = el('div', { className: 'overlay', hidden: true });     // a brief, a result
@@ -61,7 +63,7 @@ export function createUI({ input, cb }) {
       el('h3', { className: 'section', textContent: 'Mechanic tests' }),
       el('p', { className: 'note', textContent: 'One mechanic each, to play and score before they\'re joined into the game.' }),
       ...Object.entries(SCENARIOS).filter(([, s]) => s.test).map(([key, s]) => el('button', { className: 'item', onclick: () => cb.newGame(key) }, s.name, el('small', { textContent: s.about }))),
-      el('button', { className: 'item', disabled: true }, '2. Being tailed', el('small', { textContent: 'Next: spot the tail, lose it, on a street and in the metro.' })),
+      el('button', { className: 'item', disabled: true }, '3. Watching and photographing', el('small', { textContent: 'Next: watch someone without being caught at it, and catch a meeting on film.' })),
       el('hr'),
       el('button', { className: 'item', onclick: () => cb.importSave() }, 'Load a save file…', el('small', { textContent: 'A .json save exported from the menu.' })),
       el('hr'),
@@ -94,6 +96,33 @@ export function createUI({ input, cb }) {
       marker.classList.toggle('off', off);
       marker.style.transform = `translate(${Math.round(cx * k)}px, ${Math.round(cy * k)}px) rotate(${off ? Math.atan2(sy - cy, sx - cx) * 180 / Math.PI - 90 : 0}deg)`;
       marker.style.setProperty('--k', k);
+    }
+    // Faces you've marked (a scenario's suspects: { actor id: 1 seen before, 2 a tail }), over them as drawn.
+    const k0 = frame.clientWidth / RES[0], cam0 = view?.camera;
+    const sus = !sc.outcome && sc.suspects ? Object.entries(sc.suspects).filter(([, v]) => v >= 1) : [];
+    while (tags.children.length < sus.length) tags.append(el('div', { className: 'tag' }));
+    [...tags.children].forEach((t, i) => {
+      const at = sus[i] && view?.posOf(sus[i][0]);
+      t.hidden = !at;
+      if (!at) return;
+      t.textContent = sus[i][1] >= 2 ? 'tail' : 'seen before';
+      t.classList.toggle('sure', sus[i][1] >= 2);
+      t.style.transform = `translate(${Math.round((RES[0] / 2 + (at[0] - cam0.x) * 16) * k0)}px, ${Math.round((RES[1] / 2 + (at[1] - cam0.z) * 16 - 2.6 * 16) * k0)}px)`;
+    });
+    // Where you're going (a scenario's goal(): { row, x, z, label }), at the picture's edge when it's off it.
+    const gl = !sc.outcome && SCENARIOS[sc.kind]?.goal?.(state);
+    goal.hidden = !gl;
+    if (gl && cam0) {
+      let gx = RES[0] / 2 + (gl.x - cam0.x) * 16, gy = RES[1] / 2 + (gl.z - cam0.z) * 16;
+      const other = gl.row !== (state.map.row ?? 0);
+      if (other) gy = gl.row < state.map.row ? -1e3 : 1e3;
+      const on = !other && gx > 20 && gx < RES[0] - 20 && gy > 20 && gy < RES[1] - 20;
+      goal.hidden = on;
+      // (clear of the watch at the top right and the instinct's line at the foot)
+      const cy = Math.max(26, Math.min(RES[1] - 80, gy)), cx = Math.max(14, Math.min(cy < 70 ? RES[0] - 150 : RES[0] - 14, gx));
+      goal.textContent = `${gl.label} ${gy < 26 ? '↑' : gy > RES[1] - 80 ? '↓' : gx < 14 ? '←' : '→'}`;
+      goal.style.transform = `translate(${Math.round(cx * k0)}px, ${Math.round(cy * k0)}px)`;
+      goal.classList.toggle('left', cx < RES[0] / 2);
     }
     // A mark over a character who's just noticed something, while it lasts and they're in view.
     const mk2 = sc.mark && sc.mark.until > state.time.ms && !sc.outcome && view?.posOf(sc.mark.id);
@@ -189,7 +218,24 @@ export function createUI({ input, cb }) {
   function showResult(state, { again, same, title }) {
     const sc = state.scenario, secs = Math.round((sc.ended - sc.began) / 1000);
     const go = (fn) => () => { paper.hidden = true; paper.dataset.kind = ''; fn(); };
-    paper.replaceChildren(el('div', { className: 'sheet result' },
+    const ways = [
+      el('hr'),
+      el('p', { className: 'note', textContent: 'How did it play? A score out of 100, and what felt off, in the chat: that\'s what this test is for.' }),
+      el('button', { className: 'item', onclick: go(again) }, 'Again, another evening', el('small', { textContent: 'A new street, a new evening, new dice.' })),
+      el('button', { className: 'item', onclick: go(same) }, 'Again, the same evening', el('small', { textContent: 'The same streets and the same people; the dice fall as you play.' })),
+      el('button', { className: 'item', onclick: go(title) }, 'Back to the title'),
+    ];
+    const own = SCENARIOS[sc.kind].result?.(state);
+    if (own) {                                                     // a scenario that writes its own paper
+      paper.replaceChildren(el('div', { className: 'sheet result' },
+        el('span', { className: `stamp ${own.good ? 'good' : ''}`, textContent: own.stamp }),
+        el('h2', { textContent: own.title }), el('hr'),
+        el('p', { textContent: own.text }),
+        own.lead ? el('p', { className: 'lead', textContent: `Lead. ${own.lead}` }) : null,
+        ...own.notes.map(t => el('p', { className: 'truth', textContent: t })),
+        el('p', { className: 'note', textContent: own.stats }),
+        ...ways));
+    } else paper.replaceChildren(el('div', { className: 'sheet result' },
       el('span', { className: `stamp ${sc.outcome === 'seen' ? 'good' : ''}`, textContent: OUTCOMES[sc.outcome] ?? sc.outcome }),
       el('h2', { textContent: SCENARIOS[sc.kind].name.toUpperCase() }), el('hr'),
       el('p', { textContent: sc.endText }),
@@ -197,11 +243,7 @@ export function createUI({ input, cb }) {
       ...unseenOf(state),
       el('p', { className: 'note', textContent: `${Math.floor(secs / 60)} min ${secs % 60} s on his tail · seen ${sc.sightings.length} time${sc.sightings.length === 1 ? '' : 's'} · closest ${sc.closest < 1e8 ? sc.closest.toFixed(1) : '?'} m`
         + `${sc.warned !== undefined ? ` · his checks read in time: ${sc.warned}` : ''}${sc.mixups ? ` · followed the wrong man ${sc.mixups} time${sc.mixups === 1 ? '' : 's'}` : ''} · ${sc.rolls} rolls (the ones that mattered are in the log, ${input.label('log')})` }),
-      el('hr'),
-      el('p', { className: 'note', textContent: 'How did it play? A score out of 100, and what felt off, in the chat: that\'s what this test is for.' }),
-      el('button', { className: 'item', onclick: go(again) }, 'Again, another evening', el('small', { textContent: 'A new street, a new route, new dice.' })),
-      el('button', { className: 'item', onclick: go(same) }, 'Again, the same evening', el('small', { textContent: 'The same street and route; the dice fall as you play.' })),
-      el('button', { className: 'item', onclick: go(title) }, 'Back to the title'),
+      ...ways,
     ));
     paper.hidden = false;
     paper.dataset.kind = 'result';

@@ -198,10 +198,11 @@ const TPS = 1000 / TICK_MS;
 const facingOf = (h) => { const c = Math.cos(h), s = Math.sin(h); return Math.abs(c) >= Math.abs(s) ? (c > 0 ? 'right' : 'left') : (s > 0 ? 'down' : 'up'); };
 
 /**
- * Head for (tx, tz) at `speed`: slow behind someone in the way, lean away from anyone too close,
- * step aside (to the right, as people do) for someone coming the other way, keep to the lane.
+ * Head for (tx, tz) at `speed`: slow behind someone in the way (unless `push`: someone in a hurry
+ * goes round), lean away from anyone too close, step aside (to the right, as people do) for someone
+ * coming the other way, keep to the lane.
  */
-export function steer(state, a, tx, tz, speed) {
+export function steer(state, a, tx, tz, speed, push = false) {
   const dx = tx - a.x, dz = tz - a.z, d = Math.hypot(dx, dz) || 0.01;
   let ux = dx / d, uz = dz / d;
   let px = 0, pz = 0;
@@ -209,7 +210,10 @@ export function steer(state, a, tx, tz, speed) {
     if (o === a || o.hidden) continue;
     const ox = o.x - a.x, oz = o.z - a.z, od = Math.hypot(ox, oz) || 0.01;
     const ahead = (ox * ux + oz * uz) / od;
-    if (ahead > 0.7 && od < 1.0) speed = Math.min(speed, Math.max(0.3, (o.vx * ux + o.vz * uz) || 0.5));
+    if (ahead > 0.7 && od < 1.0) {
+      if (push) { px += -uz * 0.9; pz += ux * 0.9; }                // round them, on the left
+      else speed = Math.min(speed, Math.max(0.3, (o.vx * ux + o.vz * uz) || 0.5));
+    }
     if (od < SPACE_M) { const k = (SPACE_M - od) / SPACE_M; px -= ox / od * k; pz -= oz / od * k; }
     if (ahead > 0.85 && od < 1.4 && (o.vx * ux + o.vz * uz) < 0) { px += -uz * 0.6; pz += ux * 0.6; }
   }

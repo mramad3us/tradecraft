@@ -5,10 +5,13 @@
 // setup() fills a new state (the time, the legend, the player, the map, its people); attach() runs
 // when a state is started, new or loaded; tick() is its rules, step 5 of the tick (sim/game.js);
 // think() moves its own characters (step 4); act() takes the player's actions (T); anchors() are
-// the x positions the map must keep in play besides the player's (a target walking ahead). `test`
+// the x positions the map must keep in play besides the player's (a target walking ahead); carry()
+// and mapChanged() are told when the player goes off the map to the next street (sim/game.js
+// changeMap): whom to take along, and what to do on arrival; result() fills its result paper. `test`
 // lists it among the mechanic tests; `brief` is the paper shown before it starts. When it ends it
 // sets state.scenario.outcome and tells the bus ('scenario-end').
 import { walk } from './walk.js';
 import { tail } from './tail.js';
+import { sdr } from './sdr.js';
 
-export const SCENARIOS = { walk, tail };
+export const SCENARIOS = { walk, tail, sdr };

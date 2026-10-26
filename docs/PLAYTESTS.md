@@ -4,6 +4,23 @@ What was played, how, what turned up and what was done about it: a dated log, ne
 
 How to play a test the same way: `node tests/run.mjs tail` (the bots, `tests/bots.mjs`; `TAIL_N=100` for 100 evenings), or in the browser, the dev server and `window.__tradecraft` (`?play=tail&seed=7`).
 
+## 2026-10-26, v0.0.24: being tailed
+
+**Played:** about 200 evenings at speed with three scripted players (oblivious, checker, pro), and a handful in the browser (an overt pair called off; a covert team that went unnoticed and burned him on the bench).
+
+**Found and fixed:**
+- The watchers started too far back and lost a walker in the first minute at night: they now start just off screen, keep closer in the dark, close in when they've lost sight, and keep their eyes on you whichever way they walk.
+- They queued politely behind every slow walker and fell 40 m back. In a hurry, they now go round.
+- Standing by the bench, you "recognised" the same sitters again and again: five false tails a run. A face now counts again only when both of you have moved on.
+- The scripted players stalled at a waypoint they were told to reach within 0.4 m but stopped within 0.6 m, and walked the south walk into lamp posts. Waypoints now come along each zone's walking line.
+- Pressing T while sitting with SOLOVEY sat you down again, and again.
+
+**Still rough:**
+- A covert team is hard to spot (on purpose), and there's little to go on until a face comes round twice. The instinct could say more when a check finds nothing, or something faint.
+- No metro, cabs or trains yet: the lanes are the only way to lose them.
+- SOLOVEY pops onto his bench if you're already looking at it when he's due.
+- The watchers walk through the boulevard's lawns where the railings let them, and cross the road anywhere; they don't care about being seen, which is right for the overt pair and wrong for the covert team.
+
 ## 2026-10-26, v0.0.21 to v0.0.23: perception, the tail rebuilt, the four sides
 
 **Played:** the free walk by day, at dusk and at night; up side streets and alleys to the streets north and back; through parks and across the boulevard's far road; the tail on every kind of evening (dusk, night, the lunchtime crowd, wary), with naive, careful and trained followers, about 400 evenings at speed and a dozen in the browser with pictures.
