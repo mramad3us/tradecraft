@@ -191,7 +191,13 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .charsheet .body li small { flex-basis: 100%; color: var(--red); font-size: 11px; text-align: right; }
 
 /* F: a key over whoever's within reach; the menu over them (numbers or a click; greyed with why). */
-.reach { position: absolute; left: 0; top: 0; transform-origin: 0 0; translate: -50% -100%; pointer-events: none; opacity: 0.85; }
+/* (a keycap of paper, outlined in ink with a hard shadow under it, and a point down to whoever it's over: it reads on any ground) */
+.reach { position: absolute; left: 0; top: 0; transform-origin: 0 0; translate: -50% calc(-100% - 8px); pointer-events: none; }
+.reach kbd { display: block; min-width: 1.1em; text-align: center; font: bold 13px/1 var(--mono); color: var(--ink); background: var(--paper);
+  border: 2px solid var(--ink); border-radius: 3px; padding: 3px 5px 2px; box-shadow: inset 0 -2px 0 var(--paper-2), 0 2px 0 var(--ink), 0 3px 0 rgba(0, 0, 0, 0.35); }
+.reach::before, .reach::after { content: ''; position: absolute; left: 50%; translate: -50% 0; border: solid transparent; border-bottom: 0; }
+.reach::before { bottom: -8px; border-width: 8px 6px 0; border-top-color: var(--ink); }
+.reach::after { bottom: -4px; border-width: 5px 3.5px 0; border-top-color: var(--paper); }
 .reach[hidden] { display: none; }
 .ask { position: absolute; left: 0; top: 0; transform-origin: 0 0; translate: 0 -50%; min-width: 190px; background: var(--paper); color: var(--ink); font-family: var(--type);
   border: 1px solid var(--ink); border-radius: 2px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); padding: 6px 0 4px; pointer-events: auto; }

@@ -793,8 +793,8 @@ export function spritePerson(spec) {
   const pose = (state = 'idle', t = 0) => {
     const a = ((turn.rotation.y % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
     const dir = a < Math.PI / 4 || a >= 7 * Math.PI / 4 ? 'down' : a < 3 * Math.PI / 4 ? 'right' : a < 5 * Math.PI / 4 ? 'up' : 'left';
-    const f = Math.floor(t * FPS);
-    const name = state === 'walk' ? `walk${f % 4}` : state === 'run' ? `run${f % 4}` : state === 'sit' ? 'sit' : `idle${Math.floor(t * 2) % 2}`;
+    const f = Math.floor(t * FPS), mod = (n, k) => ((n % k) + k) % k;   // (game time runs negative before 2026)
+    const name = state === 'walk' ? `walk${mod(f, 4)}` : state === 'run' ? `run${mod(f, 4)}` : state === 'sit' ? 'sit' : `idle${mod(Math.floor(t * 2), 2)}`;
     show(dir, name);
   };
   pose();

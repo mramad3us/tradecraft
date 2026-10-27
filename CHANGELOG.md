@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.42 (2026-10-26)
+
+- **Fixed: people swapping looks at the Farm** (your report, a priority). Since v0.0.41 the Farm is in 2007, before the game's calendar starts, and a person's standing frame was picked from the clock: before 2026 it came out as a frame that doesn't exist, and the picture took the cell next to it, someone else's, every other half-second. Both chapters, everyone in the hall. The frame is now picked the right way round whatever the date, and a frame the picture doesn't know stands still instead of borrowing a neighbour's.
+- **The F tag over whoever's within reach** (your report: clunky on the mat): a paper keycap outlined in ink, with a hard shadow under it and a point down to them, at full strength, just above the head (it floated higher). It reads on the mat, the pavement and a dark doorway alike.
+
 ## v0.0.41 (2026-10-26)
 
 - **The Farm, remembered** (your idea). Once you've had the lesson, the title offers the Farm as a memory: no drills, straight to the bouts, now four: the weaker classmate, the even one, a better one (new, in the lesson too), and Hale. When Hale's bout ends you hit the floor, and it isn't the mat: a white flash, and it's Moscow, three in the morning, nineteen years on. You're on your back on the cobbles; somebody hit you hard enough to send you back to the Farm. Same character, an illegal now, as good in a fight as Hale was then (CQC 30), against an FSB officer (CQC 24): strong, but you're better. You get up, and it's not a bout: it ends with one of you down. The whole lesson is still on the title.

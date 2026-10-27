@@ -122,7 +122,7 @@ export function createCrowd(scene) {
       const slot = slotOf(p.key, p.look);
       const f = p.gait === 'walk' ? `walk${Math.floor(p.stride / STEP_M.walk) % 4}`
         : p.gait === 'run' ? `run${Math.floor(p.stride / STEP_M.run) % 4}`
-        : p.gait === 'sit' || p.gait === 'crouch' ? 'sit' : FIGHT.has(p.gait) ? p.gait : p.gait === 'down' ? 'reel' : `idle${Math.floor((p.t ?? t) * 2 + p.phase) % 2}`;
+        : p.gait === 'sit' || p.gait === 'crouch' ? 'sit' : FIGHT.has(p.gait) ? p.gait : p.gait === 'down' ? 'reel' : `idle${((Math.floor((p.t ?? t) * 2 + p.phase) % 2) + 2) % 2}`;   // (game time runs negative before 2026: the Farm's 2007)
       const sit = p.gait === 'sit';                                 // (a crouch is the same pose, on the ground)
       if (p.gait === 'down') {                                      // (on their back, the head away from whoever they faced)
         const s = p.face === 'left' ? -1 : 1;
@@ -131,7 +131,9 @@ export function createCrowd(scene) {
       cards.setMatrixAt(i, m4);
       m4.makeTranslation(snap(p.x), 0.02, snap(p.z));
       blobs.setMatrixAt(i, m4);
-      aCell.setXY(i, (slot % COLS) * SW + FRAMES.indexOf(f) * CW, Math.floor(slot / COLS) * SH + DIRS.indexOf(p.face) * CH);
+      // (a frame or facing it doesn't know stands still, facing us: never the cell next door, another person's)
+      const fi = Math.max(0, FRAMES.indexOf(f)), di = Math.max(0, DIRS.indexOf(p.face));
+      aCell.setXY(i, (slot % COLS) * SW + fi * CW, Math.floor(slot / COLS) * SH + di * CH);
       aTint.setXYZ(i, p.tint[0], p.tint[1], p.tint[2]);
     }
     cards.count = blobs.count = n;

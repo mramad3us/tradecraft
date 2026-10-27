@@ -185,7 +185,7 @@ export function createUI({ input, cb }) {
     if (nearAt && view?.camera) {
       const k = frame.clientWidth / RES[0], cam = view.camera;
       if (reach.dataset.key !== input.label('interact')) { reach.dataset.key = input.label('interact'); reach.replaceChildren(el('kbd', { textContent: input.label('interact') })); }
-      reach.style.transform = `translate(${Math.round((RES[0] / 2 + (nearAt[0] - cam.x) * 16) * k)}px, ${Math.round((RES[1] / 2 + (nearAt[1] - cam.z) * 16 - 2.5 * 16) * k)}px)`;
+      reach.style.transform = `translate(${Math.round((RES[0] / 2 + (nearAt[0] - cam.x) * 16) * k)}px, ${Math.round((RES[1] / 2 + (nearAt[1] - cam.z) * 16 - 2.2 * 16) * k)}px)`;   // (the point just over the head)
     }
     if (!ask.hidden && askFor) {
       const at = view?.posOf(askFor.id), k = frame.clientWidth / RES[0], cam = view?.camera;
