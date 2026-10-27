@@ -196,7 +196,9 @@ export const hunted = {
   /** Into a shop (sim/shops.js): whoever had you waits at the front; out the back, they've lost you. */
   onShop(state, bus, phase, way) {
     const sc = state.scenario, me = playerOf(state);
-    if (sc.outcome || phase !== 'out' || way !== 'back') return;
+    if (sc.outcome || phase !== 'out') return;
+    if (way === 'coat') { sc.disguised = true; for (const id of sc.hunters) { if (!sc.known[id]) continue; delete sc.known[id]; const a = actorOf(state, id); if (a?.ai?.follow) a.ai.follow.lost = true; } return; }   // (the description they carry no longer fits)
+    if (way !== 'back') return;
     for (const id of sc.hunters) { delete sc.known[id]; const a = actorOf(state, id); if (a?.ai?.follow) a.ai.follow.lost = true; }
     sc.lastSeen = { row: me.row + 1, x: me.x, ms: state.time.ms };   // (the shop's street: where they'll look)
   },

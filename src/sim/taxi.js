@@ -14,6 +14,7 @@ import { MIN } from './clock.js';
 import { Z } from './map/street.js';
 import { int, range, stream } from './rng.js';
 import { place, onStreet } from './instinct.js';
+import { pay } from './money.js';
 
 export const KERB_M = 1.2;
 export const HAIL_MIN = [1, 4];                                  // (waiting for one to stop)
@@ -26,19 +27,23 @@ export function atKerb(state, a) {
   return Math.abs(a.z - Z.kerbN) < KERB_M || Math.abs(a.z - Z.kerbS) < KERB_M;
 }
 
-/** Where a taxi from here could go: [{ id, label, row, x }]. */
+/** Where a taxi from here could go: [{ id, label, row, x, fare (dollars: sim/money.js) }]. */
 export function destinations(state, scenario) {
   const me = state.actors.find(a => a.who === state.player), row = state.map.row ?? 0;
   const r = stream('taxi', state.map.seed, row, Math.round(me.x));
   const own = scenario?.destinations?.(state) ?? [];
-  return [...own, ...OFFSETS.map(([dr, label]) => ({ id: `off${dr}`, label, row: row + dr, x: me.x + range(r, -120, 120) }))];
+  return [...own, ...OFFSETS.map(([dr, label]) => ({ id: `off${dr}`, label, row: row + dr, x: me.x + range(r, -120, 120) }))].map(d => ({ ...d, fare: fareOf(row, d.row) }));
 }
+/** A ride's fare, in dollars: FARE_USD and FARE_PER_ROW_USD a street. */
+export const FARE_USD = 4, FARE_PER_ROW_USD = 1.5;
+export const fareOf = (from, to) => FARE_USD + Math.abs(to - from) * FARE_PER_ROW_USD;
 
 /** The ride: the wait, the minutes on the road, the street there, you at its kerb; followers lost. */
 export function ride(state, bus, to, { scenario, skip, loadRow }) {
   const me = state.actors.find(a => a.who === state.player), from = state.map.row ?? 0;
   const r = stream('ride', state.map.seed, state.time.ms);
   const minutes = HAIL_MIN[0] + int(r, HAIL_MIN[1] - HAIL_MIN[0] + 1) + Math.abs(to.row - from) * PER_ROW_MIN + 3;
+  if (!pay(state, bus, fareOf(from, to.row), 'the fare')) return;  // (sim/money.js)
   scenario?.onTaxi?.(state, bus, to);                             // (the scene's own: who saw you get in, a driver who heard the radio)
   if (state.scenario.outcome) return;
   for (const a of state.actors) if (a.ai?.follow?.id === me.id) a.ai.follow.lost = true;   // (on foot, they can't follow a car)

@@ -232,6 +232,17 @@ export const sdr = {
     if (phase === 'in') { sc.inShop = { seen: sc.crew.some(c => { const a = actorOf(state, c.id); return a && seesActor(state, a, { ...me, hidden: false }); }) }; return; }
     const seen = sc.inShop?.seen;
     sc.inShop = null;
+    // (out the front in another coat: watching the door for the old one, they may look straight past you;
+    // if they don't, they've seen a change of clothes, and know what it means)
+    if (way === 'coat' && seen && sc.crew.some(c => c.id)) {
+      if (chance(stream('coat', state.map.seed, state.time.ms), COAT_MISSED[sc.team] ?? 0.3)) {
+        const ids = sc.crew.filter(c => c.id).map(c => c.id);
+        loseUs(state, bus); sc.lostHow = 'in a new coat';
+        state.actors = state.actors.filter(a => !ids.includes(a.id));
+        say(state, bus, { kind: 'note', hidden: true, text: 'They watched the door for a coat that never came out.' });
+      } else if (sc.flags.filter(f => f.kind === 'changed').length < FLAGS_MAX) sc.flags.push({ kind: 'changed', ms: state.time.ms, who: sc.crew[0].who });
+      return;
+    }
     if (way !== 'back' || !seen || !sc.crew.some(c => c.id)) return;
     if (sc.team === 'covert' && chance(stream('back', state.map.seed, state.time.ms), BACK_COVERED)) {
       const ids = sc.crew.filter(c => c.id).map(c => c.id);
@@ -366,11 +377,12 @@ const CAUGHT_LINE = {
   doubled: (who) => `When you turn round, ${who[0].toLowerCase() + who.slice(1)} stops too, and finds a shop window very interesting.`,
 };
 const CAUGHT = { bloody: 'walk about bloody', armed: 'carry a weapon in your hand', ran: 'run', checked: 'look back', glassed: 'check behind you in a shop window', jaywalked: 'cross away from the zebra', doubled: 'double back' };
-const FLAGS = { bloody: 'you walked about with blood on you', backway: 'you went into a shop and out the back', armed: 'you walked the street with a weapon in your hand', assaulted: 'you went for one of them', spoke: 'you spoke to one of them', ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back', taxi: 'you jumped into a taxi' };
-const SAW = { bloody: 'saw the blood on you', backway: 'waited on a shop door for nothing', armed: 'saw what was in your hand', assaulted: 'took it from you', spoke: 'had a word from you', ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back', taxi: 'saw you jump into a taxi' };
+const FLAGS = { changed: 'you went into a shop in one coat and came out in another', bloody: 'you walked about with blood on you', backway: 'you went into a shop and out the back', armed: 'you walked the street with a weapon in your hand', assaulted: 'you went for one of them', spoke: 'you spoke to one of them', ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back', taxi: 'you jumped into a taxi' };
+const SAW = { changed: 'saw you come out in another coat', bloody: 'saw the blood on you', backway: 'waited on a shop door for nothing', armed: 'saw what was in your hand', assaulted: 'took it from you', spoke: 'had a word from you', ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back', taxi: 'saw you jump into a taxi' };
 export const FLAGS_MAX = 2;
 export const ASSAULT_HEAT = 12;
-export const BACK_COVERED = 0.3;                                    // (a covert team with the back of a shop covered)
+export const BACK_COVERED = 0.3;
+export const COAT_MISSED = { overt: 0.5, covert: 0.3 };              // (out the front in a new coat: they look past you)                                    // (a covert team with the back of a shop covered)
 export const NET_FLAGS = 2;                                        // (lost after this many things written down: the wider net)
 export const NET_CHANCE = 0.5;                                    // (an FSB officer assaulted: an incident, a note to the embassy)                                        // times a kind of thing is written down, at most
 const list = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
@@ -485,7 +497,7 @@ function look(state, bus, why, bonus = 0) {
     if (a === me || a.hidden || a.who === 'solovey' || !inView(state, a.id)) continue;
     const d = Math.hypot(a.x - me.x, a.z - me.z), crowd = near(state, a.x, a.z, 3).filter(o => o !== a && isPasserby(o)).length;
     const light = lightBand(lightHere(state, a.x, a.z));
-    const mods = [bonus && { why: { glance: 'a straight look', cross: 'crossing, looking both ways', window: 'in the glass', stop: 'stood, looking about', passive: 'not looking' }[why], v: bonus },
+    const mods = [bonus && { why: { glance: 'a straight look', cross: 'crossing, looking both ways', window: 'in the glass', stop: 'stood, looking about', passive: 'not looking', kiosk: 'over the top of a paper', cafe: 'from a café window', phone: 'through a phone box\'s glass' }[why], v: bonus },
       d > 20 ? { why: 'far off', v: -3 } : d > 12 ? { why: 'a way off', v: -1 } : null, crowd >= 2 && { why: 'among people', v: -2 },
       light === 'dark' && { why: 'in the dark', v: -2 }, a.ai?.fromLane && state.time.ms - sc.sinceMap < 30000 && { why: 'up the lane after you', v: 4 }].filter(Boolean);
     const theirs = a.who ? skill(state.people[a.who], 'deception') : 2;
@@ -646,6 +658,8 @@ function second(state, bus, me) {
   if (sc.glassS === 1) { glassed(state, bus, me); look(state, bus, 'window', 0); }
   else if (sc.glassS && sc.glassS % 6 === 0) look(state, bus, 'window', 0);
   else if (!me.glass && sc.stillS >= 3 && sc.stillS % 6 === 3) look(state, bus, 'stop', -1);
+  else if (me.inside?.way === 'sit' && (sc.spotS = (sc.spotS ?? 0) + 1) % 6 === 1) look(state, bus, 'cafe', 2);   // (a café's window: sim/shops.js)
+  else if (['kiosk', 'phone'].includes(me.busy?.what) && me.busy.steps?.[0]?.[0] === 'wait' && (sc.spotS = (sc.spotS ?? 0) + 1) % 6 === 1) look(state, bus, me.busy.what, me.busy.what === 'phone' ? 2 : 1);   // (a kiosk's paper, a phone box's glass: a natural stop, a look at the street: sim/acts.js)
   else if (state.tick % (8 * TPS) === 0) look(state, bus, 'passive', -3);
   for (const id in sc.suspects) if (!actorOf(state, id)) delete sc.suspects[id];
   // SOLOVEY, on his bench from meet.from to meet.to, if we're on his street.

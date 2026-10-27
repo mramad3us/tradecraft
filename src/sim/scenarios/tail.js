@@ -547,6 +547,8 @@ function coverNow(state, me) {
   if (me.glass) return scan && me.glass.since >= scan.ms ? { why: 'stopping short as he looked', v: 2 } : { why: 'busy at a shop window', v: -3 };
   if (b?.what === 'bench' && me.gait === 'sit') return { why: 'sitting on a bench', v: -3 };
   if (b?.what === 'lace' && s?.[0] === 'wait') return { why: 'tying a shoelace', v: -1 };
+  if (b?.what === 'kiosk' && s?.[0] === 'wait') return { why: 'reading a paper at the kiosk', v: -2 };   // (sim/acts.js spotNear())
+  if (b?.what === 'phone' && s?.[0] === 'wait') return { why: 'on the phone in a phone box', v: -3 };
   if (!b && crossingAt(state, me) && me.gait === 'idle' && (Math.abs(me.z - Z.kerbN) < 1.6 || Math.abs(me.z - Z.kerbS) < 1.6)) return { why: 'waiting to cross', v: -1 };
   return null;
 }

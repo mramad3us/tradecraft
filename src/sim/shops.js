@@ -9,6 +9,10 @@
 //     the next street north, on its pavement along the backs (LINE.S). Only where there is a back way
 //     (BACKWAYS, by the kind of shop: a café's kitchen door, a grocer's yard; not a bank or a pharmacy).
 //     Whoever waited at the front waits for nothing (sim/agents.js: two minutes at the door, then lost).
+//   - 'eat' (a café, a bakery, a grocer's…: FOOD): a bite, EAT_S (sim/needs.js), BITE_USD; 'wash' (a
+//     café's, a bar's toilet: TOILETS) the blood off your face (sim/notice.js); 'coat' (a clothes shop):
+//     a coat off the rail, worn out of the shop (COAT_S, COAT_USD: sim/money.js), a colour you weren't
+//     wearing; whoever was looking for the old one looks past you (the scenes: onShop).
 // Inside, you're out of sight (a.hidden) and your feet are the shop's (sim/game.js); the time passes as
 // it does. The scene hears of it, going in and coming out (scenario.onShop?.(state, bus, phase, way)):
 // being tailed's team watches the door, and a back way they saw you take is written down; in Blown the
@@ -19,10 +23,17 @@ import { sectionAt } from './world.js';
 import { hash } from './rng.js';
 import { say } from './log.js';
 import { eat, EAT_S } from './needs.js';
+import { price, pay, BITE_USD, COAT_USD } from './money.js';
 
 export const BROWSE_S = 40;
 export const BACKWAY_S = 55;
 export const WASH_S = 90;
+export const COAT_S = 150;
+export const SIT_S = 180;
+// (a table by the window, a coffee: the street watched from inside, out of its sight)
+export const WINDOW_TABLES = new Set(['cafe', 'restaurant', 'bar']);
+// (coats on the rail: [colour, trim]; one you weren't wearing)
+export const COATS = [[0x6b4636, 0x47302a], [0x2f6b62, 0x23252f], [0x8f6345, 0x6b4636], [0x4a2a52, 0x23252f], [0x23252f, 0x14151c], [0x6a7182, 0x3a3f4b], [0x9e3c36, 0x47302a]];
 // (the kinds with a toilet a customer can use: a café's, a bar's, a restaurant's; sim/notice.js)
 export const TOILETS = new Set(['cafe', 'restaurant', 'bar', 'shawarma', 'beer']);
 // (the kinds where you can eat something, quickly: sim/needs.js)
@@ -49,7 +60,9 @@ export function ways(state, d) {
   const out = [{ id: 'front', label: `Into ${shopWord(d.shop)}: a minute among the shelves, and out the front` }];
   if (backWay(state, d)) out.push({ id: 'back', label: 'Through to the back: the stock room, a yard, out on the street behind' });
   const p = state.people[state.player];
-  if (FOOD.has(d.shop)) out.push({ id: 'eat', label: d.shop === 'grocery' || d.shop === 'bakery' || d.shop === 'deli' ? 'Something to eat: bread, cheese, eaten by the window (two minutes)' : 'A bite and a hot drink at the counter (two minutes)' });
+  if (FOOD.has(d.shop)) out.push({ id: 'eat', label: `${d.shop === 'grocery' || d.shop === 'bakery' || d.shop === 'deli' ? 'Something to eat: bread, cheese, eaten by the window' : 'A bite and a hot drink at the counter'} (two minutes, ${price(state, BITE_USD)})` });
+  if (WINDOW_TABLES.has(d.shop)) out.push({ id: 'sit', label: `A coffee at the window table: three minutes, watching the street from inside (${price(state, BITE_USD)})` });
+  if (d.shop === 'clothes') out.push({ id: 'coat', label: `A coat off the rail, worn out of the shop (${price(state, COAT_USD)})` });
   if (TOILETS.has(d.shop) && p?.bloody) out.push({ id: 'wash', label: p.bloody.face ? 'The toilet: wash the blood off your face' : 'The toilet: scrub at the stain on your coat' });
   return out;
 }
@@ -58,9 +71,12 @@ export function ways(state, d) {
 export function goIn(state, bus, me, d, way, scenario) {
   if (way === 'back' && !backWay(state, d)) way = 'front';
   if (way === 'wash' && !(TOILETS.has(d.shop) && state.people[state.player]?.bloody)) way = 'front';
-  if (way === 'eat' && !FOOD.has(d.shop)) way = 'front';
-  me.inside = { x: d.x, shop: d.shop, way, until: state.time.ms + (way === 'back' ? BACKWAY_S : way === 'wash' ? WASH_S : way === 'eat' ? EAT_S : BROWSE_S) * 1000, row: state.map.row ?? 0 };
+  if (way === 'eat' && !(FOOD.has(d.shop) && pay(state, bus, BITE_USD, 'a bite'))) way = 'front';
+  if (way === 'coat' && !(d.shop === 'clothes' && pay(state, bus, COAT_USD, 'a coat'))) way = 'front';
+  if (way === 'sit' && !(WINDOW_TABLES.has(d.shop) && pay(state, bus, BITE_USD, 'a coffee'))) way = 'front';
+  me.inside = { x: d.x, shop: d.shop, way, until: state.time.ms + (way === 'back' ? BACKWAY_S : way === 'wash' ? WASH_S : way === 'eat' ? EAT_S : way === 'coat' ? COAT_S : way === 'sit' ? SIT_S : BROWSE_S) * 1000, row: state.map.row ?? 0 };
   Object.assign(me, { hidden: true, vx: 0, vz: 0, busy: null, glass: false, gait: 'idle' });
+  if (way === 'sit') Object.assign(me, { face: 'down', head: Math.PI / 2 });   // (looking out through the window at the street)
   say(state, bus, { kind: 'note', text: way === 'back' ? `Into ${shopWord(d.shop)}, past the counter, a nod as if you belong, and through the door at the back.` : way === 'wash' ? `Into ${shopWord(d.shop)}, head down, straight to the toilet at the back, and the bolt across.` : `Into ${shopWord(d.shop)}. You take your time over the shelves.` });
   scenario?.onShop?.(state, bus, 'in', way);
 }
@@ -79,7 +95,14 @@ export function insideTick(state, bus, me, scenario, { loadRow }) {
   } else {
     Object.assign(me, { x: ins.x, z: Z.front + 0.7, face: 'down', head: Math.PI / 2 });
     const p = state.people[state.player];
-    if (ins.way === 'eat') { eat(p, state.time.ms, 8); say(state, bus, { kind: 'note', text: 'Something hot, eaten standing up, and a minute of nobody looking at you. Better.' }); }
+    if (ins.way === 'coat') {
+      // (a colour you weren't wearing; the old one, and whatever was on it, left on the rail)
+      const now = p.look?.top?.color, pickC = COATS.filter(([c]) => c !== now), [color, trim] = pickC[hash(state.time.ms, state.map.seed) % pickC.length];
+      p.look = { ...p.look, top: { ...(p.look?.top ?? {}), kind: 'coat', color, trim } };
+      if (p.bloody?.clothes !== undefined) { delete p.bloody.clothes; if (!Object.keys(p.bloody).length) delete p.bloody; }
+      say(state, bus, { kind: 'note', text: 'A coat off the rail, the tags off at the till, and the old one left over a chair. Out you go, in a colour you weren\'t wearing.' });
+    } else if (ins.way === 'sit') { eat(p, state.time.ms, 12); say(state, bus, { kind: 'note', text: 'The coffee drunk, the street watched: whoever was out there for three minutes, you\'ve seen.' }); }
+    else if (ins.way === 'eat') { eat(p, state.time.ms, 8); say(state, bus, { kind: 'note', text: 'Something hot, eaten standing up, and a minute of nobody looking at you. Better.' }); }
     else if (ins.way === 'wash' && p?.bloody) {
       // (the face comes clean in cold water; a coat doesn't: darker, smaller, still there)
       const face = p.bloody.face !== undefined;

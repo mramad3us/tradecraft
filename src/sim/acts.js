@@ -31,6 +31,7 @@ import { GLASS_REACH_M, intoGlass } from './perception.js';
 import { itemNear, pickUp } from './items.js';
 import { atKerb, destinations } from './taxi.js';
 import { shopNear, ways, shopWord } from './shops.js';
+import { pay } from './money.js';
 import { weaponOf } from './weapons.js';
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -75,6 +76,25 @@ export function benchNear(state, a) {
   return s && s[1] < 2.6 ? s[0] : null;
 }
 
+/**
+ * A place to watch the street from, within reach (the user, 2026-10-27: "lateral observation spots"):
+ * a kiosk (Moscow's; Cairo's paper stalls): buy a paper and read it there (KIOSK_S); a phone box
+ * (London's): a call to nobody, behind glass (PHONE_S). { kind: 'kiosk' | 'phone', x, z (where you
+ * stand), face } or null.
+ */
+export const KIOSK_S = 25, PHONE_S = 45;
+export function spotNear(state, a) {
+  const S = sectionAt(state, a.x);
+  if (!S) return null;
+  const k = S.doors.find(d => d.kind === 'kiosk' && Math.hypot(d.x - a.x, d.z - a.z) < 1.6);
+  if (k) return { kind: 'kiosk', x: k.x, z: k.z, face: 'up' };
+  const st = S.props.find(p => p.kind === 'stall' && (p.look === 'kiosk' || p.look === 'papers') && Math.abs(p.x - a.x) < 1.4 && Math.abs(a.z - (p.z + 0.8)) < 1.2);
+  if (st) return { kind: 'kiosk', x: st.x, z: st.z + 0.8, face: 'up' };
+  const ph = S.props.find(p => p.kind === 'phonebox' && Math.abs(p.x - a.x) < 1.2 && Math.abs(a.z - (p.z - 0.7)) < 1.2);
+  if (ph) return { kind: 'phone', x: ph.x, z: ph.z - 0.7, face: 'down' };
+  return null;
+}
+
 /** The pane of a shop window within m along the shops' pavement from the actor ({ x0, x1, z }), or null. */
 export function paneNear(state, a, m = 1.5) {
   if (a.z < Z.front || a.z > LANES.far[1] + 0.4) return null;
@@ -98,7 +118,7 @@ export function coverHere(state, a) {
   return state.time.ms - (state.scenario.laceMs ?? -1e12) > LACE_AGAIN_S * 1000 ? 'lace' : null;
 }
 
-const COVER = { window: 'look in the window', bench: 'sit on the bench', lace: 'tie a shoelace', cross: 'cross', taxi: 'hail a taxi' };
+const COVER = { window: 'look in the window', bench: 'sit on the bench', lace: 'tie a shoelace', cross: 'cross', taxi: 'hail a taxi', kiosk: 'buy a paper at the kiosk', phone: 'make a call from the phone box' };
 
 /** What's at hand for T, the engine's: a shop window, a free seat, a zebra ({ act, text }), or null. */
 export function affordance(state, me) {
@@ -109,7 +129,8 @@ export function affordance(state, me) {
   // (at the kerb: the zebra if it's there, else a taxi; the window behind you is for the pavement)
   const kerb = atKerb(state, me), cross = crossingNear(state, me, 4);
   const door = !kerb && shopNear(state, me);                        // (at a shop's door: in; sim/shops.js)
-  const act = kerb && cross ? 'cross' : kerb ? 'taxi' : door ? 'shop' : paneNear(state, me) ? 'window' : benchNear(state, me) !== null ? 'bench' : cross ? 'cross' : null;
+  const spot = !door && spotNear(state, me);                         // (a kiosk, a phone box: somewhere to watch from)
+  const act = kerb && cross ? 'cross' : spot ? spot.kind : kerb ? 'taxi' : door ? 'shop' : paneNear(state, me) ? 'window' : benchNear(state, me) !== null ? 'bench' : cross ? 'cross' : null;
   return act && { act, text: ` {instinct} ${act === 'shop' ? `go into ${shopWord(door.shop)}` : COVER[act]}.` };
 }
 /** What T would do here, for the end of an instinct's line: { act, text } (only: the covers allowed). */
@@ -133,6 +154,15 @@ function act1(state, bus, me, what, { toward = Math.cos(me.head ?? 0) >= 0 ? -1 
     const off = pickUp(state, p, me, it), w = weaponOf(it.kind);
     me.busy = { what: 'pickup', steps: [['wait', Math.round(600 / TICK_MS), me.face, 'crouch']], wait: 0 };   // (stooped for it, 0.6 s)
     say(state, bus, { kind: 'note', text: `You pick up ${w.name}.${off ? ` ${cap(weaponOf(off.kind).name)} goes down where you stood: nowhere to put it.` : ''}` });
+    return;
+  }
+  if (what === 'kiosk' || what === 'phone') {
+    const sp = spotNear(state, me);
+    if (!sp || sp.kind !== what) return;
+    const paid = what === 'kiosk' && pay(state, null, 1, 'a paper');
+    // (stood at it, the business of it, the street over the top of the paper, or through the glass)
+    me.busy = { what, steps: [['go', sp.x, sp.z], ['wait', (what === 'kiosk' ? KIOSK_S : PHONE_S) * TPS, sp.face, 'idle']], wait: 0, since: state.time.ms };
+    say(state, bus, { kind: 'instinct', text: what === 'kiosk' ? (paid ? 'A paper from the kiosk, and the front page read standing, the street over the top of it.' : 'You read the headlines off the kiosk\'s rack, the street over the top of them.') : 'Into the phone box, a call to nobody, the receiver to your ear: the glass shows the street all round.' });
     return;
   }
   if (what === 'window') {

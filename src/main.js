@@ -21,6 +21,7 @@ import { SCENARIOS } from './sim/scenarios/index.js';
 import { candidates, newCampaign, context, fold, heatWord, KINDS } from './sim/campaign.js';
 import { cityById } from './sim/cities/index.js';
 import { shopWord } from './sim/shops.js';
+import { price } from './sim/money.js';
 import { createView } from './render/view.js';
 import { createInput } from './ui/input.js';
 import { createUI } from './ui/ui.js';
@@ -94,7 +95,7 @@ function launch(s, { hour = null } = {}) {
   bus.on('assignment', (id) => setTimeout(() => launchAssignment(s, id), 0));
   bus.on('papers', (list) => showPapers(list));
   bus.on('shop', ({ shop, ways }) => ui.openChoices('SHOP', shopWord(shop).replace(/^the /, '').toUpperCase(), ways.map(w => ({ key: w.id, label: w.label })), (key) => acts.push(`shop:${key}`)));   // (sim/shops.js)
-  bus.on('taxi', (list) => ui.openChoices('TAXI', 'WHERE TO?', list.map(d => ({ key: d.id, label: d.label.charAt(0).toUpperCase() + d.label.slice(1) })), (key) => acts.push(`taxi:${key}`)));   // (sim/taxi.js)
+  bus.on('taxi', (list) => ui.openChoices('TAXI', 'WHERE TO?', list.map(d => ({ key: d.id, label: `${d.label.charAt(0).toUpperCase() + d.label.slice(1)} · ${price(state, d.fare)}` })), (key) => acts.push(`taxi:${key}`)));   // (sim/taxi.js; the fare, sim/money.js)
   bus.on('scenario-end', () => {
     if (s.scenario.kind === 'dojo' && s.scenario.chapter !== 'remembered') { try { localStorage.setItem(FARM_KEY, 'done'); } catch {} }   // (the lesson had: next time the Farm is a memory)
     setTimeout(() => { if (state === s) result(); }, 1800);

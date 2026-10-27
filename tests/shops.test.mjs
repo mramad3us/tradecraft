@@ -6,6 +6,9 @@ import { shopNear, backWay, ways, TOILETS, BROWSE_S, BACKWAY_S } from '../src/si
 import { mods as showsMods } from '../src/sim/notice.js';
 import { bodyLine } from '../src/sim/aid.js';
 import { at } from '../src/sim/clock.js';
+import { cashOf, price, COAT_USD } from '../src/sim/money.js';
+import { sectionOf } from '../src/sim/city.js';
+import { townOf } from '../src/sim/cities/index.js';
 import { Z } from '../src/sim/map/street.js';
 import { sectionAt } from '../src/sim/world.js';
 import { assert, fmt } from './helpers.mjs';
@@ -94,6 +97,35 @@ export default [
       for (let t = 0; t < 20 * 95 && me.inside; t++) step(g, {}, null);
       console.log(`      two minutes walking bloody at lunchtime: heat ${heat0} → ${heat1}; the instinct: "${line}"; to a watcher: ${mod}; ${d.shop}'s toilet offered ${offered}, after it: ${p.bloody ? JSON.stringify(p.bloody) : 'clean'}`);
       assert(heat1 > heat0 && /face/.test(line) && offered && !p.bloody?.face, 'noticed, said, washed');
+    },
+  },
+  {
+    name: 'money: a coat off the rail (another colour, paid for), a taxi\'s fare; short of cash, nothing doing',
+    fn() {
+      const g = newGame({ seed: 7, scenario: 'walk' });
+      g.time.ms = at(2026, 11, 2, 13, 0);
+      start(g, null);
+      const me = playerActor(g), p = g.people[g.player];
+      for (let t = 0; t < 10; t++) step(g, {}, null);
+      let d = null;
+      for (let i = -12; i <= 12 && !d; i++) d = sectionOf(townOf(g.map), 0, i).doors.find(o => o.kind === 'shop' && o.z === Z.front && o.shop === 'clothes');
+      Object.assign(me, { x: d.x, z: Z.front + 0.6, busy: null, glass: false });
+      for (let t = 0; t < 25; t++) step(g, {}, null);
+      const cash0 = cashOf(p), coat0 = p.look.top.color;
+      step(g, { act: ['shop:coat'] }, null);
+      for (let t = 0; t < 20 * 160 && me.inside; t++) step(g, {}, null);
+      const cash1 = cashOf(p), coat1 = p.look.top.color;
+      Object.assign(me, { z: Z.kerbN - 0.5, busy: null });
+      step(g, {}, null);
+      step(g, { act: ['taxi:off2'] }, null);
+      const cash2 = cashOf(p), row = g.map.row;
+      p.cash = 1;
+      Object.assign(playerActor(g), { z: Z.kerbN - 0.5, busy: null });
+      step(g, {}, null);
+      step(g, { act: ['taxi:off2'] }, null);
+      console.log(`      a coat: ${price(g, cash0 - cash1)} (${coat0.toString(16)} → ${coat1.toString(16)}); a taxi two streets: ${price(g, cash1 - cash2)}, now row ${row}; with ${price(g, 1)}: row ${g.map.row}, "${g.log.at(-1).text}"`);
+      assert(cash1 === cash0 - COAT_USD && coat1 !== coat0, 'the coat, paid for, worn');
+      assert(cash2 < cash1 && row === 2 && g.map.row === 2, 'the fare taken; short, no ride');
     },
   },
 ];

@@ -17,6 +17,7 @@
 import { townOf, localize, cityById } from '../sim/cities/index.js';
 import { shopWord } from '../sim/shops.js';
 import { needsWords } from '../sim/needs.js';
+import { price, cashOf } from '../sim/money.js';
 import { clockText, stampText, dateText } from '../sim/clock.js';
 import { checkText, checkShort } from '../sim/checks.js';
 import { SCENARIOS } from '../sim/scenarios/index.js';
@@ -333,7 +334,7 @@ export function createUI({ input, cb }) {
     // (in a fight, how things stand; then your own body, if it's more pressing than the scene's line: sim/aid.js)
     // (in a shop: where you are, in place of the scene's line, unless it's urgent: sim/shops.js)
     const inShop = state.actors.find(a => a.who === state.player)?.inside;
-    const shopLine = inShop && { id: 'inside', tone: 'calm', text: inShop.way === 'back' ? `In ${shopWord(inShop.shop)}, through to the back: out on the street behind in a moment.` : inShop.way === 'wash' ? `In ${shopWord(inShop.shop)}'s toilet, the bolt across, cleaning up.` : `In ${shopWord(inShop.shop)}, among the shelves. Out again in a minute.` };
+    const shopLine = inShop && { id: 'inside', tone: 'calm', text: inShop.way === 'back' ? `In ${shopWord(inShop.shop)}, through to the back: out on the street behind in a moment.` : inShop.way === 'wash' ? `In ${shopWord(inShop.shop)}'s toilet, the bolt across, cleaning up.` : inShop.way === 'eat' ? `In ${shopWord(inShop.shop)}, eating, your back to the wall.` : inShop.way === 'coat' ? `In ${shopWord(inShop.shop)}, along the rails, a coat that fits.` : inShop.way === 'sit' ? `At ${shopWord(inShop.shop)}'s window table, a coffee, the street outside: who stops when you do?` : `In ${shopWord(inShop.shop)}, among the shelves. Out again in a minute.` };
     const sceneP = shopLine && sc.prompt?.tone !== 'urgent' ? shopLine : sc.prompt;
     const body = bodyLine(state), scene = sceneP && body && RANKS[body.tone] <= RANKS[sceneP.tone] ? sceneP : body ?? sceneP;
     const sp = !sc.outcome && ((state.fight?.phase === 'choose' && statusLine(state)) || scene), off = !sc.outcome && !sp?.act && sp?.tone !== 'urgent' && state.$offer;
@@ -492,7 +493,7 @@ export function createUI({ input, cb }) {
         el('div', {},
           el('table', { className: 'skills' }, el('tbody', {}, rows)),
           el('p', { className: 'note', textContent: 'The level is the training you had (a course, advanced…); each • is practice since, a point each.' }),
-          (() => { const nw = needsWords(p, state.time.ms); return el('p', { className: 'langs', textContent: `${nw.fed[0].toUpperCase()}${nw.fed.slice(1)} · ${nw.stress}${nw.hungry || nw.edgy ? ' (it costs: see a roll\'s modifiers)' : ''}` }); })(),
+          (() => { const nw = needsWords(p, state.time.ms); return el('p', { className: 'langs', textContent: `${nw.fed[0].toUpperCase()}${nw.fed.slice(1)} · ${nw.stress}${nw.hungry || nw.edgy ? ' (it costs: see a roll\'s modifiers)' : ''} · ${price(state, cashOf(p))} on you` }); })(),
           el('p', { className: 'langs', textContent: Object.entries(p.langs ?? {}).map(([c, l]) => `${LANGS[c] ?? c}: ${l}`).join(' · ') }),
           el('p', { className: 'langs', textContent: `Carrying: ${[p.hand && `${weaponOf(p.hand).name}, in hand`, ...(p.items ?? []).map(k => weaponOf(k)?.name ?? k)].filter(Boolean).join('; ') || 'nothing to fight with'}. (${input.label('inventory')})` })),
         el('div', { className: 'body' },
