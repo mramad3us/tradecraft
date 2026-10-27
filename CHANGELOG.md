@@ -4,6 +4,15 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.38 (2026-10-26)
+
+- **Injuries and blood** (your ask).
+  - A blow that takes half of what a part can take may crack it: a cracked rib, forearm, shin or cheekbone, −2 to what it does until it knits (three weeks). A hard blow to the face can split a brow or a lip, or bloody your nose; they bleed a while and mend in days. (Blades will cut, when there are blades.) The sheet lists them under each part.
+  - **Blood on the floor, pixel by pixel:** a blow that draws blood flings a spatter the way it went, a few big drops near and fine ones far; whoever's bleeding drips where they stand. It stays where it fell and darkens as it dries.
+  - **Blood on people:** a bloodied face shows it (a trickle from the nose or lip, down the chin) until it's washed off a day later.
+  - The words say it: "Your skin splits: a split brow. Blood runs warm." "Something in Morgan gives with a crack: a cracked rib, by the sound of it."
+  - In sparring the blows are pulled, so it's rare; in a real fight, a professional against a civilian cracks something in most fights and bloodies a face in about two in five.
+
 ## v0.0.37 (2026-10-26)
 
 - **The fight, faster and harder** (your asks). An exchange is quick now and lands:

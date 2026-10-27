@@ -14,7 +14,18 @@
 // hurt or worse dulls every check). The legs slow the walk (paceOf()).
 // It mends by the day (heal()): bruises and hurts by HEAL_PER_DAY of what the part takes; a wound, or
 // worse, only with care, which comes later.
+//
+// **Injuries** (p.injuries: [{ part, kind, name, ms, until, bleed }]; the user, 2026-10-26: "a lot of
+// damage could trigger cracks and some types of damages can cut (not bare handed) and blood can be
+// drawn from getting hit in the face hard enough"): what a blow did besides hurt (injure(), INJURIES).
+// One that takes CRACK_AT of what the part can take may crack it (a rib, a forearm, a shin, a
+// cheekbone: CRACK_MOD to what the part does, three weeks to knit). A hard one to the face may split
+// the skin (SPLIT_AT: a brow, a lip) or bloody the nose (NOSE_AT); a blade, glass, an edge, cuts. What
+// bleeds bleeds a while (bleed: until when; sim/blood.js drips it on the ground) and is worn on the
+// face or the clothes until cleaned (p.bloody, src/art/sprites.js). They mend by their days (heal()).
 import { skill } from './skills.js';
+import { chance, pick, range } from './rng.js';
+import { DAY } from './clock.js';
 
 export const PARTS = {
   head: { name: 'Head', takes: 6 },
@@ -72,8 +83,53 @@ export function mods(p, key) {
     const a = Math.max(...ARMS.map(k => level(stateOf(p, k))));
     if (a >= 2) out.push({ why: a >= 4 ? 'a broken arm' : a >= 3 ? 'a wounded arm' : 'a hurt arm', v: a >= 4 ? (key === 'weapons' ? -6 : -4) : a >= 3 ? -3 : -1 });
   }
+  // A crack, where the part is used (a cheekbone: everything, a little).
+  for (const i of (p.injuries ?? []).filter(j => j.kind === 'crack')) {
+    const uses = i.part === 'head' ? true : i.part === 'torso' || i.part.startsWith('leg') ? key === 'cqc' || key === 'fitness' : key === 'cqc' || key === 'weapons';
+    if (uses) out.push({ why: i.name, v: i.part === 'head' ? -1 : CRACK_MOD });
+  }
   return out;
 }
+
+export const CRACK_AT = 0.5;
+export const SPLIT_AT = 0.3;
+export const NOSE_AT = 0.2;
+export const CRACK_MOD = -2;
+const SIDE = { armL: 'left', armR: 'right', legL: 'left', legR: 'right' };
+export const INJURIES = {
+  crack: { days: 21, name: (part) => ({ head: 'a cracked cheekbone', torso: 'a cracked rib' }[part] ?? `a cracked ${SIDE[part]} ${part.startsWith('arm') ? 'forearm' : 'shin'}`) },
+  split: { days: 7, bleedS: [120, 300], name: (part, r) => pick(r, ['a split brow', 'a split lip']) },
+  nose: { days: 1, bleedS: [60, 150], name: () => 'a bloody nose' },
+  cut: { days: 10, bleedS: [180, 600], name: (part) => (part === 'head' ? 'a cut on the face' : part === 'torso' ? 'a cut across the ribs' : `a cut on the ${SIDE[part]} ${part.startsWith('arm') ? 'arm' : 'leg'}`) },
+};
+const has = (p, part, kind) => (p.injuries ?? []).some(i => i.part === part && i.kind === kind);
+
+/**
+ * What a blow of `force` (its share of what the part can take) did besides hurt, at game time ms:
+ * the new injuries, kept on p.injuries (edge: a blade's, which cuts). r: the dice.
+ */
+export function injure(p, part, force, r, ms, { edge = false } = {}) {
+  const out = [];
+  const add = (kind) => {
+    const K = INJURIES[kind], i = { part, kind, name: K.name(part, r), ms, until: ms + K.days * DAY, bleed: K.bleedS ? ms + Math.round(range(r, ...K.bleedS)) * 1000 : 0 };
+    (p.injuries ??= []).push(i);
+    out.push(i);
+    if (i.bleed) (p.bloody ??= {})[part === 'head' ? 'face' : 'clothes'] = ms;
+  };
+  if (force >= CRACK_AT && !has(p, part, 'crack') && chance(r, Math.min(1, 0.4 + (force - CRACK_AT) * 2))) add('crack');
+  if (edge && force > 0.05) add('cut');
+  else if (part === 'head') {
+    if (force >= SPLIT_AT && chance(r, 0.45)) add('split');
+    else if (force >= NOSE_AT && !has(p, 'head', 'nose') && chance(r, 0.4)) add('nose');
+  }
+  return out;
+}
+
+/** Whether someone is bleeding at game time ms. */
+export const bleeding = (p, ms) => !!p.injuries?.some(i => i.bleed > ms);
+
+/** Their injuries on a part, in words ('a cracked rib, a split lip'), or ''. */
+export const injuriesOn = (p, part) => (p.injuries ?? []).filter(i => i.part === part).map(i => i.name).join(', ');
 
 /** Whether this person can grapple (two working arms) and stand (one working leg at least). */
 export const canGrapple = (p) => ARMS.every(k => stateOf(p, k) !== 'out');
@@ -85,8 +141,10 @@ export function paceOf(p) {
   return l >= 4 ? 0.5 : l >= 3 ? 0.8 : 1;
 }
 
-/** Days pass: bruises and hurts mend; wounds wait for care. */
-export function heal(p, days) {
+/** Days pass (to game time ms): bruises and hurts mend; injuries by their days; wounds wait for care; blood washes off in a day. */
+export function heal(p, days, ms = null) {
+  if (ms !== null && p.injuries) { p.injuries = p.injuries.filter(i => i.until > ms); if (!p.injuries.length) delete p.injuries; }
+  if (ms !== null && p.bloody) { for (const k in p.bloody) if (ms - p.bloody[k] > DAY) delete p.bloody[k]; if (!Object.keys(p.bloody).length) delete p.bloody; }
   if (!p.body || !(days > 0)) return;
   for (const part in p.body) {
     if (level(stateOf(p, part)) >= 3) continue;

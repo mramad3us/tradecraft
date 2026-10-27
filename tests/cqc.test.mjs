@@ -4,14 +4,15 @@
 import { seedRng } from '../src/sim/rng.js';
 import { sheet } from '../src/sim/people.js';
 import { startFight, resolve, readChance, MOVES, BEATS } from '../src/sim/cqc.js';
-import { stateOf } from '../src/sim/health.js';
+import { stateOf, injure, bleeding, heal } from '../src/sim/health.js';
+import { spatter } from '../src/sim/blood.js';
 import { newGame, start, step } from '../src/sim/game.js';
 import { toJSON, fromJSON } from '../src/sim/state.js';
 import { assert, fmt } from './helpers.mjs';
 
 /** Two fighters, CQC bases a and b (trained, no over-skill: their CQC is the base). */
 function ring(a, b, seed = 1) {
-  const state = { rng: seedRng(seed), people: {} };
+  const state = { rng: seedRng(seed), people: {}, time: { ms: 0 }, map: { row: 0 } };
   state.people.a = sheet({ id: 'a', name: 'A', cls: 'civilian', skills: { cqc: [a, 0], fitness: [5, 0] } });
   state.people.b = sheet({ id: 'b', name: 'B', cls: 'civilian', skills: { cqc: [b, 0], fitness: [5, 0] } });
   return state;
@@ -82,6 +83,40 @@ export default [
       assert(f.ended && f.ended.by === 'a' && ['out cold', 'down', 'can\'t stand'].includes(f.ended.why), `a real fight ends on the body: ${JSON.stringify(f.ended)}`);
       assert(stateOf(s.people.b, f.ended.why === 'out cold' ? 'head' : 'torso') === 'out' || f.ended.why === 'can\'t stand', 'and it shows on the body');
       console.log(`      CQC 15 against 5: read ${reads} of ${f.round} exchanges; over in ${f.round}, ${f.ended.why}`);
+    },
+  },
+  {
+    name: 'cqc: hard blows crack and split and bloody, and blood flies and drips onto the floor',
+    fn() {
+      const tally = { crack: 0, split: 0, nose: 0, cut: 0 };
+      let decals = 0, fights = 0, faces = 0;
+      for (let seed = 1; seed <= 60; seed++) {
+        const s = ring(28, 6, seed);
+        s.actors = []; s.decals = [];
+        const f = startFight(s, 'a', 'b', { style: 'even' });
+        f.marks = { a: { x: 0, z: 0 }, b: { x: 1.5, z: 0 } };
+        for (let i = 0; i < 40 && !f.ended; i++) {
+          const o = resolve(s, f, { move: f.read ? COUNTER[f.theirs.move] : 'hit' });
+          if (o.blood) spatter(s, 1.5, 0, 1, o.blood, seed * 100 + i);
+        }
+        fights++;
+        for (const p of [s.people.a, s.people.b]) for (const i of p.injuries ?? []) tally[i.kind]++;
+        faces += 'face' in (s.people.b.bloody ?? {});
+        decals += s.decals.length;
+      }
+      console.log(`      ${fights} fights, CQC 28 against 6: ${tally.crack} cracks, ${tally.split} split brows or lips, ${tally.nose} bloody noses; ${faces} faces bloodied, ${decals} spatters on the floor`);
+      assert(tally.crack > 0 && tally.split + tally.nose > 0, 'hard fights leave cracks, and blood from the face');
+      assert(decals > 0 && faces > 0, 'blood on the floor, and on the face');
+      assert(tally.cut === 0, 'bare hands don\'t cut');
+      // Bleeding drips; a day washes the face; a crack mends in three weeks, a bloody nose in a day.
+      const p = s0();
+      function s0() { const s = ring(5, 5); const q = s.people.a; injure(q, 'head', 0.25, seedRng(3), 0); injure(q, 'torso', 0.9, seedRng(4), 0); return q; }
+      assert(bleeding(p, 30000) || !p.injuries.some(i => i.kind === 'nose'), 'a fresh nosebleed bleeds');
+      heal(p, 2, 2 * 86400000);
+      assert(!p.injuries?.some(i => i.kind === 'nose') && !p.bloody, 'two days on: the nose has mended, the blood washed off');
+      assert(p.injuries?.some(i => i.kind === 'crack') ?? true, 'the crack is still knitting');
+      heal(p, 30, 32 * 86400000);
+      assert(!p.injuries, 'a month on, all mended');
     },
   },
   {

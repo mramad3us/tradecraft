@@ -57,7 +57,13 @@ function ramp(c) {
   }
   return { dark: 0x14151c, shade: c, base: c, light: c };
 }
-const FIXED = { e: 0x14151c, k: 0x14151c, g: 0xe7b84a, G: 0xb9862e, l: 0x6a7182, m: 0x8f96a6, c: 0xe8896a };
+const FIXED = { e: 0x14151c, k: 0x14151c, g: 0xe7b84a, G: 0xb9862e, l: 0x6a7182, m: 0x8f96a6, c: 0xe8896a, q: 0x9e3c36, Q: 0x6e2a2e };
+// Blood worn (spec.blood: { face, clothes }; sim/health.js p.bloody): under the nose and down the chin,
+// and spots down the front.
+const BLOOD = {
+  face: { down: [9, 15, ['.q.Q.', '.Q.q.', '..Q..', '..q..']], right: [15, 15, ['.qq', 'qQq', '.Q.', '.q.']] },
+  clothes: { down: [8, 20, ['..q....', '.Qq..q.', '....Q..', '..q....']], right: [10, 20, ['..qq', '.Q..', '..q.']] },
+};
 const INK = 0x14151c;
 
 // ---------- templates: [x, y, rows] in cell coordinates; '.' leaves what's under ----------
@@ -624,6 +630,8 @@ function compose(spec, dir, frame) {
   else if (view === 'up') draw(hair.up, lean, hb);
   else draw([4, 12, view === 'right' ? ['hhhh', 'hhh.', 'hh..'] : ['hh...........hh', 'h.............h']], lean, hb);
   if (spec.glasses && view !== 'up') draw(T.glasses[spec.glasses][view], lean, hb);
+  if (spec.blood?.face && view !== 'up') draw(BLOOD.face[view], lean, hb, true);
+  if (spec.blood?.clothes && view !== 'up') draw(BLOOD.clothes[view], lean, bob, true);
   if (hat) draw(hat[view] ?? hat.down, lean, hb);
   if (P.over && view === 'right') draw(armSide(kind, P.swing[0], false), lean, bob);   // (a fist before the face)
   return cells;

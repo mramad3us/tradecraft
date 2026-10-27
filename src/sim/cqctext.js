@@ -77,6 +77,13 @@ const ABSORBED = [['you walk into it, take it on the shoulder and keep coming, y
   ['{n} walks into it, takes it and keeps coming, an edge spent.', '{n} eats it and keeps coming, an edge spent.']];
 
 const PART = { head: 'head', torso: 'torso', armL: 'arm', armR: 'arm', legL: 'leg', legR: 'leg' };
+// What else a blow did (sim/health.js injuries): [on them, on you].
+const INJURED = {
+  crack: [[' Something in {n} gives with a crack: {injury}, by the sound of it.', ' {n} goes white: {injury}.'], [' Something gives with a crack you feel in your teeth: {injury}, you\'d bet.', ' A crack, and a new kind of pain: {injury}.']],
+  split: [[' {n}\'s skin splits: {injury}, bleeding freely.', ' Blood: {injury}.'], [' Your skin splits: {injury}. Blood runs warm.', ' Warm wet on your face: {injury}.']],
+  nose: [[' Blood from {n}\'s nose.', ' {n}\'s nose runs red.'], [' Your nose runs hot: blood.', ' You taste blood at the back of your throat.']],
+  cut: [[' The edge opens {n} up: {injury}.', ' {injury}, and blood.'], [' The edge opens you up: {injury}.', ' You feel it later than you see it: {injury}.']],
+};
 
 /** Pronouns for someone, from their sheet. */
 export const pronouns = (p) => (p?.sex === 'f' ? { he: 'she', him: 'her', his: 'her' } : { he: 'he', him: 'him', his: 'his' });
@@ -116,6 +123,7 @@ export function exchangeText(out, name, p, salt = 0) {
     case 'absorbed': text = us ? pick(ABSORBED[1], 7) : pick(ABSORBED[0], 7); break;
     default: text = `${does('b')}; ${does('a')}.`;
   }
+  for (const i of out.injuries ?? []) text += pick(INJURED[i.kind][us ? 0 : 1], 10).replace('{injury}', i.name);
   for (const side of ['a', 'b']) {
     const st = out.status[side];
     if (st && !(st === 'staggered' && out.kind === 'shoved')) text += pick(STATUS[st][side === 'a' ? 1 : 0], 9);   // (a shove says so itself)

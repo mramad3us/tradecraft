@@ -37,6 +37,9 @@
 // leaves someone staggered for the next exchange (STAGGER_MOD to their CQC, and no reading anyone);
 // one to the head that takes STUN_AT, or a palm, a head kick, a choke, may stun them: the next
 // exchange they do nothing at all (the move 'open'), and whatever comes at them lands.
+// **Injuries** besides the hurt (sim/health.js injure(): a crack, a split brow or lip, a bloody nose),
+// and blood flying from a blow that drew it, or landed on a face already bleeding (out.blood: how much;
+// the picture flings it, sim/cqcshow.js, onto the floor, sim/blood.js).
 // **The end.** A bout (sparring: f.bout) pulls its blows (BOUT_K the damage; a drill's f.pull, less)
 // and is scored, a hit or a shove a point and a throw, a lock or a choke two, first to f.to; it's
 // stopped sooner if a head or a torso is wounded (f.stop). A real fight ends when someone can't go on:
@@ -44,7 +47,7 @@
 import { skill } from './skills.js';
 import { opposed } from './checks.js';
 import { int, chance, weighted } from './rng.js';
-import { hurt, stateOf, takes, mods as hurtMods, canGrapple, canStand } from './health.js';
+import { hurt, injure, stateOf, takes, mods as hurtMods, canGrapple, canStand } from './health.js';
 
 export const MOVES = ['hit', 'grapple', 'guard'];
 export const BEATS = { guard: 'hit', hit: 'grapple', grapple: 'guard' };   // each beats the one it names
@@ -217,6 +220,9 @@ export function resolve(state, f, ours) {
     if (out.dmg) {
       out.force = Math.round(out.dmg / takes(LP, out.part) * 100) / 100;
       hurt(LP, out.part, out.dmg);
+      // What else it did (a crack, a split, a bloody nose), and whether it drew blood to fly.
+      out.injuries = injure(LP, out.part, out.force, r, state.time.ms);
+      out.blood = out.injuries.some(i => i.bleed) || (out.part === 'head' && LP.injuries?.some(i => i.bleed > state.time.ms)) ? Math.round(4 + out.force * 20) : 0;
       // A heavy blow staggers; a hard one to the head, or a technique that's made for it, may stun.
       if (!out.status[l] && out.force >= STAGGER_AT) out.status[l] = 'staggered';
       const stun = (out.part === 'head' && out.force >= STUN_AT ? 0.5 : 0) + (T?.stun ?? 0);

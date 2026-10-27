@@ -32,6 +32,7 @@ import { pixelStage, finish, FINE_PALETTE, PX_PER_M, emissiveOf } from '../art/p
 import { buildSection } from './town.js';
 import { buildDojo } from './dojo.js';
 import { createCrowd } from './crowd.js';
+import { createBlood } from './blood.js';
 import { sky, lightAt, lightLevel, LAMP } from '../sim/light.js';
 import { Z, SECTION_M } from '../sim/map/street.js';
 import { passerby } from '../sim/people.js';
@@ -66,6 +67,7 @@ export function createView({ parent, bus }) {
   const { scene, camera, sun, hemi } = stage;
   const sections = new Map();
   const crowd = createCrowd(scene);
+  const blood = createBlood(scene);
   const looks = new Map();                                         // passer-by seed → look (generated once)
   const building = new Map();                                     // i → a section's build, under way
   const off = [
@@ -279,7 +281,9 @@ export function createView({ parent, bus }) {
       drawn.set(a.id, [x, z]);
       const look = lookFor(a.who ?? a.seed);
       if (!look) continue;
-      people.push({ key: a.who ?? a.seed, look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S) });
+      // (blood worn is part of the look: its own sheet)
+      const bl = a.who && state.people[a.who]?.bloody, key = bl ? `${a.who}~${Object.keys(bl).sort().join('')}` : a.who ?? a.seed;
+      people.push({ key, look: bl ? { ...look, blood: bl } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S) });
     }
     for (const id in aware ? {} : seen) {                          // (and as remembered, those out of sight)
       const r = seen[id];
@@ -290,6 +294,7 @@ export function createView({ parent, bus }) {
       people.push({ key: r[6], look, x: r[0], z: r[1], face: r[2], gait: r[3], stride: r[4], phase: 0, t: r[5] / 1000, tint: lightAt(lamps, r[0], r[1], ms, S) });
     }
     crowd.update(people, t);
+    blood.update(state);
     stage.render();
   }
   function lookOf(seed) {

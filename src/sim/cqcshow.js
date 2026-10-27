@@ -12,9 +12,11 @@
 //   - a throw puts them down, DOWN_M back from their mark, and they get up through a kneel onto it;
 //   - two covers: a shuffle in and out, watching.
 // animate() sets both fighters' gaits and places each tick of the show; length() is how long it runs;
-// f.impact is the moment of the blow (tick, who, how hard), for the view's shake.
+// f.impact is the moment of the blow (tick, who, how hard), for the view's shake; a blow that drew blood
+// flings it then, the way it went, onto the floor (sim/blood.js).
 import { TECHNIQUES } from './cqc.js';
 import { skill } from './skills.js';
+import { spatter } from './blood.js';
 
 export const HITSTOP = 3;
 export const KNOCK_M = [0.35, 0.85];
@@ -101,7 +103,11 @@ export const length = (state, f, out) => plan(state, f, out).length;
 export function animate(state, f, sides) {
   const out = f.last, k0 = state.tick - (f.shown ?? state.tick);
   const pl = f.phase === 'show' && out ? (f.$plan?.round === out.round ? f.$plan : (f.$plan = { round: out.round, ...plan(state, f, out) })) : null;
-  if (pl && k0 === pl.impact && pl.struck) f.impact = { tick: state.tick, side: pl.struck, force: out.force, kind: out.kind };
+  if (pl && k0 === pl.impact && pl.struck) {
+    f.impact = { tick: state.tick, side: pl.struck, force: out.force, kind: out.kind };
+    const hit = sides[pl.struck];
+    if (out.blood && hit) spatter(state, hit.x, hit.z, pl.struck === 'a' ? -1 : 1, out.blood, (state.map.seed ^ (out.round * 7919)) >>> 0);
+  }
   const k = !pl ? 0 : k0 < pl.impact ? k0 : k0 < pl.impact + HITSTOP ? pl.impact : k0 - HITSTOP;
   for (const s of ['a', 'b']) {
     const a = sides[s], m = f.marks?.[s];

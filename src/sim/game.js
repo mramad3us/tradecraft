@@ -35,6 +35,7 @@ import { look, headOf, faceOf } from './perception.js';
 import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } from './agents.js';
 import { drift } from './people.js';
 import { heal } from './health.js';
+import { drips } from './blood.js';
 import { glassAhead, affordance, act as doAct } from './acts.js';
 import { SCENARIOS } from './scenarios/index.js';
 
@@ -156,6 +157,7 @@ export function step(state, input = {}, bus) {
   state.$offer = me ? affordance(state, me) : null;
   // 6. The map and the crowd, once a second.
   if (state.tick % TICKS_PER_S === 0) {
+    drips(state);
     const f = focusActor(state);
     if (f) { refocus(state, bus, [f.x, ...(scenario.anchors?.(state) ?? [])]); populate(state, f.x); }
   }
@@ -190,7 +192,7 @@ export function skip(state, bus, ms) {
   if (!(ms > 0)) return;
   const before = Math.floor(state.time.ms / AUTOSAVE_MS);
   state.time.ms += Math.round(ms / TICK_MS) * TICK_MS;
-  for (const p of Object.values(state.people)) { drift(p, state.time.ms); heal(p, ms / DAY); }
+  for (const p of Object.values(state.people)) { drift(p, state.time.ms); heal(p, ms / DAY, state.time.ms); }
   const f = focusActor(state);
   if (f) populate(state, f.x);
   rehash(state);

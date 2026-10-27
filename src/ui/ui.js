@@ -19,7 +19,7 @@ import { placeName } from '../sim/map/street.js';
 import { shownRolls } from '../sim/scenarios/sdr.js';
 import { SCREEN_HALF_M } from '../sim/crowd.js';
 import { SKILLS, CLASSES, TRAINED, skill } from '../sim/skills.js';
-import { PARTS, stateOf, stateText, FITNESS_K } from '../sim/health.js';
+import { PARTS, stateOf, stateText, injuriesOn, FITNESS_K } from '../sim/health.js';
 
 const el = (tag, props = {}, ...kids) => {
   const e = Object.assign(document.createElement(tag), props);
@@ -310,7 +310,8 @@ export function createUI({ input, cb }) {
           el('p', { className: 'langs', textContent: Object.entries(p.langs ?? {}).map(([c, l]) => `${LANGS[c] ?? c}: ${l}`).join(' · ') })),
         el('div', { className: 'body' },
           el('div', { className: 'figure' }, part('head'), part('armR'), part('torso'), part('armL'), part('legR'), part('legL')),
-          el('ul', {}, Object.keys(PARTS).map(k => el('li', { className: stateOf(p, k) }, el('span', { textContent: PARTS[k].name }), el('span', { textContent: stateText(p, k) })))),
+          el('ul', {}, Object.keys(PARTS).map(k => el('li', { className: `${stateOf(p, k)}${injuriesOn(p, k) ? ' injured' : ''}` }, el('span', { textContent: PARTS[k].name }), el('span', { textContent: stateText(p, k) }),
+            injuriesOn(p, k) ? el('small', { textContent: injuriesOn(p, k) }) : null))),
           el('p', { className: 'note', textContent: `Fitness ${fit}: the body takes ${fit ? `${Math.round(100 * fit / FITNESS_K)}% more` : 'only what it takes'} before it gives.` }))),
       el('p', { className: 'note', textContent: `${input.label('sheet')} or ${input.label('menu')} to close.` }),
     ));
