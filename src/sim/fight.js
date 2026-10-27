@@ -10,13 +10,42 @@
 // hears of each exchange and of the end (scenario.onExchange(state, bus, out), onFightEnd(state, bus,
 // f)); without one (a brawl), the end is the engine's (sim/interact.js afterFight()).
 // While a fight is on, the player's feet are the fight's: the move keys do nothing.
+// At the end, whoever is out cold or down lies there (OUT_S; the dead for good, sim/game.js), and a
+// player dead is the scene's end, if the scene hasn't ended it its own way ('dead': the engine's paper,
+// sim/game.js deathPaper()).
 import { startFight, resolve, allowed, MOVES } from './cqc.js';
 import { exchangeText } from './cqctext.js';
 import { animate, length } from './cqcshow.js';
 import { say } from './log.js';
 import { headOf } from './perception.js';
+import { canStand } from './health.js';
 
 export const FIGHT_GAP_M = 1.5;
+
+/**
+ * The instinct on how things stand (the user, 2026-10-26: "instinct reminders about dazed (us or
+ * opponent), staggered and stunned when someone is in these states"): a line on our state and theirs
+ * for the next exchange, with the keys, or null when nobody's in one. Shown in place of the scene's
+ * line, in any fight (src/ui/ui.js). { tone, text } ({hit} … the keys).
+ */
+export function statusLine(state) {
+  const f = state.fight;
+  if (!f || f.ended) return null;
+  const us = f.status?.a, them = f.status?.b, n = cap(shortName(state, f.b)), parts = [];
+  let tone = 'note';
+  if (us === 'stunned') { parts.push('You\'re stunned: nothing answers, and whatever comes lands.'); tone = 'urgent'; }
+  else if (us === 'dazed') { parts.push('You\'re dazed: your hands are slow, no {guard} cover this time.'); tone = 'warn'; }
+  else if (us === 'staggered') { parts.push('You\'re off balance: no {grapple} grab this time.'); tone = 'warn'; }
+  if (them === 'stunned') {
+    if (f.adv.a > 0 && f.bout) { parts.push(`${n} is stunned. It's a bout: finishing them ({run}) is a foul.`); tone = 'urgent'; }
+    else if (f.adv.a > 0) parts.push(`${n} is stunned: {run} with {hit} or {grapple} finishes it.`);
+    else parts.push(`${n} is stunned: whatever you do lands.`);
+  } else if (them === 'dazed') parts.push(`${n} is dazed: no cover coming, so a {hit} can't be blocked.`);
+  else if (them === 'staggered') parts.push(`${n} is off balance: no grab coming from them.`);
+  return parts.length ? { id: `status-${f.round}`, tone, text: parts.join(' ') } : null;
+}
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+export const OUT_S = 60;
 /** Owners of fights that aren't a scene's: their hooks, by name (sim/interact.js registers 'street'). */
 export const owners = {};
 const hooksOf = (f, scene) => (!f.owner ? null : owners[f.owner] ?? scene);
@@ -88,9 +117,18 @@ function end(state, bus, scene) {
   const f = state.fight;
   state.fight = null;
   const them = actorOfWho(state, f.b), me = playerOf(state);
-  if (me) me.gait = 'idle';
-  if (them) { them.gait = them.gait === 'down' ? 'down' : 'idle'; if (them.ai) them.ai.fighting = false; }
+  // (out cold, down or dead: on the floor; the dead for good)
+  for (const [a, who] of [[me, f.a], [them, f.b]]) {
+    if (!a) continue;
+    const p = state.people[who], out = p.dead || !canStand(p);
+    a.gait = out ? 'down' : a.gait === 'down' ? 'down' : 'idle';
+    if (a.ai) { a.ai.fighting = false; if (out) a.ai.downUntil = p.dead ? Infinity : state.time.ms + OUT_S * 1000; }
+  }
   hooksOf(f, scene)?.onFightEnd?.(state, bus, f);
   bus?.emit('fight-end', f);
+  if (state.people[f.a]?.dead && !state.scenario.outcome) {        // (the player dead: the scene's over, the engine's way)
+    Object.assign(state.scenario, { outcome: 'dead', ended: state.time.ms });
+    bus?.emit('scenario-end', 'dead');
+  }
   return f;
 }

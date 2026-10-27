@@ -25,7 +25,7 @@
 //      and the crowd's bubble is kept round the focus: its street and the streets either side.
 //   7. The clock advances; an autosave is due every 30 game minutes ('autosave' on the bus).
 import { seedRng } from './rng.js';
-import { TICK_MS, MIN, DAY } from './clock.js';
+import { TICK_MS, MIN, DAY, dateText } from './clock.js';
 import { SAVE_SCHEMA } from './state.js';
 import { attach, refocus, rehash, move, near, exitAt } from './world.js';
 import { Z, placeName } from './map/street.js';
@@ -140,8 +140,9 @@ export function step(state, input = {}, bus) {
     me.glass = pane ? (me.glass?.x0 === pane.x0 ? me.glass : { ...pane, since: state.time.ms }) : false;
     if (me.glass) me.face = 'up';
   }
-  // 2. Everyone moves; the focus may leave the map.
+  // 2. Everyone moves; the focus may leave the map. (Someone out cold lies there a while; the dead, for good.)
   for (const a of state.actors) {
+    if (a.ai?.downUntil > state.time.ms && !a.ai.fighting) { a.vx = a.vz = 0; a.gait = 'down'; continue; }
     if (isAgent(a)) stepAgent(state, a, scenario, bus);
     else if (a.ai) walk(state, a);
     else if (a.vx || a.vz) a.stride += move(state, a, a.vx * DT, a.vz * DT);
@@ -159,6 +160,7 @@ export function step(state, input = {}, bus) {
     if ((state.tick + hashId(a.id)) % ROUTE_EVERY === 0) routeFollower(state, a);
   }
   for (const a of state.actors) {
+    if (a.ai?.downUntil > state.time.ms) continue;
     if (isPasserby(a)) { if (onMap(state, a)) noticeAgent(state, a); }
     else if (a.ai?.kind === 'walker') think(state, a);
     else if (a.ai) scenario.think?.(state, a, bus);
@@ -227,6 +229,17 @@ export function changeMap(state, bus, way) {
   me.row = row;
   for (const id of carried) { const a = actor(state, id); if (a) a.row = row; }
   loadRow(state, bus, row, me.x, { way, from });
+}
+
+/** The engine's paper for a player killed (sim/fight.js): what killed them, where, and when. */
+export function deathPaper(state) {
+  const me = state.people[state.player], d = me?.dead ?? { why: 'something', ms: state.time.ms };
+  return {
+    stamp: 'DEAD', good: false, title: `${me?.name ?? 'You'}`.toUpperCase(),
+    text: `Dead of ${d.why}, on ${dateText(d.ms)}. Somebody will find the body, and somebody else will have to explain it.`,
+    notes: [`${state.legend?.name ?? 'Nobody official'}. The fight was the last thing.`],
+    stats: dateText(d.ms),
+  };
 }
 
 /**

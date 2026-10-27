@@ -79,6 +79,28 @@ const FENDED = [['{n} goes for the throw; you spend your edge and break the grip
 const ABSORBED = [['you walk into it, take it on the shoulder and keep coming, your edge spent.', 'you eat it and keep coming, your edge spent.'],
   ['{n} walks into it, takes it and keeps coming, an edge spent.', '{n} eats it and keeps coming, an edge spent.']];
 
+// Fight enders (sim/cqc.js finish()): [ours, theirs], by how, and whether it came off.
+const ENDER = {
+  knockout: [['{n} is out on {his} feet, and you put {him} away: flush on the jaw, and {he}\'s out before {he} lands', 'you set your feet and finish it; the lights go out in {n}, and {he} falls without putting a hand out', 'one more, all of you behind it: {n} folds straight down and stays there'],
+    ['you never see it coming. The floor, then nothing.', 'the world goes out like a light.', 'you don\'t remember landing.']],
+  arm: [['you trap {his} arm and turn it until it goes, with a sound like a green branch; {n} screams', 'you lever the arm over your hip and it breaks; {n} goes to {his} knees', 'you lock the elbow and lean: it gives, and so does {n}'],
+    ['{n} traps your arm and turns it until it goes; you hear it before you feel it', '{n} levers your arm over a hip, and it breaks', 'your elbow bends the way it doesn\'t, and the pain arrives all at once']],
+  leg: [['you drop your weight onto {his} knee, sideways; it gives, and {n} is done', 'you sweep the leg and stamp through it; {n} won\'t stand on that again soon', 'you twist the leg until the knee goes; {n} screams'],
+    ['{n} drops onto your knee, sideways, and it gives', '{n} stamps through your leg; it folds the wrong way', 'your knee goes with a pop you feel in your teeth']],
+  slam: [['you charge, lift {him} off {his} feet and drive {him} into the floor, all your weight on top', 'you bull into {him}, and {n} goes down flat with you on {him}; {his} head bounces', 'you take {him} off {his} feet and dump {him} onto {his} head and shoulders'],
+    ['{n} charges, lifts you, and the floor comes up all at once', '{n} bulls into you and you go down flat, the back of your head first', 'you\'re off your feet, and then the ground is everything']],
+};
+const BOTCHED = {
+  knockout: [['you put everything into it, and it lands, but not clean: {n} stays up, just', 'it lands hard, off-centre, and something gives that shouldn\'t', 'you swing to finish it; it lands, but {n} is still there'],
+    ['{n} puts everything into it; it lands, not clean, and something gives', 'it lands hard and wrong', 'it catches you off-centre: you\'re still up, somehow']],
+  break: [['you go for the arm and wrench it, but {n} twists out, crying out', 'you get the lock, almost: the arm bends, and {n} rips it free', 'you crank the joint; it doesn\'t go, but it\'ll remember'],
+    ['{n} wrenches your arm, and you twist out, just', 'the lock nearly takes; you rip the arm free', '{n} cranks the joint, and it nearly goes']],
+  slam: [['you charge, and you both go down in a heap; {n} gets up slower', 'you drive {him} back and down, hard, and land badly yourself', 'you take {him} down, but not the way you meant: {he}\'s hurt, and up'],
+    ['{n} charges, and you both go down in a heap', '{n} drives you down hard; you get up, slowly', '{n} takes you down, hard, but you roll']],
+};
+const KILLED = [' {n} doesn\'t move. {n} isn\'t breathing.', ' {n} lies still, too still. There\'s no breath.', ' {n} doesn\'t get up, and isn\'t going to.'];
+const FOUL = [' The hall goes silent. That was a foul.', ' Somebody shouts. Everyone stops: that was a foul.', ' Hale is already moving. That was a foul.'];
+
 const PART = { head: 'head', torso: 'torso', armL: 'arm', armR: 'arm', legL: 'leg', legR: 'leg' };
 // What else a blow did (sim/health.js injuries): [on them, on you].
 const INJURED = {
@@ -94,7 +116,7 @@ export const pronouns = (p) => (p?.sex === 'f' ? { he: 'she', him: 'her', his: '
 /** Fill {n}, {he}, {him}, {his} for them; capitalise the first letter. */
 function fill(text, name, pr) {
   const t = text.replace(/\{n\}/g, name).replace(/\{he\}/g, pr.he).replace(/\{him\}/g, pr.him).replace(/\{his\}/g, pr.his);
-  return t.charAt(0).toUpperCase() + t.slice(1);
+  return (t.charAt(0).toUpperCase() + t.slice(1)).replace(/([.!?] )([a-z])/g, (m, a, b) => a + b.toUpperCase());   // (a name like 'the FSB man' starting a sentence)
 }
 
 /** The exchange `out` (sim/cqc.js resolve()) in words, from our side. name: theirs; p: their sheet. */
@@ -127,11 +149,23 @@ export function exchangeText(out, name, p, salt = 0) {
     case 'shoved': text = us ? `${does('b')}; ${does('a')}, and ${pick(SHOVED[0], 7)}.` : `${does('a')}; ${does('b')}, and ${pick(SHOVED[1], 7)}.`; break;
     case 'locked': text = us ? `${does('b')}; ${does('a')}, and ${pick(LOCKED[0], 7)}.` : `${does('a')}; ${does('b')}, and ${pick(LOCKED[1], 7)}. ${pick(FEELS.arm[sev(out.force)], 8)}`; break;
     case 'choked': text = us ? `${does('b')}; ${does('a')}, and ${pick(CHOKED[0], 7)}.` : `${does('a')}; ${does('b')}, and ${pick(CHOKED[1], 7)}.`; break;
+    case 'knockout': case 'slammed': case 'broken': {
+      const which = out.kind === 'knockout' ? 'knockout' : out.kind === 'slammed' ? 'slam' : PART[out.part] === 'leg' ? 'leg' : 'arm';
+      text = us ? `${pick(ENDER[which][0], 6)}.` : `${pick(ENDER[which][1], 6)}`;
+      break;
+    }
+    case 'botched': {
+      const part = PART[out.part], s = sev(out.force);
+      text = us ? `${pick(BOTCHED[out.finish.how][0], 6)}; ${pick(LOOKS[part][s], 7)}.` : `${pick(BOTCHED[out.finish.how][1], 6)}. ${pick(FEELS[part][s], 7)}`;
+      break;
+    }
     case 'fended': text = us ? pick(FENDED[1], 7) : pick(FENDED[0], 7); break;
     case 'absorbed': text = us ? pick(ABSORBED[1], 7) : pick(ABSORBED[0], 7); break;
     default: text = `${does('b')}; ${does('a')}.`;
   }
   for (const i of out.injuries ?? []) text += pick(INJURED[i.kind][us ? 0 : 1], 10).replace('{injury}', i.name);
+  if (out.killed && us) text += pick(KILLED, 11);
+  if (out.foul) text += pick(FOUL, 12);
   for (const side of ['a', 'b']) {
     const st = out.status[side];
     if (st && !(st === 'staggered' && out.kind === 'shoved')) text += pick(STATUS[st][side === 'a' ? 1 : 0], 9);   // (a shove says so itself)

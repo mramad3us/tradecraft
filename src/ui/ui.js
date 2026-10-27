@@ -23,8 +23,9 @@ import { SCREEN_HALF_M } from '../sim/crowd.js';
 import { SKILLS, CLASSES, TRAINED, skill } from '../sim/skills.js';
 import { PARTS, stateOf, stateText, injuriesOn, FITNESS_K } from '../sim/health.js';
 import { atHand, options as interactOptions } from '../sim/interact.js';
-import { allowed } from '../sim/cqc.js';
-import { shortName } from '../sim/fight.js';
+import { allowed, cqcOf, BREAK_CQC } from '../sim/cqc.js';
+import { deathPaper } from '../sim/game.js';
+import { shortName, statusLine } from '../sim/fight.js';
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 import { knownOf, classOf, READABLE } from '../sim/know.js';
@@ -252,17 +253,22 @@ export function createUI({ input, cb }) {
       }
     }
     moves.hidden = !choosing;
-    if (choosing && moves.dataset.adv !== `${fi.adv.a}${fi.status?.a}`) {
-      moves.dataset.adv = `${fi.adv.a}${fi.status?.a}`;
+    if (choosing && moves.dataset.adv !== `${fi.adv.a}${fi.status?.a}${fi.status?.b}`) {
+      moves.dataset.adv = `${fi.adv.a}${fi.status?.a}${fi.status?.b}`;
+      // (them stunned, an edge in hand: a fight ender, sim/cqc.js finish(); in a bout, a foul)
+      const ender = fi.adv.a > 0 && fi.status?.b === 'stunned', breaks = cqcOf(state, fi.a) >= BREAK_CQC;
       const why = { staggered: 'off balance', dazed: 'too slow' }[fi.status?.a];
       moves.replaceChildren(...['hit', 'grapple', 'guard'].map(m => el('div', { className: `move${allowed(fi.status?.a, m) ? '' : ' off'}`, title: allowed(fi.status?.a, m) ? '' : why },
         el('kbd', { textContent: input.label(m) }), el('img', { src: icon(m), alt: '' }), el('span', { textContent: allowed(fi.status?.a, m) ? MOVE_WORD[m].toLowerCase() : `${MOVE_WORD[m].toLowerCase()}: ${why}` }))),
-        ...(fi.adv.a ? [el('div', { className: 'move spend', title: 'Held with a move, an edge: a hit lands double; a grab shrugs off a punch; a cover hits back, and keeps the edge' },
+        ...(ender ? [el('div', { className: `move spend ender${fi.bout ? ' foul' : ''}`, title: `They can't defend. A CQC check: a hit knocks them out; a grab ${breaks ? 'breaks an arm or a leg' : 'slams them into the floor'}. Failed, it still does double, and likely breaks something. It can kill.` },
+          el('kbd', { textContent: input.label('run') }), el('span', { textContent: `+ hit: knock out · + grab: ${breaks ? 'break a limb' : 'slam down'}${fi.bout ? ' · a foul' : ''}` }))]
+          : fi.adv.a ? [el('div', { className: 'move spend', title: 'Held with a move, an edge: a hit lands double; a grab shrugs off a punch; a cover hits back, and keeps the edge' },
           el('kbd', { textContent: input.label('run') }), el('span', { textContent: `+ a key: an edge (${fi.adv.a}); with a cover, hit back` }))] : []));
     }
     // The instinct: always a line, its tone in its border; {key} in the text shows as that key.
     // What's at hand (the engine's: sim/acts.js affordance()) ends a line that offers nothing itself.
-    const sp = !sc.outcome && sc.prompt, off = !sc.outcome && !sp?.act && sp?.tone !== 'urgent' && state.$offer;
+    // (in a fight, someone stunned, dazed or staggered: the engine's line on it comes first: sim/fight.js)
+    const sp = !sc.outcome && ((state.fight?.phase === 'choose' && statusLine(state)) || sc.prompt), off = !sc.outcome && !sp?.act && sp?.tone !== 'urgent' && state.$offer;
     const p = sp || off ? { tone: sp?.tone ?? 'calm', text: `${sp?.text ?? ''}${off ? off.text : ''}`.trim() } : null;
     prompt.hidden = !p;
     if (p && prompt.dataset.text !== p.text + p.tone) {
@@ -270,6 +276,8 @@ export function createUI({ input, cb }) {
       prompt.className = `prompt ${p.tone}`;
       prompt.replaceChildren(...keyed(p.text));
     }
+    // (the move panel sits above the instinct, however many lines it runs to)
+    if (!moves.hidden) moves.style.bottom = `${p ? 58 + prompt.offsetHeight + 8 : 96}px`;
     const now = performance.now();
     for (const t of [...toasts.children]) {
       if (now - t.born > TOAST_S * 1000 && !t.classList.contains('gone')) t.classList.add('gone');
@@ -477,7 +485,7 @@ export function createUI({ input, cb }) {
       el('button', { className: 'item', onclick: go(same) }, 'Again, the same evening', el('small', { textContent: 'The same streets and the same people; the dice fall as you play.' })),
       el('button', { className: 'item', onclick: go(title) }, 'Back to the title'),
     ];
-    const own = SCENARIOS[sc.kind].result?.(state, { debug });
+    const own = sc.outcome === 'dead' ? deathPaper(state) : SCENARIOS[sc.kind].result?.(state, { debug });   // (killed: the engine's paper, whatever the scene)
     if (own) {                                                     // a scenario that writes its own paper
       paper.replaceChildren(el('div', { className: 'sheet result' },
         el('span', { className: `stamp ${own.good ? 'good' : ''}`, textContent: own.stamp }),

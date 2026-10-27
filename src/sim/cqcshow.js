@@ -10,7 +10,10 @@
 //     where you feel it); the one struck is knocked back (KNOCK_M, more for a heavier blow), reels,
 //     then staggers or stands dazed if it left them so; a cover gives a little;
 //   - a throw puts them down, DOWN_M back from their mark, and they get up through a kneel onto it;
-//   - two covers: a shuffle in and out, watching.
+//   - two covers: a shuffle in and out, watching;
+//   - a fight ender (sim/cqc.js finish()) holds its blow HITSTOP_END ticks: a knockout falls and
+//     stays down, a slam lays them flat, a broken limb puts them on their knees; one botched lands
+//     like a blow (a slam botched, a throw they get up from).
 // animate() sets both fighters' gaits and places each tick of the show; length() is how long it runs;
 // f.impact is the moment of the blow (tick, who, how hard), for the view's shake; a blow that drew blood
 // flings it then, the way it went, onto the floor (sim/blood.js).
@@ -19,6 +22,7 @@ import { skill } from './skills.js';
 import { spatter } from './blood.js';
 
 export const HITSTOP = 3;
+export const HITSTOP_END = 6;
 export const RIPOSTE_T = 2;
 export const KNOCK_M = [0.35, 0.85];
 export const DOWN_M = 0.7;
@@ -52,10 +56,11 @@ export function plan(state, f, out) {
   const ends = [A, B].map(x => (x.acts ? x.wind + x.strike + x.recover : 0));
   const struck = w && out.kind !== 'circle' && out.kind !== 'fended' && out.kind !== 'blocked' && out.kind !== 'absorbed' ? (w === 'a' ? 'b' : 'a') : null;
   // (a riposte: the cover meets the blow, then hits back RIPOSTE_T later: that's the impact)
-  if (out.kind === 'riposte') return { A, B, impact: impact + RIPOSTE_T, covered: impact, struck, length: impact + RIPOSTE_T + 6 + HITSTOP + 1 };
+  if (out.kind === 'riposte') return { A, B, impact: impact + RIPOSTE_T, covered: impact, struck, hold: HITSTOP, length: impact + RIPOSTE_T + 6 + HITSTOP + 1 };
   let tail = 3;
-  if (struck) tail = out.kind === 'thrown' ? 1 + 6 + 4 : out.status[struck] === 'staggered' ? 8 : out.kind === 'locked' || out.kind === 'choked' ? 8 : 5;
-  return { A, B, impact, struck, length: Math.max(...ends, impact + tail) + HITSTOP + 1 };
+  const hold = out.finish ? HITSTOP_END : HITSTOP, floored = out.kind === 'knockout' || out.kind === 'slammed' || out.killed;
+  if (struck) tail = floored ? 10 : out.kind === 'broken' ? 8 : out.kind === 'thrown' || (out.kind === 'botched' && out.finish?.how === 'slam') ? 1 + 6 + 4 : out.status[struck] === 'staggered' ? 8 : out.kind === 'locked' || out.kind === 'choked' ? 8 : 5;
+  return { A, B, impact, struck, hold, floored, length: Math.max(...ends, impact + tail) + hold + 1 };
 }
 
 /** The pose and the distance from the mark (toward the other: +) of side s, k ticks into the show (the hold taken out). */
@@ -67,7 +72,9 @@ function at(pl, out, s, k) {
   if (hit && k >= I) {
     const t = k - I;
     const back = -(KNOCK_M[0] + (KNOCK_M[1] - KNOCK_M[0]) * Math.min(1, out.force / 0.5));
-    if (out.kind === 'thrown') {
+    if (pl.floored) return t < 2 ? { gait: 'reel', off: back * (t + 1) / 2 } : { gait: 'down', off: out.kind === 'slammed' ? -DOWN_M : back };   // (and they stay down)
+    if (out.kind === 'broken') return t < 3 ? { gait: 'stun', off: 0.1 } : { gait: 'crouch', off: -0.1 };   // (on their knees, holding it)
+    if (out.kind === 'thrown' || (out.kind === 'botched' && out.finish?.how === 'slam')) {
       if (t < 1) return { gait: 'reel', off: back * 0.5 };
       if (t < 7) return { gait: 'down', off: -DOWN_M };
       if (t < 11) return { gait: 'crouch', off: -DOWN_M * (1 - (t - 7) / 4) };
@@ -113,7 +120,7 @@ export function animate(state, f, sides) {
     const hit = sides[pl.struck];
     if (out.blood && hit) spatter(state, hit.x, hit.z, pl.struck === 'a' ? -1 : 1, out.blood, (state.map.seed ^ (out.round * 7919)) >>> 0);
   }
-  const k = !pl ? 0 : k0 < pl.impact ? k0 : k0 < pl.impact + HITSTOP ? pl.impact : k0 - HITSTOP;
+  const k = !pl ? 0 : k0 < pl.impact ? k0 : k0 < pl.impact + pl.hold ? pl.impact : k0 - pl.hold;
   for (const s of ['a', 'b']) {
     const a = sides[s], m = f.marks?.[s];
     if (!a || !m) continue;

@@ -14,14 +14,16 @@
 // act(state, bus, id, them) does it. An opening is a fight's first exchange (sim/fight.js), them caught
 // open if they didn't see it coming. After every exchange, someone who won't fight on runs (NERVE:
 // hurt, outclassed, a civilian); out cold, they lie a while (DOWN_S) and then get up and go. A fight
-// in the street is seen: whoever saw it remembers a face (heat, WITNESS_HEAT each, up to WITNESS_MAX).
+// in the street is seen: whoever saw it remembers a face (heat, WITNESS_HEAT each, up to WITNESS_MAX;
+// a killing, KILL_HEAT_K times that). Someone killed lies there for good (sim/fight.js); a broken arm
+// gives up and goes, holding it.
 import { opposed } from './checks.js';
 import { skill } from './skills.js';
 import { chance, pick, hash } from './rng.js';
 import { say } from './log.js';
 import { passerby, describe } from './people.js';
 import { seesActor } from './perception.js';
-import { stateOf } from './health.js';
+import { stateOf, canStand } from './health.js';
 import { addHeat } from './heat.js';
 import { begin as beginFight, exchange, owners, shortName } from './fight.js';
 import { read, fought } from './know.js';
@@ -36,6 +38,7 @@ export const DOWN_S = 60;
 export const WITNESS_M = 25;
 export const WITNESS_HEAT = 1;
 export const WITNESS_MAX = 6;
+export const KILL_HEAT_K = 4;
 export const OPENINGS = ['hit', 'sucker', 'push', 'grab', 'stab'];
 const OPENING_WORDS = { hit: 'Hit', sucker: 'Sucker punch', push: 'Push', grab: 'Grab', stab: 'Stab' };
 
@@ -123,18 +126,19 @@ owners.street = {
     const them = state.actors.find(a => a.who === f.b), p = state.people[f.b], name = shortName(state, f.b);
     fought(state, f.b, f.ended.by === 'a');
     nudge(p, 'fear', 3, state.time.ms); nudge(p, 'affinity', -2, state.time.ms);   // (they'll remember you)
-    if (them && (stateOf(p, 'head') === 'out' || stateOf(p, 'torso') === 'out')) {
+    if (them && p.dead) say(state, bus, { kind: 'note', text: `${cap(name)} lies where ${p.sex === 'f' ? 'she' : 'he'} fell, and doesn't breathe.` });
+    else if (them && (stateOf(p, 'head') === 'out' || stateOf(p, 'torso') === 'out' || !canStand(p))) {
       if (them?.ai) them.ai.downUntil = state.time.ms + DOWN_S * 1000;
       say(state, bus, { kind: 'note', text: `${cap(name)} lies where ${p.sex === 'f' ? 'she' : 'he'} fell.` });
-    } else if (f.ended.why === 'fled' && them) {
+    } else if ((f.ended.why === 'fled' || f.ended.why === 'broken') && them) {
       run(state, them);
       say(state, bus, { kind: 'note', text: pick(state.rng, [`${cap(name)} backs off, then runs.`, `${cap(name)} has had enough, and goes, fast.`, `${cap(name)} turns and runs.`]) });
     }
     // Whoever saw it.
     const me = playerOf(state), saw = state.actors.filter(a => a !== me && a !== them && !a.hidden && Math.hypot(a.x - me.x, a.z - me.z) < WITNESS_M && seesActor(state, a, me)).length;
     if (saw && state.legend) {
-      addHeat(state, Math.min(WITNESS_MAX, saw) * WITNESS_HEAT);
-      say(state, bus, { kind: 'note', text: saw > 2 ? 'People stopped to watch. Someone is already on a phone.' : 'Someone saw that.' });
+      addHeat(state, Math.min(WITNESS_MAX, saw) * WITNESS_HEAT * (p.dead ? KILL_HEAT_K : 1));
+      say(state, bus, { kind: 'note', text: p.dead ? (saw > 1 ? 'Someone screams. People are running, some away, some to phones.' : 'Someone saw it: a face at a window, gone.') : saw > 2 ? 'People stopped to watch. Someone is already on a phone.' : 'Someone saw that.' });
     }
   },
 };

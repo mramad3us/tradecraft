@@ -23,6 +23,13 @@
 // the skin (SPLIT_AT: a brow, a lip) or bloody the nose (NOSE_AT); a blade, glass, an edge, cuts. What
 // bleeds bleeds a while (bleed: until when; sim/blood.js drips it on the ground) and is worn on the
 // face or the clothes until cleaned (p.bloody, src/art/sprites.js). They mend by their days (heal()).
+// A **fracture** (a broken jaw, a fractured eye socket, broken ribs, a fractured forearm or shin) is
+// what a fight ender gone wrong leaves (sim/cqc.js finish()): FRACTURE_MOD to what the part does (the
+// jaw: −2 to everything), six weeks to knit.
+//
+// **Death** (p.dead: { ms, why }; kill()): someone dead is out of everything: they can't stand, a fight
+// with them is over, they lie where they fell (sim/game.js). A blow can kill (sim/cqc.js deathChance():
+// a knockout, a slam onto the floor, worse on someone already beaten up); bleeding out comes later.
 import { skill } from './skills.js';
 import { chance, pick, range } from './rng.js';
 import { DAY } from './clock.js';
@@ -83,10 +90,10 @@ export function mods(p, key) {
     const a = Math.max(...ARMS.map(k => level(stateOf(p, k))));
     if (a >= 2) out.push({ why: a >= 4 ? 'a broken arm' : a >= 3 ? 'a wounded arm' : 'a hurt arm', v: a >= 4 ? (key === 'weapons' ? -6 : -4) : a >= 3 ? -3 : -1 });
   }
-  // A crack, where the part is used (a cheekbone: everything, a little).
-  for (const i of (p.injuries ?? []).filter(j => j.kind === 'crack')) {
+  // A crack or a fracture, where the part is used (a cheekbone, a jaw: everything).
+  for (const i of (p.injuries ?? []).filter(j => j.kind === 'crack' || j.kind === 'fracture')) {
     const uses = i.part === 'head' ? true : i.part === 'torso' || i.part.startsWith('leg') ? key === 'cqc' || key === 'fitness' : key === 'cqc' || key === 'weapons';
-    if (uses) out.push({ why: i.name, v: i.part === 'head' ? -1 : CRACK_MOD });
+    if (uses) out.push({ why: i.name, v: i.part === 'head' ? (i.kind === 'fracture' ? -2 : -1) : i.kind === 'fracture' ? FRACTURE_MOD : CRACK_MOD });
   }
   return out;
 }
@@ -95,11 +102,13 @@ export const CRACK_AT = 0.5;
 export const SPLIT_AT = 0.3;
 export const NOSE_AT = 0.2;
 export const CRACK_MOD = -2;
+export const FRACTURE_MOD = -3;
 const SIDE = { armL: 'left', armR: 'right', legL: 'left', legR: 'right' };
 export const INJURIES = {
   crack: { days: 21, name: (part) => ({ head: 'a cracked cheekbone', torso: 'a cracked rib' }[part] ?? `a cracked ${SIDE[part]} ${part.startsWith('arm') ? 'forearm' : 'shin'}`) },
   split: { days: 7, bleedS: [120, 300], name: (part, r) => pick(r, ['a split brow', 'a split lip']) },
   nose: { days: 1, bleedS: [60, 150], name: () => 'a bloody nose' },
+  fracture: { days: 42, name: (part, r) => (part === 'head' ? pick(r, ['a broken jaw', 'a fractured eye socket', 'a broken cheekbone']) : part === 'torso' ? 'broken ribs' : `a fractured ${SIDE[part]} ${part.startsWith('arm') ? 'forearm' : 'shin'}`) },
   cut: { days: 10, bleedS: [180, 600], name: (part) => (part === 'head' ? 'a cut on the face' : part === 'torso' ? 'a cut across the ribs' : `a cut on the ${SIDE[part]} ${part.startsWith('arm') ? 'arm' : 'leg'}`) },
 };
 const has = (p, part, kind) => (p.injuries ?? []).some(i => i.part === part && i.kind === kind);
@@ -108,7 +117,7 @@ const has = (p, part, kind) => (p.injuries ?? []).some(i => i.part === part && i
  * What a blow of `force` (its share of what the part can take) did besides hurt, at game time ms:
  * the new injuries, kept on p.injuries (edge: a blade's, which cuts). r: the dice.
  */
-export function injure(p, part, force, r, ms, { edge = false } = {}) {
+export function injure(p, part, force, r, ms, { edge = false, fracture = 0 } = {}) {
   const out = [];
   const add = (kind) => {
     const K = INJURIES[kind], i = { part, kind, name: K.name(part, r), ms, until: ms + K.days * DAY, bleed: K.bleedS ? ms + Math.round(range(r, ...K.bleedS)) * 1000 : 0 };
@@ -116,7 +125,9 @@ export function injure(p, part, force, r, ms, { edge = false } = {}) {
     out.push(i);
     if (i.bleed) (p.bloody ??= {})[part === 'head' ? 'face' : 'clothes'] = ms;
   };
-  if (force >= CRACK_AT && !has(p, part, 'crack') && chance(r, Math.min(1, 0.4 + (force - CRACK_AT) * 2))) add('crack');
+  // (fracture: the chance a blow that goes wrong breaks the bone outright: a fight ender's, sim/cqc.js)
+  if (fracture && !has(p, part, 'fracture') && chance(r, fracture)) add('fracture');
+  else if (force >= CRACK_AT && !has(p, part, 'crack') && chance(r, Math.min(1, 0.4 + (force - CRACK_AT) * 2))) add('crack');
   if (edge && force > 0.05) add('cut');
   else if (part === 'head') {
     if (force >= SPLIT_AT && chance(r, 0.45)) add('split');
@@ -133,7 +144,14 @@ export const injuriesOn = (p, part) => (p.injuries ?? []).filter(i => i.part ===
 
 /** Whether this person can grapple (two working arms) and stand (one working leg at least). */
 export const canGrapple = (p) => ARMS.every(k => stateOf(p, k) !== 'out');
-export const canStand = (p) => LEGS.some(k => stateOf(p, k) !== 'out') && stateOf(p, 'torso') !== 'out' && stateOf(p, 'head') !== 'out';
+export const canStand = (p) => !p.dead && LEGS.some(k => stateOf(p, k) !== 'out') && stateOf(p, 'torso') !== 'out' && stateOf(p, 'head') !== 'out';
+
+/** Dead, at game time ms, of `why` ('a blow to the head', …). */
+export function kill(p, ms, why) { p.dead ??= { ms, why }; }
+export const isDead = (p) => !!p?.dead;
+
+/** How beaten up someone is, all told: the head's and the torso's damage, as shares of what each takes, averaged (0 fresh, 1 both gone). */
+export const wear = (p) => (Math.min(1, damageOf(p, 'head') / takes(p, 'head')) + Math.min(1, damageOf(p, 'torso') / takes(p, 'torso'))) / 2;
 
 /** The walk's pace for these legs, × the usual: a wounded leg slows it, a broken one more. */
 export function paceOf(p) {

@@ -48,6 +48,19 @@
 // **Spending an edge, their side** (the user: "using it when you can't read the opponent … or block
 // and riposte without losing the advantage"): not reading you, they spend one on whatever they do
 // (SPEND_BLIND); reading you, they keep it, for the riposte; holding all they can, now and then.
+// **Fight enders** (the user, 2026-10-26: "when hitting a stunned opponent with advantage, we attempt a
+// fight ender since they can't defend, hits try to knock them out, grabs try breaking limbs (if skilled
+// enough, otherwise it's just a crazy charge and we slam them against the floor …) it's a CQC check
+// against a difficulty derived from their CQC and fitness. If check is failed, damage is still
+// increased and likely to result in a crack, fracture or other long term injury. Doing so during a
+// friendly bout is considered a breach of ethics … such a hit can result in death"; finish()): an edge
+// spent (Shift) on a hit or a grab against someone stunned is a CQC check against FINISH_DC + their
+// CQC + half their Fitness. A hit: a knockout, out cold. A grab: from BREAK_CQC, an arm or a leg
+// broken, and they give up; below it, a charge that slams them into the floor, down. Failed: double
+// a blow's damage anyway, and a fracture likely (FRACTURE_ON_BOTCH), or a crack. A knockout or a slam
+// may kill (deathChance(): DEATH_BASE, and DEATH_WEAR_K for how beaten up they were before it, up to
+// DEATH_MAX; a botched one half that). Their side does it to a stunned player too, in a real fight. In
+// a bout it's a foul: nothing pulled, and the bout is lost by whoever did it (f.fouled).
 // **Injuries** besides the hurt (sim/health.js injure(): a crack, a split brow or lip, a bloody nose),
 // and blood flying from a blow that drew it, or landed on a face already bleeding (out.blood: how much;
 // the picture flings it, sim/cqcshow.js, onto the floor, sim/blood.js).
@@ -58,7 +71,8 @@
 import { skill } from './skills.js';
 import { opposed } from './checks.js';
 import { int, chance, weighted } from './rng.js';
-import { hurt, injure, stateOf, takes, mods as hurtMods, canGrapple, canStand } from './health.js';
+import { check } from './checks.js';
+import { hurt, injure, stateOf, takes, mods as hurtMods, canGrapple, canStand, kill, wear } from './health.js';
 
 export const MOVES = ['hit', 'grapple', 'guard'];
 export const BEATS = { guard: 'hit', hit: 'grapple', grapple: 'guard' };   // each beats the one it names
@@ -70,6 +84,16 @@ export const STAGGER_MOD = -3;
 export const DAZE_MOD = -4;
 export const RIPOSTE_K = 1.5;
 export const SPEND_BLIND = 0.7;
+export const FINISH_DC = 4;
+export const BREAK_CQC = 21;
+export const FRACTURE_ON_BOTCH = 0.45;
+export const DEATH_BASE = 0.02;
+export const DEATH_WEAR_K = 0.5;
+export const DEATH_MAX = 0.6;
+/** The difficulty of finishing who: FINISH_DC + their CQC + half their Fitness. */
+export const finishDC = (state, who) => FINISH_DC + cqcOf(state, who) + Math.floor(skill(state.people[who], 'fitness') / 2);
+/** The chance a knockout or a slam kills, by how beaten up they were before it (wear: sim/health.js); a botched one, half. */
+export const deathChance = (before, ok = true) => Math.min(DEATH_MAX, DEATH_BASE + DEATH_WEAR_K * Math.max(0, before - 0.35)) * (ok ? 1 : 0.5);
 /** What each status forbids, for the next exchange. */
 export const HANDICAP = { staggered: 'grapple', dazed: 'guard' };
 /** Whether a fighter under `status` may make `move`. */
@@ -152,10 +176,18 @@ export const readChance = (state, a, b, f = state.fight) => {
 /** The next exchange: their move (and whether they'll spend a point), and whether we read it. A stunned fighter does nothing. */
 export function prepare(state, f) {
   const r = state.rng;
+  // (us stunned, an edge in hand, a real fight: they go to finish it, a grab from a fighter who can break an arm)
+  if (f.status?.a === 'stunned' && f.status?.b !== 'stunned' && f.adv.b > 0 && !f.bout && !f.script) {
+    const grab = canGrapple(state.people[f.b]) && chance(r, cqcOf(state, f.b) >= BREAK_CQC ? 0.4 : 0.25);
+    f.theirs = { move: grab ? 'grapple' : 'hit', spend: true };
+    f.read = true;
+    return;
+  }
   const move = f.status?.b === 'stunned' ? 'open' : f.script ? f.script[f.round % f.script.length] : choose(state, f);
   // (an edge: spent when they can't read you; kept, for the riposte, when they can; now and then when they hold all they can)
   const blind = readChance(state, f.b, f.a, f) < 0.2, full = f.adv.b >= advMax(state, f.b);
-  const spend = move !== 'open' && f.adv.b > 0 && !f.script && chance(r, blind ? SPEND_BLIND : full ? 0.35 : 0.05);
+  // (in a bout, never on someone stunned: that would be a fight ender, a foul, and a sparring partner doesn't)
+  const spend = move !== 'open' && f.adv.b > 0 && !f.script && !(f.bout && f.status?.a === 'stunned') && chance(r, blind ? SPEND_BLIND : full ? 0.35 : 0.05);
   f.theirs = { move, spend };
   f.read = move === 'open' || f.tell || chance(r, readChance(state, f.a, f.b, f));
 }
@@ -217,7 +249,9 @@ export function resolve(state, f, ours) {
   if (by) {
     const win = moves[by], lose = moves[other(by)], w = by, l = other(by), T = tech[w];
     const W = by === 'a' ? f.a : f.b, L = by === 'a' ? f.b : f.a, LP = state.people[L];
-    if (win === 'guard' && wants[w]) {                              // a hit, covered with an edge held ready (Shift): the riposte, the edge kept
+    if (win !== 'guard' && lose === 'open' && was[l] === 'stunned' && wants[w]) {
+      finish(state, f, out, w, l, win, T);                          // (they can't defend: a fight ender)
+    } else if (win === 'guard' && wants[w]) {                              // a hit, covered with an edge held ready (Shift): the riposte, the edge kept
       out.kind = 'riposte';
       out.part = partHit(r, { head: 70, torso: 30 }, true);
       out.dmg = damage(state, f, (int(r, HIT_PTS[1] - HIT_PTS[0] + 1) + HIT_PTS[0]) * RIPOSTE_K, W, L);
@@ -247,7 +281,7 @@ export function resolve(state, f, ours) {
         if (T?.stagger && chance(r, T.stagger)) out.status[l] = 'staggered';
       }
     }
-    if (out.dmg) {
+    if (out.dmg && !out.finish) {
       out.force = Math.round(out.dmg / takes(LP, out.part) * 100) / 100;
       hurt(LP, out.part, out.dmg);
       // What else it did (a crack, a split, a bloody nose), and whether it drew blood to fly.
@@ -266,8 +300,53 @@ export function resolve(state, f, ours) {
   f.last = out;
   f.round++;
   f.ended = ended(state, f);
+  if (out.foul) f.ended = { by: other(out.by), why: f.ended?.why === 'dead' ? 'dead' : 'fouled' };   // (a foul loses the bout, whatever else)
+  else if (!f.ended && out.kind === 'broken') f.ended = { by: out.by, why: 'broken' };                 // (a broken limb: they give up)
   if (!f.ended) prepare(state, f);
   return out;
+}
+
+/**
+ * A fight ender: w, an edge spent on `win` (a hit or a grab), against l, stunned. A CQC check against
+ * finishDC: a knockout, a broken limb (BREAK_CQC and over) or a slam onto the floor; failed, double a
+ * blow's damage and likely a fracture. Nothing pulled, even in a bout (where it's a foul). May kill.
+ */
+function finish(state, f, out, w, l, win, T) {
+  const r = state.rng, W = w === 'a' ? f.a : f.b, L = w === 'a' ? f.b : f.a, LP = state.people[L], ms = state.time.ms;
+  f.adv[w]--; out.spent[w] = true;
+  const how = win === 'hit' ? 'knockout' : cqcOf(state, W) >= BREAK_CQC ? 'break' : 'slam';
+  const roll = check(r, { skill: 'cqc', value: cqcOf(state, W), dc: finishDC(state, L), mods: hurtMods(state.people[W], 'cqc') });
+  const before = wear(LP), edge = Math.max(0, cqcOf(state, W) - cqcOf(state, L)) / EDGE_PER_PT;
+  out.roll = roll;
+  out.finish = { how, ok: roll.ok };
+  if (f.bout) out.foul = true;
+  const blow = (part, pts, fracture) => {                          // (damage, and what else it did)
+    out.part = part;
+    out.dmg = Math.round((pts + edge) * 10) / 10;
+    out.force = Math.round(out.dmg / takes(LP, part) * 100) / 100;
+    hurt(LP, part, out.dmg);
+    out.injuries = injure(LP, part, out.force, r, ms, { fracture });
+  };
+  const roll1 = (lo, hi) => int(r, hi - lo + 1) + lo;
+  if (how === 'break') {
+    const limbs = ['armL', 'armR', 'legL', 'legR'].filter(k => stateOf(LP, k) !== 'out');
+    const part = limbs.length ? weighted(r, limbs.map(k => [k, k.startsWith('arm') ? 7 : 3])) : 'torso';
+    if (roll.ok) { blow(part, Math.max(0, takes(LP, part) - (LP.body?.[part] ?? 0)) + 0.1, 1); out.kind = 'broken'; }
+    else { blow(part, roll1(...THROW_PTS) * 1.5, FRACTURE_ON_BOTCH); out.kind = 'botched'; out.status[l] = 'staggered'; }
+  } else {
+    const part = how === 'knockout' ? 'head' : 'torso';
+    if (roll.ok) {
+      blow(part, Math.max(0, takes(LP, part) - (LP.body?.[part] ?? 0)) + 0.1, 0);
+      if (how === 'slam') hurt(LP, 'head', takes(LP, 'head') * 0.3);   // (the head hits the floor too)
+      out.kind = how === 'knockout' ? 'knockout' : 'slammed';
+    } else {
+      blow(part, (how === 'knockout' ? roll1(...HIT_PTS) * (T?.k ?? 1) * CLEAN_K : roll1(...THROW_PTS)) * 2, FRACTURE_ON_BOTCH);
+      out.kind = 'botched';
+      out.status[l] = how === 'knockout' ? 'dazed' : 'staggered';
+    }
+    if (chance(r, deathChance(before, roll.ok))) { kill(LP, ms, how === 'knockout' ? 'a blow to the head' : 'slammed into the floor'); out.killed = true; }
+  }
+  out.blood = out.injuries?.some(i => i.bleed) || (out.part === 'head' && out.force > 0.4) ? Math.round(6 + out.force * 20) : 0;
 }
 
 /** Damage done: the edge the winner has, a bout's pulled blows. */
@@ -280,6 +359,7 @@ function damage(state, f, pts, W, L) {
 export function ended(state, f) {
   for (const s of ['a', 'b']) {
     const p = state.people[s === 'a' ? f.a : f.b];
+    if (p.dead) return { by: other(s), why: 'dead' };
     const why = stateOf(p, 'head') === 'out' ? 'out cold' : stateOf(p, 'torso') === 'out' ? 'down' : !canStand(p) ? 'can\'t stand' : null;
     if (why) return { by: other(s), why };
     if (f.stop && ['head', 'torso'].some(k => stateOf(p, k) === 'wounded')) return { by: other(s), why: 'stopped' };

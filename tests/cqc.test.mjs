@@ -3,10 +3,11 @@
 // balance, bouts between fighters of different CQC, as numbers; then the dojo played through.
 import { seedRng } from '../src/sim/rng.js';
 import { sheet } from '../src/sim/people.js';
-import { startFight, resolve, readChance, technique, MOVES, BEATS } from '../src/sim/cqc.js';
-import { stateOf, injure, bleeding, heal } from '../src/sim/health.js';
+import { startFight, resolve, prepare, readChance, technique, MOVES, BEATS } from '../src/sim/cqc.js';
+import { stateOf, injure, bleeding, heal, takes } from '../src/sim/health.js';
 import { spatter } from '../src/sim/blood.js';
 import { newGame, start, step } from '../src/sim/game.js';
+import { statusLine } from '../src/sim/fight.js';
 import { toJSON, fromJSON } from '../src/sim/state.js';
 import { skill } from '../src/sim/skills.js';
 import { assert, fmt } from './helpers.mjs';
@@ -105,6 +106,72 @@ export default [
       }
       console.log(`      CQC 8 hitting every time into 26, 30 bouts: ${fmt(rounds / 30, 1)} exchanges a bout, ${ripostes} ripostes, ${won} won`);
       assert(rounds / 30 < 8 && ripostes > 15 && won === 0, 'no stalemate: the better fighter answers with ripostes, and wins');
+    },
+  },
+  {
+    name: 'cqc: fight enders: an edge on someone stunned is a knockout, a broken limb or a slam, by a CQC check; failed, it still breaks things; it can kill, likelier on someone beaten up; a foul in a bout; done to you too',
+    fn() {
+      const tally = (a, b, move, worn = 0, n = 400) => {
+        const c = { n, ok: 0, dead: 0, fails: 0, fractures: 0, kinds: {}, dc: 0 };
+        for (let seed = 1; seed <= n; seed++) {
+          const s = ring(a, b, seed), f = startFight(s, 'a', 'b', {}), B = s.people.b;
+          if (worn) B.body = { head: takes(B, 'head') * worn, torso: takes(B, 'torso') * worn };
+          Object.assign(f, { status: { a: null, b: 'stunned' }, adv: { a: 1, b: 0 }, theirs: { move: 'open', spend: false } });
+          const o = resolve(s, f, { move, spend: true });
+          if (!o.finish) throw new Error(`no fight ender: ${o.kind}`);
+          c.dc = o.roll.dc; c.ok += o.finish.ok; c.dead += !!o.killed; c.kinds[o.kind] = (c.kinds[o.kind] ?? 0) + 1;
+          if (!o.finish.ok) { c.fails++; c.fractures += (o.injuries ?? []).some(i => i.kind === 'fracture' || i.kind === 'crack'); }
+          if (o.finish.ok && o.kind !== 'botched') assert(f.ended, `a fight ender that comes off ends it (${o.kind})`);
+        }
+        return c;
+      };
+      const show = (label, c) => console.log(`      ${label}: DC ${c.dc}, came off ${Math.round(c.ok / c.n * 100)}%, killed ${fmt(c.dead / c.n * 100, 1)}%; failed, broke something ${c.fails ? Math.round(c.fractures / c.fails * 100) : 0}%; ${Object.entries(c.kinds).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+      const even = tally(10, 10, 'hit'), up = tally(10, 20, 'hit'), down = tally(30, 24, 'hit'), worn = tally(10, 10, 'hit', 0.6);
+      const brk = tally(25, 10, 'grapple'), slam = tally(10, 10, 'grapple');
+      show('CQC 10 knocking out 10', even); show('CQC 10 knocking out 20', up); show('CQC 30 knocking out 24', down);
+      show('CQC 10 knocking out 10, beaten up', worn); show('CQC 25 grabbing 10', brk); show('CQC 10 grabbing 10', slam);
+      assert(even.ok / even.n > 0.6 && even.ok / even.n < 0.85 && up.ok / up.n < 0.4 && down.ok / down.n > 0.6, 'the check: about 2 in 3 between equals, worse up, better down');
+      assert(even.dead / even.n < 0.06 && worn.dead / worn.n > 0.08 && worn.dead > even.dead, 'it can kill: rarely someone fresh, more often someone beaten up');
+      assert(even.fractures / even.fails > 0.3, 'failed, it still breaks things, often');
+      assert(brk.kinds.broken > 0 && !brk.kinds.slammed && slam.kinds.slammed > 0 && !slam.kinds.broken, 'a grab breaks a limb from CQC 21; below, a slam');
+      // A foul in a bout: the bout lost by whoever did it.
+      const s = ring(10, 10, 3), f = startFight(s, 'a', 'b', { bout: true });
+      Object.assign(f, { status: { a: null, b: 'stunned' }, adv: { a: 1, b: 0 }, theirs: { move: 'open', spend: false } });
+      const o = resolve(s, f, { move: 'hit', spend: true });
+      assert(o.foul && f.ended?.by === 'b' && ['fouled', 'dead'].includes(f.ended.why), `a foul loses the bout (${f.ended?.why})`);
+      // Done to you: stunned, them holding an edge, in a real fight (never in a bout).
+      let tried = 0, inBout = 0;
+      for (let seed = 1; seed <= 50; seed++) {
+        for (const bout of [false, true]) {
+          const t = ring(10, 10, seed), g = startFight(t, 'a', 'b', { bout });
+          Object.assign(g, { status: { a: 'stunned', b: null }, adv: { a: 0, b: 1 } });
+          prepare(t, g);
+          const x = resolve(t, g, { move: 'guard' });
+          if (bout) inBout += !!x.finish; else tried += !!x.finish && x.by === 'b';
+        }
+      }
+      console.log(`      stunned, them with an edge: a fight ender ${tried} times in 50 real fights, ${inBout} in 50 bouts`);
+      assert(tried === 50 && inBout === 0, 'they finish it in a real fight, never in a bout');
+    },
+  },
+  {
+    name: 'cqc: the instinct says how things stand: you or them stunned, dazed, off balance; a fight ender offered, or a foul warned of',
+    fn() {
+      const line = (us, them, adv, bout = false) => {
+        const s = ring(12, 12, 1), f = startFight(s, 'a', 'b', { bout });
+        Object.assign(f, { status: { a: us, b: them }, adv: { a: adv, b: 0 } });
+        return statusLine(s);
+      };
+      assert(line(null, null, 0) === null, 'nothing to say, nothing said');
+      for (const [us, them, adv, bout, want, tone] of [
+        ['stunned', null, 0, false, /You're stunned/, 'urgent'], ['dazed', null, 0, false, /no \{guard\} cover/, 'warn'], ['staggered', null, 0, false, /no \{grapple\} grab/, 'warn'],
+        [null, 'stunned', 1, false, /\{run\} with \{hit\} or \{grapple\} finishes it/, 'note'], [null, 'stunned', 1, true, /a foul/, 'urgent'], [null, 'stunned', 0, false, /whatever you do lands/, 'note'],
+        [null, 'dazed', 0, false, /B is dazed/, 'note'], [null, 'staggered', 0, false, /B is off balance/, 'note'], ['dazed', 'staggered', 0, false, /You're dazed.*B is off balance/, 'warn'],
+      ]) {
+        const l = line(us, them, adv, bout);
+        assert(l && want.test(l.text) && l.tone === tone, `${us}/${them}${bout ? ' (a bout)' : ''}: ${l?.text} (${l?.tone})`);
+      }
+      console.log(`      e.g. ${line('dazed', 'stunned', 1).text}`);
     },
   },
   {

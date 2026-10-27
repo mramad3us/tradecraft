@@ -21,6 +21,10 @@
 // enough to send you back to the Farm. The same character, an illegal now (ILLEGAL: the trade, and
 // Hale's own combat training: CQC as Hale's was then), against an FSB officer (FSB_CQC: strong, but not
 // as good). A fight for real: it ends with one of you down.
+//
+// **A foul** (the user: "doing so during a friendly bout is considered a breach of ethics"): a fight
+// ender in a bout (sim/cqc.js finish()) stops it, and the bout is lost, whatever it did; Hale sees to
+// that. A classmate killed by one ends the lesson ('dismissed').
 import { at, TICK_MS, dateText } from '../clock.js';
 import { recruit } from '../people.js';
 import { say } from '../log.js';
@@ -198,11 +202,16 @@ export const dojoScenario = {
     const sc = state.scenario, me = state.people[state.player];
     const won = sc.bouts.filter(b => b.won).length;
     const hurts = Object.keys(PARTS).filter(k => stateOf(me, k) !== 'unhurt').map(k => `${PARTS[k].name.toLowerCase()} ${stateText(me, k)}`);
+    if (sc.outcome === 'dismissed') return {
+      stamp: 'DISMISSED', good: false, title: 'THE FARM: DEFENSIVE TACTICS', text: sc.endText,
+      notes: [`Bouts: ${sc.bouts.map(b => `${b.name}, ${b.why === 'fouled' ? 'a foul' : result(b)}`).join('; ')}.`],
+      stats: `CQC ${cqcOf(state, state.player)}`,
+    };
     if (sc.chapter === 'remembered') return {
       stamp: sc.outcome === 'won' ? 'WALKED AWAY' : 'TAKEN', good: sc.outcome === 'won',
       title: 'THE FARM, REMEMBERED', text: sc.endText,
       notes: [
-        `At the Farm, years ago: ${sc.bouts.map(b => `${b.name}, ${b.won ? 'won' : 'lost'} ${b.score.a}–${b.score.b}`).join('; ')}.`,
+        `At the Farm, years ago: ${sc.bouts.map(b => `${b.name}, ${result(b)}`).join('; ')}.`,
         hurts.length ? `Tonight it cost you: ${hurts.join(', ')}.` : 'Tonight, not a mark on you.',
       ],
       stats: `CQC ${cqcOf(state, state.player)} now; the FSB man's ${cqcOf(state, 'fsb')}; Hale's, then, ${cqcOf(state, 'hale')}`,
@@ -211,7 +220,8 @@ export const dojoScenario = {
       stamp: won === BOUTS ? 'TOP OF THE CLASS' : won ? 'PASSED' : 'PASSED, JUST', good: won >= 1,
       title: 'THE FARM: DEFENSIVE TACTICS', text: sc.endText,
       notes: [
-        `Bouts: ${sc.bouts.map(b => `${b.name}, ${b.won ? 'won' : 'lost'} ${b.score.a}–${b.score.b}${b.why === 'stopped' ? ' (stopped)' : ''}`).join('; ')}.`,
+        `Bouts: ${sc.bouts.map(b => `${b.name}, ${b.why === 'fouled' ? 'lost on a foul' : `${result(b)}${b.why === 'stopped' ? ' (stopped)' : ''}`}`).join('; ')}.`,
+        ...(sc.fouls ? ['A foul on your record: Hale will remember it, and so will your file.'] : []),
         hurts.length ? `You leave with: ${hurts.join(', ')}. It's on your sheet (C), and it mends in days.` : 'You leave without a mark on you.',
       ],
       stats: `${Math.round((state.time.ms - sc.began) / 60000)} min on the mat · CQC ${cqcOf(state, state.player)}`,
@@ -227,6 +237,8 @@ const whoOf = (sc, step) => (step.with === 'hale' ? 'hale' : sc[step.with]);
 const short = (state, who) => (who === 'hale' ? 'Hale' : state.people[who].name.split(' ')[1]);
 const fill = (state, who, text) => text.replace(/\{name\}/g, short(state, who));
 const dateLine = (state) => dateText(state.time.ms);
+/** A bout's result, the winner's score first: 'won 3–1', 'lost 3–2'. */
+const result = (b) => (b.won ? `won ${b.score.a}–${b.score.b}` : `lost ${b.score.b}–${b.score.a}`);
 
 /** The next step: whoever it's with walks onto the mat; the last one gone, it's over. */
 function next(state, bus) {
@@ -271,11 +283,22 @@ function finishBout(state, bus, f) {
   const sc = state.scenario, step = STEPS[sc.step], who = sc.with;
   sc.phase = 'ready';
   for (const a of [playerOf(state), actorOfWho(state, who)]) if (a) a.gait = 'idle';
+  // A foul: Hale stops it, the bout is lost; someone dead, and the lesson's over.
+  if (step.bout && (f.ended.why === 'fouled' || f.ended.why === 'dead')) {
+    sc.bouts.push({ id: step.id, name: short(state, who), won: false, score: { ...f.score }, why: 'fouled' });
+    sc.fouls = (sc.fouls ?? 0) + 1;
+    if (state.people[who]?.dead) {
+      say(state, bus, { kind: 'note', text: `Hale is on the mat before anyone else, two fingers on ${short(state, who)}'s neck, for a long time. Nobody says anything. Nobody looks at you.` });
+      return dismissed(state, bus, who);
+    }
+    say(state, bus, { kind: 'note', text: `Hale: “STOP. Off my mat.” A long look. “Someone who can't defend themselves, you let go. Here, and anywhere I'd want you. That bout's lost, and so is my good opinion.”` });
+    return;
+  }
   if (step.bout) {
     const won = f.ended.by === 'a';
     sc.bouts.push({ id: step.id, name: short(state, who), won, score: { ...f.score }, why: f.ended.why });
     const line = f.ended.why === 'stopped' ? (won ? `“Stop. That's enough, ${short(state, who)}'s hurt.”` : '“Stop. You\'re hurt: that\'s the bout.”') : won ? '“That\'s the bout. Good.”' : '“That\'s the bout.”';
-    say(state, bus, { kind: 'note', text: `Hale: ${line} ${won ? 'You' : short(state, who)} ${f.score.a}–${f.score.b}${won ? '' : ' you'}.` });
+    say(state, bus, { kind: 'note', text: `Hale: ${line} ${won ? `You win it, ${f.score.a}–${f.score.b}` : `${short(state, who)} takes it, ${f.score.b}–${f.score.a}`}.` });   // (the winner's score first)
     if (sc.chapter === 'remembered' && step.id === 'hale') Object.assign(sc, { phase: 'cut', cutAt: state.tick + CUT_S * TPS });   // (and then the floor)
   } else say(state, bus, { kind: 'note', text: `Hale: ${step.done}` });
 }
@@ -326,8 +349,18 @@ function beginPresent(state, bus) {
 function presentOver(state, bus, f) {
   const sc = state.scenario, won = f.ended.by === 'a';
   Object.assign(sc, { phase: 'done', outcome: won ? 'won' : 'lost' });
-  sc.endText = won ? 'He doesn\'t get up. You stand over him long enough to be sure, take his radio, and walk out of the street the way a man walks home: unhurried, nobody. Hale would have called it adequate.'
-    : 'The cobbles again, and this time they stay. Boots, a car door, a hood. Somewhere a long way off, Hale is saying something about the ones who learn.';
+  sc.endText = won && state.people.fsb?.dead ? 'He doesn\'t get up, and he isn\'t going to: no breath, nothing. You take his radio and walk out of the street the way a man walks home. It\'s a killing now, and the FSB doesn\'t forget its own.'
+    : won ? 'He doesn\'t get up. You stand over him long enough to be sure, take his radio, and walk out of the street the way a man walks home: unhurried, nobody. Hale would have called it adequate.'
+      : state.people[state.player]?.dead ? 'The cobbles, cold and wet, and then nothing at all. In the morning a street sweeper finds a man with no papers worth the name.'
+        : 'The cobbles again, and this time they stay. Boots, a car door, a hood. Somewhere a long way off, Hale is saying something about the ones who learn.';
+  bus?.emit('scenario-end', sc.outcome);
+}
+
+/** A classmate dead on the mat: the lesson, and the course, over for you. */
+function dismissed(state, bus, who) {
+  const sc = state.scenario;
+  Object.assign(sc, { outcome: 'dismissed', phase: 'done' });
+  sc.endText = `They take ${short(state, who)} out on a stretcher with a blanket over the face. By the evening you're in a car to the gate, and someone from the Office of Security is in the back seat with you, saying nothing.`;
   bus?.emit('scenario-end', sc.outcome);
 }
 
@@ -349,13 +382,11 @@ function instinct(state) {
   if (sc.with === 'fsb' || sc.phase === 'cut') {
     if (sc.phase === 'cut') return L('cut', 'calm', '…');
     if (sc.phase === 'rise') return L('rise', 'calm', 'Get up.');
-    if (f?.status?.a === 'stunned') return L('dazed', 'urgent', 'Your hands won\'t come up, and whatever comes, you can\'t stop it.');
     return f ? L(`choose-${f.round}`, 'warn', 'He\'s good. You\'re better. Nobody stops this one.') : L('wait', 'calm', '…');
   }
   if (sc.phase === 'ready' && sc.chapter === 'remembered' && !sc.bouts.length) return L('start', 'note', 'The bouts, as you remember them. {instinct} step onto the mat.', 'next');
   if (sc.phase === 'ready') return sc.step < 0 ? L('start', 'note', 'Hale is waiting. {instinct} step onto the mat.', 'next') : L('next', 'note', STEPS[sc.step + 1] ? 'Catch your breath. {instinct} when you\'re ready for the next.' : 'That\'s the lesson. {instinct} to finish.', 'next');
   if (sc.phase === 'walk') return L('walk', 'calm', 'Onto the mat.');
   if (!f) return L('wait', 'calm', 'Wait for Hale.');
-  if (f.status?.a === 'stunned') return L('dazed', 'urgent', 'You\'re dazed. Your hands won\'t come up, and whatever comes, you can\'t stop it.');
   return L(`choose-${f.round}`, step.bout ? 'warn' : 'note', `${fill(state, sc.with, step.hint)}`);
 }

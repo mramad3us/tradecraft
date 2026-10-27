@@ -4,6 +4,15 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.43 (2026-10-26)
+
+- **Fight enders** (your design). When they're stunned and you hold an edge, Shift with a move tries to end it: a CQC check against their CQC and Fitness (about 3 in 4 between equals). A hit knocks them out. A grab breaks an arm or a leg if you're good enough (CQC 21), or else it's a wild charge that slams them into the floor. Failed, it still hits twice as hard and nearly always breaks something: a crack, or a new, worse injury, a fracture (a broken jaw, an eye socket, ribs, a forearm, a shin: six weeks). A knockout or a slam can kill: rarely someone fresh (2%), far more often someone already beaten up (about 1 in 7 at 60%). The move panel shows it in red when it's there to take. They'll do it to you, too, in a real fight.
+- **Death.** Someone killed lies where they fell, for good. A killing in the street that's seen is four times the heat of a fight. You killed: the game says so, on its own paper.
+- **A foul at the Farm.** Finishing a sparring partner in a bout is a foul: Hale stops it, the bout is lost, and it goes on your file. Kill a classmate and you're out of the course. Your sparring partners never do it to you.
+- **The instinct says how things stand** (your ask): you or they stunned, dazed or off balance, and what it means (no cover, no grab, whatever comes lands; them stunned, the keys to finish it, or a warning that it's a foul), in every fight. The move panel now sits above the instinct however long it runs.
+- Fixes: a knocked-out opponent now lies on the ground after the fight (they stood idle); a sentence starting with a name like "the FSB man" gets its capital.
+- **Fixed: Hale's score read backwards when you lost** (your report). "Novak 2–3 you" was Novak winning 3–2, written with your score first. Now it says "Novak takes it, 3–2" or "You win it, 3–1", and the result paper puts the winner's score first ("lost 3–2").
+
 ## v0.0.42 (2026-10-26)
 
 - **Fixed: people swapping looks at the Farm** (your report, a priority). Since v0.0.41 the Farm is in 2007, before the game's calendar starts, and a person's standing frame was picked from the clock: before 2026 it came out as a frame that doesn't exist, and the picture took the cell next to it, someone else's, every other half-second. Both chapters, everyone in the hall. The frame is now picked the right way round whatever the date, and a frame the picture doesn't know stands still instead of borrowing a neighbour's.
