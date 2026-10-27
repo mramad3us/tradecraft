@@ -11,7 +11,7 @@
 // UI to route.
 export const KEYS = {
   up: 'KeyW', left: 'KeyA', down: 'KeyS', right: 'KeyD', run: 'ShiftLeft', slow: 'AltLeft',
-  interact: 'KeyF', inventory: 'KeyI', instinct: 'KeyT', watch: 'KeyE', sheet: 'KeyC', camera: 'KeyP',
+  interact: 'KeyF', inventory: 'KeyI', aid: 'KeyH', instinct: 'KeyT', watch: 'KeyE', sheet: 'KeyC', camera: 'KeyP',
   hit: 'KeyK', grapple: 'KeyL', guard: 'Semicolon', gun: 'KeyG', reload: 'KeyR',
   mindmap: 'Tab', log: 'KeyJ', pause: 'Space', menu: 'Escape',
 };

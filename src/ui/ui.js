@@ -27,6 +27,11 @@ import { allowed, cqcOf, BREAK_CQC } from '../sim/cqc.js';
 import { deathPaper } from '../sim/game.js';
 import { shortName, statusLine } from '../sim/fight.js';
 import { weaponOf, bare } from '../sim/weapons.js';
+import { options as aidOptions, bodyLine } from '../sim/aid.js';
+import { bleedRate, bloodOf, bandOf, BLOOD } from '../sim/health.js';
+import { RANK as RANKS } from '../sim/instinct.js';
+
+const BAND_WORDS = { steady: 'steady', pale: 'pale, light-headed', shock: 'in shock', collapsed: 'collapsed', dead: 'gone' };
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 import { knownOf, classOf, READABLE } from '../sim/know.js';
@@ -61,7 +66,8 @@ export function createUI({ input, cb }) {
   const tags = el('div', { className: 'tags' });                   // faces you've marked: seen before, a tail
   const goal = el('div', { className: 'goal', hidden: true });      // where you're going, when it's off the picture
   const prompt = el('div', { className: 'prompt', hidden: true });
-  const hud = el('div', { id: 'hud' }, tags, marker, bubble, intent, ...states, reach, ask, talkbox, bout, moves, goal, prompt, watch, toasts, keys, banner);
+  const veil = el('div', { className: 'bloodveil' });                 // (the blood lost: the world dims and reddens at the edges)
+  const hud = el('div', { id: 'hud' }, veil, tags, marker, bubble, intent, ...states, reach, ask, talkbox, bout, moves, goal, prompt, watch, toasts, keys, banner);
   const menu = el('div', { className: 'overlay', hidden: true });
   const log = el('div', { className: 'overlay', hidden: true });
   const paper = el('div', { className: 'overlay', hidden: true });     // a brief, a result
@@ -244,6 +250,8 @@ export function createUI({ input, cb }) {
       t.className = `fstate ${st}`;
       t.style.transform = at2;
     });
+    const lost = Math.max(0, Math.min(1, (100 - bloodOf(state.people[state.player])) / (100 - BLOOD.dead)));
+    veil.style.opacity = String(Math.round(lost * 100) / 100);
     bout.hidden = !fi;
     if (fi) {
       const name = (who) => (who === state.player ? 'You' : cap(shortName(state, who)));
@@ -271,7 +279,9 @@ export function createUI({ input, cb }) {
     // The instinct: always a line, its tone in its border; {key} in the text shows as that key.
     // What's at hand (the engine's: sim/acts.js affordance()) ends a line that offers nothing itself.
     // (in a fight, someone stunned, dazed or staggered: the engine's line on it comes first: sim/fight.js)
-    const sp = !sc.outcome && ((state.fight?.phase === 'choose' && statusLine(state)) || sc.prompt), off = !sc.outcome && !sp?.act && sp?.tone !== 'urgent' && state.$offer;
+    // (in a fight, how things stand; then your own body, if it's more pressing than the scene's line: sim/aid.js)
+    const body = bodyLine(state), scene = sc.prompt && body && RANKS[body.tone] <= RANKS[sc.prompt.tone] ? sc.prompt : body ?? sc.prompt;
+    const sp = !sc.outcome && ((state.fight?.phase === 'choose' && statusLine(state)) || scene), off = !sc.outcome && !sp?.act && sp?.tone !== 'urgent' && state.$offer;
     const p = sp || off ? { tone: sp?.tone ?? 'calm', text: `${sp?.text ?? ''}${off ? off.text : ''}`.trim() } : null;
     prompt.hidden = !p;
     if (p && prompt.dataset.text !== p.text + p.tone) {
@@ -382,11 +392,33 @@ export function createUI({ input, cb }) {
           el('div', { className: 'figure' }, part('head'), part('armR'), part('torso'), part('armL'), part('legR'), part('legL')),
           el('ul', {}, Object.keys(PARTS).map(k => el('li', { className: `${stateOf(p, k)}${injuriesOn(p, k) ? ' injured' : ''}` }, el('span', { textContent: PARTS[k].name }), el('span', { textContent: stateText(p, k) }),
             injuriesOn(p, k) ? el('small', { textContent: injuriesOn(p, k) }) : null))),
+          el('p', { className: `blood ${bandOf(p)}`, textContent: `Blood ${Math.round(bloodOf(p))}%: ${BAND_WORDS[bandOf(p)]}${bleedRate(p, state.time.ms) ? `; bleeding ${bleedRate(p, state.time.ms) >= 8 ? 'fast' : bleedRate(p, state.time.ms) >= 0.8 ? 'steadily' : 'a little'} (${input.label('aid')}: first aid)` : ''}.` }),
           el('p', { className: 'note', textContent: `Fitness ${fit}: the body takes ${fit ? `${Math.round(100 * fit / FITNESS_K)}% more` : 'only what it takes'} before it gives.` }))),
       el('p', { className: 'note', textContent: `${input.label('sheet')} or ${input.label('menu')} to close.` }),
     ));
     card.hidden = false;
     card.dataset.kind = '';
+    menu.hidden = log.hidden = true;
+  }
+
+  /** H (or F, First aid): what can be done for someone's wounds (sim/aid.js options()), each a button that closes this and does it. */
+  function openAid(state, actorId, act) {
+    const a = state.actors.find(x => x.id === actorId), p = a && state.people[a.who], medic = state.people[state.player];
+    if (!p) return;
+    const self = a.who === state.player, go = (key) => () => { closeOverlays(); act(key); };
+    const list = aidOptions(state, medic, p), rate = bleedRate(p, state.time.ms), b = Math.round(bloodOf(p));
+    const name = self ? 'YOUR WOUNDS' : (p.known === false ? p.seen : p.name).toUpperCase();
+    card.replaceChildren(el('div', { className: 'sheet charsheet aid' },
+      el('span', { className: 'stamp', textContent: 'FIRST AID' }),
+      el('h2', { textContent: name }),
+      el('p', { className: 'note', textContent: `Blood ${b}% (${BAND_WORDS[bandOf(p)]})${rate ? `; bleeding ${rate >= 8 ? 'fast, pumping' : rate >= 0.8 ? 'steadily' : 'a trickle'}` : ''}. Medicine ${skill(medic, 'medicine')}: it decides how well it's done${self ? '; on yourself, harder' : ''}.` }), el('hr'),
+      list.length ? el('table', { className: 'skills' }, el('tbody', {}, list.map(o => el('tr', { className: o.ok ? '' : 'none' },
+        el('td', { textContent: o.label }), el('td', { className: 'where', textContent: o.why ?? '' }),
+        el('td', {}, o.ok ? el('button', { className: 'small', onclick: go(o.key) }, 'do it') : null)))))
+        : el('p', { textContent: 'Nothing first aid can do: nothing bleeding, nothing broken.' }),
+      el('p', { className: 'note', textContent: `It takes time, stooped over it; moving stops it. ${input.label('aid')} or ${input.label('menu')} to close.` })));
+    card.hidden = false;
+    card.dataset.kind = 'aid';
     menu.hidden = log.hidden = true;
   }
 
@@ -548,5 +580,5 @@ export function createUI({ input, cb }) {
     setTimeout(() => f.remove(), 1600);
   }
 
-  return { frame, fit, flash, openInventory, showTitle, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
+  return { frame, fit, flash, openInventory, openAid, showTitle, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
 }

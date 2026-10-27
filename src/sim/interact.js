@@ -23,7 +23,7 @@ import { chance, pick, hash } from './rng.js';
 import { say } from './log.js';
 import { passerby, describe } from './people.js';
 import { seesActor } from './perception.js';
-import { stateOf, canStand } from './health.js';
+import { stateOf, canStand, bleeding } from './health.js';
 import { addHeat } from './heat.js';
 import { begin as beginFight, exchange, owners, shortName } from './fight.js';
 import { read, fought } from './know.js';
@@ -74,7 +74,14 @@ export function options(state, them) {
     { id: 'talk', label: 'Talk', ok: true },
     { id: 'violence', label: 'Violence', ok: true, sub: violence },
     { id: 'read', label: 'Read', ok: true },
+    ...(hurtNow(state, them) ? [{ id: 'aid', label: 'First aid', ok: true }] : []),
   ];
+}
+
+/** Whether there's something for first aid to do for them: bleeding, a break, down. */
+function hurtNow(state, them) {
+  const p = them.who && state.people[them.who];
+  return !!p && !p.dead && (bleeding(p, state.time.ms) || ['armL', 'armR', 'legL', 'legR'].some(k => stateOf(p, k) === 'out') || !canStand(p));
 }
 
 /** Make sure they have a sheet in state.people (a passer-by is made one from their seed: kept from now on). */
@@ -94,6 +101,7 @@ export function act(state, bus, id, them) {
   if (!me || !them || state.fight) return null;
   const p = person(state, them), name = shortName(state, them.who);
   if (id === 'talk') { beginTalk(state, bus, them); return { show: 'talk' }; }
+  if (id === 'aid') return { show: 'aid', who: them.who };
   if (id === 'read') {
     const { roll, k } = read(state, me, them);
     say(state, bus, { kind: 'roll', roll, text: roll.ok ? `You size up ${name}: the build, the hands, the eyes.` : `You look ${name} over, and can't make up your mind.` });

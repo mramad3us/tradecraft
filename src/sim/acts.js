@@ -121,7 +121,7 @@ function act1(state, bus, me, what, { toward = Math.cos(me.head ?? 0) >= 0 ? -1 
     const it = itemNear(state, me), p = state.people[me.who];
     if (!it || !p) return;
     const off = pickUp(state, p, me, it), w = weaponOf(it.kind);
-    me.busy = { what: 'pickup', steps: [['wait', 0.6, me.face, 'crouch']], wait: 0 };
+    me.busy = { what: 'pickup', steps: [['wait', Math.round(600 / TICK_MS), me.face, 'crouch']], wait: 0 };   // (stooped for it, 0.6 s)
     say(state, bus, { kind: 'note', text: `You pick up ${w.name}.${off ? ` ${cap(weaponOf(off.kind).name)} goes down where you stood: nowhere to put it.` : ''}` });
     return;
   }

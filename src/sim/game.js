@@ -34,7 +34,9 @@ import { populate, think, walk, facing, isPasserby, noticeAgent } from './crowd.
 import { look, headOf, faceOf } from './perception.js';
 import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } from './agents.js';
 import { drift } from './people.js';
-import { heal } from './health.js';
+import { heal, bleeding, bloodTick, bandOf, canStand, kill } from './health.js';
+import { PRESSURE_K, treat } from './aid.js';
+import { shortName } from './fight.js';
 import { drips } from './blood.js';
 import { glassAhead, affordance, act as doAct } from './acts.js';
 import * as fight from './fight.js';
@@ -101,6 +103,12 @@ export function step(state, input = {}, bus) {
       const [, id, aid] = act.split(':'), them = state.actors.find(a => a.id === aid);
       const done = interact.act(state, bus, id, them);
       if (done?.show === 'read') bus?.emit('read', done.who);
+      if (done?.show === 'aid') bus?.emit('aid', them.id);          // (first aid for them: the UI's panel, its choice back as 'aid:')
+      continue;
+    }
+    if (String(act).startsWith('aid:')) {                          // (first aid, H or F: 'aid:<actor>:<method>:<arg>', sim/aid.js)
+      const [, aid, ...key] = act.split(':'), them = state.actors.find(a => a.id === aid);
+      if (me && them && !state.fight && Math.hypot(them.x - me.x, them.z - me.z) < 2.5) treat(state, bus, me, them, key.join(':'));
       continue;
     }
     if (act === 'draw') { if (state.fight) fight.drawMove(state, bus, scenario); else if (me) items.use(state, bus, me, 'draw'); continue; }   // (G: sim/items.js; in a fight, it costs the exchange)
@@ -114,6 +122,8 @@ export function step(state, input = {}, bus) {
   // A fight waiting for a choice, a conversation: time stands still (sim/fight.js, sim/talk.js).
   if (state.fight?.phase === 'choose' || state.talk) return;
   if (state.fight || scenario.holds?.(state)) input = { act: input.act };   // (a fight, or the scenario, has the player's feet)
+  const mine = me && state.people[me.who], fallen = mine && (mine.dead || !canStand(mine));
+  if (fallen) input = { act: [] };                                 // (collapsed, out cold or dead: nothing answers)
   if (me && !me.ai) {
     let mx = input.mx ?? 0, mz = input.mz ?? 0;
     const n = Math.hypot(mx, mz);
@@ -125,9 +135,10 @@ export function step(state, input = {}, bus) {
       if (n > 0.01) { me.head = Math.atan2(mz, mx); me.face = faceOf(me.head); }
     } else {
       if (n > 1) { mx /= n; mz /= n; }
-      const speed = input.run ? RUN_MS : input.slow ? STROLL_MS : WALK_MS;
+      const run = input.run && bandOf(mine) !== 'shock';             // (in shock from the blood lost, no running)
+      const speed = run ? RUN_MS : input.slow ? STROLL_MS : WALK_MS;
       me.vx = mx * speed; me.vz = mz * speed;
-      me.gait = n > 0.01 ? (input.run ? 'run' : 'walk') : 'idle';
+      me.gait = n > 0.01 ? (run ? 'run' : 'walk') : 'idle';
       if (n > 0.01) { me.head = Math.atan2(mz, mx); me.face = facing(me.vx, me.vz, me.face); }
     }
     // A glance back: the eyes over the shoulder, the feet going on; then the eyes come back.
@@ -172,9 +183,11 @@ export function step(state, input = {}, bus) {
   fight.tick(state, bus, scenario);
   scenario.tick?.(state, bus);
   state.$offer = me && !state.fight && !scenario.holds?.(state) ? affordance(state, me) : null;   // (nothing's at hand in a fight, or while the scene has your feet)
-  // 6. The map and the crowd, once a second.
+  if (fallen && me) { me.vx = me.vz = 0; me.gait = 'down'; }
+  // 6. The map and the crowd, once a second; and whoever bleeds, their blood (sim/health.js).
   if (state.tick % TICKS_PER_S === 0) {
     drips(state);
+    for (const a of state.actors) if (a.who) bloodBeat(state, bus, a, 1);
     const f = focusActor(state);
     if (f) { refocus(state, bus, [f.x, ...(scenario.anchors?.(state) ?? [])]); populate(state, f.x); }
   }
@@ -207,6 +220,12 @@ function busy(me) {
 /** Let time pass without ticking (ms ≥ 0): the clock jumps, people's gauges drift and bruises mend, the crowd follows the hour. */
 export function skip(state, bus, ms) {
   if (!(ms > 0)) return;
+  // (whoever's bleeding bleeds through it, a minute at a time)
+  for (const a of state.actors) {
+    const p = a.who && state.people[a.who];
+    if (!p || p.dead || !bleeding(p, state.time.ms)) continue;
+    for (let t = 0; t < ms && !p.dead; t += 60000) { const at = state.time.ms; state.time.ms += Math.min(60000, ms - t); bloodBeat(state, bus, a, Math.min(60, (ms - t) / 1000)); state.time.ms = at; }
+  }
   const before = Math.floor(state.time.ms / AUTOSAVE_MS);
   state.time.ms += Math.round(ms / TICK_MS) * TICK_MS;
   for (const p of Object.values(state.people)) { drift(p, state.time.ms); heal(p, ms / DAY, state.time.ms); }
@@ -232,6 +251,28 @@ export function changeMap(state, bus, way) {
   me.row = row;
   for (const id of carried) { const a = actor(state, id); if (a) a.row = row; }
   loadRow(state, bus, row, me.x, { way, from });
+}
+
+/**
+ * s seconds of someone's blood (sim/health.js bloodTick()): a hand pressed on it holds some back (the
+ * player's 'pressure', sim/aid.js); collapsed, they lie there; bled out, they're dead, and if it's the
+ * player, the scene's over the engine's way.
+ */
+export function bloodBeat(state, bus, a, s) {
+  const p = state.people[a.who];
+  if (!p || p.dead || (p.blood === undefined && !bleeding(p, state.time.ms))) return;
+  const band = bloodTick(p, s, state.time.ms, a.busy?.what === 'pressure' ? PRESSURE_K : 1);
+  if (band === 'dead') {
+    kill(p, state.time.ms, 'blood loss');
+    a.gait = 'down'; a.vx = a.vz = 0; a.busy = null;
+    if (a.ai) a.ai.downUntil = Infinity;
+    say(state, bus, { kind: 'note', text: a.who === state.player ? 'The cold comes up from the ground and the light goes down to meet it.' : `${shortName(state, a.who)} doesn't move any more. Bled out.` });
+    if (a.who === state.player && !state.scenario.outcome) { Object.assign(state.scenario, { outcome: 'dead', ended: state.time.ms }); bus?.emit('scenario-end', 'dead'); }
+  } else if (band === 'collapsed') {
+    a.gait = 'down'; a.vx = a.vz = 0;
+    if (a.ai) a.ai.downUntil = state.time.ms + 2000;               // (held down while it lasts)
+    if (!p.collapsedAt) { p.collapsedAt = state.time.ms; say(state, bus, { kind: 'note', text: a.who === state.player ? 'Your legs go. The pavement is very close, and then it\'s your cheek against it.' : `${shortName(state, a.who)} sways, and goes down.` }); }
+  } else if (p.collapsedAt) delete p.collapsedAt;
 }
 
 /** The engine's paper for a player killed (sim/fight.js): what killed them, where, and when. */

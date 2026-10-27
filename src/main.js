@@ -75,6 +75,7 @@ function launch(s, { hour = null } = {}) {
   ui.fit();                                                        // (the picture to the window)
   bus.on('log', (e) => ui.toast(e));
   bus.on('read', (who) => ui.openRead(state, who));
+  bus.on('aid', (id) => ui.openAid(state, id, (key) => acts.push(`aid:${id}:${key}`)));   // (first aid for someone at hand: sim/aid.js)
   bus.on('autosave', () => autosave());
   bus.on('scenario-end', () => {
     if (s.scenario.kind === 'dojo' && s.scenario.chapter !== 'remembered') { try { localStorage.setItem(FARM_KEY, 'done'); } catch {} }   // (the lesson had: next time the Farm is a memory)
@@ -127,6 +128,11 @@ input.onAction((action) => {
     if (open === 'interact') { ui.closeOverlays(); return; }
     if (state.fight) { if (open === 'sheet') ui.closeOverlays(); else if (!open) ui.openRead(state, state.fight.b); return; }   // (in a fight: your read of them, the fight's own: sim/fight.js)
     if (!open && !paused && !ui.openInteract(state, (id, them) => acts.push(`interact:${id}:${them.id}`))) ui.toast({ kind: 'instinct', text: 'Nobody within reach.' });
+    return;
+  }
+  if (action === 'aid') {                                          // (H: tend your own wounds: sim/aid.js)
+    const me = state.actors.find(a => a.who === state.player);
+    if (open === 'aid') ui.closeOverlays(); else if (!open && me) ui.openAid(state, me.id, (key) => acts.push(`aid:${me.id}:${key}`));
     return;
   }
   if (action === 'inventory') { if (open === 'inventory') ui.closeOverlays(); else if (!open) ui.openInventory(state, (cmd) => acts.push(`inv:${cmd}`)); return; }   // (I: what you carry)

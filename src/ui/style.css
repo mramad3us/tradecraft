@@ -222,3 +222,9 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .watch .hand { color: var(--brass); font-size: 11px; }
 .inventory td.where { color: #6a7182; font-size: 12px; }
 .inventory button.small { font: 12px var(--mono); margin-left: 6px; padding: 2px 8px; cursor: pointer; pointer-events: auto; }
+.bloodveil { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(40, 0, 0, 0) 35%, rgba(46, 6, 8, 0.55) 70%, rgba(20, 2, 4, 0.92) 100%); transition: opacity 1s; }
+.charsheet p.blood { font-size: 12px; margin: 6px 0 0; color: var(--ink); }
+.charsheet p.blood.pale { color: #9e3c36; }
+.charsheet p.blood.shock, .charsheet p.blood.collapsed { color: #6e2a2e; font-weight: bold; }
+.aid td.where { color: #6a7182; font-size: 12px; }
+.aid button.small { font: 12px var(--mono); margin-left: 6px; padding: 2px 8px; cursor: pointer; pointer-events: auto; }

@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc1 (2026-10-27)
+
+- **Bleeding out** (your ask: a blood-pressure health stat). You have a blood level (100%), and every wound that bleeds has a rate: a split lip a trickle, a shallow cut through your guard under 1% a minute, a knife that lands clean several, a cut artery 10–15% a minute. Shallow cuts stop on their own; deep ones and arteries don't. Lose blood and it costs: pale under 85% (−1 to everything), in shock under 70% (−3, no running), collapsed under 55%, dead under 45%. Untended, a clean knife wound kills in about ten minutes, an artery in four or five. It comes back slowly once nothing bleeds. The edges of the screen darken as you lose it, the sheet shows it, and the instinct tells you to tend it.
+- **First aid** (your ask, Medicine driving it): H tends your own wounds; F → First aid tends someone else's. Press on it (it bleeds a third as fast while you hold still), dress it with a strip of your shirt, a tourniquet from your belt on an arm or a leg (it stops an artery, but the limb's useless till a hospital), a splint from a stick, a pipe or an umbrella for a broken limb (half the penalty). Each a Medicine check (harder for worse wounds, on yourself, one-handed) and the time it takes. Real bandages and kits come with money and the pharmacies.
+- Fixed: the short stoop when you pick something up was a twentieth of what it should be.
+
 ## v0.0.46 (2026-10-27)
 
 - **The instinct, overhauled** (your report: mostly useless, advice that doesn't apply).

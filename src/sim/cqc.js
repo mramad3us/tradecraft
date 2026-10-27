@@ -330,7 +330,7 @@ export function resolve(state, f, ours) {
       hurt(LP, out.part, out.dmg);
       // What else it did (a crack, a split, a bloody nose), and whether it drew blood to fly.
       const wpn = T?.weapon ? arms[w] : null;
-      out.injuries = injure(LP, out.part, out.force, r, state.time.ms, { edge: !!wpn?.edge, bleedK: wpn?.bleed ?? 1, crackK: wpn?.crack ?? 0 });
+      out.injuries = injure(LP, out.part, out.force, r, state.time.ms, { edge: !!wpn?.edge, deep: !!wpn?.edge, bleedK: wpn?.bleed ?? 1, crackK: wpn?.crack ?? 0 });   // (a blade that lands clean: a deep cut)
       if (wpn?.breaks && chance(r, wpn.breaks)) { out.broke = { side: w, from: state.people[W].hand, into: wpn.into ?? null }; state.people[W].hand = wpn.into ?? null; }
       out.blood = out.injuries.some(i => i.bleed) || (out.part === 'head' && LP.injuries?.some(i => i.bleed > state.time.ms)) ? Math.round(4 + out.force * 20) : 0;
       // A heavy blow staggers; a hard one to the head dazes, a very hard one stuns (likelier for a technique made for it).
@@ -372,7 +372,7 @@ function finish(state, f, out, w, l, win, T) {
     out.dmg = Math.round((pts + edge) * 10) / 10;
     out.force = Math.round(out.dmg / takes(LP, part) * 100) / 100;
     hurt(LP, part, out.dmg);
-    out.injuries = injure(LP, part, out.force, r, ms, { fracture, edge: !!wpn?.edge, bleedK: wpn?.bleed ?? 1 });
+    out.injuries = injure(LP, part, out.force, r, ms, { fracture, edge: !!wpn?.edge, deep: !!wpn?.edge, bleedK: wpn?.bleed ?? 1 });
   };
   const roll1 = (lo, hi) => int(r, hi - lo + 1) + lo;
   if (how === 'kill') {
