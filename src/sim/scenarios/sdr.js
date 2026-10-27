@@ -38,6 +38,7 @@ import { at, TICK_MS, clockText, dateText } from '../clock.js';
 import { handler, sheet, streetLook, describe, passerby } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
 import { say, speak } from '../log.js';
+import { strain } from '../needs.js';
 import { settle } from '../instinct.js';
 import { skill } from '../skills.js';
 import { opposed, check } from '../checks.js';
@@ -221,6 +222,34 @@ export const sdr = {
   },
 
   /**
+   * Into a shop (sim/shops.js): seen going in, they watch the door (they don't lose you while you're
+   * in it); out the back, they wait for nothing, and they know what that means (backway). A covert
+   * team covers a back way BACK_COVERED of the time: the spare's in the street behind.
+   */
+  onShop(state, bus, phase, way) {
+    const sc = state.scenario, me = playerOf(state);
+    if (sc.outcome || sc.teamLost) return;
+    if (phase === 'in') { sc.inShop = { seen: sc.crew.some(c => { const a = actorOf(state, c.id); return a && seesActor(state, a, { ...me, hidden: false }); }) }; return; }
+    const seen = sc.inShop?.seen;
+    sc.inShop = null;
+    if (way !== 'back' || !seen || !sc.crew.some(c => c.id)) return;
+    if (sc.team === 'covert' && chance(stream('back', state.map.seed, state.time.ms), BACK_COVERED)) {
+      const ids = sc.crew.filter(c => c.id).map(c => c.id);
+      loseUs(state, bus); sc.teamLost = false;                      // (off the old street: the one in the street behind comes on)
+      state.actors = state.actors.filter(a => !ids.includes(a.id));
+      sc.pending = sc.crew.slice(0, 2).map((c, k) => ({ crew: sc.crew.indexOf(c), at: state.time.ms + 4000 + k * 6000 }));
+      sc.arrival = { x: me.x + 12, z: me.z };
+      say(state, bus, { kind: 'note', hidden: true, text: 'The street behind had someone in it already. They\'d covered the back.' });
+    } else {
+      const ids = sc.crew.filter(c => c.id).map(c => c.id);
+      loseUs(state, bus); sc.lostHow = 'out the back of a shop';
+      state.actors = state.actors.filter(a => !ids.includes(a.id));
+      say(state, bus, { kind: 'note', hidden: true, text: 'They waited on the shop door, went in at last, and found the back door.' });
+    }
+    if (sc.flags.filter(f => f.kind === 'backway').length < FLAGS_MAX) sc.flags.push({ kind: 'backway', ms: state.time.ms, who: sc.crew[0].who });
+  },
+
+  /**
    * F on someone (sim/interact.js): a word with one of them tells them you've made them; a blow is an
    * incident, with your name on it (ASSAULT_HEAT), and they don't lose you for it. A blow on SOLOVEY
    * ends it (when the fight's over).
@@ -328,6 +357,7 @@ function epilogue(state) {
 // (the stamp says what the character knows: whether they sat down with him, not how it went)
 const OUTCOMES = { clean: 'MET', burned: 'MET', right: 'CALLED OFF', needless: 'CALLED OFF', missed: 'MISSED', incident: 'INCIDENT' };
 const CAUGHT_LINE = {
+  bloody: (who) => `${who} looks at the blood on you a moment too long.`,
   armed: (who) => `${who}'s eyes go to your hand, and stay there.`,
   ran: (who) => `${who} turns to watch you run, and keeps watching a beat too long.`,
   checked: (who) => `As you turn back, ${who[0].toLowerCase() + who.slice(1)} looks away a moment too late. They may have seen you check.`,
@@ -335,11 +365,12 @@ const CAUGHT_LINE = {
   jaywalked: (who) => `${who} watches you cross, and doesn't look away when you look up.`,
   doubled: (who) => `When you turn round, ${who[0].toLowerCase() + who.slice(1)} stops too, and finds a shop window very interesting.`,
 };
-const CAUGHT = { armed: 'carry a weapon in your hand', ran: 'run', checked: 'look back', glassed: 'check behind you in a shop window', jaywalked: 'cross away from the zebra', doubled: 'double back' };
-const FLAGS = { armed: 'you walked the street with a weapon in your hand', assaulted: 'you went for one of them', spoke: 'you spoke to one of them', ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back', taxi: 'you jumped into a taxi' };
-const SAW = { armed: 'saw what was in your hand', assaulted: 'took it from you', spoke: 'had a word from you', ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back', taxi: 'saw you jump into a taxi' };
+const CAUGHT = { bloody: 'walk about bloody', armed: 'carry a weapon in your hand', ran: 'run', checked: 'look back', glassed: 'check behind you in a shop window', jaywalked: 'cross away from the zebra', doubled: 'double back' };
+const FLAGS = { bloody: 'you walked about with blood on you', backway: 'you went into a shop and out the back', armed: 'you walked the street with a weapon in your hand', assaulted: 'you went for one of them', spoke: 'you spoke to one of them', ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back', taxi: 'you jumped into a taxi' };
+const SAW = { bloody: 'saw the blood on you', backway: 'waited on a shop door for nothing', armed: 'saw what was in your hand', assaulted: 'took it from you', spoke: 'had a word from you', ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back', taxi: 'saw you jump into a taxi' };
 export const FLAGS_MAX = 2;
 export const ASSAULT_HEAT = 12;
+export const BACK_COVERED = 0.3;                                    // (a covert team with the back of a shop covered)
 export const NET_FLAGS = 2;                                        // (lost after this many things written down: the wider net)
 export const NET_CHANCE = 0.5;                                    // (an FSB officer assaulted: an incident, a note to the embassy)                                        // times a kind of thing is written down, at most
 const list = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
@@ -541,6 +572,7 @@ function flag(state, bus, kind) {
     sc.rolls++;
     if (r.ok) {
       (sc.caught ??= []).push({ kind, look });
+      strain(state, bus, 6);                                          // (you caught them catching you: sim/needs.js)
       say(state, bus, { kind: 'roll', roll: r, text: `${CAUGHT_LINE[kind](cap(look))} Maybe it's nothing.` });
       sighting(state, bus, w, r);
     }
@@ -586,6 +618,7 @@ function second(state, bus, me) {
   const still = Math.hypot(me.vx, me.vz) < 0.05 && !me.busy;
   sc.stillS = still ? sc.stillS + 1 : 0;
   if (state.people[state.player]?.hand) flag(state, bus, 'armed');   // (a weapon in the hand, seen: written down)
+  if (state.people[state.player]?.bloody) flag(state, bus, 'bloody');   // (blood on you: sim/notice.js)
   // Our heading along the street, and doubling back (a sharp reversal after a steady stretch).
   const vdir = Math.abs(me.vx) > 0.5 ? Math.sign(me.vx) : 0;
   if (vdir && vdir !== sc.heading.dir) { if (sc.heading.s >= 8) { flag(state, bus, 'doubled'); snapshot(state, 'double'); sc.moves++; } sc.heading = { dir: vdir, s: 0 }; }
@@ -596,7 +629,7 @@ function second(state, bus, me) {
   // The team.
   if (!sc.teamLost) {
     const onUs = sc.crew.some(c => { const a = actorOf(state, c.id); return a && seesActor(state, a, me); });
-    if (onUs) sc.teamSeenMs = now;
+    if (onUs || (me.inside && sc.inShop?.seen)) sc.teamSeenMs = now;   // (in a shop they saw you go into: they're watching its door)
     if (sc.crew.some(c => c.id) && !sc.pending.length && now - sc.teamSeenMs > LOSE_S[sc.team] * 1000) { loseUs(state, bus); sc.lostHow = sc.lostHow ?? 'in the crowd'; }
     if (sc.team === 'covert' && now >= sc.nextHandover) { handover(state); sc.nextHandover = now + Math.round(range(state.rng, ...HANDOVER_S)) * 1000; }
     if (me.gait === 'run') flag(state, bus, 'ran');

@@ -37,10 +37,11 @@ export function cityOf(town) {
 // The scenes are written for Moscow (its name, its service, its prison). Elsewhere, until the scenes
 // are written for each city, localize() puts the city's own in their place as the words are shown
 // (src/ui/ui.js): the log, the instinct, the balloons, the briefs and the papers.
+// (the opposition as the campaign has it, sim/campaign.js CITY: whoever would follow an American there)
 const LOCAL = {
-  london: { name: 'London', service: 'MI5', the: 'MI5', an: 'an MI5', prison: 'Belmarsh' },
-  beirut: { name: 'Beirut', service: 'Sûreté Générale', the: 'the Sûreté Générale', an: 'a Sûreté Générale', prison: 'Roumieh' },
-  cairo: { name: 'Cairo', service: 'Mukhabarat', the: 'the Mukhabarat', an: 'a Mukhabarat', prison: 'Tora' },
+  london: { name: 'London', service: 'SVR', the: 'the Russian residency', an: 'an SVR', prison: 'a basement off Kensington Palace Gardens' },
+  beirut: { name: 'Beirut', service: 'Hezbollah security', the: 'Hezbollah\'s security', an: 'a Hezbollah security', prison: 'a basement in the Dahiyeh' },
+  cairo: { name: 'Cairo', service: 'GIS', the: 'the GIS', an: 'a GIS', prison: 'Tora' },
 };
 /** The words of a Moscow scene in the city (an id; none or Moscow: as they are). */
 export function localize(city, text) {

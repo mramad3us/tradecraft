@@ -18,6 +18,7 @@
 import { d20 } from './rng.js';
 import { SKILLS } from './skills.js';
 import { mods as bodyMods } from './health.js';
+import { mods as needMods } from './needs.js';
 
 export const DC = { easy: 10, average: 15, hard: 20, veryHard: 25, expert: 30, elite: 40 };
 
@@ -26,7 +27,7 @@ const halve = (x) => Math.ceil(x / 2);
 
 /** One side's roll: { skill, value, roll, mods, total, nat }. */
 function side(rng, { skill, value, mods = [], body = null }) {
-  if (body) mods = [...mods, ...bodyMods(body, skill)];
+  if (body) mods = [...mods, ...bodyMods(body, skill), ...needMods(body, skill)];   // (and the needs: hunger, stress: sim/needs.js)
   const roll = d20(rng);
   return { skill, value, roll, mods, total: roll + value + sumMods(mods), nat: roll === 20 ? 20 : roll === 1 ? 1 : 0 };
 }

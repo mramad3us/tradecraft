@@ -35,7 +35,7 @@ export default [
       await withGame(async (page, errors) => {
         await page.goto(`http://localhost:${PORT}/`);
         await page.waitForFunction("!document.getElementById('title').hidden", null, { timeout: 30000 });
-        await page.getByText('Campaign: a posting in Moscow').click();
+        await page.locator('#title .campaign .cities button', { hasText: 'Moscow' }).click();   // (the campaign: a button per posting city)
         await page.waitForSelector('.candidates', { timeout: 30000 });
         const names = await page.locator('.cand').count();
         await page.locator('.cand').first().click();
@@ -60,7 +60,7 @@ export default [
       await withGame(async (page, errors) => {
         await page.goto(`http://localhost:${PORT}/`);
         await page.waitForFunction("!document.getElementById('title').hidden", null, { timeout: 30000 });
-        await page.locator('#title .cities button', { hasText: 'Moscow' }).click();   // (the free walk: a button per city)
+        await page.locator('#title .item.walk:not(.campaign) .cities button', { hasText: 'Moscow' }).click();   // (the free walk: a button per city)
         await page.waitForFunction('window.__ready === true', null, { timeout: 30000 });
         const t0 = Date.now();
         await page.keyboard.down('KeyD');

@@ -118,7 +118,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .marker.memory::before { opacity: 0.4; animation: none; }
 .sheet .keylist { list-style: none; padding: 0; margin: 6px 0; font-size: 13px; }
 .sheet .keylist li { padding: 2px 0; }
-.sheet .keylist kbd { color: var(--ink); border-color: var(--rule); }
+.sheet .keylist kbd, .sheet .item kbd, .sheet td kbd { color: var(--ink); border-color: var(--rule); }   /* (keycaps on paper: ink, not the HUD's paper colour) */
 
 #title .section { font: bold 13px var(--type); letter-spacing: 0.2em; margin: 18px 0 2px; color: var(--ink); }
 .sheet .stamp.good { border-color: #356f42; color: #356f42; }

@@ -18,15 +18,16 @@ import { heatKey } from '../heat.js';
 import { say } from '../log.js';
 import { Z, streetName } from '../map/street.js';
 import { sectionOf } from '../city.js';
-import { townOf } from '../cities/index.js';
+import { townOf, cityById } from '../cities/index.js';
 import { skip, newMap } from '../game.js';
+import { eat } from '../needs.js';
 import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, KINDS, WORK } from '../campaign.js';
 
 const TPS = 1000 / TICK_MS;
 
 export const campaignHub = {
   name: 'Campaign',
-  about: 'A Handler at the US embassy in Moscow, for as long as it lasts: a network to run, a man to watch, the heat to keep down.',
+  about: 'A Handler at a US embassy, for as long as it lasts: a network to run, a man to watch, the heat to keep down.',
   campaign: true,
 
   setup(state) {
@@ -63,8 +64,9 @@ export const campaignHub = {
       const to = work(c, now);
       if (to === now) return say(state, bus, { kind: 'instinct', text: 'Not a working day, or it\'s over: nobody at the embassy wants you now.' });
       until(to, 'The metro to the embassy, the guard\'s nod, the day\'s cables.');
-    } else if (what === 'sleep') until(rest(c, now), 'Home, and to bed.');
-    else if (what === 'low') { const safe = c.posting.safehouses.some(h => h.row === state.map.row); until(lieLow(c, now, safe), safe ? 'A day in the safe house: the curtains drawn, the kettle, nobody.' : 'A day of being nobody.'); }
+      eat(state.people.me, state.time.ms - 4 * HOUR, 5);             // (lunch in the canteen: sim/needs.js)
+    } else if (what === 'sleep') { until(rest(c, now), 'Home, and to bed.'); eat(state.people.me, state.time.ms, 60); }   // (a night's sleep, and breakfast: sim/needs.js)
+    else if (what === 'low') { const safe = c.posting.safehouses.some(h => h.row === state.map.row); until(lieLow(c, now, safe), safe ? 'A day in the safe house: the curtains drawn, the kettle, nobody.' : 'A day of being nobody.'); eat(state.people.me, state.time.ms, 40); }
     else if (what === 'travel') {
       const to = places(c).find(pl => pl.id === id);
       if (!to) return;
@@ -108,7 +110,7 @@ export const campaignHub = {
     const c = state.campaign, p = c.posting, days = Math.round((state.time.ms - p.startMs) / DAY), done = c.over?.why === 'completed';
     const met = c.done.filter(a => a.kind === 'sdr' && ['clean', 'burned'].includes(a.outcome)).length, seen = c.done.filter(a => a.kind === 'tail' && a.outcome === 'seen').length;
     return {
-      stamp: done ? 'POSTING COMPLETE' : 'EXPELLED', good: done, title: 'STATION MOSCOW',
+      stamp: done ? 'POSTING COMPLETE' : 'EXPELLED', good: done, title: `STATION ${cityById(p.city).name.toUpperCase()}`,
       text: done ? `The station has what it wanted on ${p.subject}. Langley's reply is two words long, and one of them is "good". The next posting will be harder.`
         : 'Declared persona non grata, forty-eight hours to leave. The cable home will say "compromised"; the review will say more.',
       notes: [`${days} days on the posting: ${met} meetings, ${seen} tails that saw what they came for; intelligence ${p.intelligence}.`,

@@ -38,6 +38,9 @@ import { drift } from './people.js';
 import { heal, bleeding, bloodTick, bandOf, canStand, kill, BLOOD, COME_ROUND_S } from './health.js';
 import { PRESSURE_K, treat } from './aid.js';
 import { atKerb, destinations, ride } from './taxi.js';
+import { shopNear, goIn, insideTick } from './shops.js';
+import { notice } from './notice.js';
+import { needsTick, strain } from './needs.js';
 import { shortName } from './fight.js';
 import { drips } from './blood.js';
 import { glassAhead, affordance, act as doAct } from './acts.js';
@@ -105,7 +108,10 @@ export function step(state, input = {}, bus) {
   const scenario = SCENARIOS[state.scenario.kind];
   // 1. The player.
   const me = playerActor(state);
-  for (const act of input.act ?? []) {
+  // (frayed nerves: a glance back you didn't decide on, counted by the scenes like any other: sim/needs.js)
+  const acts = state.slip ? [...(input.act ?? []), 'glance'] : input.act ?? [];
+  delete state.slip;
+  for (const act of acts) {
     if (fight.act(state, bus, act, scenario)) continue;            // (a fight's move: sim/fight.js)
     if (String(act).startsWith('talk:')) { talk.choose(state, bus, act.slice(5)); continue; }   // (a conversation's choice: sim/talk.js)
     if (String(act).startsWith('interact:')) {                     // (F's menu, chosen: sim/interact.js)
@@ -120,6 +126,11 @@ export function step(state, input = {}, bus) {
       const [, aid, ...key] = act.split(':'), them = state.actors.find(a => a.id === aid);
       const done = me && them && !state.fight && Math.hypot(them.x - me.x, them.z - me.z) < 2.5 && treat(state, bus, me, them, key.join(':'));
       if (done?.rest) skip(state, bus, done.rest);                  // (a rest: the hours go by: sim/aid.js)
+      continue;
+    }
+    if (String(act).startsWith('shop:')) {                         // (into a shop, the way chosen: sim/shops.js)
+      const d = me && !state.fight && !me.inside && shopNear(state, me);
+      if (d) goIn(state, bus, me, d, act.slice(5), scenario);
       continue;
     }
     if (String(act).startsWith('taxi:')) {                         // (a taxi, where to chosen: sim/taxi.js)
@@ -141,7 +152,8 @@ export function step(state, input = {}, bus) {
   }
   // A fight waiting for a choice, a conversation: time stands still (sim/fight.js, sim/talk.js).
   if (state.fight?.phase === 'choose' || state.talk) return;
-  if (state.fight || scenario.holds?.(state)) input = { act: input.act };   // (a fight, or the scenario, has the player's feet)
+  if (state.fight || scenario.holds?.(state) || me?.inside) input = { act: input.act };   // (a fight, the scenario, or a shop has the player's feet)
+  if (me?.inside) insideTick(state, bus, me, scenario, { loadRow });
   const mine = me && state.people[me.who], fallen = mine && (mine.dead || !canStand(mine));
   if (fallen) input = { act: [] };                                 // (collapsed, out cold or dead: nothing answers)
   if (me && !me.ai) {
@@ -208,6 +220,8 @@ export function step(state, input = {}, bus) {
   if (state.tick % TICKS_PER_S === 0) {
     drips(state);
     for (const a of state.actors) if (a.who) bloodBeat(state, bus, a, 1);
+    notice(state, bus, me);                                         // (blood on you, seen: a face remembered: sim/notice.js)
+    needsTick(state, bus, me);                                      // (hunger's clock, the calm coming back, frayed slips: sim/needs.js)
     const f = focusActor(state);
     if (f) { refocus(state, bus, [f.x, ...(scenario.anchors?.(state) ?? [])]); populate(state, f.x); }
   }

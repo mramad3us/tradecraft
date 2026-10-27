@@ -19,6 +19,8 @@ import { toJSON, fromJSON } from './sim/state.js';
 import { TICK_MS, HOUR, MIN, stampText, hourOfDay, calendar } from './sim/clock.js';
 import { SCENARIOS } from './sim/scenarios/index.js';
 import { candidates, newCampaign, context, fold, heatWord, KINDS } from './sim/campaign.js';
+import { cityById } from './sim/cities/index.js';
+import { shopWord } from './sim/shops.js';
 import { createView } from './render/view.js';
 import { createInput } from './ui/input.js';
 import { createUI } from './ui/ui.js';
@@ -37,13 +39,13 @@ let prev = new Map(), acc = 0, last = performance.now(), frames = 0;
 const ui = createUI({ input, cb: {
   newGame: (kind, chapter = null, city = null) => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city })),
   // (the campaign: three officers, one picked, the posting's brief, then the posting: sim/campaign.js)
-  newCampaign: () => {
-    const seed = randomSeed(), list = candidates(seed, 'moscow');
+  newCampaign: (city = 'moscow') => {
+    const seed = randomSeed(), list = candidates(seed, city);
     ui.hideTitle();
     ui.showCandidates(list, (i) => {
-      const c = newCampaign(seed, list[i], 'moscow');
+      const c = newCampaign(seed, list[i], city);
       ui.showPaper(postingPaper(c), () => launch(newGame({ seed, scenario: 'campaign', version: VERSION, campaign: c })));
-    });
+    }, city);
   },
   continue: async () => { const s = await getSave('auto'); if (s) launch(fromJSON(s.json)); },
   importSave: async () => {
@@ -91,6 +93,7 @@ function launch(s, { hour = null } = {}) {
   // (the campaign: an assignment taken at the desk, launched after this tick; papers the days bring, one after another)
   bus.on('assignment', (id) => setTimeout(() => launchAssignment(s, id), 0));
   bus.on('papers', (list) => showPapers(list));
+  bus.on('shop', ({ shop, ways }) => ui.openChoices('SHOP', shopWord(shop).replace(/^the /, '').toUpperCase(), ways.map(w => ({ key: w.id, label: w.label })), (key) => acts.push(`shop:${key}`)));   // (sim/shops.js)
   bus.on('taxi', (list) => ui.openChoices('TAXI', 'WHERE TO?', list.map(d => ({ key: d.id, label: d.label.charAt(0).toUpperCase() + d.label.slice(1) })), (key) => acts.push(`taxi:${key}`)));   // (sim/taxi.js)
   bus.on('scenario-end', () => {
     if (s.scenario.kind === 'dojo' && s.scenario.chapter !== 'remembered') { try { localStorage.setItem(FARM_KEY, 'done'); } catch {} }   // (the lesson had: next time the Farm is a memory)
@@ -150,7 +153,7 @@ function showPapers(list) {
 /** The posting's brief, the paper before day one. */
 function postingPaper(c) {
   const p = c.posting, me = c.character;
-  return { stamp: 'POSTING', title: 'STATION MOSCOW', go: 'Begin the posting', lines: [
+  return { stamp: 'POSTING', title: `STATION ${cityById(p.city).name.toUpperCase()}`, go: 'Begin the posting', lines: [
     `${me.name}: ${p.job}. Diplomatic immunity: caught, you'd be expelled. The people you run wouldn't be so lucky.`,
     `The station wants ${p.goal}. Every meeting, every tail, is a step toward it.`,
     `Your network: ${p.assets.map(s => `${s.codename}, ${s.role}, in it for ${s.motive}`).join('; ')}.`,

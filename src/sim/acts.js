@@ -13,7 +13,8 @@
 //   - 'lace': stop to tie a shoelace (not again within LACE_AGAIN_S: twice is a story);
 //   - 'cross': over the street at its zebra, or over the boulevard's far road at its own;
 //   - 'pickup': something lying within reach (sim/items.js), into the hand, stooping for it;
-//   - 'taxi': at the kerb, hail a taxi (sim/taxi.js): where to is the UI's to ask (the bus: 'taxi').
+//   - 'taxi': at the kerb, hail a taxi (sim/taxi.js): where to is the UI's to ask (the bus: 'taxi');
+//   - 'shop': at a shop's door, go in (sim/shops.js): how is the UI's to ask (the bus: 'shop').
 // Each becomes the player's busy plan (sim/game.js busy()), which moving cancels; busy.since is when
 // it began (a scenario may care whether that was before or after someone looked).
 // Also here, the bits of the street they read: where the crossings and the shop windows are, the
@@ -29,6 +30,7 @@ import { say } from './log.js';
 import { GLASS_REACH_M, intoGlass } from './perception.js';
 import { itemNear, pickUp } from './items.js';
 import { atKerb, destinations } from './taxi.js';
+import { shopNear, ways, shopWord } from './shops.js';
 import { weaponOf } from './weapons.js';
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -106,8 +108,9 @@ export function affordance(state, me) {
   if (state.map.kind !== 'street' || !sectionAt(state, me.x)) return null;
   // (at the kerb: the zebra if it's there, else a taxi; the window behind you is for the pavement)
   const kerb = atKerb(state, me), cross = crossingNear(state, me, 4);
-  const act = kerb && cross ? 'cross' : kerb ? 'taxi' : paneNear(state, me) ? 'window' : benchNear(state, me) !== null ? 'bench' : cross ? 'cross' : null;
-  return act && { act, text: ` {instinct} ${COVER[act]}.` };
+  const door = !kerb && shopNear(state, me);                        // (at a shop's door: in; sim/shops.js)
+  const act = kerb && cross ? 'cross' : kerb ? 'taxi' : door ? 'shop' : paneNear(state, me) ? 'window' : benchNear(state, me) !== null ? 'bench' : cross ? 'cross' : null;
+  return act && { act, text: ` {instinct} ${act === 'shop' ? `go into ${shopWord(door.shop)}` : COVER[act]}.` };
 }
 /** What T would do here, for the end of an instinct's line: { act, text } (only: the covers allowed). */
 export function offer(state, me, only = null) {
@@ -123,6 +126,7 @@ export function act(state, bus, me, what, opts = {}) {
 
 function act1(state, bus, me, what, { toward = Math.cos(me.head ?? 0) >= 0 ? -1 : 1, scenario = null } = {}) {
   if (what === 'taxi') { if (atKerb(state, me)) bus?.emit('taxi', destinations(state, scenario)); return; }
+  if (what === 'shop') { const d = shopNear(state, me); if (d) bus?.emit('shop', { shop: d.shop, ways: ways(state, d) }); return; }
   if (what === 'pickup') {
     const it = itemNear(state, me), p = state.people[me.who];
     if (!it || !p) return;

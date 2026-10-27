@@ -30,6 +30,7 @@ import { read } from './know.js';
 import { weaponOf } from './weapons.js';
 import { draw, drop } from './items.js';
 import { wear } from './health.js';
+import { strain } from './needs.js';
 import { chance } from './rng.js';
 
 export const FIGHT_GAP_M = 1.5;
@@ -84,6 +85,7 @@ export const shortName = (state, who) => {
 export function begin(state, bus, them, opts = {}) {
   const me = playerOf(state);
   const f = startFight(state, state.player, them.who, opts);
+  strain(state, bus, opts.bout || opts.script ? 3 : 12);            // (a real fight, not a bout: the heart going: sim/needs.js)
   if (opts.adv) f.adv.a = opts.adv;
   const dir = them.x >= me.x ? 1 : -1;
   f.marks = opts.marks ?? { a: { x: me.x, z: me.z }, b: { x: me.x + dir * FIGHT_GAP_M, z: me.z } };
@@ -110,6 +112,7 @@ export function act(state, bus, action, scene) {
 export function exchange(state, bus, ours, scene) {
   const f = state.fight;
   const out = resolve(state, f, ours);
+  if (out.by === 'b' && out.dmg && !f.bout && !f.script) strain(state, bus, 3 + 5 * (out.injuries?.length ?? 0));   // (hit, and hurt)
   say(state, bus, { kind: out.roll ? 'roll' : 'note', roll: out.roll ?? undefined, text: `${ours.drew ? `You pull ${weaponOf(ours.drew).name} and cover. ` : ''}${exchangeText(out, shortName(state, f.b), state.people[f.b], state.map.seed, state.map.kind === 'dojo' ? 'hall' : 'street')}` });
   if (out.dropped) {                                                // (knocked out of a hand: it lies where it fell)
     const a = out.dropped.side === 'a' ? playerOf(state) : actorOfWho(state, f.b);

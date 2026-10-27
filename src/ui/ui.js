@@ -14,7 +14,9 @@
 //
 // It shows the state and routes the player's choices to the callbacks it's given (src/main.js); it
 // never changes the state itself. Times are game time (sim/clock.js); rolls read through checkShort() at the top left, checkText() (the whole sum) in the log.
-import { townOf, localize } from '../sim/cities/index.js';
+import { townOf, localize, cityById } from '../sim/cities/index.js';
+import { shopWord } from '../sim/shops.js';
+import { needsWords } from '../sim/needs.js';
 import { clockText, stampText, dateText } from '../sim/clock.js';
 import { checkText, checkShort } from '../sim/checks.js';
 import { SCENARIOS } from '../sim/scenarios/index.js';
@@ -120,6 +122,14 @@ export function createUI({ input, cb }) {
       return [el('div', { className: 'item walk' }, s.name, about, el('div', { className: 'cities' }, ...CITY_WALKS.map(([c, name, words]) =>
         el('button', { className: 'small', onclick: () => cb.newGame(key, null, c === 'moscow' ? null : c), onmouseenter: () => { about.textContent = words; }, onfocus: () => { about.textContent = words; } }, name))))];
     };
+    // (the campaign: a posting, in any of the cities)
+    const POSTINGS = [['moscow', 'Moscow', 'Station Moscow: the FSB follows embassy staff when it likes, and doesn\'t mind being seen.'], ['london', 'London', 'A friendly capital, and an unfriendly residency: the Russians watch who meets whom.'],
+      ['beirut', 'Beirut', 'Every faction has its eyes, and Hezbollah\'s are the sharpest.'], ['cairo', 'Cairo', 'The GIS watches everyone, the Americans included, and says so.']];
+    const campaignEntry = () => {
+      const about = el('small', { textContent: 'A Handler at the US embassy: a network to run, men to watch, the heat to keep down. Days and weeks of it, as long as it lasts. Posted to:' });
+      return el('div', { className: 'item campaign walk' }, 'Campaign: a posting', about, el('div', { className: 'cities' }, ...POSTINGS.map(([c, name, words]) =>
+        el('button', { className: 'small', onclick: () => cb.newCampaign?.(c), onmouseenter: () => { about.textContent = words; }, onfocus: () => { about.textContent = words; } }, name))));
+    };
     const entry = (key, s) => key === 'walk' ? walkEntry(key, s)
       : key !== 'dojo' ? [el('button', { className: 'item', onclick: () => cb.newGame(key) }, s.name, el('small', { textContent: s.about }))] : [
       el('button', { className: 'item', onclick: () => cb.newGame('dojo', farm ? 'remembered' : 'lesson') }, farm ? 'The Farm, remembered' : s.name,
@@ -134,7 +144,7 @@ export function createUI({ input, cb }) {
       el('div', { className: 'cols' },
         el('div', { className: 'col' },
           auto ? el('button', { className: 'item', onclick: () => cb.continue() }, 'Continue', el('small', { textContent: auto.about })) : null,
-          el('button', { className: 'item campaign', onclick: () => cb.newCampaign?.() }, 'Campaign: a posting in Moscow', el('small', { textContent: 'A Handler at the US embassy: a network to run, men to watch, the heat to keep down. Days and weeks of it, as long as it lasts.' })),
+          campaignEntry(),
           ...Object.entries(SCENARIOS).filter(([, s]) => !s.test && !s.campaign).flatMap(([key, s]) => entry(key, s))),
         el('div', { className: 'col' },
           el('h3', { className: 'section', textContent: 'Mechanic tests' }),
@@ -321,7 +331,11 @@ export function createUI({ input, cb }) {
     // What's at hand (the engine's: sim/acts.js affordance()) ends a line that offers nothing itself.
     // (in a fight, someone stunned, dazed or staggered: the engine's line on it comes first: sim/fight.js)
     // (in a fight, how things stand; then your own body, if it's more pressing than the scene's line: sim/aid.js)
-    const body = bodyLine(state), scene = sc.prompt && body && RANKS[body.tone] <= RANKS[sc.prompt.tone] ? sc.prompt : body ?? sc.prompt;
+    // (in a shop: where you are, in place of the scene's line, unless it's urgent: sim/shops.js)
+    const inShop = state.actors.find(a => a.who === state.player)?.inside;
+    const shopLine = inShop && { id: 'inside', tone: 'calm', text: inShop.way === 'back' ? `In ${shopWord(inShop.shop)}, through to the back: out on the street behind in a moment.` : inShop.way === 'wash' ? `In ${shopWord(inShop.shop)}'s toilet, the bolt across, cleaning up.` : `In ${shopWord(inShop.shop)}, among the shelves. Out again in a minute.` };
+    const sceneP = shopLine && sc.prompt?.tone !== 'urgent' ? shopLine : sc.prompt;
+    const body = bodyLine(state), scene = sceneP && body && RANKS[body.tone] <= RANKS[sceneP.tone] ? sceneP : body ?? sceneP;
     const sp = !sc.outcome && ((state.fight?.phase === 'choose' && statusLine(state)) || scene), off = !sc.outcome && !sp?.act && sp?.tone !== 'urgent' && state.$offer;
     // (the offer a chip of its own after the line, not run on into its sentence)
     const p = sp || off ? { tone: sp?.tone ?? 'calm', text: (sp?.text ?? '').trim(), offer: off ? off.text.trim() : '' } : null;
@@ -478,6 +492,7 @@ export function createUI({ input, cb }) {
         el('div', {},
           el('table', { className: 'skills' }, el('tbody', {}, rows)),
           el('p', { className: 'note', textContent: 'The level is the training you had (a course, advanced…); each • is practice since, a point each.' }),
+          (() => { const nw = needsWords(p, state.time.ms); return el('p', { className: 'langs', textContent: `${nw.fed[0].toUpperCase()}${nw.fed.slice(1)} · ${nw.stress}${nw.hungry || nw.edgy ? ' (it costs: see a roll\'s modifiers)' : ''}` }); })(),
           el('p', { className: 'langs', textContent: Object.entries(p.langs ?? {}).map(([c, l]) => `${LANGS[c] ?? c}: ${l}`).join(' · ') }),
           el('p', { className: 'langs', textContent: `Carrying: ${[p.hand && `${weaponOf(p.hand).name}, in hand`, ...(p.items ?? []).map(k => weaponOf(k)?.name ?? k)].filter(Boolean).join('; ') || 'nothing to fight with'}. (${input.label('inventory')})` })),
         el('div', { className: 'body' },
@@ -627,14 +642,15 @@ export function createUI({ input, cb }) {
 
   // ---------- a test's papers: the brief, the result ----------
   /** The campaign's three candidates (sim/campaign.js candidates()): pick one. */
-  function showCandidates(list, onPick) {
+  function showCandidates(list, onPick, city = 'moscow') {
+    const C = cityById(city), lang = C.lang ?? 'ru';
     const top = (p) => Object.entries(p.skills).map(([k, [b, x]]) => [k, b + x]).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => SKILLS[k]?.name ?? k).join(', ');
     paper.replaceChildren(el('div', { className: 'sheet brief candidates' },
       el('span', { className: 'stamp', textContent: 'PERSONNEL' }),
       el('h2', { textContent: 'WHO GOES' }),
-      el('p', { className: 'note', textContent: 'Station Moscow needs a Handler under official cover. Three files on the desk.' }), el('hr'),
+      el('p', { className: 'note', textContent: `Station ${C.name} needs a Handler under official cover. Three files on the desk.` }), el('hr'),
       ...list.map((p, i) => el('button', { className: 'item cand', onclick: () => { paper.hidden = true; paper.dataset.kind = ''; onPick(i); } },
-        `${p.name}, ${p.age}`, el('small', { textContent: `${p.background} Best at: ${top(p)}. Russian: ${p.langs.ru ?? 'none'}. Tradecraft ${p.os}.` })))));
+        `${p.name}, ${p.age}`, el('small', { textContent: `${p.background} Best at: ${top(p)}. ${LANGS[lang] ?? lang}: ${p.langs[lang] ?? 'none'}. Tradecraft ${p.os}.` })))));
     paper.hidden = false;
     paper.dataset.kind = 'brief';
     paper.querySelector('.cand')?.focus();

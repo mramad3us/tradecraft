@@ -26,6 +26,7 @@ import { skill } from './skills.js';
 import { say } from './log.js';
 import { stateOf, bleedRate, bandOf, bloodOf, bleeding, BLOOD, REGEN_PER_H } from './health.js';
 import { weaponOf } from './weapons.js';
+import { eat, needsWords } from './needs.js';
 
 export const PRESSURE_K = 0.35;
 export const PRESS_S = 60;
@@ -91,6 +92,7 @@ export function treat(state, bus, medicActor, patientActor, key) {
   if (method === 'rest') {
     if (!self || !state.scenario.rest || bleeding(patient, ms)) return null;
     say(state, bus, { kind: 'note', text: 'A café\'s back corner, sweet tea, then another; nothing sudden. The hours go by, and the colour comes back.' });
+    eat(patient, ms + restHours(patient) * 3600000, 30);            // (fed, and calmer: sim/needs.js)
     return { rest: restHours(patient) * 3600000 };
   }
   if (method === 'dress' || method === 'tourniquet') {
@@ -132,6 +134,14 @@ export function bodyLine(state) {
   if (band === 'shock') return { id: 'body-shock', tone: 'warn', text: `${b}% of your blood: in shock. No running, and everything's harder. ${state.scenario.rest ? '{aid} rest: hours, somewhere warm.' : 'It comes back with rest: hours, not minutes.'}` };
   if (rate > 0) return { id: 'body-trickle', tone: 'note', text: 'A trickle of blood. It\'ll stop on its own; {aid} tend it, if you like.' };
   if (band === 'pale') return { id: 'body-pale', tone: 'note', text: `${b}% of your blood. Pale, and a little light-headed: it comes back, slowly.` };
+  // (the needs: sim/needs.js)
+  const nw = needsWords(p, state.time.ms);
+  if (nw.edgy && (p.needs?.stress ?? 0) >= 75) return { id: 'need-frayed', tone: 'warn', text: 'Frayed: your eyes keep going over your shoulder on their own. Somewhere to sit, a hot drink, and it passes.' };
+  if (nw.hungry) return { id: 'need-hungry', tone: 'calm', text: `Hungry: ${nw.fed.replace(/^hungry \(|^starving \(/, '').replace(/\)$/, '')} since you ate. A café, a bakery (T at its door): two minutes.` };
+  if (nw.edgy) return { id: 'need-edge', tone: 'calm', text: 'On edge. It shows in the little things: a bench, a café, a few minutes, and it eases.' };
+  // (nothing bleeding, but it shows: sim/notice.js; a café's toilet washes it off, sim/shops.js)
+  if (p.bloody?.face !== undefined) return { id: 'body-bloody', tone: 'note', text: 'Blood on your face: people remember a face like that. A café\'s or a bar\'s toilet will wash it off.' };
+  if (p.bloody?.clothes !== undefined) return { id: 'body-stained', tone: 'calm', text: 'Blood on your coat. It shows, if anyone looks: a café\'s toilet, and some scrubbing.' };
   return null;
 }
 

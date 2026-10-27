@@ -55,6 +55,8 @@ import { Z, SECTION_M, inLane } from '../map/street.js';
 import { near, sectionAt } from '../world.js';
 import { planRoute, routeFrom, sectionOf, pointAt, LINE } from '../city.js';
 import { withHabits, withEnd } from '../habits.js';
+import { mods as showsMods } from '../notice.js';
+import { strain } from '../needs.js';
 import { makeAgent, setRoute, follow as followTarget, rowOf, onMap } from '../agents.js';
 import { isPasserby } from '../crowd.js';
 import { lightBand } from '../light.js';
@@ -475,6 +477,7 @@ function moment(state, bus, me, t, d, kind) {
     return;
   }
   sc.sightings.push({ ms: state.time.ms, kind, seen: watching });
+  if (watching) strain(state, bus, 8);                             // (you saw him see you: sim/needs.js)
   sc.alert = Math.min(100, sc.alert + 40);
   mark(state, t, '!', watching);
   say(state, bus, { kind: 'roll', roll: r, hidden, text: pick(state.rng, seen) });
@@ -759,9 +762,8 @@ function meeting(state, bus, me, t, d) {
 }
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-/** A weapon in your hand on the street (sim/items.js): the eye goes to it, and to you (HELD_MOD on his side). */
-export const HELD_MOD = 3;
-const inHand = (state) => (state.people[state.player]?.hand ? [{ why: 'something in your hand', v: HELD_MOD }] : []);
+/** What shows on you (sim/notice.js: blood, a weapon in your hand): the eye goes to it, and to you. */
+const inHand = (state) => showsMods(state.people[state.player]);
 const clockOf = (state) => { const m = Math.floor(state.time.ms / 60000) % 1440; return hhmm(Math.floor(m / 60), m % 60); };
 
 // ---------- the instinct ----------
