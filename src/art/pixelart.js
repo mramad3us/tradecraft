@@ -22,6 +22,7 @@
 //     ring, as pixel art draws a pool of light, not a smooth falloff the palette would band.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { arabic, arabicWidth } from './arabic.js';
 
 export const RES = [480, 270];
 export const GLOWS = [0xe7b84a, 0xf8e08a];                    // lit windows and shops: these glow at night
@@ -629,6 +630,10 @@ const FINE_TILES = {
   squares: (px, n, r) => stones(px, n, 8, 8, 0, 0xb8b0a4, r),
   granite: (px, n, r) => stones(px, n, 16, 12, 8, 0xb4a296, r, true),
   pavers: (px, n, r) => stones(px, n, 8, 4, 4, 0xa8a49c, r),
+  york: (px, n, r) => stones(px, n, 24, 12, 12, 0xb2aa9a, r),      // York stone flags (a lane's walks, London's)
+  pcc: (px, n, r) => stones(px, n, 16, 12, 8, 0xa8a6a0, r),        // concrete flags
+  terrazzo: (px, n, r) => stones(px, n, 8, 8, 0, 0xb8ae9c, r),     // cement tiles (Cairo's, Beirut's walks)
+  broken: (px, n, r) => stones(px, n, 16, 12, 8, 0xaca69c, r),
   roadslabs: (px, n, r) => stones(px, n, 24, 24, 12, 0x8f96a6, r),   // a road of concrete slabs, 1.5 m
   concrete(px, n, r) {                                           // concrete slabs, grass in the joints
     stones(px, n, 24, 24, 0, 0xa8a49c, r);
@@ -763,6 +768,12 @@ const GLYPHS = {
   Y: ['101', '101', '010', '010', '010'], X: ['101', '101', '010', '101', '101'], Z: ['111', '001', '010', '100', '111'],
   J: ['001', '001', '001', '101', '010'], Q: ['010', '101', '101', '110', '011'], "'": ['1', '1', '0', '0', '0'],
   ' ': ['00', '00', '00', '00', '00'],
+  // Digits and the marks English signs use (FISH & CHIPS, No. 12, W11).
+  0: ['111', '101', '101', '101', '111'], 1: ['010', '110', '010', '010', '111'], 2: ['110', '001', '010', '100', '111'], 3: ['110', '001', '010', '001', '110'],
+  4: ['101', '101', '111', '001', '001'], 5: ['111', '100', '110', '001', '110'], 6: ['011', '100', '110', '101', '010'], 7: ['111', '001', '010', '010', '010'],
+  8: ['010', '101', '010', '101', '010'], 9: ['010', '101', '011', '001', '110'],
+  '&': ['0100', '1010', '0100', '1011', '0110'], '.': ['0', '0', '0', '0', '1'], ',': ['0', '0', '0', '1', '1'], '-': ['00', '00', '11', '00', '00'],
+  '/': ['001', '001', '010', '100', '100'], 'É': ['111', '100', '110', '100', '111'], '!': ['1', '1', '1', '0', '1'],
   // Cyrillic (the letters that look like Latin ones share their shapes)
   А: ['010', '101', '111', '101', '101'], Б: ['111', '100', '110', '101', '110'], В: ['110', '101', '110', '101', '110'],
   Г: ['111', '100', '100', '100', '100'], Д: ['01110', '01010', '01010', '11111', '10001'], Е: ['111', '100', '110', '100', '111'],
@@ -776,10 +787,14 @@ const GLYPHS = {
   Ы: ['10001', '10001', '11001', '10101', '11001'], Ь: ['100', '100', '110', '101', '110'], Э: ['110', '001', '011', '001', '110'],
   Ю: ['10010', '10101', '11101', '10101', '10010'], Я: ['011', '101', '011', '101', '101'],
 };
-/** Width in pixels of `str` in the pixel font. */
-export const textWidth = (str) => [...str].reduce((a, ch) => a + (GLYPHS[ch] ?? GLYPHS[' '])[0].length + 1, -1);
-/** Write `str` at (x, y) with px(), in colour c. */
+/** Width in pixels of `str` in the pixel font (Arabic in its own: src/art/arabic.js). */
+export const textWidth = (str) => (/[\u0600-\u06FF]/.test(str) ? arabicWidth(str) : [...str].reduce((a, ch) => a + (GLYPHS[ch] ?? GLYPHS[' '])[0].length + 1, -1));
+/**
+ * Write `str` at (x, y) with px(), in colour c: y is the top of a Latin or Cyrillic line (5 rows); an
+ * Arabic one is centred on the same line (its 9 rows from y − 2, its baseline at y + 3), right to left.
+ */
 export function text(px, x, y, str, c) {
+  if (/[\u0600-\u06FF]/.test(str)) return arabic(px, x, y - 2, str, c);
   for (const ch of str) {
     const g = GLYPHS[ch] ?? GLYPHS[' '];
     g.forEach((row, j) => [...row].forEach((b, i) => { if (b === '1') px(x + i, y + j, 1, 1, c); }));

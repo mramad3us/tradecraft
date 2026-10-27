@@ -5,9 +5,13 @@
 // boulevard's path, S the far pavement south of it), and pass between them only where the generator
 // keeps a way clear: the zebra over the street (F–N) and on through the railing's gap to the path
 // (N–P); the far road's zebra or a park's paths (P–S); and, between rows, the side streets and alleys
-// (F of a row to S of the row north: the same lanes, from either end). Each of those ways is clear
-// by construction for HALF metres either side of its middle (tests/city.test.mjs walks them all), so
-// a route along them can't be blocked: the guarantee the background game rests on.
+// (F of a row to S of the row north: the same lanes, from either end; a dogleg's from its mouth on the
+// street to its top, round its turn: laneLine()). Each of those ways is clear by construction for
+// HALF metres either side of its middle (tests/city.test.mjs walks them all), so a route along them
+// can't be blocked: the guarantee the background game rests on.
+//
+// A place up a dogleg is reached by the lane's mouth and round its turn (laneFoot()); from in one, a
+// route goes along it (routeFrom()), to another place in it or out at whichever end the goal lies.
 //
 // planRoute() finds a way between two places: A* over the portals (where those ways meet), within a
 // window of the city round the two ends. Each walker sees the costs a little differently (NOISE, from
@@ -16,14 +20,15 @@
 // doubles back. A route is a polyline of points { row, x, z, w }: w the half-width of the way from
 // that point to the next; a change of row is two points at the two ends of a lane (the map's seam
 // between them, `jump` on the second), so its length counts once.
-import { section, Z, LANES, SECTION_M, ROW_M } from './map/street.js';
+import { section, Z, LANES, SECTION_M, ROW_M, mouthOf, inLane, laneLine, laneLength } from './map/street.js';
 import { stream, next, range, int, chance, hash } from './rng.js';
+import { cityOf } from './cities/index.js';
 
 const mid = (lane) => (LANES[lane][0] + LANES[lane][1]) / 2;
 export const LINE = { F: mid('far'), N: mid('near'), P: mid('path'), S: mid('south') };
 // How far either side of a way's middle is clear (m): the lines by their lane's band, less a margin
 // for a walker's radius; the crossings and lanes by their width.
-export const HALF = { F: 1.0, N: 0.6, P: 1.1, S: 0.8, zebra: 1.0, side: 2.4, alley: 0.6, attach: 0 };
+export const HALF = { F: 1.0, N: 0.6, P: 1.1, S: 0.8, zebra: 1.0, side: 2.4, alley: 0.6, mews: 2.0, stairs: 1.2, souk: 1.0, haret: 0.8, attach: 0 };
 export const NOISE = 0.35;                                         // a walker's costs: × (1 ± this)
 export const CROSS_COST = 4;                                       // a zebra's wait, as metres walked
 export const WINDOW_M = 220;                                       // the planner looks this far beyond the two ends
@@ -69,7 +74,7 @@ function graphOf(seed, r0, r1, i0, i1) {
     if (!n) { n = { key, row, line, x, links: [] }; nodes.set(key, n); }
     return n;
   };
-  const link = (a, b, cost, kind, w) => { a.links.push([b.key, cost, kind, w]); b.links.push([a.key, cost, kind, w]); };
+  const link = (a, b, cost, kind, w, lane = null) => { a.links.push([b.key, cost, kind, w, lane]); b.links.push([a.key, cost, kind, w, lane]); };
   for (let row = r0; row <= r1; row++) {
     for (let i = i0; i <= i1; i++) {
       const S = sectionOf(seed, row, i);
@@ -82,9 +87,9 @@ function graphOf(seed, r0, r1, i0, i1) {
         const x = (c.x0 + c.x1) / 2;
         link(node(row, 'P', x), node(row, 'S', x), LINE.S - LINE.P + (S.band === 'park' ? 0 : CROSS_COST), S.band === 'park' ? 'path' : 'zebra', HALF.zebra);
       }
-      if (row > r0) for (const g of S.gapsN) {                    // up a lane to the row north
-        const x = (g.x0 + g.x1) / 2;
-        link(node(row, 'F', x), node(row - 1, 'S', x), LANE_M, g.kind, HALF[g.kind]);
+      if (row > r0) for (const g of S.gapsN) {                    // up a lane to the row north (a dogleg: from its mouth, round its turn, to its top)
+        const m = mouthOf(g), x = (g.x0 + g.x1) / 2;
+        link(node(row, 'F', (m.x0 + m.x1) / 2), node(row - 1, 'S', x), g.jog ? LANE_M - (LINE.F - Z.north) + (LINE.F - Z.front) + laneLength(g) : LANE_M, g.kind, HALF[g.kind], g.jog ? g : null);
       }
     }
   }
@@ -100,6 +105,21 @@ function graphOf(seed, r0, r1, i0, i1) {
     for (let j = 1; j < list.length; j++) link(list[j - 1], list[j], list[j].x - list[j - 1].x, 'line', HALF[list[j].line]);
   }
   return { nodes, node, link, lines };
+}
+
+/**
+ * A place up a dogleg (its turn or beyond, or its mouth): the lane's foot on the street, and the way
+ * from there to the place ({ x: the mouth's middle, via: the turn's points before it }); else null (a
+ * place in a straight lane, a court or a square is reached straight up from the street below it).
+ */
+function laneFoot(seed, place) {
+  if (place.z >= Z.front) return null;
+  const g = sectionOf(seed, place.row, Math.floor(place.x / SECTION_M)).gapsN.find(gp => gp.jog && inLane(gp, place.x, place.z));
+  if (!g) return null;
+  // (in its mouth: straight up from the street; in its turn: up the mouth to the turn's middle, then
+  // along; beyond: round the turn and up)
+  const L = laneLine(g), w = g.x1 - g.x0;
+  return { x: L[0].x, via: place.z >= g.jog.z ? [] : place.z >= g.jog.z - w ? [L[1]] : [L[1], L[2]] };
 }
 
 /** Put a place on the graph: a node on its line at its x, linked to its line's neighbours. */
@@ -172,7 +192,8 @@ function planIn(seed, from, to, walker, windowM) {
   const r0 = Math.min(from.row, to.row) - 1, r1 = Math.max(from.row, to.row) + 1;
   const i0 = Math.floor((Math.min(from.x, to.x) - windowM) / SECTION_M), i1 = Math.floor((Math.max(from.x, to.x) + windowM) / SECTION_M);
   const g = graphOf(seed, r0, r1, i0, i1);
-  const A = attach(g, seed, from), B = attach(g, seed, to);
+  const fa = laneFoot(seed, from), fb = laneFoot(seed, to);
+  const A = attach(g, seed, fa ? { ...from, x: fa.x } : from), B = attach(g, seed, fb ? { ...to, x: fb.x } : to);
   const cost = (a, b, c) => c * (1 + NOISE * (2 * ((hash(walker, a, b) % 10007) / 10007) - 1));
   const h = (n) => Math.hypot(n.x - B.n.x, gz(n.row, LINE[n.line]) - gz(B.n.row, LINE[B.n.line]));
   const best = new Map([[A.n.key, 0]]), prev = new Map(), open = heap();
@@ -181,9 +202,9 @@ function planIn(seed, from, to, walker, windowM) {
     const [, key] = open.pop();
     if (key === B.n.key) break;
     const n = g.nodes.get(key), c0 = best.get(key);
-    for (const [k2, c, kind, w] of n.links) {
+    for (const [k2, c, kind, w, lane] of n.links) {
       const c1 = c0 + cost(key < k2 ? key : k2, key < k2 ? k2 : key, c);
-      if (c1 < (best.get(k2) ?? Infinity)) { best.set(k2, c1); prev.set(k2, [key, kind, w]); open.push([c1 + h(g.nodes.get(k2)), k2]); }
+      if (c1 < (best.get(k2) ?? Infinity)) { best.set(k2, c1); prev.set(k2, [key, kind, w, lane]); open.push([c1 + h(g.nodes.get(k2)), k2]); }
     }
   }
   if (!best.has(B.n.key)) return null;
@@ -195,19 +216,23 @@ function planIn(seed, from, to, walker, windowM) {
   // lane's kind, 'attach') and how wide (w).
   const pts = [{ row: from.row, x: from.x, z: from.z, w: 0, way: 'attach' }];
   const at = (row, x, z, w, way, extra) => { const p = pts[pts.length - 1]; if (p.row === row && Math.abs(p.x - x) < 1e-6 && Math.abs(p.z - z) < 1e-6) { p.w = w; p.way = way; return; } pts.push({ row, x, z, w, way, ...extra }); };
-  at(from.row, from.x, LINE[A.line], HALF[A.line], A.line);
+  if (fa) for (const q of fa.via.slice().reverse()) at(from.row, q.x, q.z, 0, 'attach');   // (down a dogleg, round its turn, to its mouth)
+  at(from.row, fa ? fa.x : from.x, LINE[A.line], HALF[A.line], A.line);
   for (let j = 1; j < path.length; j++) {
-    const [n, [, kind, w]] = path[j], [p] = path[j - 1];
+    const [n, [, kind, w, lane]] = path[j], [p] = path[j - 1];
     const last = pts[pts.length - 1];
     last.w = w; last.way = kind === 'line' ? n.line : kind;
-    if (n.row !== p.row) {                                         // a lane: up its length, the seam, on to the line
-      const up = n.row < p.row;
-      at(p.row, n.x, up ? Z.north : Z.edge, w, kind, { lane: kind });
-      pts.push({ row: n.row, x: n.x, z: up ? Z.edge : Z.north, w, way: kind, jump: true });
+    if (n.row !== p.row) {                                         // a lane: up its length (round a dogleg's turn), the seam, on to the line
+      const up = n.row < p.row, turn = lane?.jog ? laneLine(lane).slice(1, -1) : [], tx = lane ? (lane.x0 + lane.x1) / 2 : n.x;
+      if (up) for (const q of turn) at(p.row, q.x, q.z, w, kind, { lane: kind });
+      at(p.row, tx, up ? Z.north : Z.edge, w, kind, { lane: kind });
+      pts.push({ row: n.row, x: tx, z: up ? Z.edge : Z.north, w, way: kind, jump: true });
+      if (!up) for (const q of turn.slice().reverse()) at(n.row, q.x, q.z, w, kind, { lane: kind });
       at(n.row, n.x, LINE[n.line], HALF[n.line], n.line);
     } else at(n.row, n.x, LINE[n.line], HALF[n.line], n.line);
   }
   Object.assign(pts[pts.length - 1], { w: 0, way: 'attach' });
+  if (fb) for (const q of fb.via) at(to.row, q.x, q.z, 0, 'attach');   // (up a dogleg from its mouth, round its turn)
   at(to.row, to.x, to.z, 0, 'attach');
   return pts;
 }
@@ -284,6 +309,7 @@ export function placeAt(route, s, f = 0) {
 
 /** The nearest walkable way onto a line from a place anywhere walkable: a short search on a grid. */
 export const JOIN_CELL = 0.25;
+export const JOIN_DEEP_M = 32;                                     // (how far it looks in a city with courts and squares off its streets)
 const JOIN_R = 0.27;                                               // a walker's radius, and 2 cm to spare
 export function joinLine(seed, row, x, z, maxM = 14) {
   // Already on a line's band?
@@ -336,7 +362,34 @@ function straight(seed, a, b, r = JOIN_R) {
 export function routeFrom(seed, from, to, opts = {}) {
   // In a lane: along it, toward whichever end the goal lies (through the seam to the next row).
   const S = sectionOf(seed, from.row, Math.floor(from.x / SECTION_M));
-  const lane = from.z < Z.front ? S.gapsN.find(g => from.x >= g.x0 && from.x <= g.x1) : from.z > Z.hedge ? S.gapsS.find(g => from.x >= g.x0 && from.x <= g.x1) : null;
+  const lane = from.z < Z.front ? S.gapsN.find(g => inLane(g, from.x, from.z)) : from.z > Z.hedge ? S.gapsS.find(g => from.x >= g.x0 && from.x <= g.x1) : null;
+  if (lane?.jog && from.z < Z.front) {                             // in a dogleg: along it, round its turn, toward whichever end the goal lies
+    const onward = to.row < from.row, L = laneLine(lane), w = HALF[lane.kind];
+    // (the leg a place is in: the nearest segment of the lane's line, and the point on it)
+    const legOf = (q) => {
+      let best = null;
+      for (let j = 1; j < L.length; j++) { const a = L[j - 1], b = L[j], t = Math.max(0, Math.min(1, ((q.x - a.x) * (b.x - a.x) + (q.z - a.z) * (b.z - a.z)) / (((b.x - a.x) ** 2 + (b.z - a.z) ** 2) || 1))), x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t, d = Math.hypot(x - q.x, z - q.z); if (!best || d < best.d) best = { k: j, x, z, d }; }
+      return best;
+    };
+    const lf = legOf(from), k = lf.k;
+    const pts = [{ row: from.row, x: from.x, z: from.z, w: 0 }, { row: from.row, x: lf.x, z: lf.z, w }];
+    const tx = (lane.x0 + lane.x1) / 2, mx = (lane.jog.x0 + lane.jog.x1) / 2;
+    if (to.row === from.row && to.z < Z.front && inLane(lane, to.x, to.z)) {   // (the goal up the same dogleg: along it, not out to the street and back)
+      const lt = legOf(to), turn = lt.k > k ? L.slice(k, lt.k) : lt.k < k ? L.slice(lt.k, k).reverse() : [];
+      for (const q of turn) pts.push({ row: from.row, x: q.x, z: q.z, w });
+      pts.push({ row: from.row, x: lt.x, z: lt.z, w }, { row: from.row, x: to.x, z: to.z, w: 0 });
+      return finish(pts);
+    }
+    if (onward) {
+      for (const q of L.slice(k)) pts.push({ row: from.row, x: q.x, z: q.z, w });
+      pts.push({ row: from.row - 1, x: tx, z: Z.edge, w, jump: true });
+      const rest = planRoute(seed, { row: from.row - 1, x: tx, z: LINE.S }, to, opts);
+      return finish([...pts, ...rest.pts]);
+    }
+    for (const q of L.slice(0, k).reverse()) pts.push({ row: from.row, x: q.x, z: q.z, w });
+    const rest = planRoute(seed, { row: from.row, x: mx, z: LINE.F }, to, opts);
+    return finish([...pts, ...rest.pts]);
+  }
   if (lane) {
     const gx = (lane.x0 + lane.x1) / 2, north = from.z < Z.front, onward = north ? to.row < from.row : to.row > from.row;
     const pts = [{ row: from.row, x: from.x, z: from.z, w: 0 }, { row: from.row, x: gx, z: from.z, w: HALF[lane.kind] }];
@@ -349,7 +402,7 @@ export function routeFrom(seed, from, to, opts = {}) {
     const rest = planRoute(seed, { row: from.row, x: gx, z: north ? LINE.F : LINE.S }, to, opts);
     return finish([...pts, ...rest.pts]);
   }
-  const j = joinLine(seed, from.row, from.x, from.z);
+  const j = joinLine(seed, from.row, from.x, from.z, cityOf(seed).terrace ? JOIN_DEEP_M : 14);   // (a court or a square goes back further than a lawn)
   if (!j) throw new Error(`stranded at ${JSON.stringify(from)}`);
   const last = j[j.length - 1];
   const rest = planRoute(seed, { row: last.row, x: last.x, z: last.z }, to, opts);

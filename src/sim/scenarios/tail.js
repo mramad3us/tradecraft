@@ -41,6 +41,7 @@
 //     contact (a professional) gets a look of his own.
 // Every roll goes to the log with a line of flavour. The scenario's progress is plain data in
 // state.scenario, read by the UI (the marker, the instinct, the brief and the result).
+import { townOf } from '../cities/index.js';
 import { at, TICK_MS, calendar, dateText } from '../clock.js';
 import { handler, sheet, seedFrom } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
@@ -50,7 +51,7 @@ import { opposed, check } from '../checks.js';
 import { range, int, chance, pick, weighted, hash } from '../rng.js';
 import { act, offer, paneNear, seatTaken, crossingAt, crossingNear, say1 } from '../acts.js';
 import { settle, place, onStreet } from '../instinct.js';
-import { Z, SECTION_M } from '../map/street.js';
+import { Z, SECTION_M, inLane } from '../map/street.js';
 import { near, sectionAt } from '../world.js';
 import { planRoute, routeFrom, sectionOf, pointAt, LINE } from '../city.js';
 import { withHabits, withEnd } from '../habits.js';
@@ -145,7 +146,7 @@ export const tail = {
     });
   },
 
-  setup(state, { campaign: C = null } = {}) {
+  setup(state, { campaign: C = null, city = null } = {}) {
     const r = state.rng;
     // (from a campaign, its context: the character, the time, the city, the target: sim/campaign.js context())
     const ev = C ? campaignEvening(C) : weighted(r, EVENINGS.map(e => [e, e.w]));
@@ -165,8 +166,8 @@ export const tail = {
       const [look, tell] = looks.splice(int(r, looks.length), 1)[0];
       state.people[`twin${i}`] = { ...sheet({ id: `twin${i}`, name: 'a man in a grey coat', sex: 'm', look, skills: { awareness: [2, 0] } }), tell };
     }
-    state.map = { kind: 'street', seed: C ? C.mapSeed : seedFrom(r), row: 0, i0: null, i1: null, crowd: 1, city: C?.city };
-    const seed = state.map.seed;
+    state.map = { kind: 'street', seed: C ? C.mapSeed : seedFrom(r), row: 0, i0: null, i1: null, crowd: 1, city: C?.city ?? city ?? undefined };
+    const seed = townOf(state.map);
     // His office: a door near the middle of the street.
     const door = [0, 1].flatMap(i => sectionOf(seed, 0, i).doors).find(d => d.x > 14 && d.x < 26 && d.kind !== 'arch' && d.z === Z.front) ?? { x: 20 };
     // His bench: ten streets and more away, a few hundred metres along.
@@ -215,7 +216,7 @@ export const tail = {
   onStop(state, a, stop, phase, bus) {
     const sc = state.scenario;
     if (a.who === 'orlov') return orlovStop(state, a, stop, phase, bus);
-    if (a.who === 'contact' && phase === 'end') setRoute(state, a, planRoute(state.map.seed, { row: rowOf(state, a), x: a.x, z: a.z }, { row: rowOf(state, a), x: a.x + 70, z: LINE.P }));
+    if (a.who === 'contact' && phase === 'end') setRoute(state, a, planRoute(townOf(state.map), { row: rowOf(state, a), x: a.x, z: a.z }, { row: rowOf(state, a), x: a.x + 70, z: LINE.P }));
     if (a.who === state.player) {
       if (phase === 'start') a.ai.cover = { what: stop.kind, since: state.time.ms };
       if (phase === 'end') { a.ai.cover = null; a.ai.hold = 0; }
@@ -316,13 +317,13 @@ function orlovStop(state, t, stop, phase, bus) {
   if (stop.kind === 'meet') {                                      // the meeting's over: he walks away west along the path
     sc.phase = 'after';
     if (!sc.outcome) end(state, bus, 'missed', MISSED);             // (seen, it ended when we'd seen enough)
-    setRoute(state, t, planRoute(state.map.seed, { row: rowOf(state, t), x: t.x, z: t.z }, { row: rowOf(state, t), x: t.x - 120, z: LINE.P }));
+    setRoute(state, t, planRoute(townOf(state.map), { row: rowOf(state, t), x: t.x, z: t.z }, { row: rowOf(state, t), x: t.x - 120, z: LINE.P }));
   }
 }
 
 /** The contact comes along the path from the east to the bench's other seat, sits a minute, goes. */
 function spawnContact(state, orlov) {
-  const sc = state.scenario, row = rowOf(state, orlov), seed = state.map.seed;
+  const sc = state.scenario, row = rowOf(state, orlov), seed = townOf(state.map);
   const c = makeAgent(state, { who: 'contact', row, x: orlov.x + 34, z: LINE.P, speed: 1.25, face: 'left' });
   const route = planRoute(seed, { row, x: c.x, z: LINE.P }, { row, x: sc.meet.seat2, z: 12.96 });
   route.stops = [{ kind: 'sit', s: route.length, ticks: 60 * TPS, face: 'down', gait: 'sit' }];
@@ -332,7 +333,7 @@ function spawnContact(state, orlov) {
 
 /** After his first sighting of us: he dry-cleans. Back the way he came a little, then on, the long way. */
 function dryClean(state, t) {
-  const sc = state.scenario, seed = state.map.seed, r = state.rng;
+  const sc = state.scenario, seed = townOf(state.map), r = state.rng;
   const back = pointAt(t.ai.route, Math.max(0, t.ai.s - range(r, 14, 22)));
   const here = { row: rowOf(state, t), x: t.x, z: t.z };
   const leg1 = routeFrom(seed, here, { row: back.row, x: back.x, z: back.z });
@@ -344,7 +345,7 @@ function dryClean(state, t) {
 
 /** Made: he turns for home, the way he came. */
 function goHome(state, t) {
-  const seed = state.map.seed;
+  const seed = townOf(state.map);
   setRoute(state, t, routeFrom(seed, { row: rowOf(state, t), x: t.x, z: t.z }, { row: 0, x: state.scenario.startX, z: LINE.F }));
 }
 
@@ -357,7 +358,7 @@ function autoplay(state, me, bus) {
 
 /** Cover for an agent player (the autoplay, or T in autoplay): a short detour or a stop, then on. */
 function agentCover(state, bus, me, what) {
-  const seed = state.map.seed, row = rowOf(state, me), here = { row, x: me.x, z: me.z, w: 0, way: 'attach' };
+  const seed = townOf(state.map), row = rowOf(state, me), here = { row, x: me.x, z: me.z, w: 0, way: 'attach' };
   let pts = [here, { ...here }], stop;
   if (what === 'window') {
     // (at the end of the pane away from him, so the glass runs his way: he's watched in it)
@@ -386,7 +387,7 @@ const finishPts = (pts) => { const cum = [0]; for (let j = 1; j < pts.length; j+
 // go, well past). Most come up from behind, quicker than him, on his pavement, and overtake him: the
 // ones you could swap him for. Some come out of a shop ahead of him; the rest come the other way.
 function twins(state, t) {
-  const sc = state.scenario, r = state.rng, me = playerOf(state), seed = state.map.seed, row = rowOf(state, t);
+  const sc = state.scenario, r = state.rng, me = playerOf(state), seed = townOf(state.map), row = rowOf(state, t);
   sc.twins = sc.twins.filter(id => actorOf(state, id));
   const dir = Math.sign(t.vx) || Math.sign(t.x - me.x) || 1, his = lineNear(t.z);
   for (let i = 0; i < TWINS; i++) {
@@ -596,7 +597,7 @@ function second(state, bus, me, t, d) {
   if (same && onMap(state, t)) twins(state, t);
   // His way into a lane: which, and did we see him take it?
   if (onMap(state, t) && (t.z < Z.front - 0.5 || t.z > Z.south + 0.5)) {
-    const S = sectionAt(state, t.x), north = t.z < 0, g = (north ? S?.gapsN : S?.gapsS)?.find(g => t.x >= g.x0 - 0.5 && t.x <= g.x1 + 0.5);
+    const S = sectionAt(state, t.x), north = t.z < 0, g = north ? S?.gapsN.find(g => inLane(g, t.x, t.z, 0.5)) : S?.gapsS.find(g => t.x >= g.x0 - 0.5 && t.x <= g.x1 + 0.5);
     if (g && sc.turn?.x0 !== g.x0) sc.turn = { name: g.name, x0: g.x0, x1: g.x1, row: rowOf(state, t), north, seen: false };
   }
   // Whom we take for him.
@@ -730,7 +731,7 @@ function meeting(state, bus, me, t, d) {
     sc.rolls++;
     if (!r.ok) {
       say(state, bus, { kind: 'roll', roll: r, text: 'The other man looks up from his paper, straight at you. He folds it, stands and goes.' });
-      setRoute(state, c, planRoute(state.map.seed, { row: rowOf(state, c), x: c.x, z: c.z }, { row: rowOf(state, c), x: c.x + 70, z: LINE.P }));
+      setRoute(state, c, planRoute(townOf(state.map), { row: rowOf(state, c), x: c.x, z: c.z }, { row: rowOf(state, c), x: c.x + 70, z: LINE.P }));
       return end(state, bus, 'blown', 'The meeting\'s over before it began, and Orlov knows why.');
     }
     say(state, bus, { kind: 'roll', roll: r, text: 'The man with the newspaper glances at you over it, and goes back to the football.' });

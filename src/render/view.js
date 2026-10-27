@@ -43,6 +43,7 @@ import { createItems } from './items.js';
 import { sky, lightAt, lightLevel, LAMP } from '../sim/light.js';
 import { Z, SECTION_M } from '../sim/map/street.js';
 import { passerby } from '../sim/people.js';
+import { geoOf } from '../sim/cities/index.js';
 import { focusActor, playerActor } from '../sim/game.js';
 import { SCENARIOS } from '../sim/scenarios/index.js';
 import { SCREEN_HALF_M } from '../sim/crowd.js';
@@ -80,6 +81,7 @@ export function createView({ parent, bus, month = () => 11 }) {
   const blood = createBlood(scene);
   const items = createItems(scene);                                // (things lying about: src/render/items.js)
   const looks = new Map();                                         // passer-by seed → look (generated once)
+  let city = null;
   const building = new Map();                                     // i → a section's build, under way
   const off = [
     bus.on('map-', () => clear()),                                // another street: its sections share the old one's indices
@@ -217,7 +219,8 @@ export function createView({ parent, bus, month = () => 11 }) {
   /** Draw the state. prev: id → [x, z, stride] at the last tick; alpha: how far into this one. */
   function frame(state, prev, alpha, t) {
     build();
-    const ms = state.time.ms, S = sky(ms), W = state.$world;
+    city = state.map.city;                                         // (passers-by dress as their city does)
+    const ms = state.time.ms, S = sky(ms, geoOf(state.map)), W = state.$world;
     const lamps = W.lamps;
     // Where everyone is, between the ticks.
     const at = (a) => { const p = prev.get(a.id); return p ? [lerp(p[0], a.x, alpha), lerp(p[1], a.z, alpha), lerp(p[2], a.stride, alpha)] : [a.x, a.z, a.stride]; };
@@ -325,7 +328,7 @@ export function createView({ parent, bus, month = () => 11 }) {
     stage.render();
   }
   function lookOf(seed) {
-    if (!looks.has(seed)) { looks.set(seed, passerby(seed).look); if (looks.size > 600) looks.delete(looks.keys().next().value); }
+    if (!looks.has(seed)) { looks.set(seed, passerby(seed, city).look); if (looks.size > 600) looks.delete(looks.keys().next().value); }
     return looks.get(seed);
   }
 

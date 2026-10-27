@@ -17,6 +17,16 @@
 // five railings, five benches, five bins, six cars and a taxi, four hedges. Textures a make shares
 // are made once and kept (keep()).
 //
+// The cities brought their own (sim/cities/): London's sash windows, bays, porticos, porches, party
+// walls, fascias and their consoles, a pub's etched glass and baskets, name plates, a council block's
+// walkways, York stone, yellow lines and a Belisha zebra, chimney pots, a telephone box, a beacon, a
+// black cab; Cairo's ablaq, mashrabiyas, a mosque's portal and crenellations, a concrete frame over
+// brick, louvred shutters, pointed and arched heads, roller shutters, printed banners, washing, dust,
+// terrazzo and broken flags, high kerbs, carts, stalls, a souk's stalls, satellite dishes, water
+// tanks, pigeon lofts, rebar, a minaret; Beirut's sandstone courses, the triple arched window, war
+// scars, burnt-out windows, cables, canvas awnings and balcony plants, a generator, solar heaters, a
+// service taxi. Signs in Arabic are src/art/arabic.js's script, set beside a Latin line when they fit.
+//
 // Everything is measured in metres, painted at PX_PER_M pixels a metre, in PALETTE colours.
 //
 // The fine finish (finish.fine, sample 007, after Stoneshard) paints the same things with more care:
@@ -30,6 +40,7 @@ import { PX_PER_M, GLOWS, mat, glow, paint, tile, box, roundedBox, ground, part,
 
 const M = PX_PER_M;
 const INK = 0x14151c;
+const pick3 = (i, j, list) => list[((i * 7 + j * 13) % list.length + list.length) % list.length];   // (a colour by where it is: stable)
 
 // ---------- painting helpers (y measured up from a surface's bottom, in metres) ----------
 
@@ -74,8 +85,8 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
       for (let i = 0; i < ww * hh * 0.03; i++) px(x0 + Math.floor(r() * ww), y0 + Math.floor(r() * hh), 1, 1, dirt);
       px(x0, y0 + hh - 2, ww, 2, dirt);                          // grime at the foot
     },
-    /** Plaster, weathered (the fine finish): mottled, grimy at the foot, cracked, fallen away to the brick here and there. */
-    weathered(x, y, w, h, base) {
+    /** Plaster, weathered (the fine finish): mottled, grimy at the foot, cracked, fallen away to the brick here and there (kept: stucco painted and kept up, London's). */
+    weathered(x, y, w, h, base, kept = false) {
       const x0 = X(x), y0 = Y(y + h), ww = Math.round(w * M), hh = Math.round(h * M), sd = seed * 7;
       for (let j = 0; j < hh; j++) for (let i = 0; i < ww; i++) {
         const v = noise(i / 7, j / 7, sd) * 0.6 + noise(i / 2.5, j / 2.5, sd + 1) * 0.4;
@@ -85,7 +96,7 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
         px(x0 + i, y0 + j, 1, 1, tone(base, d));
       }
       // Patches where the plaster has come away: brick in a ragged hole, its edge in shade.
-      for (let k = 0; k < Math.max(1, Math.round(ww * hh / 9000)); k++) {
+      for (let k = 0; k < (kept ? 0 : Math.max(1, Math.round(ww * hh / 9000))); k++) {
         const cx = Math.floor(r() * ww), cy = Math.floor(hh * 0.15 + r() * hh * 0.6), rw = 6 + r() * 8, rh = 4 + r() * 5;
         for (let j = -Math.ceil(rh) - 1; j <= rh + 1; j++) for (let i = -Math.ceil(rw) - 1; i <= rw + 1; i++) {
           const e = (i / rw) ** 2 + (j / rh) ** 2 + (noise((cx + i) / 3, (cy + j) / 3, sd + 3) - 0.5) * 0.9;
@@ -97,7 +108,7 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
         }
       }
       // Cracks: a wandering line, its lip catching the light.
-      for (let k = 0; k < Math.max(1, Math.round(ww / 60)); k++) {
+      for (let k = 0; k < (kept ? 0 : Math.max(1, Math.round(ww / 60))); k++) {
         let cx = Math.floor(r() * ww), cy = Math.floor(r() * hh * 0.8);
         for (let n = 0; n < 8 + r() * 12; n++) {
           if (cx >= 0 && cy >= 0 && cx < ww && cy < hh) { px(x0 + cx, y0 + cy, 1, 1, tone(base, -0.16)); if (cx + 1 < ww) px(x0 + cx + 1, y0 + cy, 1, 1, tone(base, 0.03)); }
@@ -120,9 +131,18 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
         for (let j = 0; j < len && sy + j < hh; j++) px(x0 + sx + (j % 7 === 6 ? 1 : 0), y0 + sy + j, 1 + (j < len / 2 ? 1 : 0), 1, tone(base, -0.05));
       }
     },
-    /** Ivy climbing from the foot of the wall at x, w wide, up to h (metres); the fine finish only. */
-    ivy(x, w, h) {
+    /** Ivy climbing from the foot of the wall at x, w wide, up to h (metres); the fine finish only. 'wisteria': its old stems, bare in winter. */
+    ivy(x, w, h, kind = 'ivy') {
       if (!fine) return;
+      if (kind === 'wisteria') {                                 // twisted grey stems up from the foot, along under the first floor's sills
+        const x0 = X(x), ww = Math.round(w * M), hh = Math.round(h * M);
+        for (let k = 0; k < 3; k++) {
+          let cx = x0 + Math.floor(ww * (0.2 + k * 0.3));
+          for (let j = 0; j < hh; j++) { cx += noise(k * 9, j / 4, seed) > 0.62 ? 1 : noise(k * 9, j / 4, seed) < 0.38 ? -1 : 0; px(cx, H - 1 - j, 2, 1, j % 5 ? 0x6a645e : 0x8f8880); }
+          for (let i = 0; i < ww * 0.6; i++) if (noise(i / 3, k, seed + 5) > 0.45) px(cx + (k % 2 ? -i : i), H - hh - 1 + Math.round(Math.sin(i / 3) * 2), 1, 1, 0x6a645e);
+        }
+        return;
+      }
       const x0 = X(x), ww = Math.round(w * M), hh = Math.round(h * M), base = 0x356f42;
       for (let i = 0; i < ww; i++) {                             // a ragged top, highest in the middle
         const top = hh * (0.55 + 0.45 * Math.sin(Math.PI * i / ww)) * (0.75 + 0.35 * noise(i / 4, 0, seed));
@@ -142,8 +162,14 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
      * architrave), `bars` (a ground floor's grille), an air conditioner (`ac`: 'below' | 'side'), a
      * satellite dish (`sat`), or a `ribbon` (a constructivist band of glass, mullions every 0.9 m).
      */
-    window(x, y, w, h, { lit = false, frame = 0xdfe2e8, lintel = 0xc4bba9, shutters = null, curtain = null, flowers = null, head = null, surround = null, bars = false, ac = null, sat = false, ribbon = false } = {}) {
+    window(x, y, w, h, { lit = false, frame = 0xdfe2e8, lintel = 0xc4bba9, shutters = null, curtain = null, flowers = null, head = null, surround = null, bars = false, ac = null, sat = false, ribbon = false, sash = false, louvres = null, burnt = false } = {}) {
       const x0 = X(x), y0 = Y(y + h), ww = Math.round(w * M), hh = Math.round(h * M);
+      if (burnt) {                                               // burnt out in the war, never mended: a black hole, soot up the wall over it, a scorched sill
+        px(x0, y0, ww, hh, 0x14151c); px(x0 + 1, y0 + hh - 3, ww - 2, 2, 0x23252f);
+        for (let i = -2; i < ww + 2; i++) for (let j = 1; j < 10 + (i % 3) * 3; j++) if (noise(i / 2, j / 2, seed + 5) > 0.35 + j * 0.05) px(x0 + i, y0 - j, 1, 1, tone(wall ?? 0x8f8a84, -0.25 + j * 0.015));
+        px(x0 - 1, y0 + hh, ww + 2, 1, tone(wall ?? 0x8f8a84, -0.2));
+        return;
+      }
       if (ribbon) return f.ribbon(x0, y0, ww, hh, frame);
       if (litR ? night && litR() < 0.4 : night && r() < 0.4) lit = true;   // at night, some rooms have the light on
       const hc = surround ?? lintel ?? 0xe2dac6, cx = x0 + Math.floor(ww / 2);
@@ -171,6 +197,13 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
           px(x0 + i, y0 - 1 - top, 1, 1, tone(base, -0.12));
         }
         px(cx - 1, y0 - 3 - Math.round(R * 0.55), 3, 3, tone(base, 0.08)); px(cx + 1, y0 - 2 - Math.round(R * 0.55), 1, 2, tone(base, -0.06));
+      } else if (head === 'pointed') {                           // a pointed arch over it (Cairo's, Beirut's): its two curves meeting, a moulding
+        const base = wall ?? hc, R = ww * 0.75;
+        for (let i = -1; i <= ww; i++) {
+          const d = Math.min(i + 1, ww - i), top = Math.round(Math.sqrt(Math.max(0, R * R - (R - d) ** 2)) * 0.9);
+          px(x0 + i, y0 - 1 - top, 1, top + 1, tone(base, -0.07));
+          px(x0 + i, y0 - 2 - top, 1, 1, i < ww / 2 ? tone(base, 0.07) : tone(base, -0.12));
+        }
       } else if (head !== 'none' && lintel) px(x0 - 1, y0 - 2, ww + 2, 2, lintel);
       if (head === 'keystone') { px(cx - 1, y0 - 5, 3, 4, hc); px(cx - 1, y0 - 5, 3, 1, tone(hc, 0.07)); px(cx + 1, y0 - 4, 1, 3, tone(hc, -0.07)); }
       px(x0, y0, ww, hh, frame);
@@ -185,8 +218,19 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
         bevel(x0, y0, ww, hh, frame);
         if (lintel && !head) bevel(x0 - 1, y0 - 2, ww + 2, 2, lintel);
       }
-      px(x0 + Math.floor(ww / 2), y0, 1, hh, frame);             // mullion
-      px(x0, y0 + Math.floor(hh / 3), ww, 1, frame);             // transom
+      if (louvres && !lit) {                                     // shut against the sun: louvred shutters over the glass, their slats, a gap where they meet
+        px(x0 + 1, y0 + 1, ww - 2, hh - 2, louvres);
+        for (let j = y0 + 2; j < y0 + hh - 1; j += 2) { px(x0 + 1, j, ww - 2, 1, tone(louvres, -0.1)); px(x0 + 1, j - 1, ww - 2, 1, tone(louvres, 0.05)); }
+        px(x0 + Math.floor(ww / 2), y0 + 1, 1, hh - 2, tone(louvres, -0.18));
+      } else if (sash) {                                         // a sash window: two sashes, the meeting rail, glazing bars (six over six)
+        const mid = y0 + Math.floor(hh / 2);
+        px(x0, mid - 1, ww, 2, frame); px(x0, mid - 1, ww, 1, tone(frame, 0.04));
+        for (const t of [1 / 3, 2 / 3]) px(x0 + Math.round(ww * t), y0 + 1, 1, hh - 2, frame);
+        for (const yy of [y0 + Math.floor((mid - y0) / 2), mid + Math.floor((y0 + hh - mid) / 2)]) px(x0 + 1, yy, ww - 2, 1, frame);
+      } else {
+        px(x0 + Math.floor(ww / 2), y0, 1, hh, frame);           // mullion
+        px(x0, y0 + Math.floor(hh / 3), ww, 1, frame);           // transom
+      }
       if (bars) {                                                // a grille: bars, a rail, spikes over the top
         for (let i = x0 + 2; i < x0 + ww - 1; i += 3) { px(i, y0 - 1, 1, hh + 1, 0x23252f); px(i, y0 - 2, 1, 1, 0x4c5262); }
         px(x0 + 1, y0 + Math.floor(hh * 0.6), ww - 2, 1, 0x23252f); px(x0 + 1, y0 + 1, ww - 2, 1, 0x23252f);
@@ -294,6 +338,21 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
     /** A balcony from x0 to x1 (metres) at y: a slab on consoles, a balustrade of stone or iron. */
     balcony(x0, x1, y, kind, c) {
       const a = X(x0), w = X(x1) - a, fl = Y(y), bh = Math.round(0.95 * M), top = fl - bh;
+      if (kind === 'solid') {                                   // a concrete balcony: a solid parapet, its slab's shadow
+        const ph = Math.round(1.0 * M), t2 = fl - ph;
+        px(a, t2, w, ph, c); px(a, t2, w, 1, tone(c, 0.07)); px(a + w - 1, t2, 1, ph, tone(c, -0.08)); px(a, fl - 2, w, 2, tone(c, -0.05));
+        px(a, fl, w, 2, tone(wall ?? c, -0.18));
+        if (fine) for (let i = a + 2; i < a + w - 2; i += 7) px(i, t2 + 2, 1, ph - 4, tone(c, -0.025));
+        return;
+      }
+      if (kind === 'rail') {                                    // a balconette: a low iron rail across a window's foot, no slab
+        const rh = Math.round(0.6 * M), t2 = fl - rh;
+        px(a, t2, w, 1, 0x23252f); px(a, t2 + 1, w, 1, 0x353947); px(a, fl - 1, w, 1, 0x23252f);
+        for (let i = a; i < a + w; i += 2) px(i, t2 + 2, 1, rh - 3, 0x23252f);
+        for (let i = a + 1; i < a + w - 2; i += 4) px(i, t2 + Math.floor(rh / 2), 2, 1, 0x353947);
+        px(a, fl, w, 1, tone(wall ?? 0x5c5650, -0.12));
+        return;
+      }
       if (kind === 'stone') {
         px(a, top, w, 2, c); px(a, top, w, 1, tone(c, 0.06));
         for (let i = a + 1; i < a + w - 1; i += 3) { px(i, top + 2, 2, bh - 3, tone(c, -0.03)); px(i, top + 4, 2, 2, tone(c, 0.04)); px(i + 1, top + 2, 1, bh - 3, tone(c, -0.09)); }
@@ -383,7 +442,7 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
      * upper half), 'metal' (a Soviet steel door, an entry phone beside it), 'arched' (a round fanlight
      * over it), 'shop' (a glass door in the shopfront's frame); `canopy`, a hood over it on brackets.
      */
-    door(x, w, h, { color = 0x356f42, frame = 0xe2dac6, glass = true, style = 'panel', canopy = false } = {}) {
+    door(x, w, h, { color = 0x356f42, frame = 0xe2dac6, glass = true, style = 'panel', canopy = false, fan = false } = {}) {
       const x0 = X(x), y0 = Y(h), ww = Math.round(w * M), hh = Math.round(h * M);
       if (style === 'arched') {                                  // a half-round fanlight, its glazing bars fanning out
         const R = ww / 2 + 1, cx = x0 + ww / 2;
@@ -394,6 +453,12 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
           px(x0 + i, yy, 1, 1, d > R - 0.5 ? (dx < 0 ? tone(frame, 0.04) : tone(frame, -0.04)) : (Math.abs(Math.atan2(dy, dx) * 4 / Math.PI % 1) < 0.18 || d < 2 ? frame : 0x283f6b));
         }
         px(Math.floor(cx) - 2, y0 - 4, 1, 1, 0x95c1e3);
+      }
+      if (fan && style !== 'arched') {                           // a fanlight over the door: glass behind radiating bars
+        const fh = 7, fy = y0 - 4 - fh;
+        px(x0 - 1, fy - 1, ww + 2, fh + 1, frame); px(x0, fy, ww, fh, 0x283f6b);
+        for (let i = 0; i < ww; i++) { const t = (i + 0.5) / ww - 0.5; for (let j = 0; j < fh; j++) if (Math.abs(t * fh - (j - fh) * 0.35 * Math.sign(t)) < 0.6 || j === fh - 1) px(x0 + i, fy + j, 1, 1, frame); }
+        px(x0 + 2, fy + 1, 1, 2, 0x95c1e3);
       }
       px(x0 - 1, y0 - 4, ww + 2, hh + 4, frame);
       if (glass && style !== 'metal') { px(x0, y0 - 3, ww, 2, 0x3b6296); px(x0 + 1, y0 - 3, 1, 1, 0x95c1e3); }
@@ -432,8 +497,32 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
       }
     },
     /** A shopfront: a dark frame, lit glass with things on shelves, a stall riser. */
-    shopfront(x, w, h, { frame = 0x23252f, lit = true, goods = [0x9e3c36, 0xf6f4ee, 0x5d8fc2, 0xe7b84a] } = {}) {
+    shopfront(x, w, h, { frame = 0x23252f, lit = true, goods = [0x9e3c36, 0xf6f4ee, 0x5d8fc2, 0xe7b84a], etched = false, arched = false, roller = 0 } = {}) {
       const x0 = X(x), y0 = Y(h), ww = Math.round(w * M), hh = Math.round(h * M);
+      if (arched) {                                              // a round head over it, a grille fanning in it (downtown Cairo's ground floors)
+        const R = ww / 2, base = wall ?? 0xd6b98a;
+        for (let i = -2; i < ww + 2; i++) {
+          const t = (i + 0.5 - ww / 2) / (R + 2), top = Math.round(Math.sqrt(Math.max(0, 1 - t * t)) * Math.min(R, 10));
+          px(x0 + i, y0 - top - 2, 1, top + 2, i < -0 || i >= ww ? tone(base, 0.04) : (i + top) % 3 === 0 ? frame : tone(frame, 0.05));
+          px(x0 + i, y0 - top - 3, 1, 1, i < ww / 2 ? tone(base, 0.08) : tone(base, -0.1));
+        }
+      }
+      if (etched) {                                              // a pub's windows: small panes over etched glass, a stall riser, the warm light in
+        px(x0, y0, ww, hh, frame);
+        const top = Math.floor(hh * 0.42), g = lit ? [0xe7b84a, 0xf8e08a] : [0x283f6b, 0x3b6296];
+        px(x0 + 1, y0 + 1, ww - 2, top - 1, g[0]); px(x0 + 1, y0 + 1, ww - 2, 2, g[1]);
+        for (let i = x0 + 4; i < x0 + ww - 2; i += 5) px(i, y0 + 1, 1, top - 1, frame);
+        for (let j = y0 + 1; j < y0 + hh - 7; j++) for (let i = x0 + 1; i < x0 + ww - 1; i++) {
+          if (j < y0 + top) continue;
+          const etch = ((i - x0) + (j - y0) * 2) % 7 === 0 || ((i - x0) * 2 - (j - y0)) % 9 === 0;
+          px(i, j, 1, 1, lit ? (etch ? 0xf8e08a : 0xe7b84a) : etch ? 0xe2dac6 : 0xb8bdc8);
+        }
+        px(x0 + 1, y0 + top, ww - 2, 1, frame);
+        for (let i = x0 + Math.floor(ww / 3); i < x0 + ww - 2; i += Math.floor(ww / 3)) px(i, y0 + top, 1, hh - top - 6, frame);
+        px(x0, y0 + hh - 6, ww, 6, frame); px(x0, y0 + hh - 6, ww, 1, tone(frame, 0.08));
+        if (fine) bevel(x0, y0, ww, hh, frame);
+        return;
+      }
       px(x0, y0, ww, hh, frame);
       px(x0 + 1, y0 + 1, ww - 2, hh - 6, lit ? 0xe7b84a : 0x283f6b);
       px(x0 + 1, y0 + 1, ww - 2, 3, lit ? 0xf8e08a : 0x3b6296);
@@ -444,28 +533,301 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
       for (let i = 0; i < ww; i += 16) px(x0 + i, y0, 1, hh, frame);
       px(x0, y0 + hh - 5, ww, 5, frame);
       px(x0, y0 + hh - 5, ww, 1, 0x4c5262);
+      if (roller > 0) {                                          // a roller shutter, part down: corrugated steel, a padlock's hasp at its foot
+        const rh = Math.round((hh - 5) * roller), c = 0x8f96a6;
+        for (let j = 0; j < rh; j++) px(x0, y0 + j, ww, 1, j % 3 === 0 ? tone(c, -0.12) : j % 3 === 1 ? tone(c, 0.05) : c);
+        px(x0, y0 + rh, ww, 1, 0x4c5262); px(x0 + Math.floor(ww / 2) - 1, y0 + rh - 2, 3, 2, 0x353947);
+        if (fine) for (let k = 0; k < ww / 10; k++) px(x0 + Math.floor(r() * ww), y0 + Math.floor(r() * rh), 2, 1, tone(c, -0.18));   // rust, a sticker, graffiti's tag
+      }
       if (fine) { bevel(x0, y0, ww, hh, frame); for (let i = 3; i < ww - 6; i += 16) for (let k = 0; k < 5; k++) px(x0 + i + k + 2, y0 + 4 + k, 1, 1, tone(lit ? 0xe7b84a : 0x283f6b, 0.08)); }
     },
     /** A sign: a board with a border and centred text; or (`style`) 'letters' on the wall itself, or a 'lightbox'. */
-    sign(x, y, w, h, str, { bg = 0x1b2541, fg = 0xf8e08a, border = 0xb9862e, style = 'board' } = {}) {
+    sign(x, y, w, h, str, { bg = 0x1b2541, fg = 0xf8e08a, border = 0xb9862e, style = 'board', band = null } = {}) {
       const x0 = X(x), y0 = Y(y + h), ww = Math.round(w * M), hh = Math.round(h * M);
-      const tx = x0 + Math.floor((ww - textWidth(str)) / 2), ty = y0 + Math.floor((hh - 5) / 2);
+      // Its words: one line centred; or two scripts ('عربي|LATIN', Beirut's and Cairo's): side by side
+      // when they fit, the Arabic on the right as it's read first; one over the other on a tall board;
+      // else the Arabic alone.
+      const lines = [], parts = str.split('|'), mid = y0 + Math.floor((hh - 5) / 2);
+      const centred = (t, ly) => lines.push([t, x0 + Math.floor((ww - textWidth(t)) / 2), ly]);
+      if (parts.length < 2) centred(str, mid);
+      else {
+        const [ar, la] = parts, wa = textWidth(ar), wl = textWidth(la), gap = 7;
+        if (wa + wl + gap <= ww - 4) { const left = x0 + Math.floor((ww - wa - wl - gap) / 2); lines.push([la, left, mid], [ar, left + wl + gap, mid]); }
+        else if (hh >= 16 && Math.max(wa, wl) <= ww - 2) { centred(ar, y0 + 3); centred(la, y0 + hh - 6); }
+        else centred(wa <= ww - 2 ? ar : la, mid);
+      }
+      const ink = (c, dx = 0, dy = 0) => { for (const [t, lx, ly] of lines) text(px, lx + dx, ly + dy, t, c); };
       if (style === 'letters') {                                 // letters fixed to the wall, the one of its colours that stands out, a shadow
         const luma = (c) => 0.3 * ((c >> 16) & 255) + 0.59 * ((c >> 8) & 255) + 0.11 * (c & 255);
         const back = luma(wall ?? 0x9e3c36), c = Math.abs(luma(fg) - back) > Math.abs(luma(bg) - back) ? fg : bg;
-        text(px, tx + 1, ty + 1, str, tone(wall ?? 0x9e3c36, -0.2));
-        text(px, tx, ty, str, c);
+        ink(tone(wall ?? 0x9e3c36, -0.2), 1, 1);
+        ink(c);
         return;
       }
       if (style === 'lightbox') {                                // a box: a dark case, a face lit along its top, end caps
         px(x0 - 1, y0, ww + 2, hh, 0x23252f); px(x0 + 1, y0 + 1, ww - 2, hh - 2, bg);
         px(x0 + 1, y0 + 1, ww - 2, 1, tone(bg, 0.08)); px(x0 + 1, y0 + hh - 2, ww - 2, 1, tone(bg, -0.08));
         px(x0 - 1, y0 + hh, ww + 2, 1, tone(wall ?? 0x5c5650, -0.14));
-        text(px, tx, ty, str, fg);
+        ink(fg);
+        return;
+      }
+      if (style === 'fascia') {                                  // a shop's fascia: a board under a moulded cornice, its letters with a shadow
+        px(x0, y0 - 2, ww, 2, tone(border, 0.06)); px(x0, y0 - 2, ww, 1, tone(border, 0.14));
+        px(x0, y0, ww, hh, border); px(x0 + 1, y0, ww - 2, hh - 1, bg);
+        px(x0 + 1, y0, ww - 2, 1, tone(bg, -0.1)); px(x0 + 1, y0 + hh - 2, ww - 2, 1, tone(bg, 0.06));
+        ink(tone(bg, -0.12), 1, 1);
+        ink(fg);
+        return;
+      }
+      if (style === 'banner') {                                  // a printed flex banner (Cairo's, Beirut's): bright, a band of another colour, wrinkled, its edges ragged with age
+        px(x0, y0, ww, hh, bg);
+        if (band) { px(x0, y0 + hh - 3, ww, 3, band); px(x0, y0, ww, 2, band); }
+        for (let i = x0 + 3; i < x0 + ww - 2; i += 9 + ((i * 7) % 5)) px(i, y0 + 2, 1, hh - 5, tone(bg, -0.05));   // the wrinkles
+        ink(tone(bg, -0.22), 1, 1);
+        ink(fg);
+        px(x0, y0 - 1, ww, 1, tone(bg, 0.06)); px(x0 + ww - 1, y0, 1, hh, tone(bg, -0.12));
+        if (fine) for (let k = 0; k < ww / 18; k++) { const i = x0 + 2 + Math.floor(r() * (ww - 4)); px(i, y0 + hh - 1, 2, 1, tone(wall ?? 0x5c5650, -0.1)); }
         return;
       }
       px(x0, y0, ww, hh, border); px(x0 + 1, y0 + 1, ww - 2, hh - 2, bg);
-      text(px, tx, ty, str, fg);
+      ink(fg);
+    },
+    /** Sandstone in courses (Beirut's old houses): blocks 0.35 m high, their joints, each block its own tone, the stone's pitting. */
+    ashlar(x, y, w, h, base) {
+      const x0 = X(x), y0 = Y(y + h), ww = Math.round(w * M), hh = Math.round(h * M);
+      px(x0, y0, ww, hh, tone(base, -0.1));
+      for (let j = 0, row = 0; j < hh; j += 6, row++) for (let i = (row % 2) * -7; i < ww; i += 14) {
+        const a = Math.max(0, i), b = Math.min(ww, i + 13), h2 = Math.min(5, hh - j), d = (cell(i + seed, row, 61) - 0.5) * 0.07;
+        if (b <= a) continue;
+        px(x0 + a, y0 + j, b - a, h2, tone(base, d)); px(x0 + a, y0 + j, b - a, 1, tone(base, d + 0.05));
+        for (let k = 0; k < 3; k++) px(x0 + a + Math.floor(cell(i, row * 3 + k, 62) * (b - a)), y0 + j + 1 + Math.floor(cell(i, row * 3 + k, 63) * Math.max(1, h2 - 1)), 1, 1, tone(base, d - 0.08));
+      }
+    },
+    /** The triple arched window (a Lebanese house's): three tall arches on slim columns, x … x + w from y up h, coloured glass in their heads. */
+    triforium(x, y, w, h, { glass = [0x9e3c36, 0x3b6296, 0xe7b84a] } = {}) {
+      const a = X(x), ww = Math.round(w * M), t = Y(y + h), b = Y(y), col = 2, aw = Math.floor((ww - 2 * col - 4) / 3), stone = tone(wall ?? 0xd8c09a, 0.06);
+      px(a - 2, t - 3, ww + 4, b - t + 4, stone);                                                // the frame
+      for (let k = 0; k < 3; k++) {
+        const x0 = a + 2 + k * (aw + col), R = aw / 2, lit = litR ? night && litR() < 0.5 : false;
+        for (let i = 0; i < aw; i++) {
+          const dx = i + 0.5 - R, top = t + Math.round(R - Math.sqrt(Math.max(0, R * R - dx * dx)));
+          for (let j = top; j < b - 2; j++) {
+            const head = j < t + R + 1, c = head ? glass[(Math.floor(Math.atan2(j - t - R, dx) * 3) + 9 + k) % glass.length] : lit ? 0xe7b84a : (j - top) < 3 ? 0x3b6296 : 0x283f6b;
+            px(x0 + i, j, 1, 1, head && (i === Math.round(R) || j === Math.round(t + R)) ? stone : c);
+          }
+        }
+        px(x0 + Math.round(R), t + R, 1, b - t - R - 2, stone);                                   // its mullion
+        if (k > 0) { px(x0 - col, t + R - 1, col, b - t - R, 0xf4efe6); px(x0 - col, t + R - 2, col, 1, tone(0xf4efe6, 0.05)); }   // a marble column
+      }
+      px(a - 3, b - 2, ww + 6, 2, stone); px(a - 3, b, ww + 6, 1, tone(wall ?? stone, -0.14));
+      if (fine) bevel(a - 2, t - 3, ww + 4, b - t + 4, stone);
+    },
+    /** War scars, from y0 to y1: shrapnel's pocks in bursts, a bullet's spray in a line, now and then a shell's hole to the stone; `k` how bad. */
+    scars(y0, y1, k = 0.5) {
+      const base = wall ?? 0xa8a49c, top = Y(y1), bot = Y(y0);
+      const pock = (x, y) => { px(x, y, 1, 1, tone(base, -0.22)); if (r() < 0.6) px(x + 1, y, 1, 1, tone(base, -0.14)); px(x - 1, y, 1, 1, tone(base, 0.05)); };
+      for (let n = 0; n < Math.round(3 + 6 * k); n++) {             // bursts
+        const cx = Math.floor(r() * W), cy = top + Math.floor(r() * (bot - top)), rad = 6 + Math.floor(r() * 14);
+        for (let m = 0; m < 12 + 30 * k; m++) { const a = r() * 6.28, d = Math.sqrt(r()) * rad; pock(Math.round(cx + Math.cos(a) * d), Math.round(cy + Math.sin(a) * d * 0.8)); }
+      }
+      for (let n = 0; n < Math.round(1 + 3 * k); n++) {             // a spray along the wall
+        let x = Math.floor(r() * W), y = top + Math.floor(r() * (bot - top)); const dy = (r() - 0.5) * 0.4;
+        for (let m = 0; m < 20; m++) { pock(x, Math.round(y)); x += 2 + Math.floor(r() * 4); y += dy * 3; }
+      }
+      for (let n = 0; n < Math.round(k * 2); n++) {                 // a shell's hole, patched round with cement or not
+        const cx = Math.floor(r() * W), cy = top + Math.floor(r() * (bot - top)), rr = 3 + Math.floor(r() * 4);
+        for (let j = -rr - 2; j <= rr + 2; j++) for (let i = -rr - 2; i <= rr + 2; i++) {
+          const d = Math.hypot(i, j * 1.2);
+          if (d > rr + 2) continue;
+          px(cx + i, cy + j, 1, 1, d < rr * 0.6 ? 0x23252f : d < rr ? tone(0x9e3c36, -0.15) : tone(base, d < rr + 1 ? -0.1 : 0.03));
+        }
+      }
+    },
+    /** Cables slung across the front, from y0 to y1: `n` of them, sagging between where they're tacked to the wall, a junction box or two. */
+    cables(y0, y1, n = 3) {
+      for (let k = 0; k < n; k++) {
+        let x = 0, y = Y(y0 + (y1 - y0) * r());
+        while (x < W) {
+          const span = 30 + Math.floor(r() * 60), sag = 2 + Math.floor(r() * 5), y2 = Math.max(Y(y1), Math.min(Y(y0), y + Math.floor((r() - 0.5) * 16)));
+          for (let i = 0; i < span && x + i < W; i++) { const t = i / span; px(x + i, Math.round(y + (y2 - y) * t + Math.sin(t * Math.PI) * sag), 1, 1, 0x14151c); }
+          x += span; y = y2;
+          if (r() < 0.25 && x < W - 6) { px(x - 2, y - 2, 5, 5, 0x6a7182); px(x - 2, y - 2, 5, 1, 0x8f96a6); }
+        }
+      }
+    },
+    /** A canvas awning over a balcony, x0 … x1 (metres), hung from y: striped, its scalloped edge, sloping out. */
+    canopy(x0, x1, y, c) {
+      const a = X(x0), w = X(x1) - a, t = Y(y);
+      for (let j = 0; j < 9; j++) for (let i = 0; i < w; i++) px(a + i, t + j, 1, 1, Math.floor(i / 4) % 2 ? tone(0xf6f4ee, -j * 0.01) : tone(c, -j * 0.012));
+      for (let i = 0; i < w; i += 4) px(a + i + 1, t + 9, 2, 1, Math.floor(i / 4) % 2 ? 0xf6f4ee : c);
+      px(a, t + 10, w, 1, tone(wall ?? c, -0.18)); px(a, t, w, 1, tone(c, 0.08));
+    },
+    /** Pots of plants along a balcony, x0 … x1 (metres) at y: geraniums, a fern, a little tree. */
+    plants(x0, x1, y) {
+      const a = X(x0), b = X(x1), t = Y(y);
+      for (let x = a + 1; x < b - 4; x += 5 + Math.floor(r() * 5)) {
+        px(x, t - 3, 4, 3, 0xc95c45); px(x, t - 3, 4, 1, 0xe8896a);
+        for (let k = 0; k < 9; k++) { const i = Math.floor(r() * 6) - 1, j = Math.floor(r() * 5); px(x + i, t - 4 - j, 1, 1, r() < 0.2 ? pick3(i, j, [0xc95c45, 0xe8896a, 0xf6f4ee, 0x7a4a86]) : r() < 0.5 ? 0x4f8f45 : 0x356f42); }
+      }
+    },
+    /** Ablaq: courses of two stones in turn, y0 … y1 (metres), each course bevelled, its joints cut. */
+    ablaq(y0, y1, c1, c2) {
+      for (let y = Y(y1), k = 0; y < Y(y0); y += 5, k++) {
+        const c = k % 2 ? c1 : c2, h = Math.min(5, Y(y0) - y);
+        px(0, y, W, h, c); px(0, y, W, 1, tone(c, 0.05)); px(0, y + h - 1, W, 1, tone(c, -0.1));
+        for (let x = (k % 2) * 7; x < W; x += 14) px(x, y, 1, h, tone(c, -0.14));
+        if (fine) for (let x = 0; x < W; x += 3) if (noise(x / 2, y, seed) > 0.78) px(x, y + 1 + (x % 3), 1, 1, tone(c, -0.06));
+      }
+    },
+    /** A mashrabiya: a bay of turned-wood lattice x … x + w, from y up h (metres), on corbels, under a little roof; its shadow on the wall. */
+    mashrabiya(x, y, w, h, c = 0x47302a) {
+      const a = X(x), ww = Math.round(w * M), t = Y(y + h), b = Y(y), lit = litR ? night && litR() < 0.4 : false;
+      px(a + ww, t + 3, 2, b - t, tone(wall ?? c, -0.16));                                   // its shadow
+      px(a - 1, t - 3, ww + 2, 3, tone(c, -0.05)); px(a - 2, t - 4, ww + 4, 1, tone(c, 0.08));   // the roof
+      px(a, t, ww, b - t, c);
+      for (let j = t + 2; j < b - 4; j++) for (let i = a + 1; i < a + ww - 1; i++) {        // the lattice: a grid of beads, light through it
+        const u = (i - a) % 3, v = (j - t) % 3;
+        px(i, j, 1, 1, u === 1 && v === 1 ? (lit ? 0xe7b84a : tone(c, -0.18)) : u === 0 || v === 0 ? tone(c, 0.06) : c);
+      }
+      px(a, t + 1, ww, 1, tone(c, 0.1)); px(a, b - 4, ww, 4, tone(c, 0.02)); px(a, b - 4, ww, 1, tone(c, 0.08));   // its rails
+      px(a + Math.floor(ww / 2), t + 1, 1, b - t - 5, tone(c, -0.08));
+      for (const cx of [a + 1, a + ww - 4]) { px(cx, b, 3, 3, tone(c, -0.04)); px(cx + 1, b + 3, 1, 2, tone(c, -0.08)); }   // corbels
+    },
+    /** A mosque's portal: a tall pointed recess x … x + w, h high, muqarnas in its hood, a door at its foot. */
+    portal(x, w, h, c) {
+      const a = X(x), ww = Math.round(w * M), top = Y(h), bot = Y(0), base = wall ?? c, R = ww * 0.62;
+      for (let i = -3; i < ww + 3; i++) {                                                     // the frame
+        const d = Math.min(i + 3, ww + 2 - i), arc = Math.round(Math.sqrt(Math.max(0, (R + 3) ** 2 - (R + 3 - d) ** 2)) * 0.85);
+        px(a + i, top - arc + Math.round(R * 0.85), 1, 2, tone(base, 0.08));
+      }
+      px(a - 3, top + Math.round(R * 0.85), 3, bot - top, tone(base, 0.05)); px(a + ww, top + Math.round(R * 0.85), 3, bot - top, tone(base, -0.06));
+      for (let i = 0; i < ww; i++) {                                                          // the recess, in shade, its hood stepped (muqarnas)
+        const d = Math.min(i + 1, ww - i), arc = Math.round(Math.sqrt(Math.max(0, R * R - (R - d) ** 2)) * 0.85), y0 = top - arc + Math.round(R * 0.85) + 2;
+        for (let j = y0; j < bot; j++) {
+          const hood = j < top + Math.round(R * 0.85) + 10;
+          px(a + i, j, 1, 1, hood ? ((Math.floor((j - y0) / 3) + Math.floor(i / 3)) % 2 ? tone(base, -0.16) : tone(base, -0.08)) : tone(base, -0.12));
+        }
+      }
+      const dw = Math.round(1.6 * M), dh = Math.round(2.8 * M), dx = a + Math.floor((ww - dw) / 2);
+      px(dx - 1, bot - dh - 1, dw + 2, dh + 1, tone(base, 0.06)); px(dx, bot - dh, dw, dh, 0x47302a);
+      for (let j = bot - dh + 2; j < bot - 1; j += 4) px(dx + 1, j, dw - 2, 1, 0x6b4636);
+      for (let i = dx + 2; i < dx + dw - 1; i += 4) for (let j = bot - dh + 3; j < bot - 2; j += 4) px(i, j, 1, 1, 0xb9862e);   // studs
+      px(dx + Math.floor(dw / 2), bot - dh, 1, dh, 0x2a1c18);
+    },
+    /** Crenellations along the top (y, metres): stepped merlons, as a mosque's parapet has them. */
+    crenels(y, c) {
+      const t = Y(y);
+      for (let x = 1; x < W - 4; x += 7) { px(x, t - 6, 5, 6, tone(c, 0.03)); px(x + 1, t - 8, 3, 2, tone(c, 0.03)); px(x + 2, t - 9, 1, 1, tone(c, 0.03)); px(x, t - 6, 1, 6, tone(c, 0.08)); px(x + 4, t - 6, 1, 6, tone(c, -0.1)); }
+    },
+    /** A concrete frame over brick infill, from y0, floors of fh metres, `bays` bays: slabs and columns in grey. */
+    frame(y0, floors, fh, bays, c = 0xa8a49c) {
+      const step = W / bays;
+      for (let f = 0; f < floors; f++) { const y = Y(y0 + fh * f); px(0, y - 3, W, 4, c); px(0, y - 3, W, 1, tone(c, 0.07)); px(0, y + 1, W, 1, tone(wall ?? c, -0.16)); }
+      for (let k = 0; k <= bays; k++) { const x = Math.min(W - 4, Math.max(0, Math.round(k * step) - 2)); px(x, Y(y0 + fh * (floors - 1) + 0.4), 4, Y(y0) - Y(y0 + fh * (floors - 1) + 0.4), c); px(x, Y(y0 + fh * (floors - 1) + 0.4), 1, Y(y0) - Y(y0 + fh * (floors - 1) + 0.4), tone(c, 0.06)); px(x + 3, Y(y0 + fh * (floors - 1) + 0.4), 1, Y(y0) - Y(y0 + fh * (floors - 1) + 0.4), tone(c, -0.1)); }
+    },
+    /** Washing on a line from x0 to x1 (metres) at y: shirts, sheets, a towel, pegged and hanging. */
+    laundry(x0, x1, y) {
+      const a = X(x0), b = X(x1), t = Y(y);
+      px(a, t, b - a, 1, 0x4c5262);
+      const C = [0xf6f4ee, 0x9e3c36, 0x3b6296, 0xe7b84a, 0x356f42, 0xe8896a, 0xdfe2e8, 0x7a4a86, 0x23252f];
+      for (let i = a + 1; i < b - 3; ) {
+        const w = 3 + Math.floor(r() * 4), h = 4 + Math.floor(r() * 6), c = C[Math.floor(r() * C.length)];
+        if (r() < 0.75) { px(i, t + 1, w, h, c); px(i, t + 1, w, 1, tone(c, -0.08)); px(i + w - 1, t + 1, 1, h, tone(c, -0.1)); }
+        i += w + 1 + Math.floor(r() * 3);
+      }
+    },
+    /** Dust: the city's, settled on the ledges and run down the wall in streaks, darkest low. */
+    dust(y0, y1, ledgesOnly = false) {
+      const c = wall ?? 0xc4a882;
+      for (let k = 0; k < (ledgesOnly ? 0 : W / 3); k++) { const x = Math.floor(r() * W), y = Y(y1) + Math.floor(r() * (Y(y0) - Y(y1))), len = 4 + Math.floor(r() * 14); for (let j = 0; j < len; j++) if (r() < 0.8) px(x, y + j, 1, 1, tone(c, -0.05 - j * 0.002)); }
+      for (let x = 0; x < W; x++) if (r() < 0.5) px(x, Y(y0) - 1 - Math.floor(r() * 3), 1, 1, tone(c, -0.08));
+    },
+    /** A canted bay window x … x + w, from y0 up to y1 (metres): stone round it, its glass in two storeys, the canted sides in shade, a cornice on it. */
+    bay(x, w, y0, y1, { frame = 0xf4efe6, stone = 0xe2dac6 } = {}) {
+      const a = X(x), ww = Math.round(w * M), top = Y(y1), bot = Y(y0), side = Math.max(3, Math.round(ww * 0.2));
+      px(a, top, ww, bot - top, stone); if (fine) bevel(a, top, ww, bot - top, stone);
+      px(a + ww, top + 2, 2, bot - top - 2, tone(wall ?? stone, -0.12));               // its shadow on the wall
+      const mid = Math.round((top + bot) / 2);
+      for (const [t, b] of [[top + 5, mid - 3], [mid + 4, bot - 3]]) {
+        for (const [i0, i1, d] of [[a + 2, a + side, -0.1], [a + side + 2, a + ww - side - 2, 0], [a + ww - side, a + ww - 2, -0.14]]) {
+          const lit = litR ? night && litR() < 0.45 : night && r() < 0.45, g = lit ? [0xe7b84a, 0xf8e08a] : [0x283f6b, 0x3b6296];
+          px(i0, t, i1 - i0, b - t, tone(frame, d)); px(i0 + 1, t + 1, i1 - i0 - 2, b - t - 2, tone(g[0], d));
+          px(i0 + 1, t + 1, i1 - i0 - 2, Math.floor((b - t) / 3), tone(g[1], d));
+          px(i0, t + Math.floor((b - t) / 2), i1 - i0, 1, tone(frame, d));                 // the meeting rail
+          if (i1 - i0 > 8) for (const k of [1 / 3, 2 / 3]) px(i0 + Math.round((i1 - i0) * k), t + 1, 1, b - t - 2, tone(frame, d));   // glazing bars
+          px(i0 + 1, t + Math.floor((b - t) / 4), i1 - i0 - 2, 1, tone(frame, d)); px(i0 + 1, t + Math.floor((b - t) * 3 / 4), i1 - i0 - 2, 1, tone(frame, d));
+          if (!lit && d === 0) for (let k = 0; k < Math.min(i1 - i0, b - t) - 4; k++) px(i1 - 3 - k, t + 2 + k, 1, 1, tone(g[0], 0.08));
+        }
+      }
+      px(a - 1, mid - 2, ww + 2, 3, stone); px(a - 1, mid - 2, ww + 2, 1, tone(stone, 0.06)); px(a - 1, mid + 1, ww + 2, 1, tone(stone, -0.1));
+      px(a - 2, top - 3, ww + 4, 3, tone(stone, 0.02)); px(a - 2, top - 3, ww + 4, 1, tone(stone, 0.08)); px(a - 2, top, ww + 4, 1, tone(stone, -0.12));   // its cornice
+      px(a - 2, top - 5, ww + 4, 2, 0x4c5262); px(a - 2, top - 5, ww + 4, 1, 0x6a7182);                                                                   // and the lead over it
+    },
+    /** A portico at a door: two columns either side of it (x … x + w), an entablature on them, h tall. */
+    portico(x, w, h, c = 0xf4efe6) {
+      const a = X(x), ww = Math.round(w * M), top = Y(h), bot = Y(0);
+      for (const cx of [a, a + ww - 4]) {
+        px(cx, top + 6, 4, bot - top - 6, c); px(cx, top + 6, 1, bot - top - 6, tone(c, 0.05)); px(cx + 3, top + 6, 1, bot - top - 6, tone(c, -0.1));
+        px(cx + 4, top + 7, 1, bot - top - 8, tone(wall ?? c, -0.14));                // its shadow
+        px(cx - 1, top + 5, 6, 2, tone(c, -0.03)); px(cx - 1, bot - 2, 6, 2, tone(c, -0.04));   // capital and base
+        for (let y = top + 9; y < bot - 3; y += 3) px(cx + 2, y, 1, 2, tone(c, -0.05));   // (fluting)
+      }
+      px(a - 2, top, ww + 4, 6, c); px(a - 2, top, ww + 4, 1, tone(c, 0.07)); px(a - 2, top + 2, ww + 4, 1, tone(c, -0.05)); px(a - 2, top + 5, ww + 4, 1, tone(c, -0.12));
+      px(a - 2, top + 6, ww + 4, 1, tone(wall ?? c, -0.16));
+      px(a - 3, bot, ww + 6, 2, tone(0xa0978a, 0.06)); px(a - 3, bot, ww + 6, 1, tone(0xa0978a, 0.12));   // the step
+    },
+    /** A Victorian porch over a door: a hood on two corbels, its lintel carved. */
+    porch(x, w, h, c = 0xe2dac6) {
+      const a = X(x), ww = Math.round(w * M), y = Y(h);
+      px(a - 1, y - 4, ww + 2, 4, c); px(a - 1, y - 4, ww + 2, 1, tone(c, 0.07)); px(a - 1, y - 1, ww + 2, 1, tone(c, -0.1));
+      for (let i = a + 2; i < a + ww - 2; i += 4) px(i, y - 3, 2, 1, tone(c, -0.06));
+      for (const cx of [a, a + ww - 3]) { px(cx, y, 3, 6, c); px(cx + 1, y + 6, 1, 3, c); px(cx + 2, y, 1, 6, tone(c, -0.08)); }
+      px(a - 1, y, ww + 2, 1, tone(wall ?? c, -0.14));
+    },
+    /** Where two houses of a terrace meet, at x (metres): the joint, up to top. */
+    party(x, top) {
+      const a = X(x);
+      px(a - 1, Y(top), 1, Y(0) - Y(top), tone(wall ?? 0xa0978a, -0.1)); px(a, Y(top), 1, Y(0) - Y(top), tone(wall ?? 0xa0978a, 0.03));
+    },
+    /** The consoles between shopfronts at xs (metres), from y to y + h: a scrolled bracket each side of a fascia. */
+    consoles(xs, y, h) {
+      for (const xm of xs) {
+        const a = X(xm) - 2, t = Y(y + h), b = Y(y), c = 0x23252f;
+        px(a, t - 2, 5, b - t + 2, c); px(a, t - 2, 5, 1, 0x4c5262); px(a + 1, t, 3, 3, 0x353947); px(a + 2, t + 1, 1, 1, 0x6a7182);
+        px(a + 1, b - 4, 3, 3, 0x353947); px(a + 4, t - 1, 1, b - t, 0x14151c);
+      }
+    },
+    /** A council block's walkways, one a floor (fh metres) from y0: a slab, a steel railing over it, the shade under. */
+    decks(y0, floors, fh, c = 0xa0978a) {
+      for (let f = 1; f < floors; f++) {
+        const fl = Y(y0 + fh * (f - 1)), rh = Math.round(1.0 * M), t = fl - rh;
+        px(0, fl - 1, W, 4, c); px(0, fl - 1, W, 1, tone(c, 0.07)); px(0, fl + 3, W, 2, tone(c, -0.2));
+        px(0, t, W, 2, 0x6a7182); px(0, t, W, 1, 0x8f96a6);
+        for (let i = 2; i < W; i += 3) px(i, t + 2, 1, rh - 3, 0x4c5262);
+        for (let i = 0; i < W; i += 48) px(i, t, 2, rh, 0x6a7182);
+      }
+    },
+    /** A street's name on a plate on the wall, London's: white, a black edge, black letters. */
+    plate(x, y, w, h, words) {
+      const a = X(x), ww = Math.round(w * M), hh = Math.max(9, Math.round(h * M)), t = Y(y + h);
+      px(a - 1, t - 1, ww + 2, hh + 2, tone(wall ?? 0x5c5650, -0.14));
+      px(a, t, ww, hh, 0x14151c); px(a + 1, t + 1, ww - 2, hh - 2, 0xf4efe6);
+      const lines = words.split('\n'), top = t + Math.floor((hh - lines.length * 6 + 1) / 2);
+      lines.forEach((l, k) => text(px, a + Math.floor((ww - textWidth(l)) / 2), top + k * 6, l, 0x14151c));
+    },
+    /** Hanging baskets on brackets at xs (metres), hung from y: a ball of ivy and winter pansies. */
+    baskets(xs, y) {
+      for (const xm of xs) {
+        const cx = X(xm), t = Y(y);
+        px(cx - 4, t, 9, 1, 0x23252f); px(cx, t, 1, 3, 0x23252f);
+        for (let j = 0; j < 8; j++) for (let i = -5; i <= 5; i++) {
+          const d = (i / 5.5) ** 2 + ((j - 3.5) / 4.2) ** 2;
+          if (d > 1 + (noise(cx + i, j, seed) - 0.5) * 0.5) continue;
+          const v = noise((cx + i) / 1.5, (t + j) / 1.5, seed + 3);
+          px(cx + i, t + 3 + j, 1, 1, v > 0.78 ? pick3(i, j, [0x7a4a86, 0xe7b84a, 0xf6f4ee]) : v > 0.5 ? 0x4f8f45 : j > 5 ? 0x24503a : 0x356f42);
+        }
+        for (let k = 0; k < 4; k++) px(cx - 3 + k * 2, t + 11 + (k % 2) * 2, 1, 3, 0x356f42);   // trailing ivy
+      }
     },
     /** A cornice at the top: a lit edge, the band, a shadow under it. */
     cornice(y, h = 0.3, c = 0xe2dac6) {
@@ -500,11 +862,11 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
  * street's, for detail placed by where it is, so it matches across sections) and `leaves`, how much
  * of the autumn lies on the ground (0 … 1).
  */
-export function street({ x0, x1, zB, zK1, zK2, z1, zebra = null, pits = [], seed = 7, ox = 0, calm = false, look = null, zebraKind = 'white', rowSeed = 0, leaves = 0 }) {
+export function street({ x0, x1, zB, zK1, zK2, z1, zebra = null, pits = [], seed = 7, ox = 0, calm = false, look = null, zebraKind = 'white', rowSeed = 0, leaves = 0, city = null, areas = [], bays = [] }) {
   const W = Math.round((x1 - x0) * M), H = Math.round((z1 - zB) * M);
   const X = (x) => Math.round((x - x0) * M), Z = (z) => Math.round((z - zB) * M);
   const tex = paint(W, H, (px) => {
-    if (finish.fine) return fineStreet(px, W, X, Z, { x0, x1, zB, zK1, zK2, z1, zebra, pits, seed, ox, calm, look, zebraKind, rowSeed, leaves });
+    if (finish.fine) return fineStreet(px, W, X, Z, { x0, x1, zB, zK1, zK2, z1, zebra, pits, seed, ox, calm, look, zebraKind, rowSeed, leaves, city, areas, bays });
     const r = rng(seed);
     const slabs = (za, zb) => {                                  // paving: 0.75 × 0.6 m slabs, a few odd ones
       px(0, Z(za), W, Z(zb) - Z(za), 0xc4bba9);
@@ -577,8 +939,11 @@ export function cell(i, j, s = 0) {
 // comes from its world place (cell(), rowSeed), so sections join without a seam; a change of make
 // comes only at breakX (a crossing's line). Clutter (puddles, manholes, litter, leaves) is placed by
 // the section's own dice, inside it.
-function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox = 0, calm = false, look = null, zebraKind = 'white', rowSeed = 0, leaves = 0 }) {
+function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox = 0, calm = false, look = null, zebraKind = 'white', rowSeed = 0, leaves = 0, city = null, areas = [], bays = [] }) {
   const r = rng(seed);
+  const london = city === 'london', wet = london ? -0.035 : 0;          // (London's pavements rain-dark)
+  const dust = city === 'cairo' ? 1 : city === 'beirut' ? 0.45 : 0;    // (sand in the gutters, on the kerbs)
+  const DUST = 0xc4a882;
   const SL = 0xc4bba9, AS = 0x4c5262, K = rowSeed;
   const plain = { paveN: 'slabs', paveS: 'slabs', kerb: 'granite', road: 'worn', lanes: 'dashed' };
   const A = look?.a ?? plain, B = look?.b ?? plain;
@@ -608,7 +973,54 @@ function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox =
       for (let k = 0; k < (xb - xa) / 70; k++) { let cx = xa + Math.floor(r() * (xb - xa)), cy = ya + 2 + Math.floor(r() * Math.max(1, yb - ya - 4)); for (let n = 0; n < 8 + r() * 12 && cx < xb; n++) { if (cy >= ya && cy < yb) px(cx, cy, 1, 1, tone(base, -0.11)); cx++; cy += r() < 0.35 ? (r() < 0.5 ? -1 : 1) : 0; } }
       return;
     }
-    const [pw, ph, shift, base] = { slabs: [12, 10, 6, SL], squares: [8, 8, 0, 0xb8b0a4], granite: [16, 12, 8, 0xb4a296], pavers: [8, 4, 4, 0xa8a49c] }[kind] ?? [12, 10, 6, SL];
+    if (kind === 'terrazzo') {                                   // cement tiles (Cairo's, Beirut's): half-metre squares, a square pattern in each, many cracked or gone
+      const base = 0xb8ae9c;
+      px(xa, ya, xb - xa, yb - ya, tone(base, -0.13));
+      for (let j = ya, row = 0; j < yb; j += 8, row++) for (let a = xa - (((xa + ox) % 8) + 8) % 8; a < xb; a += 8) {
+        const k = Math.floor((a + ox) / 8), u = cell(k, row, K + 41), h = Math.min(7, yb - j);
+        if (u < 0.06) { for (let y = 0; y < h; y++) for (let x = Math.max(a, xa); x < Math.min(a + 7, xb); x++) px(x, j + y, 1, 1, tone(0x8f6a50, (noise(x, y + j, seed) - 0.5) * 0.08)); continue; }   // a tile gone: the earth under it
+        const c = u > 0.9 ? 0xa89c8a : base, d = (cell(k, row, K + 42) - 0.5) * 0.05;
+        stone(a, xb, j, 7, h, c, d, [xa, xb], 5);
+        if (h >= 6 && a + 5 < xb && a + 2 >= xa) { px(a + 2, j + 2, 3, 3, tone(c, d - 0.05)); px(a + 3, j + 3, 1, 1, tone(0x9e3c36, -0.1)); }
+        if (cell(k, row, K + 43) < 0.12 && a + 6 < xb && a >= xa) { px(a + 1, j + 3, 2, 1, tone(c, -0.2)); px(a + 3, j + 4, 3, 1, tone(c, -0.2)); }
+      }
+      return;
+    }
+    if (kind === 'broken') {                                     // concrete flags, cracked, sunk, patched with cement, some gone to the dirt
+      const base = 0xaca69c;
+      px(xa, ya, xb - xa, yb - ya, tone(base, -0.14));
+      for (let j = ya, row = 0; j < yb; j += 11, row++) for (let a = xa - (((xa + ox + (row % 2) * 7) % 14) + 14) % 14; a < xb; a += 14) {
+        const k = Math.floor((a + ox + (row % 2) * 7) / 14), u = cell(k, row, K + 44), h = Math.min(10, yb - j);
+        if (u < 0.1) { for (let y = 0; y < h; y++) for (let x = Math.max(a, xa); x < Math.min(a + 13, xb); x++) px(x, j + y, 1, 1, noise((x + ox) / 2, (j + y) / 2, seed + 7) > 0.6 ? 0x8f6a50 : 0x7d6450); continue; }
+        const d = (cell(k, row, K + 45) - 0.5) * 0.08 - (u < 0.2 ? 0.06 : 0);
+        stone(a, xb, j, 13, h, u > 0.85 ? 0xb8b0a0 : base, d, [xa, xb], 6);
+        if (cell(k, row, K + 46) < 0.45) { let cx = a + 2 + Math.floor(cell(k, row, K + 47) * 9), cy = j + 1; for (let n = 0; n < h - 1; n++) { if (cx >= xa && cx < xb) px(cx, cy + n, 1, 1, tone(base, -0.22)); cx += cell(k, n, K + 48) < 0.4 ? -1 : cell(k, n, K + 48) > 0.7 ? 1 : 0; } }
+      }
+      return;
+    }
+    if (kind === 'york') {                                       // York stone: flags of many sizes in courses, buff and grey, worn smooth
+      const base = 0xb2aa9a;
+      px(xa, ya, xb - xa, yb - ya, tone(base, -0.12 + wet));
+      for (let j = ya, row = 0; j < yb; row++) {
+        const h = Math.min(yb - j, [11, 13, 9, 14, 12][Math.floor(cell(row, 3, K + 31) * 5)]) - 1;
+        if (h <= 0) break;
+        // (a stone starts where the world's hash says, and every fifth unit at the latest: 6 to 30 px, the same in every section)
+        const start = (u) => cell(u, row, K + 32) <= 0.38 || ((u % 5) + 5) % 5 === 0;
+        let u = Math.floor((xa + ox) / 6) - 5;
+        while (!start(u)) u++;
+        while (u * 6 - ox < xb) {
+          let n = 1; while (!start(u + n)) n++;
+          const a = u * 6 - ox, w = n * 6 - 1, k = cell(u, row, K + 33), d = (k - 0.5) * 0.04 + (k < 0.06 ? -0.035 : k > 0.95 ? 0.025 : 0) + wet;
+          const c = k > 0.82 ? 0xaaa79f : base;
+          if (a + w > xa) stone(a, xb, j, w, h, c, d, [xa, xb], 3);
+          if (cell(u, row, K + 34) < 0.08 && a + 4 >= xa && a + 8 < xb) { px(a + 3, j + 3, 1, 1, tone(c, -0.2)); px(a + 4, j + 4, 3, 1, tone(c, -0.2)); }   // a crack
+          u += n;
+        }
+        j += h + 1;
+      }
+      return;
+    }
+    const [pw, ph, shift, base] = { slabs: [12, 10, 6, SL], squares: [8, 8, 0, 0xb8b0a4], granite: [16, 12, 8, 0xb4a296], pavers: [8, 4, 4, 0xa8a49c], pcc: [14, 10, 7, 0xa8a6a0] }[kind] ?? [12, 10, 6, SL];
     px(xa, ya, xb - xa, yb - ya, tone(base, -0.15));                 // the joints
     for (let j = ya, row = 0; j < yb; j += ph, row++) {
       const off = (row % 2) * shift, h = Math.min(ph - 1, yb - j);
@@ -617,7 +1029,7 @@ function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox =
       for (let a = xa - (((xa + off) % pw) + pw) % pw - pw; a < xb; a += pw) {
         if (a + pw - 1 <= xa) continue;
         const k = Math.floor((a + ox + pw) / pw), u = cell(k, row, K + 3), v = cell(k, row, K + 4);
-        let d = (u - 0.5) * 0.06 + (v < 0.04 ? -0.05 : 0);
+        let d = (u - 0.5) * 0.06 + (v < 0.04 ? -0.05 : 0) + wet;
         let c = base;
         if (border) { c = 0x8f6a5c; d = (u - 0.5) * 0.05; }
         else if (kind === 'squares' && v > 0.985) c = tone(0xb8b0a4, -0.07);             // one replaced by a darker one
@@ -632,15 +1044,15 @@ function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox =
   };
   // The road: asphalt, its grain and repairs by its kind; cracks.
   const road = (xa, xb, kind) => {
-    const base = kind === 'fresh' ? tone(AS, -0.05) : AS;     // (old tarmac shows by its grain and tarred cracks: any paler and the light warms it to brown)
-    const [lo, hi] = kind === 'fresh' ? [0.04, 0.98] : kind === 'grey' ? [0.1, 0.84] : [0.08, 0.95];
+    const base = kind === 'fresh' ? tone(AS, -0.05) : kind === 'dusty' ? 0x55565c : AS;     // (old tarmac shows by its grain and tarred cracks: any paler and the light warms it to brown)
+    const [lo, hi] = kind === 'fresh' ? [0.04, 0.98] : kind === 'grey' || kind === 'dusty' ? [0.1, 0.84] : [0.08, 0.95];
     for (let y = Z(zK1); y < Z(zK2); y++) for (let x = xa; x < xb; x++) {
       if (calm) { const k = noise((x + ox) * 7.31, y * 5.17, seed + 4); px(x, y, 1, 1, k < lo ? tone(base, -0.05) : k > hi ? tone(base, 0.04) : base); continue; }
       const v = noise((x + ox) / 3.5, y / 3.5, seed + 4) * 0.7 + noise((x + ox) / 1.3, y / 1.3, seed + 5) * 0.3;
       px(x, y, 1, 1, tone(base, v < 0.3 ? -0.035 : v > 0.72 ? 0.025 : 0));
     }
     const n = (xb - xa) / W;
-    const repairs = Math.round(n * { worn: 7, fresh: 1, patched: 15, grey: 5 }[kind]), cracks = Math.round(n * { worn: 9, fresh: 2, patched: 12, grey: 11 }[kind]);
+    const repairs = Math.round(n * ({ worn: 7, fresh: 1, patched: 15, grey: 5, dusty: 10 }[kind] ?? 7)), cracks = Math.round(n * ({ worn: 9, fresh: 2, patched: 12, grey: 11, dusty: 12 }[kind] ?? 9));
     for (let i = 0; i < repairs; i++) {                            // repairs: a patch with a raised lip
       const w = 12 + Math.floor(r() * 18), h = 5 + Math.floor(r() * 6), x = xa + 2 + Math.floor(r() * Math.max(1, xb - xa - w - 4)), y = Z(zK1) + 5 + Math.floor(r() * (Z(zK2) - Z(zK1) - 14));
       const d = kind === 'patched' && r() < 0.4 ? 0.03 : -0.06;
@@ -660,11 +1072,14 @@ function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox =
       if (kind === 'concrete') { top = 0xc8ccd2; fc = 0x8f96a6; d *= 0.5; }
       if (kind === 'worn') { top = tone(0xc4bba9, -0.04); fc = 0x7d756c; d = (u - 0.5) * 0.12; }
       if (kind === 'painted') { const black = k % 2 === 0; top = black ? 0x353947 : 0xf4efe6; fc = black ? 0x23252f : 0xc4bba9; }
+      if (kind === 'yellow') { const black = k % 2 === 0; top = black ? 0x353947 : 0xe7b84a; fc = black ? 0x23252f : 0xb9862e; }
+      if (kind === 'redwhite') { const red = k % 2 === 0; top = red ? 0x9e3c36 : 0xf4efe6; fc = red ? 0x6e2a2e : 0xc4bba9; }
       const sunk = kind === 'worn' && u > 0.85;
       px(a, y, w, 2, tone(top, d)); if (!sunk) px(a, y, w, 1, tone(top, d + 0.04));
       if (i + 15 < xb) px(i + 15, y, 1, 2 + (face ? 2 : 0), tone(0xa0978a, -0.12));
       if (face) { px(a, y + 2, w, 2, tone(fc, d)); px(a, y + 3, w, 1, tone(fc, d - 0.06)); }
-      if (kind === 'painted' || kind === 'worn') for (let n = 0; n < 3; n++) { const c = cell(k, n, K + 12); if (c < 0.5) { const cx = a + Math.floor(c * 2 * w); px(cx, y + (n % 2), 1, 1, kind === 'painted' ? tone(0xa0978a, 0.02) : tone(top, -0.14)); } }   // chips, worn paint
+      if (face && dust) { px(a, y + 4, w, 2, tone(fc, -0.1)); }   // (a high kerb: its face deeper)
+      if (kind === 'painted' || kind === 'yellow' || kind === 'redwhite' || kind === 'worn') for (let n = 0; n < 3; n++) { const c = cell(k, n, K + 12); if (c < 0.5) { const cx = a + Math.floor(c * 2 * w); px(cx, y + (n % 2), 1, 1, kind === 'painted' ? tone(0xa0978a, 0.02) : tone(top, -0.14)); } }   // chips, worn paint
     }
   };
 
@@ -679,8 +1094,33 @@ function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox =
   // The line down the middle and the zebra, the paint worn through in places.
   const worn = (x, y, w, h, c, wear = 0.22, s = 6) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) if (noise((x + i + ox) / 2, (y + j) / 2, seed + s) > wear) px(x + i, y + j, 1, 1, i === 0 || j === 0 ? tone(c, 0.02) : c); };
   const mid = Z((zK1 + zK2) / 2), zx = zebra ? [X(zebra[0]) - 10, X(zebra[1]) + 10] : [-1, -1];
+  if (london) {
+    // London's road paint: double yellow lines along the kerbs (no waiting), but where cars may park
+    // (a residents' bay: its broken white edge); the zebra's zigzags, eight metres each way along
+    // both kerbs, and its give-way lines.
+    const zig = zebra ? [X(zebra[0]) - 8 * M, X(zebra[1]) + 8 * M] : [-1, -1];
+    const bayAt = (x) => bays.some(([a, b]) => x >= X(a) && x < X(b));
+    const YL = 0xe7b84a;
+    for (let x = 0; x < W; x++) {
+      if (x >= zig[0] && x < zig[1]) continue;
+      if (!bayAt(x)) { worn(x, Z(zK1) + 4, 1, 1, YL, 0.18, 21); worn(x, Z(zK1) + 6, 1, 1, YL, 0.18, 22); }
+      worn(x, Z(zK2) - 6, 1, 1, YL, 0.18, 23); worn(x, Z(zK2) - 4, 1, 1, YL, 0.18, 24);
+    }
+    for (const [a, b] of bays) {                                    // the bay's edge, broken, and its ends
+      const xa = Math.max(0, X(a)), xb = Math.min(W, X(b)), y = Z(zK1) + 2 + 32;
+      for (let x = xa; x < xb; x++) if (((x + ox) & 7) < 5) worn(x, y, 1, 1, 0xdfe2e8, 0.2, 25);
+      for (const x of [X(a), X(b) - 1]) if (x >= 0 && x < W) worn(x, Z(zK1) + 3, 1, 31, 0xdfe2e8, 0.2, 26);
+    }
+    if (zebra) for (const [from, to] of [[zig[0], X(zebra[0]) - 16], [X(zebra[1]) + 16, zig[1]]]) for (let x = Math.max(0, from); x < Math.min(W, to); x++) {
+      const t = ((x + ox) % 12 + 12) % 12, dy = t < 6 ? t / 2 : (12 - t) / 2;
+      worn(x, Z(zK1) + 6 + Math.round(dy), 1, 1, 0xdfe2e8, 0.15, 27);
+      worn(x, Z(zK2) - 9 + Math.round(dy), 1, 1, 0xdfe2e8, 0.15, 28);
+    }
+    if (zebra) for (const x of [X(zebra[0]) - 14, X(zebra[1]) + 13]) for (let y = Z(zK1) + 4; y < Z(zK2) - 4; y++) if (y % 6 < 4) worn(x, y, 2, 1, 0xdfe2e8, 0.2, 29);
+  }
   for (const [xa, xb, s] of spans) {
     const clear = (a, w) => { for (let x = a; x < a + w; x++) if (x >= xa && x < xb && (x < zx[0] || x >= zx[1])) worn(x, mid, 1, 2, 0xdfe2e8); };
+    if (s.lanes === 'none') continue;
     if (s.lanes === 'solid') clear(xa, xb - xa);
     else if (s.lanes === 'double') { for (let x = xa; x < xb; x++) if (x < zx[0] || x >= zx[1]) { worn(x, mid - 2, 1, 1, 0xdfe2e8); worn(x, mid + 1, 1, 1, 0xdfe2e8); } }
     else if (s.lanes === 'combo') {                              // a solid line beside a broken one: overtaking one way only
@@ -709,13 +1149,15 @@ function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox =
   }
   if (r() < 0.5) { const hx = 8 + Math.floor(r() * (W - 16)), hz = r() < 0.5 ? Z(zB) + 8 + Math.floor(r() * Math.max(1, Z(zK1) - Z(zB) - 18)) : Z(zK2) + 6 + Math.floor(r() * Math.max(1, Z(z1) - Z(zK2) - 12)); px(hx - 3, hz - 2, 7, 5, tone(0x6a7182, -0.04)); px(hx - 2, hz - 1, 5, 3, tone(0x4c5262, 0.02)); px(hx - 3, hz - 2, 7, 1, tone(0x8f96a6, 0.02)); }
   if (zebra) {
-    const xa = X(zebra[0]), xb = X(zebra[1]), w = xb - xa, top = Z(zK1) + 4, bot = Z(zK2) - 4;
+    const belisha = zebraKind === 'belisha';
+    const xa = X(zebra[0]), xb = X(zebra[1]), w = xb - xa, top = Z(zK1) + (belisha ? 12 : 4), bot = Z(zK2) - (belisha ? 11 : 4);
+    if (belisha) for (const y of [Z(zK1) + 4, Z(zK2) - 9]) { const t = 'LOOK RIGHT'; text(px, xa + Math.floor((w - textWidth(t)) / 2), y, t, 0xdfe2e8); }
     if (zebraKind === 'raised') {                                // a table: paler asphalt, its ramps marked with teeth
       px(xa - 8, Z(zK1) + 3, w + 16, Z(zK2) - Z(zK1) - 4, tone(AS, 0.05));
       for (const [ra, dir] of [[xa - 8, 1], [xb + 2, -1]]) for (let y = Z(zK1) + 5; y < Z(zK2) - 4; y += 8) for (let k = 0; k < 4; k++) px(dir > 0 ? ra + k : ra + 5 - k, y + k, 1, 4 - k > 0 ? 7 - 2 * k : 1, 0xdfe2e8);
     }
     if (zebraKind === 'faded') for (let z = top + 5; z < bot; z += 10) worn(xa + 3, z, w, 6, tone(AS, 0.03), 0.5, 8);   // an older zebra's ghost
-    const wear = { white: 0.22, yellow: 0.2, faded: 0.52, fresh: 0.06, raised: 0.12 }[zebraKind] ?? 0.22;
+    const wear = { white: 0.22, yellow: 0.2, faded: 0.52, fresh: 0.06, raised: 0.12, belisha: 0.12, ghost: 0.72 }[zebraKind] ?? 0.22;
     for (let z = top, n = 0; z < bot; z += 10, n++) worn(xa, z, w, 6, zebraKind === 'yellow' && n % 2 ? tone(0xe7b84a, -0.04) : zebraKind === 'fresh' ? 0xf6f4ee : 0xdfe2e8, wear);
     if (zebraKind === 'fresh') { worn(xa - 3, top - 1, 1, bot - top + 2, 0xf6f4ee, 0.06); worn(xb + 2, top - 1, 1, bot - top + 2, 0xf6f4ee, 0.06); }
     px(xa - 2, Z(zK1) - 2, w + 4, 2, 0xb8bdc8);                    // dropped kerbs
@@ -729,9 +1171,15 @@ function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox =
       }
     }
   }
+  // Sand: drifted against the kerbs and along the walls' foot, a skin of it on the road's edges (Cairo's, Beirut's).
+  if (dust) {
+    const drift = (y0, dir, depth) => { for (let x = 0; x < W; x++) { const d = Math.max(0, Math.round((noise((x + ox) / 9, y0, seed + 17) - 0.35) * depth * 2 * dust)); for (let j = 0; j < d; j++) if (noise((x + ox) / 1.7, (y0 + j * dir) / 1.7, seed + 18) > 0.25 + j / (depth * 2)) px(x, y0 + j * dir, 1, 1, tone(DUST, (noise(x, j, seed + 19) - 0.5) * 0.08 - j * 0.01)); } };
+    drift(Z(zK1) + 3, 1, 6); drift(Z(zK2) - 2, -1, 5); drift(2, 1, 4); drift(Z(z1) - 1, -1, 3);
+    for (let i = 0; i < W * 2 * dust; i++) px(Math.floor(r() * W), Math.floor(r() * Z(z1)), 1, 1, tone(DUST, (r() - 0.5) * 0.1));
+  }
   // Puddles, where the ground sags: by the kerbs, now and then on a pavement. The sky in them, a dark
   // rim along their far edge.
-  for (let n = 0, count = 1 + Math.floor(r() * 4); n < count; n++) {
+  for (let n = 0, count = dust ? 0 : 1 + Math.floor(r() * 4) + (london ? 3 : 0); n < count; n++) {
     const rw = 7 + Math.floor(r() * 15), rh = 3 + Math.floor(r() * 3), cx = rw + 2 + Math.floor(r() * (W - 2 * rw - 4));
     const where = r(), cy = where < 0.4 ? Z(zK2) - rh - 2 : where < 0.7 ? Z(zK1) + rh + 3 : where < 0.85 ? Z(zK2) + rh + 4 : Z(zB) + Math.floor((Z(zK1) - Z(zB)) * (0.3 + r() * 0.4));
     const s = seed + 7 + n;
@@ -763,6 +1211,15 @@ function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox =
     else if (k < 0.7) { px(x, y, 2, 1, 0xf6f4ee); px(x, y + 1, 2, 1, 0xb8bdc8); }   // a ticket, a scrap of paper
     else px(x, y, 1, 1, 0xb8bdc8);                                // a bottle cap
   }
+  // A terrace's areas (London): the lightwell down to the basement, under the railings: its coping
+  // along the pavement, the shade down in it, the basement's window heads in its far wall.
+  for (const [a, b] of areas) {
+    const xa = Math.max(0, X(a)), xb = Math.min(W, X(b)), d = Math.round(0.62 * M);
+    for (let y = 0; y < d - 2; y++) px(xa, y, xb - xa, 1, y < 3 ? 0x353947 : tone(0x23252f, (y - 3) * 0.004));
+    for (let x = xa + 3; x < xb - 4; x += 22) { px(x, 1, Math.min(14, xb - 4 - x), 3, 0x1b2541); px(x + 1, 1, 2, 1, 0x3b6296); }   // the basement's windows, their heads
+    for (let x = xa; x < xb; x++) if (r() < 0.12) px(x, 4 + Math.floor(r() * (d - 7)), 1, 1, r() < 0.5 ? 0x4c5262 : 0x2f6b3a);   // a weed, a leaf, down there
+    px(xa, d - 2, xb - xa, 2, tone(0xc4bba9, -0.02 + wet)); px(xa, d - 2, xb - xa, 1, tone(0xc4bba9, 0.05 + wet)); px(xa, d - 3, xb - xa, 1, 0x14151c);
+  }
   for (const [x, z] of pits) {                                   // tree pits: soil, an iron grate, leaves
     const a = X(x) - 10, b = Z(z) - 8;
     px(a, b, 20, 16, tone(0x5c5650, 0.03)); px(a + 1, b + 1, 18, 14, 0x47302a);
@@ -775,12 +1232,18 @@ function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox =
 export function facade({ w, h, wall = 'brick', wallColor, draw, seed = 1, night = false, split = false }) {
   return paint(Math.round(w * M), Math.round(h * M), (px) => {
     const f = painter(px, w, h, seed, night, wall === 'brick' ? null : wallColor ?? 0xe2dac6, split);
+    f.wallKind = wall;
     if (wall === 'brick') f.bricks(0, 0, w, h, wallColor ?? 0x9e3c36);
     else if (wall === 'concrete' && finish.fine) f.concrete(0, 0, w, h, wallColor ?? 0xb8bdc8);
+    else if (wall === 'stucco' && finish.fine) f.weathered(0, 0, w, h, wallColor ?? 0xf4efe6, true);
+    else if (wall === 'stone') f.ashlar(0, 0, w, h, wallColor ?? 0xd8c09a);
     else f.plaster(0, 0, w, h, wallColor ?? 0xe2dac6);
     draw?.(f);
   }, { glows: GLOWS });
 }
+
+/** A metre of bricks in a colour (a chimney stack's, its building's), repeating. */
+function bricksOf(c) { return paint(16, 16, (px) => fineBricks(px, 0, 0, 16, 16, c, rng(c & 0xffff)), { repeat: true }); }
 
 // Textures and materials shared between props of one make (a bench's planks, a car's sides in one
 // colour, a railing's bars): made once, marked `keep` so a section freeing its meshes leaves them
@@ -799,11 +1262,11 @@ export function keep(key, make) {
  * `kit`, what stands on a flat roof: 'ac' (an air-conditioning plant), 'chimneys', 'hut' (the stair's
  * head house), 'antenna', 'none'; placed by `seed` (none given: the plant, where it always stood).
  */
-export function building({ x0, x1, z, h, d = 8, wall = 'brick', wallColor, roof = 'flat', roofColor = 0x6a7182, kit = null, draw, seed = 1, night = false, split = false }) {
+export function building({ x0, x1, z, h, d = 8, wall = 'brick', wallColor, roof = 'flat', roofColor = 0x6a7182, kit = null, draw, seed = 1, night = false, split = false, stacks = null }) {
   const w = x1 - x0;
   const g = new THREE.Group();
   const front = facade({ w, h, wall, wallColor, draw, seed, night, split });
-  const sides = keep(`side-${wall}`, () => mat(0, wall === 'brick' ? tile('brick', 1) : tile('plaster', 1)));
+  const sides = keep(`side-${wall === 'stucco' || wall === 'stone' ? 'plaster' : wall}`, () => mat(0, wall === 'brick' ? tile('brick', 1) : tile('plaster', 1)));
   const body = box(w, h, d, { front: mat(0, front), sides, top: mat(roofColor) });
   body.position.set((x0 + x1) / 2, 0, z - d / 2);
   g.add(part(body));
@@ -818,6 +1281,40 @@ export function building({ x0, x1, z, h, d = 8, wall = 'brick', wallColor, roof 
       const ac = box(1.2, 0.7, 0.9, { sides: mat(0xb8bdc8), top: mat(0xdfe2e8), front });
       if (kit === null) ac.position.set(x0 + w * 0.7, h, z - 2); else ac.position.set(at(r()), h, z - 2 - r() * 2);
       g.add(part(ac));
+    } else if (kit === 'pots') {                                 // a terrace's stacks on its party walls, a row of clay pots on each (London's)
+      const xs = stacks?.length ? stacks : [0.4, w - 0.4], brick = keep(`chimney-${wallColor}`, () => mat(0, wall === 'brick' ? bricksOf(wallColor) : tile('plaster', 1))), pots = [];
+      for (const sx of xs) {
+        const sw = 0.9 + r() * 0.5, sh = 1.0 + r() * 0.5, zz = z - 1.2 - r() * 1.5;
+        const stack = box(sw, sh, 0.55, { sides: brick, top: mat(0x353947) });
+        stack.position.set(x0 + Math.max(sw / 2, Math.min(w - sw / 2, sx)), h, zz); g.add(part(stack));
+        for (let k = 0, n = 2 + Math.floor(r() * 4); k < n; k++) {
+          const geo = new THREE.BoxGeometry(0.16, 0.32 + r() * 0.14, 0.16); geo.translate(stack.position.x - sw / 2 + 0.14 + k * (sw - 0.28) / Math.max(1, n - 1), h + sh + 0.18, zz);
+          pots.push(geo);
+        }
+      }
+      if (pots.length) { const m = new THREE.Mesh(mergeGeometries(pots), mat(0xc95c45)); m.castShadow = true; g.add(part(m)); }
+    } else if (kit === 'dishes' || kit === 'tanks' || kit === 'pigeons' || kit === 'rebar' || kit === 'solar') {
+      // A roof lived on (Cairo's, Beirut's): satellite dishes by the dozen, water tanks on their frames,
+      // a pigeon loft, solar water heaters; or the next floor's rebar standing off the columns.
+      const white = mat(0xdfe2e8), dark = mat(0x353947), geos = { white: [], dark: [], wood: [], rust: [] };
+      const add = (list, ww, hh, dd, x, y, zz, rx = 0) => { const geo = new THREE.BoxGeometry(ww, hh, dd); if (rx) geo.rotateX(rx); geo.translate(x, y + hh / 2, zz); geos[list].push(geo); };
+      for (let k = 0, n = 3 + Math.floor(r() * 6); k < n; k++) {      // dishes, tipped to the sky, on their stands
+        const d = roundedBox(0.6, 0.6, 0.12, 0.25, { sides: mat(0xdfe2e8), top: mat(0xf6f4ee) }), x = at(r()), zz = z - 0.6 - r() * 3;
+        d.rotation.x = -0.6; d.position.set(x, h + 0.35, zz); g.add(part(d)); add('dark', 0.05, 0.4, 0.05, x, h, zz + 0.2);
+      }
+      if (kit === 'tanks' || r() < 0.5) for (let k = 0, n = 1 + Math.floor(r() * 3); k < n; k++) {
+        const x = at(r()), zz = z - 2 - r() * 3, blue = r() < 0.5;
+        add('rust', 1.1, 0.7, 1.1, x, h, zz); const t = roundedBox(0.9, 1.0, 0.9, 0.3, { sides: mat(blue ? 0x3b6296 : 0x23252f), top: mat(blue ? 0x5d8fc2 : 0x353947) }); t.position.set(x, h + 0.7, zz); g.add(part(t));
+      }
+      if (kit === 'pigeons') { const x = at(r()), zz = z - 3; add('wood', 0.1, 1.6, 0.1, x - 0.9, h, zz - 0.9); add('wood', 0.1, 1.6, 0.1, x + 0.9, h, zz - 0.9); add('wood', 0.1, 1.6, 0.1, x - 0.9, h, zz + 0.9); add('wood', 0.1, 1.6, 0.1, x + 0.9, h, zz + 0.9);
+        const loft = box(2.0, 1.6, 2.0, { sides: keep('pigeon-loft', () => mat(0, paint(16, 13, (px) => { px(0, 0, 16, 13, 0x6b4636); for (let y = 1; y < 13; y += 3) for (let x = (y % 2); x < 16; x += 3) px(x, y, 2, 2, 0x2a1c18); px(0, 0, 16, 1, 0x8f6345); }))), top: mat(0x47302a) }); loft.position.set(x, h + 1.6, zz); g.add(part(loft)); }
+      if (kit === 'solar') for (let k = 0, n = 1 + Math.floor(r() * 3); k < n; k++) { const x = at(r()), zz = z - 1.5 - r() * 3; const p = box(1.2, 0.06, 1.0, { sides: mat(0x8f96a6), top: mat(0x283f6b) }); p.rotation.x = -0.5; p.position.set(x, h + 0.6, zz); g.add(part(p)); add('white', 1.2, 0.35, 0.35, x, h + 0.9, zz - 0.6); }
+      if (kit === 'rebar') {                                     // the columns' bars, rusty, the start of a brick wall along the front
+        const step = (w - 0.4) / Math.max(1, Math.round(w / 3));
+        for (let x = x0 + 0.2; x <= x1 - 0.19; x += step) for (const zz of [z - 0.3, z - 3.5]) for (const dx of [-0.12, 0.12]) add('rust', 0.035, 0.9 + r() * 0.5, 0.035, x + dx, h, zz);
+        const wall = box(w * (0.3 + r() * 0.5), 0.6 + r() * 0.6, 0.25, { sides: keep('bricks-red', () => mat(0, bricksOf(0xa8503c))), top: mat(0x8f3a30) }); wall.position.set(x0 + w * 0.3, h, z - 0.15); g.add(part(wall));
+      }
+      for (const [k, list] of Object.entries(geos)) if (list.length) { const m = new THREE.Mesh(mergeGeometries(list), k === 'white' ? white : k === 'dark' ? dark : k === 'wood' ? mat(0x6b4636) : mat(0x6e3a2a)); m.castShadow = true; g.add(part(m)); }
     } else if (kit === 'chimneys') {                             // brick stacks, a cap on each
       for (let k = 0, n = 1 + Math.floor(r() * 3); k < n; k++) {
         const stack = box(0.6, 1.1 + r() * 0.6, 0.6, { sides: keep('chimney', () => mat(0, tile('brick', 1))), top: mat(0x353947) });
@@ -837,8 +1334,8 @@ export function building({ x0, x1, z, h, d = 8, wall = 'brick', wallColor, roof 
     }
   } else {                                                       // a pitched roof, its ridge along x
     const rise = 2.2, run = Math.min(d / 2, 3.5), len = Math.hypot(rise, run);
-    const tiles = tile('roof', 1);
-    const slope = box(w + 0.3, 0.2, len, { sides: mat(0x6e2a2e), top: mat(0, tiles) });
+    const tiles = keep('roof-tiles', () => mat(0, tile('roof', 1)));
+    const slope = box(w + 0.3, 0.2, len, { sides: mat(0x6e2a2e), top: tiles });
     slope.geometry.translate(0, 0, -len / 2);
     slope.rotation.x = Math.atan2(rise, run);
     slope.position.set((x0 + x1) / 2, h, z + 0.15);
@@ -1152,6 +1649,9 @@ export function bin(x, z, { kind = 'green' } = {}) {
     for (const sx of [-0.23, 0.23]) add(box(0.05, 0.92, 0.05, { sides: post }), sx, 0, 0);
     add(roundedBox(0.38, 0.46, 0.38, 0.05, { sides: mat(0x6a7182), top: mat(0x23252f) }), 0, 0.3, 0);
     add(box(0.42, 0.05, 0.05, { sides: post }), 0, 0.88, 0);
+  } else if (kind === 'london') {                                // London's: black cast iron, a gold band, its slot
+    const sides = keep('bin-london', () => mat(0, paint(8, 15, (px) => { px(0, 0, 8, 15, 0x23252f); px(0, 0, 8, 1, 0x353947); px(0, 2, 8, 1, 0xb9862e); px(0, 3, 8, 1, 0xe7b84a); px(1, 5, 6, 2, 0x14151c); px(0, 13, 8, 2, 0x14151c); })));
+    add(roundedBox(0.46, 0.92, 0.46, 0.06, { sides, top: mat(0x14151c) }), 0, 0, 0);
   } else if (kind === 'box') {
     const front = keep('bin-box', () => mat(0, paint(7, 14, (px) => { px(0, 0, 7, 14, 0x4c5262); px(0, 0, 7, 1, 0x6a7182); px(1, 2, 5, 2, 0x14151c); px(3, 7, 1, 3, 0xdfe2e8); px(2, 8, 3, 1, 0xdfe2e8); })));
     add(box(0.44, 0.9, 0.44, { sides: mat(0x4c5262), top: mat(0x8f96a6), front }), 0, 0, 0);
@@ -1193,6 +1693,7 @@ const CARS = {
   estate: { body: 0.74, ride: 0.3, cab: 2.9, at: -0.55, cabH: 0.62, round: 0.08, rack: true },
   van: { body: 0.9, ride: 0.32, cab: 3.6, at: -0.2, cabH: 0.85, round: 0.2 },
   suv: { body: 0.82, ride: 0.42, cab: 2.5, at: -0.35, cabH: 0.66, round: 0.08, spare: true },
+  cab: { body: 0.78, ride: 0.32, cab: 2.6, at: -0.25, cabH: 0.82, round: 0.2 },   // London's black cab: tall, rounded, its TAXI sign
 };
 /**
  * A car, 4.2 × 1.8 m, facing +x (rotate the group to turn it): painted sides, windows, lights. `kind`
@@ -1202,15 +1703,20 @@ const CARS = {
  */
 export function car(color = 0x3b6296, { taxi = false, seed = 5, kind = 'sedan' } = {}) {
   if (kind === 'taxi') { taxi = true; kind = 'sedan'; color = 0xe7b84a; }
+  const city = kind === 'cairotaxi' ? 'cairo' : kind === 'servis' ? 'beirut' : null;     // Cairo's white taxi with its chequered band; Beirut's service taxi, an old Mercedes, its red plate
+  if (city === 'cairo') { kind = 'sedan'; color = 0xf6f4ee; taxi = true; }
+  if (city === 'beirut') { kind = 'boxy'; color = pick3(seed, 1, [0xf6f4ee, 0xdfe2e8, 0xc4bba9, 0x8f96a6]); taxi = true; }
+  const cab = kind === 'cab';
+  if (cab) color = 0x23252f;
   const K = CARS[kind] ?? CARS.sedan;
-  const L = 4.2, Wd = 1.8, body = mat(color), dark = 0x23252f, key = `${kind}-${color}-${taxi}`;
+  const L = 4.2, Wd = 1.8, body = mat(color), dark = 0x23252f, key = `${kind}-${color}-${taxi}-${city}`;
   const side = keep(`car-side-${key}`, () => mat(0, paint(Math.round(L * M), Math.round(K.body * 16), (px, W, H) => {
     px(0, 0, W, H, color);
     px(0, 0, W, 1, 0xdfe2e8);                                    // the lit crease
     px(Math.floor(W * 0.32), 1, 1, H - 3, dark); px(Math.floor(W * 0.58), 1, 1, H - 3, dark);   // doors
     if (kind === 'van') px(Math.floor(W * 0.8), 1, 1, H - 3, dark);
     px(Math.floor(W * 0.4), 4, 3, 1, dark); px(Math.floor(W * 0.66), 4, 3, 1, dark);           // handles
-    if (taxi) for (let x = 0; x < W; x += 2) { px(x, 6, 1, 1, x % 4 ? 0xf6f4ee : dark); px(x + 1, 7, 1, 1, x % 4 ? dark : 0xf6f4ee); }   // the chequered band
+    if (taxi && city !== 'beirut') for (let x = 0; x < W; x += 2) { px(x, 6, 1, 1, x % 4 ? 0xf6f4ee : dark); px(x + 1, 7, 1, 1, x % 4 ? dark : 0xf6f4ee); }   // the chequered band
     if (K.chrome) px(0, H - 4, W, 1, 0xb8bdc8);
     px(0, H - 3, W, 3, dark);                                    // the sill
   })));
@@ -1244,14 +1750,22 @@ export function car(color = 0x3b6296, { taxi = false, seed = 5, kind = 'sedan' }
   const wheelFace = keep('car-wheel', () => mat(0, paint(10, 10, (px) => { px(0, 0, 10, 10, 0x14151c); px(3, 3, 4, 4, 0x8f96a6); px(4, 4, 2, 2, 0x4c5262); })));
   const wr = kind === 'suv' ? 0.72 : 0.62;
   for (const [sx, sz] of [[-1.3, 0.75], [1.3, 0.75], [-1.3, -0.75], [1.3, -0.75]]) {
-    const wheel = box(wr, wr, 0.26, { sides: mat(0x14151c), front: wheelFace });
+    const wheel = box(wr, wr, 0.26, { sides: mat(0x14151c), front: wheelFace, back: wheelFace });   // (a car turned to face the other way shows the back of its wheels)
     wheel.position.set(sx, 0, sz);
     g.add(part(wheel));
   }
   if (K.rack) for (const dx of [-0.9, 0.2]) { const bar = box(0.06, 0.06, Wd - 0.3, { sides: mat(0x23252f) }); bar.position.set(K.at + dx, K.ride + K.body + K.cabH - 0.03, 0); g.add(part(bar, cabin.userData.part)); }
   if (K.spare) { const sp = box(0.2, 0.6, 0.6, { sides: mat(0x14151c), top: mat(0x23252f) }); sp.position.set(-2.2, K.ride + 0.1, 0); g.add(part(sp)); }
+  if (cab) {                                                     // the black cab's sign: amber, small, at the windscreen
+    const sign = keep('cab-sign', () => mat(0, paint(14, 6, (px) => { px(0, 0, 14, 6, 0xe7b84a); px(0, 0, 14, 1, 0xf8e08a); text(px, 0, 1, 'TAXI', INK); }, { glows: [0xe7b84a] })));
+    const t = box(0.75, 0.22, 0.24, { sides: mat(0xe7b84a), front: sign, back: sign });
+    t.position.set(K.at + K.cab / 2 - 0.5, K.ride + K.body + K.cabH - 0.06, 0);
+    t.rotation.y = Math.PI / 2;
+    g.add(part(t));
+  }
   if (taxi) {
-    const sign = keep('taxi-sign', () => mat(0, paint(16, 7, (px) => { px(0, 0, 16, 7, 0xf8e08a); text(px, 1, 1, 'TAXI', INK); }, { glows: [0xf8e08a] })));
+    const word = city === 'beirut' ? 'TAXI' : city === 'cairo' ? 'تاكسي' : 'TAXI';
+    const sign = keep(`taxi-sign-${city}`, () => mat(0, paint(city === 'cairo' ? 20 : 16, 7, (px, W) => { px(0, 0, W, 7, city === 'beirut' ? 0xf6f4ee : 0xf8e08a); text(px, Math.floor((W - textWidth(word)) / 2), 1, word, city === 'beirut' ? 0x9e3c36 : INK); }, { glows: [0xf8e08a] })));
     const t = box(1.0, 0.44, 0.3, { sides: mat(0xf8e08a), front: sign, back: sign });
     t.position.set(K.at, K.ride + K.body + K.cabH - 0.06, 0);
     g.add(part(t));
@@ -1269,6 +1783,12 @@ export function hedgeLeaves(kind = 'privet', month = 11) {
   const key = `hedge-${kind}-${kind === 'hawthorn' ? autumn : kind === 'twigs' ? bare : 0}`;
   return keep(key, () => {
     const pal = kind === 'thuja' ? [0x173327, 0x24503a, 0x2f6b62, 0x356f42, 0x4f8f45]
+      : kind === 'yew' ? [0x14151c, 0x173327, 0x173327, 0x24503a, 0x2f6b62]
+      : kind === 'holly' ? [0x14151c, 0x173327, 0x24503a, 0x356f42, 0x76ad4c]
+      : kind === 'laurel' ? [0x173327, 0x24503a, 0x356f42, 0x4f8f45, 0xa6cc5e]
+      : kind === 'ficus' ? [0x14151c, 0x173327, 0x24503a, 0x356f42, 0x4f8f45]
+      : kind === 'bougainvillea' || kind === 'oleander' ? [0x173327, 0x24503a, 0x356f42, 0x4f8f45, 0x76ad4c]
+      : kind === 'myrtle' ? [0x173327, 0x24503a, 0x2f6b62, 0x4f8f45, 0x76ad4c]
       : kind === 'hawthorn' && autumn ? [0x2a1c18, 0x47302a, 0x6b4636, 0x8f6345, 0xb9862e]
       : kind === 'twigs' && bare ? [0x2a1c18, 0x47302a, 0x6b4636, 0x7d756c, 0x8f6345]
       : [0x24503a, 0x24503a, 0x356f42, 0x4f8f45, 0x76ad4c];
@@ -1282,6 +1802,224 @@ export function hedgeLeaves(kind = 'privet', month = 11) {
       for (let i = 0; i < 104; i++) { const x = Math.floor(r() * n), y = Math.floor(r() * n); dot(x, y, 2 + Math.floor(r() * 2), 2, pal[2]); dot(x + 1, y, 1, 1, pal[3]); }
       for (let i = 0; i < 32; i++) { const x = Math.floor(r() * n), y = Math.floor(r() * n); dot(x, y, 2, 1, pal[3]); if (r() < 0.5) dot(x, y, 1, 1, pal[4]); }
       for (let i = 0; i < 32; i++) dot(Math.floor(r() * n), Math.floor(r() * n), 1, 1, pal[0]);
+      if (kind === 'holly') for (let i = 0; i < 14; i++) { const x = Math.floor(r() * n), y = Math.floor(r() * n); dot(x, y, 1, 1, 0x9e3c36); if (r() < 0.5) dot(x + 1, y, 1, 1, 0xc95c45); }   // its berries
+      if (kind === 'laurel') for (let i = 0; i < 20; i++) { const x = Math.floor(r() * n), y = Math.floor(r() * n); dot(x, y, 3, 1, pal[4]); }   // big glossy leaves catching the light
+      if (kind === 'bougainvillea') for (let i = 0; i < 40; i++) { const x = Math.floor(r() * n), y = Math.floor(r() * n); dot(x, y, 2, 2, r() < 0.7 ? 0xc95c8a : 0x9e3c6a); if (r() < 0.4) dot(x + 1, y, 1, 1, 0xe8896a); }   // its bracts, magenta
+      if (kind === 'oleander') for (let i = 0; i < 26; i++) { const x = Math.floor(r() * n), y = Math.floor(r() * n), c = [0xe8896a, 0xf6f4ee, 0xc95c8a][Math.floor(r() * 3)]; dot(x, y, 2, 1, c); dot(x, y + 1, 1, 1, tone(c, -0.08)); }
     }, { repeat: true }));
   });
+}
+
+// ---------- the cities' street furniture ----------
+
+/**
+ * A red telephone box (London's K6), its front to the street at z: cast-iron red, small panes in three
+ * columns, the crowned TELEPHONE panel over the door (lit at night: userData.heads), a domed roof.
+ */
+export function phonebox(x, z) {
+  const g = new THREE.Group(), red = 0x9e3c36;
+  const face = keep('phonebox-face', () => mat(0, paint(14, 38, (px, W, H) => {
+    px(0, 0, W, H, red); px(0, 0, 1, H, tone(red, 0.06)); px(W - 1, 0, 1, H, tone(red, -0.1));
+    px(2, 7, W - 4, H - 10, 0x6e2a2e);
+    for (let j = 0; j < 8; j++) for (let i = 0; i < 3; i++) { px(3 + i * 3, 8 + j * 3, 2, 2, 0x283f6b); if ((i + j) % 4 === 0) px(3 + i * 3, 8 + j * 3, 1, 1, 0x95c1e3); }
+    px(W - 3, 20, 1, 3, 0xb9862e);                                  // the handle
+    px(0, H - 3, W, 3, tone(red, -0.16));
+  })));
+  const body = box(0.88, 2.35, 0.68, { sides: face, top: mat(red) });
+  g.add(part(body));
+  const panel = keep('phonebox-panel', () => mat(0, paint(14, 4, (px) => { px(0, 0, 14, 4, 0xe2dac6); for (let i = 1; i < 13; i += 2) px(i, 1, 1, 2, 0x23252f); })));
+  const sign = box(0.9, 0.22, 0.7, { sides: panel, top: mat(red) });
+  sign.position.y = 2.1; g.add(part(sign, body.userData.part));
+  const roof = roundedBox(0.98, 0.26, 0.78, 0.1, { sides: mat(red), top: mat(tone(red, 0.06)) });
+  roof.position.y = 2.32; g.add(part(roof, body.userData.part));
+  g.position.set(x, 0, z);
+  g.userData.heads = [sign];
+  return g;
+}
+
+/** A Belisha beacon: a pole in black and white bands, an amber globe (lit at night: userData.heads). */
+export function beacon(x, z) {
+  const g = new THREE.Group();
+  const bands = keep('beacon-pole', () => mat(0, paint(2, 32, (px) => { for (let y = 0; y < 32; y += 8) { px(0, y, 2, 4, 0x23252f); px(0, y + 4, 2, 4, 0xf4efe6); } }, { repeat: true })));
+  const pole = box(0.09, 2.3, 0.09, { sides: bands, top: mat(0x23252f) });
+  g.add(part(pole));
+  const globe = roundedBox(0.32, 0.32, 0.32, 0.15, { sides: mat(0xe7b84a), top: mat(0xf8e08a) });
+  globe.position.y = 2.3; g.add(part(globe));
+  g.position.set(x, 0, z);
+  g.userData.heads = [globe];
+  return g;
+}
+
+// A pub's sign's pictures (12 × 9): a crown, a red lion, a white hart, an anchor, a rose, a star, a bell.
+const EMBLEMS = {
+  crown: [0x9e3c36, ['............', '..g..g..g...', '..gg.gg.gg..', '..gggggggg..', '..gyggygyg..', '..gggggggg..', '..kkkkkkkk..', '............']],
+  lion: [0xe7b84a, ['............', '...rr.......', '..rrrr...r..', '..rrrrrrrr..', '...rrrrrrr..', '...r.r..r.r.', '...r.r..r.r.', '............']],
+  hart: [0x24503a, ['..w.w.......', '...w........', '...ww.......', '....wwwwww..', '....wwwwww..', '....w.w..w..', '....w.w..w..', '............']],
+  anchor: [0x1b2541, ['.....gg.....', '....g..g....', '.....gg.....', '..gggggggg..', '.....gg.....', '..g..gg..g..', '...gggggg...', '............']],
+  rose: [0xf4efe6, ['............', '....rrrr....', '...rrRrrr...', '...rRRRrr...', '....rrrr....', '.....gg.....', '....g..g....', '............']],
+  star: [0x283f6b, ['.....g......', '.....g......', '.gggggggg...', '...ggggg....', '...gg.gg....', '..g.....g...', '............', '............']],
+  bell: [0x24503a, ['.....g......', '....ggg.....', '...ggggg....', '...ggggg....', '..ggggggg...', '..ggggggg...', '.....g......', '............']],
+};
+/** A pub's hanging sign: its picture in a gilt frame, on a bracket out from the wall at z; its top at y. */
+export function pubSign(x, y, z, emblem = 'crown', name = '') {
+  const [bg, rows] = EMBLEMS[emblem] ?? EMBLEMS.crown;
+  const face = keep(`pubsign-${emblem}`, () => mat(0, paint(16, 13, (px) => {
+    px(0, 0, 16, 13, 0xb9862e); px(1, 1, 14, 11, bg); px(1, 1, 14, 1, tone(bg, 0.08));
+    const col = { g: 0xe7b84a, y: 0xf8e08a, r: 0x9e3c36, R: 0x6e2a2e, w: 0xf4efe6, k: 0x23252f };
+    rows.forEach((row, j) => [...row].forEach((c, i) => { if (col[c]) px(2 + i, 2 + j, 1, 1, col[c]); }));
+  })));
+  const g = new THREE.Group(), iron = mat(0x23252f);
+  const board = box(1.0, 0.8, 0.05, { front: face, back: face, sides: mat(0xb9862e) });
+  board.position.set(x, y - 0.95, z + 0.75); g.add(board);
+  const arm = box(0.05, 0.05, 1.1, { sides: iron }); arm.position.set(x, y, z + 0.55); g.add(arm);
+  const stay = box(0.04, 0.04, 0.8, { sides: iron }); stay.rotation.x = -0.6; stay.position.set(x, y - 0.55, z + 0.2); g.add(stay);
+  for (const dx of [-0.38, 0.38]) { const c = box(0.03, 0.15, 0.03, { sides: iron }); c.position.set(x + dx, y - 0.15, z + 0.75); g.add(c); }
+  return part(g);
+}
+
+/**
+ * A handcart at the kerb (Cairo's), its long side to the street: a painted wooden bed on two wheels,
+ * what it sells on top (`look`: 'fruit' (oranges), 'bananas', 'bread' (rounds of aish baladi on a
+ * tray), 'potato' (sweet potatoes in their oven, its chimney), 'foul' (the copper pot)).
+ */
+export function cart(x, z, look = 'fruit', seed = 1) {
+  const g = new THREE.Group(), paintC = pick3(seed, 3, [0x3b6296, 0x356f42, 0x9e3c36, 0xe7b84a]);
+  const side = keep(`cart-side-${paintC}`, () => mat(0, paint(27, 7, (px, W, H) => { px(0, 0, W, H, paintC); px(0, 0, W, 1, tone(paintC, 0.1)); for (let x = 2; x < W; x += 5) px(x, 1, 1, H - 2, tone(paintC, -0.12)); px(0, H - 1, W, 1, tone(paintC, -0.2)); px(3, 2, 6, 2, 0xf6f4ee); px(W - 9, 3, 5, 1, 0xe7b84a); })));
+  const bed = box(1.7, 0.42, 0.72, { sides: side, top: mat(0x6b4636) });
+  bed.position.y = 0.42; g.add(part(bed));
+  const wheel = keep('cart-wheel', () => mat(0, paint(10, 10, (px) => { px(0, 0, 10, 10, 0x23252f); px(1, 1, 8, 8, 0x47302a); px(4, 0, 2, 10, 0x23252f); px(0, 4, 10, 2, 0x23252f); px(4, 4, 2, 2, 0x8f96a6); })));
+  for (const dz of [0.4, -0.4]) { const wh = box(0.62, 0.62, 0.08, { sides: mat(0x23252f), front: wheel, back: wheel }); wh.position.set(0, 0, dz); g.add(part(wh)); }
+  for (const dx of [0.95, 1.25]) { const h2 = box(0.5, 0.05, 0.05, { sides: mat(0x6b4636) }); h2.position.set(dx, 0.75, dx > 1 ? 0.25 : -0.25); g.add(h2); }
+  const goods = { fruit: [0xe7b84a, 0xc95c45, 0xe8896a], bananas: [0xe7b84a, 0xf8e08a, 0xb9862e], bread: [0xd6ad7a, 0xb48459, 0x8f6345] }[look];
+  if (goods) {
+    const top = keep(`cart-goods-${look}`, () => mat(0, paint(26, 11, (px, W, H) => {
+      px(0, 0, W, H, 0x47302a);
+      for (let y = 0; y < H; y += 3) for (let x = (y / 3) % 2 ? 1 : 0; x < W; x += 3) { const c = goods[(x * 7 + y * 3) % goods.length]; if (look === 'bananas') { px(x, y, 3, 1, c); px(x, y + 1, 1, 1, tone(c, -0.1)); } else { px(x, y, 2, 2, c); px(x, y, 1, 1, tone(c, 0.08)); } }
+    })));
+    const heap = roundedBox(1.55, 0.22, 0.62, 0.1, { sides: top, top });
+    heap.position.y = 0.84; g.add(part(heap));
+  } else if (look === 'foul') {                                   // the qidra: a big copper pot, its lid, a ladle
+    const pot = roundedBox(0.62, 0.62, 0.62, 0.22, { sides: mat(0xb9862e), top: mat(0x8f6345) }); pot.position.set(-0.3, 0.84, 0); g.add(part(pot));
+    const lid = box(0.3, 0.1, 0.3, { sides: mat(0xe7b84a) }); lid.position.set(-0.3, 1.46, 0); g.add(part(lid));
+    const tray = box(0.6, 0.12, 0.55, { sides: mat(0xdfe2e8), top: mat(0xf6f4ee) }); tray.position.set(0.45, 0.84, 0); g.add(part(tray));
+  } else if (look === 'potato') {                                 // the sweet potato oven: a black drum, its chimney, embers
+    const drum = box(1.0, 0.6, 0.6, { sides: keep('potato-oven', () => mat(0, paint(16, 10, (px) => { px(0, 0, 16, 10, 0x23252f); px(3, 6, 10, 3, 0xc95c45); px(4, 7, 8, 1, 0xe7b84a); px(0, 0, 16, 1, 0x353947); }, { glows: [0xe7b84a] }))), top: mat(0x353947) });
+    drum.position.set(-0.2, 0.84, 0); g.add(part(drum));
+    const flue = box(0.14, 0.9, 0.14, { sides: mat(0x23252f) }); flue.position.set(-0.55, 1.44, 0); g.add(part(flue));
+  }
+  compact(g);
+  g.position.set(x, 0, z);
+  return part(g);
+}
+
+/** A vendor's stall against a wall (Cairo's): a counter of cigarettes and sweets (`look` 'kiosk'), papers on a rack, or jars of sweets, its little canopy. */
+export function stall(x, z, look = 'kiosk') {
+  const g = new THREE.Group();
+  const front = keep(`stall-${look}`, () => mat(0, paint(22, 14, (px, W, H) => {
+    px(0, 0, W, H, 0x6b4636); px(0, 0, W, 1, 0x8f6345);
+    if (look === 'papers') for (let x = 1; x < W - 3; x += 4) { px(x, 2, 3, 5, 0xf6f4ee); px(x, 3, 3, 1, 0x23252f); px(x, 5, 2, 1, 0x9e3c36); px(x, 8, 3, 5, 0xe2dac6); px(x, 9, 3, 1, 0x283f6b); }
+    else for (let y = 1; y < H - 2; y += 3) for (let x = 1; x < W - 1; x += 2) px(x, y, 1, 2, [0x9e3c36, 0xf6f4ee, 0x3b6296, 0xe7b84a, 0x356f42, 0xc95c45][(x * 3 + y) % 6]);
+  })));
+  const counter = box(1.3, 0.9, 0.55, { sides: mat(0x6b4636), front, top: mat(0x8f6345) });
+  g.add(part(counter));
+  const canopy = box(1.45, 0.05, 0.8, { sides: mat(0x9e3c36), top: keep('stall-canopy', () => mat(0, paint(16, 16, (px) => { for (let x = 0; x < 16; x++) px(x, 0, 1, 16, Math.floor(x / 4) % 2 ? 0xf6f4ee : 0x9e3c36); }, { repeat: true }))) });
+  canopy.position.set(0, 2.0, 0.15); canopy.rotation.x = 0.18; g.add(part(canopy));
+  for (const dx of [-0.65, 0.65]) { const pole = box(0.04, 2.0, 0.04, { sides: mat(0x8f96a6) }); pole.position.set(dx, 0, 0.5); g.add(pole); }
+  g.position.set(x, 0, z);
+  return part(g);
+}
+
+/** A souk's stall down the side of a passage: its counter heaped with what it sells (`look`: 'spice', 'cloth', 'lamps', 'brass', 'fruit'), an awning over it. userData.heads: lanterns that light. */
+export function soukStall(x, z, side = 0, look = 'spice') {
+  const g = new THREE.Group(), heads = [];
+  const TOPS = { spice: [0x9e3c36, 0xe7b84a, 0xc95c45, 0x356f42, 0x8f6345, 0xb9862e], cloth: [0x9e3c36, 0x283f6b, 0xe7b84a, 0x356f42, 0x7a4a86, 0xf6f4ee], brass: [0xe7b84a, 0xb9862e, 0xf8e08a, 0x8f6345], fruit: [0xe7b84a, 0xc95c45, 0x76ad4c, 0xe8896a], lamps: [0x6b4636, 0x8f6345] };
+  const cols = TOPS[look] ?? TOPS.spice;
+  const top = keep(`souk-top-${look}`, () => mat(0, paint(14, 26, (px, W, H) => {
+    px(0, 0, W, H, 0x47302a);
+    if (look === 'spice') for (let y = 1; y < H - 4; y += 6) for (let x = 1; x < W - 4; x += 6) { const c = cols[(x + y * 2) % cols.length]; for (let j = 0; j < 5; j++) px(x + Math.abs(2 - j), y + j, 5 - 2 * Math.abs(2 - j), 1, j < 2 ? tone(c, 0.06) : c); }
+    else if (look === 'cloth') for (let y = 0; y < H; y += 3) px(0, y, W, 3, cols[(y / 3) % cols.length]);
+    else for (let y = 1; y < H - 2; y += 3) for (let x = 1; x < W - 2; x += 3) { const c = cols[(x * 5 + y) % cols.length]; px(x, y, 2, 2, c); px(x, y, 1, 1, tone(c, 0.1)); }
+  })));
+  const counter = box(0.9, 0.85, 1.6, { sides: mat(0x6b4636), top, front: mat(0x8f6345) });
+  g.add(part(counter));
+  const awn = box(1.0, 0.05, 1.7, { sides: mat(0x9e3c36), top: keep(`souk-awning-${side}`, () => mat(0, paint(16, 16, (px) => { for (let y = 0; y < 16; y++) px(0, y, 16, 1, Math.floor(y / 4) % 2 ? 0xe2dac6 : side ? 0x24503a : 0x9e3c36); }, { repeat: true }))) });
+  awn.position.set(side ? -0.15 : 0.15, 2.3, 0); awn.rotation.z = side ? -0.2 : 0.2; g.add(part(awn));
+  if (look === 'lamps') for (let k = 0; k < 4; k++) {               // brass lanterns hung from the awning's edge
+    const lamp = roundedBox(0.22, 0.32, 0.22, 0.08, { sides: mat([0xe7b84a, 0x9e3c36, 0x3b6296, 0x356f42][k]), top: mat(0xb9862e) });
+    lamp.position.set(side ? -0.45 : 0.45, 1.75, -0.6 + k * 0.4); g.add(part(lamp)); heads.push(lamp);
+  }
+  g.position.set(x, 0, z);
+  g.userData.heads = heads;
+  return part(g);
+}
+
+/**
+ * A minaret (Cairo's), rising from a mosque's roof at height `base` at (x, z), to `h` metres: a square
+ * shaft with its niches, a balcony on its corbels, an octagon, a second balcony, a slender top
+ * stage, and a Mamluk's bulb on columns or an Ottoman's pencil cone, its crescent on a finial.
+ */
+export function minaret(x, z, base, h, kind = 'mamluk', stone = 0xe2d2b0) {
+  const g = new THREE.Group();
+  const shaft = keep(`minaret-${stone}`, () => mat(0, paint(16, 32, (px) => {
+    px(0, 0, 16, 32, stone);
+    for (let y = 0; y < 32; y += 4) { px(0, y, 16, 1, tone(stone, -0.08)); for (let x = (y / 4) % 2 ? 3 : 7; x < 16; x += 8) px(x, y, 1, 4, tone(stone, -0.06)); }
+    px(5, 6, 6, 14, tone(stone, -0.14)); for (let j = 0; j < 4; j++) px(5 + j, 6 - j, 6 - 2 * j, 1, tone(stone, -0.14));   // a pointed niche
+    px(6, 9, 4, 9, 0x23252f);
+  }, { repeat: true })));
+  const rail = keep('minaret-rail', () => mat(0, paint(8, 6, (px) => { px(0, 0, 8, 1, 0x8f6345); for (let x = 0; x < 8; x += 2) px(x, 1, 1, 5, 0x6b4636); px(0, 5, 8, 1, 0x47302a); }, { repeat: true })));
+  let y = base;
+  const stage = (wd, hh) => { const m = box(wd, hh, wd, { sides: shaft, top: mat(tone(stone, 0.05)) }); m.position.set(x, y, z); g.add(part(m)); y += hh; };
+  const balcony = (wd) => { const s2 = box(wd, 0.25, wd, { sides: mat(tone(stone, -0.08)), top: mat(tone(stone, -0.06)) }); s2.position.set(x, y, z); g.add(part(s2)); const rr = box(wd, 0.6, wd, { sides: rail, top: mat(tone(stone, -0.1)) }); rr.position.set(x, y + 0.25, z); g.add(part(rr)); y += 0.25; };
+  const total = h, s1 = total * 0.36, s2 = total * 0.26, s3 = total * 0.14;
+  stage(2.4, s1); balcony(3.0); stage(1.9, s2); balcony(2.5); stage(1.35, s3);
+  if (kind === 'ottoman') {                                       // a pencil: a long cone in rings, lead-grey
+    for (let k = 0; k < 7; k++) { const wd = 1.3 - k * 0.17, m = box(wd, 0.7, wd, { sides: mat(k % 2 ? 0x6a7182 : 0x8f96a6), top: mat(0x8f96a6) }); m.position.set(x, y, z); g.add(part(m)); y += 0.7; }
+  } else {                                                        // a pavilion of columns and its bulb
+    for (const [dx, dz] of [[-0.45, -0.45], [0.45, -0.45], [-0.45, 0.45], [0.45, 0.45]]) { const c = box(0.16, 1.6, 0.16, { sides: mat(stone) }); c.position.set(x + dx, y, z + dz); g.add(part(c)); }
+    y += 1.6;
+    const bulb = roundedBox(1.15, 1.5, 1.15, 0.5, { sides: mat(tone(stone, -0.03)), top: mat(tone(stone, -0.02)) }); bulb.position.set(x, y, z); g.add(part(bulb)); y += 1.5;
+  }
+  const fin = box(0.08, 1.0, 0.08, { sides: mat(0xb9862e) }); fin.position.set(x, y, z); g.add(fin);
+  const moon = box(0.4, 0.4, 0.05, { sides: mat(0xe7b84a) }); moon.position.set(x, y + 1.0, z); g.add(part(moon));
+  return g;
+}
+
+/** A neighbourhood generator (Beirut's): a green steel cabinet, louvred, its exhaust up the side, a warning plate; its cables are the street's. */
+export function generator(x, z) {
+  const g = new THREE.Group();
+  const side = keep('generator-side', () => mat(0, paint(35, 26, (px, W, H) => {
+    px(0, 0, W, H, 0x356f42); px(0, 0, W, 1, 0x4f8f45); px(W - 1, 0, 1, H, 0x24503a);
+    for (let y = 4; y < 14; y += 2) px(3, y, 12, 1, 0x173327);
+    px(20, 4, 9, 6, 0xe7b84a); px(21, 5, 7, 4, 0x23252f); px(23, 6, 3, 2, 0xe7b84a);
+    for (let k = 0; k < 6; k++) px(Math.floor(k * 6 + 2), H - 4 - (k % 2), 4, 1, 0x6e3a2a);   // rust along its foot
+    px(0, H - 2, W, 2, 0x23252f);
+  })));
+  const body = box(1.2, 1.6, 2.2, { sides: side, top: mat(0x24503a) });
+  g.add(part(body));
+  const pipe = box(0.12, 1.1, 0.12, { sides: mat(0x4c5262) }); pipe.position.set(0.4, 1.6, -0.8); g.add(part(pipe, body.userData.part));
+  g.position.set(x, 0, z);
+  return g;
+}
+
+/**
+ * Cables, slung (Beirut's): each a run of points [x, y, z] sagging between them, as one mesh of thin
+ * dark segments (one draw for the lot), casting no shadow.
+ */
+export function cablesMesh(runs) {
+  const geos = [], up = new THREE.Vector3(0, 0, 1), dir = new THREE.Vector3(), q = new THREE.Quaternion();
+  for (const pts of runs) for (let i = 1; i < pts.length; i++) {
+    const [ax, ay, az] = pts[i - 1], [bx, by, bz] = pts[i];
+    dir.set(bx - ax, by - ay, bz - az);
+    const len = dir.length();
+    if (len < 1e-3) continue;
+    const geo = new THREE.BoxGeometry(0.07, 0.07, len);
+    q.setFromUnitVectors(up, dir.normalize());
+    geo.applyQuaternion(q); geo.translate((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2);
+    geos.push(geo);
+  }
+  if (!geos.length) return null;
+  const m = new THREE.Mesh(mergeGeometries(geos), mat(0x14151c));
+  m.castShadow = false; m.receiveShadow = false;
+  m.userData.noId = true;                                         // (it draws its own dark line: no outline round every segment)
+  return m;
 }

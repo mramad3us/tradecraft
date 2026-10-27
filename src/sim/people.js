@@ -9,9 +9,11 @@
 // contact: one step a week (my call), applied when time passes (drift()).
 //
 // Most people on a map are throwaway: passers-by generated from a seed of their own (passerby()),
-// the same every time for that seed, never saved beyond the seed. Their sheets sit around 0–8.
+// the same every time for that seed and city, never saved beyond the seed. Their sheets sit around
+// 0–8. Their names, languages and dress are their city's (its profile's people: sim/cities/).
 import { stream, int, pick, chance, weighted, next } from './rng.js';
 import { DAY } from './clock.js';
+import { cityById } from './cities/index.js';
 
 export const GAUGES = ['fear', 'trust', 'affinity'];
 export const GAUGE_MAX = 5;
@@ -119,18 +121,18 @@ export function describe(look, sex = 'm') {
   return `the ${who} in the ${top}`;
 }
 
-/** A passer-by, the same every time for a seed: a civilian sheet with a look. */
-export function passerby(seed) {
-  const r = stream('passerby', seed);
+/** A passer-by, the same every time for a seed (in a city: 'moscow' by default): a civilian sheet with a look. */
+export function passerby(seed, city = 'moscow') {
+  const r = stream('passerby', seed), P = cityById(city).people;
   const sex = chance(r, 0.52) ? 'f' : 'm';
   const age = 18 + int(r, 60);
   const skill = () => [int(r, 4) + (chance(r, 0.15) ? 5 : 0), int(r, 2)];
-  const [given, family] = russianName(r, sex);
+  const [given, family] = P.name(r, sex, age);
   const p = sheet({
     id: `x${seed}`, name: `${given} ${family}`, sex, cls: 'civilian',
     skills: { awareness: skill(), pathfinding: [int(r, 3), 0], social: skill(), fitness: skill() },
-    langs: { ru: 'native', ...(chance(r, 0.25) ? { en: pick(r, ['basic', 'working']) } : {}) },
-    look: streetLook(r, sex, age),
+    langs: P.langs(r),
+    look: P.look(r, sex, age),
   });
   p.age = age;
   return p;

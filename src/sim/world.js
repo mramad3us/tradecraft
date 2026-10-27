@@ -12,7 +12,7 @@
 // sim/map/dojo.js), one section with no way out.
 
 /** A section of the map: a street's, or the room. */
-const sectionFor = (map, i) => (map.kind === 'dojo' ? dojo(map.seed) : section(map.seed, i, map.row ?? 0));
+const sectionFor = (map, i) => (map.kind === 'dojo' ? dojo(map.seed) : section(townOf(map), i, map.row ?? 0));
 //
 // Sections come and go around a focus (the player, or a target the scenario follows): those within
 // REACH_M are generated, those beyond DROP_M are dropped, and the bus hears of both so the renderer
@@ -25,6 +25,7 @@ const sectionFor = (map, i) => (map.kind === 'dojo' ? dojo(map.seed) : section(m
 // whoever's near (sim/crowd.js), and the player walks through a shoulder or two.
 import { section, sectionsAround, Z } from './map/street.js';
 import { dojo } from './map/dojo.js';
+import { townOf } from './cities/index.js';
 
 export const BUCKET_M = 4;
 export const RADIUS_M = 0.25;

@@ -1,5 +1,9 @@
-// TRADECRAFT sim: a Moscow street, generated in sections. Pure data: the sim walks it, the renderer
-// (src/render/town.js) draws it.
+// TRADECRAFT sim: a city's street, generated in sections. Pure data: the sim walks it, the renderer
+// (src/render/town.js) draws it. Moscow's, or another city's: what's the city's own (its names, its
+// buildings and their dress, the makes of things, what else stands on its streets, the shapes of its
+// terraces, its people) is its profile (sim/cities/), read from the *town* each function takes (the
+// seed in Moscow, `city:seed` elsewhere: sim/cities/index.js townOf()). What follows is how every
+// city's street is laid; the Moscow of it is sim/cities/moscow.js.
 //
 // The city is rows of streets running east–west (x east, z south, the camera looking north), each its
 // own map: row 0, the street north of it row −1, south row +1. A map is one row, generated SECTION_M
@@ -26,14 +30,16 @@
 //     paths down to a south walk on the far pavement's line (10 … 29.5)
 //   a hedge, and the strip behind it to the map's edge          29.5 … 34 (Z.edge)
 //
-// The terrace is pre-revolutionary plaster in Moscow's ochres, pinks and greens with white trim, red
-// brick, or a Stalinist block with a heavy base; shops on the ground floor, signs in Cyrillic, arches
-// through to the courtyards. A building's facade is a list of paint operations (ops) for the art's
-// facade painter (src/art/pixeltown.js): data here, so the sim knows the doors and shops it paints.
-// Each wears a dress of its style (pediments, rustication, pilasters, an Art Nouveau frieze, a
-// constructivist's ribbon windows; brick dressed in white, yellow, arched or painted over; a
-// Stalinist block ornate or tiled, or in its place a panel block or a white-brick one of the
-// seventies), and so does everything else on the street: see the looks, below.
+// The terrace is the city's (in Moscow: pre-revolutionary plaster in ochres, pinks and greens with
+// white trim, red brick, or a Stalinist block with a heavy base; shops on the ground floor, signs in
+// Cyrillic, arches through to the courtyards). A building's facade is a list of paint operations
+// (ops) for the art's facade painter (src/art/pixeltown.js): data here, so the sim knows the doors and
+// shops it paints. Each wears a dress of its style, and so does everything else on the street: see
+// the looks, below. In a city with a terrace plan (terraceOf()), the terrace takes shapes of its own:
+// courts (dead ends), squares and crescents set back from the street, lanes that dogleg behind the
+// houses (gapsOf(): a lane's mouth on the street, and its top at the north edge; laneRects(),
+// laneLine(), inLane() say where it runs), and lanes of other kinds (mews, stairs, souk passages,
+// harets: GAP_M).
 // Lengths are chosen so patterns repeat in whole periods across a section (SECTION_M = 45 m: 720
 // pixels, a whole number of slabs, kerb stones and lane dashes), so sections join seamlessly.
 //
@@ -45,123 +51,132 @@
 // building's dress) are paint: the sim never reads them.
 import { stream, int, range, pick, chance, weighted, hash } from '../rng.js';
 import { LAMP } from '../light.js';
+import { SECTION_M, Z, LANES, GAP_M, STRETCH, ROW_M } from './layout.js';
+import { cityOf } from '../cities/index.js';
 
-export const SECTION_M = 45;
-export const Z = {
-  north: -40, back: -40, front: -5, kerbN: -0.5, kerbS: 7, fence: 10,
-  pathN: 12.5, pathS: 16.5, fenceS: 19, roadN: 19.8, roadS: 26, south: 29.5, hedge: 30.4, edge: 34,
-};
-// Where passers-by walk, by lane: [zMin, zMax] of their line.
-export const LANES = { far: [-4.0, -1.4], near: [7.6, 9.4], path: [13.1, 15.9], south: [26.6, 28.8] };
-export const GAP_M = { side: 10, alley: 3 };
-export const STRETCH = 4;                                          // sections of one band (a boulevard, a park)
-export const PARK_SHARE = 0.35;
-export const ROW_M = Z.edge - Z.north;                             // one row's depth, north edge to south
+export { SECTION_M, Z, LANES, GAP_M, STRETCH, ROW_M };
+export const PARK_SHARE = 0.35;                                    // (Moscow's; a city's own is its profile's parkShare)
 
-// Names. A row is a street (and its boulevard, its parks), each side street a lane.
-const STREETS = ['Pokrovka', 'Maroseyka', 'Myasnitskaya', 'Sretenka', 'Solyanka', 'Petrovka', 'Pyatnitskaya', 'Ostozhenka',
-  'Prechistenka', 'Bolshaya Ordynka', 'Varvarka', 'Ilyinka', 'Bolshaya Nikitskaya', 'Povarskaya', 'Sivtsev Vrazhek', 'Zabelina'];
-const BOULEVARDS = ['Pokrovsky', 'Chistoprudny', 'Yauzsky', 'Rozhdestvensky', 'Sretensky', 'Petrovsky', 'Strastnoy', 'Tverskoy', 'Nikitsky', 'Gogolevsky'];
-const PARKS = ['the Lyalin garden', 'the Ilyinsky square', 'the Novopushkinsky garden', 'the Morozov garden', 'the Pokrovsky garden',
-  'the Bauman garden', 'the Myasnitsky square', 'the Khitrovka square', 'the Ivanovsky garden', 'the Starosadsky square'];
-const LANE_NAMES = ['Kolpachny', 'Armyansky', 'Krivokolenny', 'Potapovsky', 'Lyalin', 'Khokhlovsky', 'Podkopayevsky', 'Starosadsky',
-  'Petroverigsky', 'Sverchkov', 'Bobrov', 'Milyutinsky', 'Furkasovsky', 'Kostyansky', 'Lukov', 'Pechatnikov', 'Bolshoy Kozlovsky',
-  'Maly Zlatoustinsky', 'Spasoglinishchevsky', 'Barashevsky', 'Durasovsky', 'Lyalin', 'Tokmakov', 'Gusyatnikov'];
-const at = (list, ...k) => list[hash(...k) % list.length];
-export const streetName = (seed, row) => at(STREETS, seed, row, 'street');
-export const boulevardName = (seed, row) => `${at(BOULEVARDS, seed, row, 'boulevard')} Boulevard`;
-export const parkName = (seed, row, i) => at(PARKS, seed, row, Math.floor(i / STRETCH), 'park');
+// Names, the city's (its profile: sim/cities/). A row is a street (and its boulevard, its parks), each
+// side street a lane. `seed` here and below is the town: the map's seed in Moscow, `city:seed`
+// elsewhere (sim/cities/index.js townOf()).
+export const streetName = (seed, row) => cityOf(seed).streetName(seed, row);
+export const boulevardName = (seed, row) => cityOf(seed).boulevardName(seed, row);
+export const parkName = (seed, row, i) => cityOf(seed).parkName(seed, row, i);
 
-/** A row's ways north through its terrace in section i: [{ x0, x1, kind 'side' | 'alley', name }]. */
+/**
+ * A row's ways north through its terrace in section i: [{ x0, x1, kind 'side' | 'alley' | …, name,
+ * jog? }]. x0 … x1 is where the lane reaches the map's north edge (and the next street's south: the
+ * same lane from its other end). A narrow lane may dogleg (a city's terrace.jog, from a stream of its
+ * own): `jog` { x0, x1, z } is then its mouth on the street, from the front back to z, where it turns
+ * along the back of the building beside it and on north at x0 … x1 (laneRects()).
+ */
 export function gapsOf(seed, row, i) {
-  const r = stream('street-gaps', seed, row, i), x0 = i * SECTION_M, gaps = [];
-  if (chance(r, 0.35)) { const gx = x0 + 6 + int(r, 23); gaps.push({ x0: gx, x1: gx + GAP_M.side, kind: 'side' }); }
-  // An alley, a building's width from anything else; and every other section has one at least, so a
-  // way north is never more than two sections off.
-  if (chance(r, 0.35) || (!gaps.length && (i % 2 + 2) % 2 === 0)) {
-    for (let k = 0; k < 6; k++) {
-      const ax = x0 + 8 + int(r, 26);
-      if (gaps.every(g => ax + GAP_M.alley < g.x0 - 8 || ax > g.x1 + 8)) { gaps.push({ x0: ax, x1: ax + GAP_M.alley, kind: 'alley' }); break; }
-    }
-  }
-  for (const g of gaps) g.name = g.kind === 'side' ? `${at(LANE_NAMES, seed, row, i, Math.round(g.x0), 'lane')} Lane` : `an alley off ${streetName(seed, row)}`;
-  return gaps.sort((a, b) => a.x0 - b.x0);
+  const P = cityOf(seed), gaps = P.gaps(seed, row, i).sort((a, b) => a.x0 - b.x0);
+  if (P.terrace?.jog) dogleg(stream('street-jog', seed, row, i), gaps, i * SECTION_M, P.terrace.jog);
+  return gaps;
 }
+const JOGS = new Set(['alley', 'haret', 'mews']);
+function dogleg(r, gaps, x0, p) {
+  const x1 = x0 + SECTION_M;
+  for (const g of gaps) {
+    if (!JOGS.has(g.kind) || !chance(r, p)) continue;
+    const w = g.x1 - g.x0, dir = chance(r, 0.5) ? 1 : -1, shift = w + 1.5 + int(r, 4);
+    const m0 = g.x0 - dir * shift, z = -14 - int(r, 12);
+    // (the building beside it, over the turn, ends 1.5 m past the lane's top; it and every other lane a building's width apart)
+    const span = dir > 0 ? [m0, g.x1 + 1.5] : [g.x0 - 1.5, m0 + w];
+    if (m0 < x0 + 6 || m0 + w > x1 - 6 || span[0] < x0 + 0.5 || span[1] > x1 - 0.5) continue;   // (no sliver of a house between it and the section's end)
+    if (gaps.some(o => o !== g && ((o.jog ?? o).x0 < span[1] + 7 && (o.jog ?? o).x1 > span[0] - 7 || o.x0 < span[1] + 7 && o.x1 > span[0] - 7))) continue;
+    g.jog = { x0: m0, x1: m0 + w, z };
+  }
+}
+
+/** A lane's mouth on the street ({ x0, x1 }): where it leaves the front, a dogleg's or its own. */
+export const mouthOf = (g) => g.jog ?? g;
+/** A lane's floor through the terrace (north of the front): rectangles [{ x0, x1, z0, z1 }], one, or a dogleg's three. */
+export function laneRects(g) {
+  if (!g.jog) return [{ x0: g.x0, x1: g.x1, z0: Z.north, z1: Z.front }];
+  const j = g.jog, w = g.x1 - g.x0;
+  return [{ x0: j.x0, x1: j.x1, z0: j.z, z1: Z.front }, { x0: Math.min(j.x0, g.x0), x1: Math.max(j.x1, g.x1), z0: j.z - w, z1: j.z }, { x0: g.x0, x1: g.x1, z0: Z.north, z1: j.z - w }];
+}
+/** Whether (x, z), north of the front, is in lane g (m: a margin round it). */
+export const inLane = (g, x, z, m = 0) => laneRects(g).some(q => x >= q.x0 - m && x <= q.x1 + m && z >= q.z0 - m && z <= q.z1 + m);
+/** A lane's middle from its mouth at the front to the map's north edge: [{ x, z }], two points, or a dogleg's four. */
+export function laneLine(g) {
+  const tx = (g.x0 + g.x1) / 2;
+  if (!g.jog) return [{ x: tx, z: Z.front }, { x: tx, z: Z.north }];
+  const mx = (g.jog.x0 + g.jog.x1) / 2, lz = g.jog.z - (g.x1 - g.x0) / 2;
+  return [{ x: mx, z: Z.front }, { x: mx, z: lz }, { x: tx, z: lz }, { x: tx, z: Z.north }];
+}
+/** The lane's length from its mouth to the north edge (a dogleg's longer by its turn). */
+export const laneLength = (g) => laneLine(g).reduce((a, p, k, l) => a + (k ? Math.hypot(p.x - l[k - 1].x, p.z - l[k - 1].z) : 0), 0);
 
 /** A row's south band at section i: a boulevard, or a park, a stretch of STRETCH sections at a time. */
 export function bandOf(seed, row, i) {
-  return chance(stream('street-band', seed, row, Math.floor(i / STRETCH)), PARK_SHARE) ? 'park' : 'boulevard';
+  return chance(stream('street-band', seed, row, Math.floor(i / STRETCH)), cityOf(seed).parkShare) ? 'park' : 'boulevard';
 }
 
 /** What a spot is called, for the player: the street, a lane, the boulevard, a park. */
 export function placeName(seed, row, x, z) {
   const i = Math.floor(x / SECTION_M);
-  if (z < Z.front) return gapsOf(seed, row, i).find(g => x >= g.x0 && x <= g.x1)?.name ?? streetName(seed, row);
+  if (z < Z.front) {
+    const T = terraceOf(seed, row, i), inside = (c) => x >= c.x0 && x <= c.x1 && z >= c.z - 0.5;
+    return gapsOf(seed, row, i).find(g => inLane(g, x, z))?.name ?? T?.courts.find(inside)?.name ?? T?.squares.find(inside)?.name ?? streetName(seed, row);
+  }
   if (z <= Z.fence) return streetName(seed, row);
   if (z >= Z.south) return gapsOf(seed, row + 1, i).find(g => x >= g.x0 && x <= g.x1)?.name ?? streetName(seed, row);
   return bandOf(seed, row, i) === 'park' ? parkName(seed, row, i) : boulevardName(seed, row);
 }
 
-// Shops: their sign, in Cyrillic, and what they sell (the game's later business: clothes, a phone…).
-export const SHOPS = {
-  pharmacy: 'АПТЕКА', grocery: 'ПРОДУКТЫ', cafe: 'КАФЕ', flowers: 'ЦВЕТЫ', bakery: 'ХЛЕБ', books: 'КНИГИ',
-  optician: 'ОПТИКА', bank: 'БАНК', tobacco: 'ТАБАК', exchange: 'ОБМЕН ВАЛЮТ', bar: 'БАР', clothes: 'ОДЕЖДА',
-  shoes: 'ОБУВЬ', watches: 'ЧАСЫ', phones: 'СВЯЗЬ', shawarma: 'ШАУРМА', beer: 'ПИВО', deli: 'ГАСТРОНОМ', restaurant: 'РЕСТОРАН',
-};
-const SHOP_WEIGHTS = [['grocery', 3], ['pharmacy', 2.5], ['cafe', 3], ['clothes', 2], ['flowers', 1.5], ['bakery', 1.5],
-  ['books', 1], ['optician', 1], ['bank', 1.2], ['tobacco', 1], ['exchange', 1], ['bar', 1.2], ['shoes', 1], ['watches', 0.6],
-  ['phones', 1.2], ['shawarma', 1], ['beer', 0.8], ['deli', 1], ['restaurant', 1]];
-// Sign boards: [background, letters, border].
-const SIGN_COLOURS = [[0x1b2541, 0xf6f4ee, 0x8f96a6], [0x24503a, 0xf6f4ee, 0x173327], [0x6e2a2e, 0xf8e08a, 0x23252f],
-  [0x23252f, 0xe7b84a, 0x6a7182], [0xf6f4ee, 0x9e3c36, 0x6a7182], [0x283f6b, 0xf8e08a, 0xb9862e], [0x4a2a52, 0xf6f4ee, 0x23252f]];
-
-// Moscow plaster: ochre, cream, salmon, pale green, blue-grey, mauve; Stalinist beige and grey; brick.
-const PLASTER = [0xd8b56c, 0xe2d2a8, 0xd9a48a, 0xa9bf9c, 0xb7c3cc, 0xc9a9b4, 0xe0c38a, 0xc98f6e];
-const STALIN = [0xc8b89a, 0xb8b0a4, 0xd2bfa0, 0xa8a49c];
-const BRICK = [0x9e3c36, 0x8f3a30, 0xa8503c];
-const TRIM = 0xf4efe6;
-const DOOR_COLOURS = [0x356f42, 0x6e2a2e, 0x283f6b, 0x47302a, 0x23252f, 0x4a2a52];
-const CAR_COLOURS = [0x3b6296, 0x9e3c36, 0xdfe2e8, 0x23252f, 0x6a7182, 0x24503a, 0x8f96a6, 0xf6f4ee, 0x47302a];
-
-const GROUND_H = 4.2;                                              // a ground floor (shops), metres
-const FLOOR_H = 3.4;
-
 /** Section i of row `row` (0 by default) of the street map with this seed. */
 export function section(seed, i, row = 0) {
-  const r = stream('street', seed, row, i);
+  const P = cityOf(seed), r = stream('street', seed, row, i);
   const x0 = i * SECTION_M, x1 = x0 + SECTION_M;
   const S = {
     i, row, x0, x1, seed: stream('street-art', seed, row, i)[0], band: bandOf(seed, row, i), west: bandOf(seed, row, i - 1), east: bandOf(seed, row, i + 1),
     buildings: [], doors: [], props: [], lamps: [], blockers: [], crossings: [], crossingsS: [], exits: [], park: null,
     gapsN: gapsOf(seed, row, i), gapsS: gapsOf(seed, row + 1, i),
   };
+  if (P.id !== 'moscow') { S.city = P.id; S.town = seed; }         // (the renderer's to know; Moscow's sections are as they were)
   const block = (ax, az, bx, bz, what) => S.blockers.push({ x0: Math.min(ax, bx), z0: Math.min(az, bz), x1: Math.max(ax, bx), z1: Math.max(az, bz), what });
   const lamp = (x, z, lightZ = z) => { S.props.push({ kind: 'lamp', x, z }); S.lamps.push({ ...LAMP, x, z: lightZ }); block(x - 0.16, z - 0.16, x + 0.16, z + 0.16, 'lamp'); };
   for (const g of S.gapsN) S.exits.push({ dir: 'n', ...g });
   for (const g of S.gapsS) S.exits.push({ dir: 's', ...g });
   const inGap = (gaps, x, m = 0) => gaps.some(g => x > g.x0 - m && x < g.x1 + m);
+  const mouths = S.gapsN.map(mouthOf);                             // (where the lanes leave the front: a dogleg's mouth isn't its top)
 
-  // The terrace: buildings of 9–18 m filling the section between its gaps north.
+  // The terrace: buildings of 9–18 m filling the section between its gaps north. In another city
+  // than Moscow (its profile's terrace), from a stream of its own: a court, a dead end, cut into it
+  // now and then (a 3 m gap at the front, a house at its end); a run of it set back round a square,
+  // or bowed back into a crescent; and a dogleg's building cut short over the turn.
+  const T = terraceOf(seed, row, i);
+  if (T) { S.courts = T.courts; S.squares = T.squares; }
   const runs = [];
-  let a = x0;
-  for (const g of S.gapsN) { runs.push([a, g.x0]); a = g.x1; }
-  runs.push([a, x1]);
-  for (const [a, b] of runs) {
+  if (T) runs.push(...T.runs.map(q => [q.a, q.b, q]));
+  else {
+    let a = x0;
+    for (const m of mouths) { runs.push([a, m.x0]); a = m.x1; }
+    runs.push([a, x1]);
+  }
+  for (const [a, b, q] of runs) {
+    if (T?.jogs.some(j => Math.abs(a - j.span[0]) < 0.01 && Math.abs(b - j.span[1]) < 0.01)) continue;   // (a dogleg's lot: turnBlocks())
     let x = a;
     while (b - x > 0.01) {
       let w = 9 + int(r, 10);
       if (b - x - w < 8) w = b - x;                                  // no sliver at the end of a run
-      S.buildings.push(building(r, x, x + w, Z.front, S));
-      block(x, Z.back, x + w, Z.front, 'building');
+      const z = q ? Z.front - setbackAt(q, x + w / 2) : Z.front;      // (a square's or a crescent's front stands back)
+      S.buildings.push(P.building(r, x, x + w, z, S));
+      block(x, Z.back, x + w, z, 'building');
       x += w;
     }
   }
+  if (T) turnBlocks(S, T, block, P.lot ?? 'garden');
   // The ways north: a side street has its lamps and a bin; an alley is dark, with a bin.
   for (const g of S.gapsN) {
     if (g.kind === 'side') {
       lamp(g.x0 + 0.6, -12); lamp(g.x1 - 0.6, -29);
       S.props.push({ kind: 'bin', x: g.x1 - 0.7, z: -18 }); block(g.x1 - 0.95, -18.25, g.x1 - 0.45, -17.75, 'bin');
-    } else { S.props.push({ kind: 'bin', x: g.x0 + 0.4, z: -23 }); block(g.x0 + 0.15, -23.25, g.x0 + 0.65, -22.75, 'bin'); }
+    } else if (g.kind === 'alley' && !g.jog) { S.props.push({ kind: 'bin', x: g.x0 + 0.4, z: -23 }); block(g.x0 + 0.15, -23.25, g.x0 + 0.65, -22.75, 'bin'); }   // (a city's own kinds of lane are furnished by its profile)
   }
 
   // The zebra over the street: at a side street's mouth if there's one, and the railing's gap in
@@ -183,18 +198,22 @@ export function section(seed, i, row = 0) {
   // A post box, now and then, against a wall between doors.
   if (chance(r, 0.35)) {
     const x = x0 + 4 + int(r, 37);
-    if (!S.doors.some(d => Math.abs(d.x - x) < 2) && !inGap(S.gapsN, x, 1)) {
+    if (P.postbox === 'wall' && !S.doors.some(d => Math.abs(d.x - x) < 2) && !inGap(mouths, x, 1)) {
       S.props.push({ kind: 'postbox', x, z: -4.65 }); block(x - 0.25, -4.9, x + 0.25, -4.4, 'postbox');
+    }
+    // (a pillar box stands at the kerb, in the street furniture's line: clear of the lamps and the zebra)
+    if (P.postbox === 'kerb' && !near(x, zx, 1.5) && !inGap(mouths, x, 1) && !S.props.some(p => p.kind === 'lamp' && p.z < 0 && Math.abs(p.x - x) < 1.2)) {
+      S.props.push({ kind: 'postbox', x, z: -0.85 }); block(x - 0.25, -1.1, x + 0.25, -0.6, 'postbox');
     }
   }
   // Parked cars along the far kerb, nose east, clear of the zebra and the side streets.
   for (let x = x0 + 3 + range(r, 0, 4); x < x1 - 3; x += 5 + range(r, 0, 9)) {
-    if (near(x, zx, 4) || inGap(S.gapsN, x, 3) || !chance(r, 0.55)) continue;
-    S.props.push({ kind: 'car', x, z: 0.55, color: pick(r, CAR_COLOURS), seed: int(r, 1000) });
+    if (near(x, zx, 4) || inGap(mouths, x, 3) || !chance(r, 0.55)) continue;
+    S.props.push({ kind: 'car', x, z: 0.55, color: pick(r, P.carColours), seed: int(r, 1000) });
     block(x - 2.1, -0.35, x + 2.1, 1.45, 'car');
   }
 
-  if (S.band === 'boulevard') boulevard(r, S, zx, sx, block, lamp, near, aside);
+  if (S.band === 'boulevard') boulevard(r, S, zx, sx, block, lamp, near, aside, P);
   else park(r, S, zx, sx, block, lamp, near, aside);
 
   // The hedge along the south, open where the next street's lanes come up to meet it.
@@ -206,14 +225,102 @@ export function section(seed, i, row = 0) {
   for (const g of S.gapsS) {                                       // the gap's sides, out to the edge
     block(g.x0 - 0.3, Z.hedge, g.x0, Z.edge + 1, 'hedge'); block(g.x1, Z.hedge, g.x1 + 0.3, Z.edge + 1, 'hedge');
   }
-  dress(S, seed, row, zx, sx);
+  // What else stands on this city's streets (none in Moscow): from a stream of its own.
+  P.furnish?.(S, { seed, row, r: stream('street-city', seed, row, i), block, lamp, inGap, inMouth: (x, m = 0) => inGap(mouths, x, m) || inGap(S.courts ?? [], x, m) || inGap(S.squares ?? [], x, m), near, zx, sx });
+  dress(S, seed, row, zx, sx, P);
   return S;
+}
+
+/**
+ * A section's terrace plan, in a city that has one (its profile's `terrace`: the chance of each shape),
+ * from the town, the row and the section alone (a stream of its own; kept), so a place can be named
+ * without building the section: { cuts (the front's gaps: the lanes' mouths, the courts', and a
+ * dogleg's building's two ends), runs [{ a, b, shape }], courts, squares, jogs }.
+ *   - a court (`court`): a dead end 3 m wide, 9 to 22 m deep, a house across its end (its door the
+ *     court's: not on the front, so not a passer-by's), cut where it leaves a building's width either
+ *     side ({ x0, x1, z, name }: z the end house's front);
+ *   - a square (`square`): a run of 14 to 36 m, with no court in it, set back 11 to 16 m, its ground
+ *     paved, something in the middle of it (the city's furnish()) ({ x0, x1, z, name });
+ *   - a crescent (`crescent`): a run of 20 m and more bowed back, each house a little further back
+ *     toward the middle, up to 2.5 to 4.5 m;
+ *   - a dogleg (gapsOf()): beside the lane, before its turn, no building but a walled lot, low (a
+ *     garden, a car park, a vacant lot: its city's `lot`), so the turn behind it shows in the picture
+ *     (the camera looks north: a lane running east–west behind a house would be out of sight); behind
+ *     the turn, the terrace goes on in two blocks either side of the lane's top (a `back` building
+ *     each: walls the turn looks at, no shops, no doors on the street).
+ */
+const plans = new Map();
+export function terraceOf(seed, row, i) {
+  const P = cityOf(seed), p = P.terrace;
+  if (!p) return null;
+  const key = `${seed}|${row}|${i}`;
+  if (plans.has(key)) return plans.get(key);
+  const r = stream('street-terrace', seed, row, i), x0 = i * SECTION_M, x1 = x0 + SECTION_M, gaps = gapsOf(seed, row, i);
+  const cuts = gaps.map(g => ({ x0: mouthOf(g).x0, x1: mouthOf(g).x1 })), courts = [], squares = [];
+  const jogs = gaps.filter(g => g.jog).map(g => ({ g, span: g.jog.x0 < g.x0 ? [g.jog.x1, g.x1 + 1.5] : [g.x0 - 1.5, g.jog.x0] }));
+  const free = (a, b) => [...cuts, ...jogs.map(j => ({ x0: j.span[0], x1: j.span[1] }))].every(c => b < c.x0 - 9 || a > c.x1 + 9) && a > x0 + 9 && b < x1 - 9;
+  if (p.court && chance(r, p.court)) for (let k = 0; k < 5; k++) {
+    const cx = x0 + 9 + range(r, 0, SECTION_M - 21);
+    if (!free(cx, cx + 3)) continue;
+    const c = { x0: cx, x1: cx + 3, z: Z.front - 9 - int(r, 13), name: P.courtName?.(seed, row, i) ?? `a court off ${P.streetName(seed, row)}` };
+    cuts.push(c); courts.push(c);
+    break;
+  }
+  for (const j of jogs) cuts.push({ x0: j.span[0], x1: j.span[0] }, { x0: j.span[1], x1: j.span[1] });   // (zero-width cuts: the building over the turn is laid alone)
+  cuts.sort((a, b) => a.x0 - b.x0 || a.x1 - b.x1);
+  const runs = [];
+  let a = x0;
+  for (const c of cuts) { if (c.x0 > a + 0.01) runs.push({ a, b: c.x0 }); a = Math.max(a, c.x1); }
+  runs.push({ a, b: x1 });
+  for (const q of runs) {
+    const len = q.b - q.a;
+    q.shape = null;
+    if (len < 14 || jogs.some(j => j.span[0] < q.b && j.span[1] > q.a)) continue;
+    if (p.square && len <= 36 && chance(r, p.square)) {
+      q.shape = { kind: 'square', d: 11 + int(r, 6) };
+      squares.push({ x0: q.a, x1: q.b, z: Z.front - q.shape.d, name: P.squareName?.(seed, row, i) ?? `a square off ${P.streetName(seed, row)}` });
+    } else if (p.crescent && len >= 20 && chance(r, p.crescent)) q.shape = { kind: 'crescent', d: 2.5 + range(r, 0, 2) };
+  }
+  const plan = { cuts, runs, courts, squares, jogs };
+  plans.set(key, plan);
+  if (plans.size > 2000) plans.delete(plans.keys().next().value);
+  return plan;
+}
+/** How far back the front stands at x on a run of a terrace plan (0: on the building line). */
+export function setbackAt(q, x) {
+  if (!q.shape) return 0;
+  if (q.shape.kind === 'square') return q.shape.d;
+  return Math.round(q.shape.d * Math.sin(Math.PI * Math.max(0, Math.min(1, (x - q.a) / (q.b - q.a)))) * 2) / 2;
+}
+/** By a dogleg's turn: the lot before it (walled, low, out of bounds), and behind, two blocks either side of the lane's top. */
+function turnBlocks(S, T, block, lotKind) {
+  for (const j of T.jogs) {
+    const g = j.g, w = g.x1 - g.x0, east = g.jog.x0 < g.x0, [x0, x1] = j.span;
+    const lot = { x0, x1, z: g.jog.z, kind: lotKind, seed: Math.round(x0 * 7) };
+    S.lots = [...(S.lots ?? []), lot];
+    block(x0, g.jog.z, x1, Z.front, 'lot');
+    const like = S.buildings.filter(b => !b.back).sort((p, q) => Math.min(Math.abs(p.x1 - x0), Math.abs(p.x0 - x1)) - Math.min(Math.abs(q.x1 - x0), Math.abs(q.x0 - x1)))[0];
+    const backs = east ? [[g.jog.x0, g.x0, g.jog.z - w], [g.x1, x1, g.jog.z]] : [[x0, g.x0, g.jog.z], [g.x1, g.jog.x1, g.jog.z - w]];
+    for (const [a, b, z] of backs) if (b - a > 0.05 && like) { block(a, Z.back, b, z, 'building'); S.buildings.push(backWall(a, b, z, like)); }
+  }
+  for (const c of T.courts) {                                      // the house at a court's end
+    S.buildings.push(backWall(c.x0, c.x1, c.z, S.buildings.find(b => Math.abs(b.x1 - c.x0) < 0.01) ?? S.buildings[0], true));
+    block(c.x0, Z.back, c.x1, c.z, 'building');
+    S.doors.push({ x: (c.x0 + c.x1) / 2, z: c.z, w: 1.2, kind: 'entrance', court: true });
+  }
+}
+/** A wall at the back of a dogleg's turn, or a house across a court's end: plain, a few windows, its neighbour's colours and height. */
+function backWall(x0, x1, z, like, door = false) {
+  const w = x1 - x0, ops = [['rect', 0, 0, w, 0.45, 0x5c5650]];
+  if (door) ops.push(['door', w / 2 - 0.6, 1.2, 2.4, { color: 0x47302a, frame: 0xe2dac6 }]);
+  for (let y = 4.6; y < like.h - 2; y += 3.4) for (let x = 0.4; x < w - 1.2; x += 2.6) ops.push(['window', x + (w < 3.5 ? (w - 1.2) / 2 - 0.4 : 0), y, 1.0, 1.5, { frame: 0xdfe2e8, lintel: null, head: 'none' }]);
+  return { x0, x1, z, h: like.h, d: z - Z.back, wall: like.wall, wallColor: like.wallColor, roof: 'flat', ops, style: 'back', seed: Math.round(x0 * 100), back: true };
 }
 
 // The boulevard: a railing, lawns with trees, the gravel path with benches and lamps, a railing; the
 // far road with its zebra (sx), lamps and parked cars along the far pavement; the road shut off with a
 // railing where a park begins.
-function boulevard(r, S, zx, sx, block, lamp, near, aside) {
+function boulevard(r, S, zx, sx, block, lamp, near, aside, P) {
   const { x0, x1 } = S;
   for (const x of [x0 + 3, x0 + 18, x0 + 33].map(x => aside(x, zx))) lamp(x, 12.55, 13.05);   // (in the lawn's edge, clear of the path and the gate's line)
   for (const [z, off, c] of [[11.3, 0, zx], [17.8, 4, sx]]) {
@@ -231,7 +338,7 @@ function boulevard(r, S, zx, sx, block, lamp, near, aside) {
   for (let x = x0 + 3 + range(r, 0, 4); x < x1 - 3; x += 5 + range(r, 0, 10)) {
     if (near(x, sx, 4) || S.gapsS.some(g => x > g.x0 - 3 && x < g.x1 + 3) || !chance(r, 0.45)) continue;
     if ((S.west === 'park' && x < x0 + 3) || (S.east === 'park' && x > x1 - 3)) continue;
-    S.props.push({ kind: 'car', x, z: 25.0, color: pick(r, CAR_COLOURS), seed: int(r, 1000), flip: true });
+    S.props.push({ kind: 'car', x, z: 25.0, color: pick(r, P.carColours), seed: int(r, 1000), flip: true });
     block(x - 2.1, 24.1, x + 2.1, 25.9, 'car');
   }
   if (S.west === 'park') { S.props.push({ kind: 'railing', x0, x1: x0, z0: Z.fenceS, z1: Z.roadS }); block(x0, Z.fenceS, x0 + 0.1, Z.roadS, 'railing'); }
@@ -300,76 +407,6 @@ function park(r, S, zx, sx, block, lamp, near, aside) {
   }
 }
 
-// A building and its facade: { x0, x1, z, h, d, wall, wallColor, roof, ops, seed }.
-function building(r, x0, x1, z, S, { far = false } = {}) {
-  const w = x1 - x0;
-  const style = far ? pick(r, ['merchant', 'brick']) : weighted(r, [['merchant', 6], ['brick', 2], ['stalin', w >= 14 ? 2.5 : 0]]);
-  const floors = style === 'stalin' ? 7 + int(r, 3) : 3 + int(r, 3);
-  const h = GROUND_H + FLOOR_H * (floors - 1) + (style === 'stalin' ? 1.2 : 0.8);
-  const wall = style === 'brick' ? 'brick' : 'plaster';
-  const wallColor = style === 'brick' ? pick(r, BRICK) : style === 'stalin' ? pick(r, STALIN) : pick(r, PLASTER);
-  const ops = [];
-  const B = { x0, x1, z, h, d: far ? 16 : 35, wall, wallColor, roof: 'flat', ops, style, seed: int(r, 1e6) };
-
-  // The ground floor: shops, doors, now and then an arch through to the courtyard.
-  if (style === 'stalin') {
-    ops.push(['rect', 0, 0, w, GROUND_H + FLOOR_H, toneOf(wallColor, -1)]);   // a heavy base, two storeys of stone
-    for (let y = 0.6; y < GROUND_H + FLOOR_H; y += 0.6) ops.push(['rect', 0, y, w, 0.06, toneOf(wallColor, -2)]);
-  } else ops.push(['rect', 0, 0, w, 0.45, style === 'brick' ? 0x5c5650 : toneOf(wallColor, -2)]);
-  let x = 0.6 + range(r, 0, 0.6);
-  let arch = !far && w >= 11 && chance(r, 0.45);
-  while (x < w - 1.4) {
-    const room = w - 0.6 - x;
-    if (arch && room > 4 && chance(r, 0.4)) {
-      ops.push(['arch', x, 3.0, 3.3]);
-      S.doors.push({ x: x0 + x + 1.5, z, w: 3, kind: 'arch' });
-      x += 3.0 + 0.8; arch = false; continue;
-    }
-    if (!far && room > 3.6 && chance(r, 0.6)) {                    // a shop: window, door, a sign above
-      const sw = Math.min(room, 3.4 + int(r, 3) * 0.8);
-      const kind = weighted(r, SHOP_WEIGHTS);
-      const [bg, fg, border] = pick(r, SIGN_COLOURS);
-      ops.push(['shopfront', x, sw - 1.3, 2.7, { goods: [pick(r, [0xf6f4ee, 0xdfe2e8]), pick(r, [0x9e3c36, 0x3b6296, 0x356f42, 0xe7b84a]), pick(r, [0x8f6345, 0xc95c45, 0x5d8fc2])] }]);
-      ops.push(['door', x + sw - 1.2, 1.1, 2.4, { color: 0x23252f, frame: 0x23252f }]);
-      ops.push(['sign', x, 3.05, sw - 0.1, 0.75, SHOPS[kind], { bg, fg, border }]);
-      S.doors.push({ x: x0 + x + sw - 0.65, z, w: 1.1, kind: 'shop', shop: kind, pane: { x0: x0 + x, x1: x0 + x + sw - 1.3, z } });
-      x += sw + 0.5 + range(r, 0, 0.6);
-      continue;
-    }
-    if (room > 1.6 && chance(r, 0.5)) {                            // an entrance: a door with a canopy of plaster over it
-      ops.push(['door', x, 1.3, 2.5, { color: pick(r, DOOR_COLOURS), frame: TRIM }]);
-      S.doors.push({ x: x0 + x + 0.65, z, w: 1.3, kind: 'entrance' });
-      x += 1.3 + 0.9 + range(r, 0, 0.6);
-      continue;
-    }
-    if (room > 1.4) ops.push(['window', x, 1.0, 1.2, 1.7, { frame: TRIM, lintel: TRIM }]);
-    x += 1.2 + 0.9 + range(r, 0, 0.5);
-  }
-  // Upper floors: bays of windows over a string course.
-  ops.push(['band', GROUND_H, style === 'brick' ? 0xc4bba9 : TRIM]);
-  const bays = Math.max(2, Math.round(w / (style === 'stalin' ? 2.2 : 2.7)));
-  const bay = w / bays, ww = style === 'stalin' ? 1.0 : 1.15, wh = style === 'stalin' ? 2.0 : 1.75;
-  const shutters = style === 'merchant' && chance(r, 0.12) ? pick(r, [0x356f42, 0x283f6b]) : null;
-  for (let f = 1; f < floors; f++) {
-    const y = GROUND_H + FLOOR_H * (f - 1) + (FLOOR_H - wh) / 2 + 0.15;
-    for (let k = 0; k < bays; k++) {
-      const flowers = chance(r, 0.06) ? [0xc95c45, 0xe8896a, 0xf8e08a] : null;
-      ops.push(['window', bay * k + (bay - ww) / 2, y, ww, wh, { frame: TRIM, lintel: style === 'brick' ? 0xe2dac6 : TRIM, shutters, flowers, curtain: chance(r, 0.15) ? pick(r, [0xc95c45, 0xe2dac6, 0x7a4a86]) : null }]);
-    }
-    if (style !== 'brick' && f === 1) ops.push(['band', y - 0.35, TRIM]);
-  }
-  ops.push(['cornice', h - 0.75, style === 'stalin' ? 0.55 : 0.4, style === 'brick' ? 0xc4bba9 : TRIM]);
-  if (style === 'merchant' && chance(r, 0.15)) ops.push(['ivy', 0.3 + range(r, 0, w - 3), 1.6 + range(r, 0, 1.5), 3 + range(r, 0, 3)]);
-  return B;
-}
-
-// A colour a step or two darker, for bases and joints (the art's tone() does it properly; the sim only
-// needs a stable value to hand over).
-function toneOf(hex, steps) {
-  const k = 1 + steps * 0.09;
-  const ch = (s) => Math.max(0, Math.min(255, Math.round(((hex >> s) & 255) * k)));
-  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
-}
 
 // ---------- the looks: what each thing is drawn as ----------
 //
@@ -389,48 +426,13 @@ function toneOf(hex, steps) {
 //     lane's own row and place, so the two rows a lane joins agree); per run of hedge between two
 //     gaps, its plants; per building, its dress; per tree in a park, its species; per car, its make;
 //     per park feature, its version.
-export const LOOKS = {
-  pave: [['slabs', 4], ['squares', 2.2], ['granite', 1.6], ['pavers', 2.2], ['asphalt', 1.6]],
-  kerb: [['granite', 3], ['concrete', 2.5], ['worn', 2], ['painted', 1]],
-  road: [['worn', 3], ['fresh', 1.5], ['patched', 2], ['grey', 2]],
-  lanes: [['dashed', 4], ['solid', 1.5], ['double', 1.5], ['long', 1.5], ['combo', 1.2]],
-  zebra: [['white', 3], ['yellow', 3], ['faded', 2], ['fresh', 1.5], ['raised', 1.2]],
-  lamp: [['lantern', 3], ['crook', 2.5], ['twin', 1.5], ['modern', 2]],
-  pathLamp: [['lantern', 2], ['globe', 2.5], ['twin', 1.5], ['torch', 2]],
-  sideLamp: [['crook', 2], ['lantern', 2], ['modern', 1.5], ['globe', 1]],
-  railing: [['spears', 3], ['hoops', 2], ['cast', 2], ['pipe', 1.5], ['mesh', 1.2]],
-  bench: [['slats', 3], ['moscow', 2.5], ['backless', 1.5], ['sofa', 1.5], ['granite', 1]],
-  bin: [['green', 2.5], ['urn', 2.5], ['basket', 2], ['tulip', 2], ['box', 1.5]],
-  hedge: [['privet', 3], ['thuja', 2], ['hawthorn', 2], ['twigs', 1.5]],
-  // Trees: a boulevard's rows are planted alike (limes most of all); a park is mixed.
-  rowTree: [['lime', 5], ['maple', 2], ['poplar', 2], ['birch', 1.2], ['oak', 1]],
-  parkTree: [['lime', 3], ['maple', 2.5], ['birch', 2.5], ['oak', 1.5], ['poplar', 1.5], ['spruce', 1.8]],
-  lane: [['asphalt', 3], ['setts', 2], ['patched', 2], ['slabs', 1.5]],
-  alley: [['setts', 3], ['asphalt', 2], ['concrete', 2], ['dirt', 1.5]],
-  car: [['sedan', 3], ['boxy', 2.5], ['hatch', 2], ['estate', 1.5], ['van', 1], ['suv', 1.2]],
-  postbox: [['blue', 3], ['soviet', 2], ['red', 1], ['pillar', 1.5]],
-  pond: [['stone', 2], ['granite', 1.5], ['reeds', 1.5], ['fenced', 1.2]],
-  fountain: [['basin', 2], ['vase', 1.5], ['boxed', 1.5], ['tiers', 1.5]],
-  monument: [['statue', 2], ['poet', 1.5], ['seated', 1.5], ['bust', 1.5], ['soldier', 1]],
-  kiosk: [['plaster', 2], ['news', 2], ['glass', 1.5], ['cabin', 1.5]],
-  beds: [['box', 1.5], ['kale', 2], ['boughs', 1.5], ['stalks', 1]],
-  // A building's dress, by its style: plaster's orders, brick's bonds and dressings, the Soviet blocks.
-  merchant: [['classic', 3], ['pediment', 2], ['rustic', 2], ['pilaster', 1.5], ['moderne', 1.2], ['constructivist', 0.8]],
-  brick: [['red', 2.5], ['dressed', 2], ['yellow', 1.5], ['arched', 1.5], ['painted', 1]],
-  stalin: [['classic', 2], ['ornate', 2], ['tiled', 1.2], ['panel', 1.5], ['silicate', 1]],
-};
-const CONSTRUCTIVIST = [0xdfe2e8, 0xc4bba9, 0xe2dac6, 0xb8bdc8];
-const YELLOW_BRICK = [0xd6ad7a, 0xe0c38a, 0xc9a46a];
-const PAINTED_BRICK = [0xa9bf9c, 0xd8b56c, 0xb7c3cc, 0xd9a48a];
-const PANEL = [0xb8bdc8, 0xc4bba9, 0xdfe2e8, 0xa8a49c];
-const ROOFS = [[0x6a7182, 3], [0x356f42, 2], [0x6e2a2e, 1.5], [0x8f96a6, 1.5]];
 
 /** The scheme a street is laid and furnished with, stretch k of a row (see the looks, above). Made once (a few kept). */
 const schemes = new Map();
 export function scheme(seed, row, k) {
   const key = `${seed}|${row}|${k}`;
   if (schemes.has(key)) return schemes.get(key);
-  const L = stream('street-scheme', seed, row, k), w = (key) => weighted(L, LOOKS[key]);
+  const LOOKS = cityOf(seed).LOOKS, L = stream('street-scheme', seed, row, k), w = (key) => weighted(L, LOOKS[key]);
   const paveN = w('pave');
   const s = { paveN, paveS: chance(L, 0.55) ? paveN : w('pave'), kerb: w('kerb'), road: w('road'), lanes: w('lanes'), zebra: w('zebra'),
     lamp: w('lamp'), pathLamp: w('pathLamp'), farLamp: chance(L, 0.5) ? null : w('lamp'), railN: w('railing'), railS: w('railing'),
@@ -449,8 +451,9 @@ export function lookAt(S, x, z, band = false) {
 
 /** A lane's look ({ ground, walks, lamp }), from its own row (the terrace it runs through) and place. */
 export function laneLook(seed, row, g) {
-  const L = stream('street-lane', seed, row, Math.round(g.x0));
+  const LOOKS = cityOf(seed).LOOKS, L = stream('street-lane', seed, row, Math.round(g.x0));
   if (g.kind === 'alley') return { ground: weighted(L, LOOKS.alley), lamp: null };
+  if (g.kind !== 'side') return { ground: weighted(L, LOOKS[g.kind] ?? LOOKS.alley), lamp: weighted(L, LOOKS.sideLamp) };   // (a city's own kind of lane: a mews, stairs, a souk)
   return { ground: weighted(L, LOOKS.lane), walks: weighted(L, LOOKS.pave), lamp: weighted(L, LOOKS.sideLamp) };
 }
 
@@ -460,17 +463,17 @@ function hedgeLook(seed, row, x) {
   for (let i = Math.floor(x / SECTION_M); i > Math.floor(x / SECTION_M) - 4 && from === -Infinity; i--) {
     for (const g of gapsOf(seed, row + 1, i)) if (g.x1 <= x + 0.01) from = Math.max(from, g.x1);
   }
-  return weighted(stream('street-hedge', seed, row, Math.round(from === -Infinity ? 0 : from)), LOOKS.hedge);
+  return weighted(stream('street-hedge', seed, row, Math.round(from === -Infinity ? 0 : from)), cityOf(seed).LOOKS.hedge);
 }
 
 // Dress a section: its looks (above), on new keys and paint ops only.
-function dress(S, seed, row, zx, sx) {
-  const L = stream('street-look', seed, row, S.i), k = Math.floor(S.i / STRETCH), w = (key) => weighted(L, LOOKS[key]);
+function dress(S, seed, row, zx, sx, P) {
+  const LOOKS = P.LOOKS, L = stream('street-look', seed, row, S.i), k = Math.floor(S.i / STRETCH), w = (key) => weighted(L, LOOKS[key]);
   const b = scheme(seed, row, k), a = S.i % STRETCH === 0 ? scheme(seed, row, k - 1) : b;
   S.look = { a, b, breakN: zx + 1.5, breakS: sx + 1.5, rowSeed: hash(seed, row, 'paint') % 100000,
     zebra: chance(L, 0.7) ? b.zebra : w('zebra'), zebraS: chance(L, 0.7) ? b.zebra : w('zebra'),
     lanesN: S.gapsN.map(g => laneLook(seed, row, g)), lanesS: S.gapsS.map(g => laneLook(seed, row + 1, g)) };
-  const lane = (x, z) => { const k2 = S.gapsN.findIndex(g => x >= g.x0 - 0.01 && x <= g.x1 + 0.01); return z < Z.front && k2 >= 0 ? S.look.lanesN[k2] : null; };
+  const lane = (x, z) => { const k2 = S.gapsN.findIndex(g => inLane(g, x, z, 0.01)); return z < Z.front && k2 >= 0 ? S.look.lanesN[k2] : null; };
   for (const p of S.props) {
     const at = lookAt(S, p.x ?? p.x0, p.z ?? p.z0, (p.z ?? p.z0) > Z.fence);
     switch (p.kind) {
@@ -481,128 +484,23 @@ function dress(S, seed, row, zx, sx) {
         p.look = ln ? ln.lamp : p.z < Z.kerbS ? at.lamp : p.z > Z.roadS - 0.5 && p.z < Z.south - 1 && S.band === 'boulevard' ? at.farLamp ?? at.lamp : at.pathLamp;
         break;
       }
-      case 'tree': p.species = S.band === 'park' && !(p.z < 12) ? weighted(stream('street-tree', seed, row, Math.round(p.x * 16), Math.round(p.z * 16)), LOOKS.parkTree)
+      case 'tree': if (p.z < Z.front) break;                      // (a square's trees come with their species)
+        p.species = S.band === 'park' && !(p.z < 12) ? weighted(stream('street-tree', seed, row, Math.round(p.x * 16), Math.round(p.z * 16)), LOOKS.parkTree)
         : p.z < 12 ? at.treesN : at.treesS ?? at.treesN; break;
       case 'bench': p.look = at.bench; break;
       case 'bin': p.look = p.z < Z.front ? (lane(p.x, p.z)?.ground === 'setts' ? 'urn' : 'tulip') : at.bin; break;
       case 'railing': p.look = p.z === Z.fence ? at.railN : at.railS; break;
       case 'hedge': p.look = hedgeLook(seed, row, p.x0); break;
       case 'postbox': p.look = w('postbox'); break;
-      case 'car': p.look = chance(L, 0.08) ? 'taxi' : w('car'); break;
+      case 'car': p.look = chance(L, 0.08) ? P.taxi : w('car'); break;
     }
   }
   const f = S.park?.feature;
   if (f) f.look = w(f.kind);
-  for (const B of S.buildings) dressBuilding(B, L);
+  if (S.square && LOOKS[S.square.kind]) S.square.look = w(S.square.kind);
+  for (const B of S.buildings) P.dress(B, L, S);
 }
 
-// A building's dress: its version of its style, its roof, pipes, a balcony, posters, scaffolding, the
-// make of its doors, arches and shopfronts. Ops are rewritten (windows get heads and surrounds) and
-// added (quoins, pilasters, rustication, friezes, panels, loggias, pipes), never moved: the doors,
-// shops and arches stay where the sim knows them.
-function dressBuilding(B, L) {
-  const w = B.x1 - B.x0, dress = weighted(L, LOOKS[B.style]);
-  const v = { dress, pipes: [], ac: 0, posters: 0, hanging: [] };
-  B.look = v;
-  B.roofColor = weighted(L, ROOFS);
-  v.roofKit = weighted(L, [['ac', 3], ['chimneys', 2], ['hut', 1.5], ['antenna', 1.5], ['none', 1]]);
-  if (dress === 'constructivist') { B.wallColor = pick(L, CONSTRUCTIVIST); B.ops[0][5] = toneOf(B.wallColor, -2); }
-  if (dress === 'yellow') B.wallColor = pick(L, YELLOW_BRICK);
-  if (dress === 'painted') B.wallColor = pick(L, PAINTED_BRICK);
-  if (dress === 'panel') { B.wall = 'concrete'; B.wallColor = pick(L, PANEL); B.roofColor = 0x8f96a6; }
-  if (dress === 'silicate') { B.wall = 'brick'; B.wallColor = 0xcfcac2; B.roofColor = 0x8f96a6; }
-  const soviet = dress === 'panel' || dress === 'silicate';
-  const trim = B.style === 'brick' ? (dress === 'dressed' || dress === 'yellow' ? TRIM : 0xc4bba9) : TRIM;
-  const ground = [], upper = [], rest = [];
-  for (const op of B.ops) (op[0] === 'window' && op[2] >= GROUND_H ? upper : (op[2] ?? 0) < GROUND_H && ['window', 'door', 'shopfront', 'arch', 'sign'].includes(op[0]) ? ground : rest).push(op);
-  const floorOf = (y) => Math.round((y - GROUND_H) / FLOOR_H) + 1;
-  const floors = Math.max(1, ...upper.map(op => floorOf(op[2])));
-  const head = { classic: null, pediment: 'pediment', rustic: 'keystone', pilaster: null, moderne: 'round', constructivist: 'none',
-    red: null, dressed: 'keystone', yellow: 'keystone', arched: 'segment', painted: null,
-    ornate: 'pediment', tiled: null, panel: 'none', silicate: 'none' }[dress];
-  const doorStyle = soviet ? 'metal' : weighted(L, [['panel', 3], ['glazed', 2], ['arched', 1.5], ['metal', 1]]);
-  const canopy = !soviet && chance(L, 0.4);
-  const frame = soviet ? 0x6a7182 : weighted(L, [[0x23252f, 3], [0x47302a, 2], [0xdfe2e8, 1.2], [0x24503a, 1.2], [0x6e2a2e, 1]]);
-  const ac = chance(L, soviet ? 0.5 : 0.3) ? range(L, 0.06, 0.16) : 0;
-  // The ground floor: doors by the building's make, arches each their own, shopfronts in its frame
-  // colour, a sign each its own; windows barred now and then.
-  const bars = chance(L, 0.3);
-  for (const op of ground) {
-    const o = op[op.length - 1];
-    if (op[0] === 'door' && o.frame !== 0x23252f) op[op.length - 1] = { ...o, style: doorStyle, canopy };
-    else if (op[0] === 'door') op[op.length - 1] = { ...o, color: frame, frame, style: 'shop' };
-    else if (op[0] === 'shopfront') op[op.length - 1] = { ...o, frame };
-    else if (op[0] === 'sign') {
-      op[op.length - 1] = { ...o, style: weighted(L, [['board', 3], ['letters', 1.5], ['lightbox', 1.5], ['hanging', op[5].length <= 4 ? 2 : 0]]) };
-      if (op[op.length - 1].style === 'hanging') { op[op.length - 1].style = 'board'; v.hanging.push({ x: op[1] + op[3] - 0.55, text: op[5], bg: o.bg, fg: o.fg }); }   // (over its door, beside the board)
-    }
-    else if (op[0] === 'arch') op.push({ kind: weighted(L, [['open', 2], ['gate', 2], ['rect', soviet ? 3 : 1], ['doors', 1.5]]) });
-    else if (op[0] === 'window') op[op.length - 1] = { ...o, bars, head: soviet ? 'none' : head === 'keystone' || head === 'segment' ? head : null };
-  }
-  // Awnings over some shops (cafés, bakeries, flowers most of all), clear of the sign above.
-  v.awnings = [];
-  for (const op of ground) if (op[0] === 'shopfront') {
-    const i = ground.indexOf(op), sign = ground.slice(i).find(o => o[0] === 'sign');
-    const want = /КАФЕ|ХЛЕБ|ЦВЕТЫ|РЕСТОРАН|БАР|ПИВО/.test(sign?.[5] ?? '') ? 0.55 : 0.15;
-    if (chance(L, want) && !v.hanging.some(h => Math.abs(h.x - (op[1] + op[2] + 0.75)) < 1.2)) v.awnings.push({ x0: op[1] - 0.1, x1: op[1] + op[2] + 1.3, color: pick(L, [0x9e3c36, 0x24503a, 0x283f6b, 0x6e2a2e]) });
-  }
-  // Upper floors: heads and surrounds by the dress; balconies; air conditioners.
-  for (const op of upper) {
-    const f = floorOf(op[2]), o = op[op.length - 1];
-    let h = head;
-    if (dress === 'pediment' || dress === 'ornate') h = f === 1 ? 'pediment' : f === 2 ? 'hood' : null;
-    op[op.length - 1] = { ...o, head: h, surround: ['rustic', 'dressed', 'yellow', 'tiled', 'ornate'].includes(dress) ? trim : null,
-      lintel: h === 'none' ? null : o.lintel, frame: soviet ? pick(L, [0xf6f4ee, 0xdfe2e8, 0x8f6345]) : o.frame,
-      ac: ac && chance(L, ac) ? pick(L, ['below', 'side']) : null, sat: chance(L, 0.012) };
-  }
-  const extra = [], over = [];
-  const bays = upper.filter(op => floorOf(op[2]) === 1).map(op => [op[1], op[3]]);
-  if (dress === 'constructivist') {                                 // ribbon windows: a floor's bays as one band of glass
-    for (let f = 1; f <= floors; f++) {
-      const row = upper.filter(op => floorOf(op[2]) === f);
-      if (!row.length) continue;
-      const first = row[0], last = row.at(-1);
-      first[3] = last[1] + last[3] - first[1];
-      first[op_(first)] = { ...first[op_(first)], ribbon: true, curtain: null, flowers: null, shutters: null, ac: null };
-      for (const op of row.slice(1)) op[0] = 'skip';
-    }
-    for (const op of rest) if (op[0] === 'cornice') { op[0] = 'parapet'; } else if (op[0] === 'band' && op[1] !== GROUND_H) op[0] = 'skip';
-  }
-  if (dress === 'rustic') extra.push(['rustic', 0.45, GROUND_H, toneOf(B.wallColor, -1)]);
-  if (dress === 'tiled') extra.push(['tiles', GROUND_H + FLOOR_H, B.h - 0.8]);
-  if (['pediment', 'dressed', 'yellow', 'ornate'].includes(dress)) extra.push(['quoins', GROUND_H, B.h - 0.75, trim]);
-  if ((dress === 'pilaster' || dress === 'ornate') && bays.length > 1) {
-    const xs = [];
-    for (let k = 1; k < bays.length; k++) xs.push((bays[k - 1][0] + bays[k - 1][1] + bays[k][0]) / 2);
-    extra.push(['pilasters', dress === 'ornate' ? xs.filter((_, k) => k === 0 || k === xs.length - 1) : xs, GROUND_H + (dress === 'ornate' ? FLOOR_H : 0.1), B.h - 0.75, trim]);
-  }
-  if (dress === 'moderne' || dress === 'ornate' || dress === 'arched') over.push(['frieze', B.h - 0.75 - 0.5, 0.45, dress === 'arched' ? 'corbel' : dress === 'moderne' ? 'tiles' : 'garland', dress === 'moderne' ? pick(L, [0x2f6b62, 0x3b6296, 0x356f42]) : dress === 'arched' ? toneOf(B.wallColor, -1) : trim]);
-  if (soviet) {
-    for (const op of rest) if (op[0] === 'cornice') op[0] = 'parapet'; else if (op[0] === 'band' && op[1] !== GROUND_H) op[0] = 'skip';
-    if (B.style === 'stalin') { B.ops[0][4] = GROUND_H; B.ops[0][5] = toneOf(B.wallColor, -1); B.ops.forEach(op => { if (op[0] === 'rect' && op[4] === 0.06) op[0] = 'skip'; }); }
-    if (dress === 'panel') extra.push(['panels', GROUND_H, B.h - 0.8, bays.length, FLOOR_H]);
-    const cols = bays.length > 3 ? [1, bays.length - 2] : [0];
-    if (chance(L, 0.8)) over.push(['loggias', cols.map(c => bays[c]).filter(Boolean), GROUND_H, floors, pick(L, [0xdfe2e8, 0xa0978a, 0x8f96a6, 0xc4bba9]), FLOOR_H]);
-  } else if (chance(L, 0.35) && bays.length >= 3 && floors >= 2) {  // a balcony on the first floor up, over the middle bays
-    const m = Math.floor(bays.length / 2), span = bays.length >= 5 ? [m - 1, m + 1] : [m, m];
-    over.push(['balcony', bays[span[0]][0] - 0.3, bays[span[1]][0] + bays[span[1]][1] + 0.3, GROUND_H + 0.15, chance(L, 0.5) ? 'iron' : 'stone', trim]);
-  }
-  // Drainpipes down the party walls, now and then; posters on blank wall; scaffolding, rarely.
-  for (const x of [0.18, w - 0.38]) if (!soviet && chance(L, 0.45)) v.pipes.push(x);
-  for (const x of v.pipes) over.push(['pipe', x, B.h - 0.75, pick(L, [0x8f96a6, 0x6a7182, toneOf(B.wallColor, -1)])]);
-  const used = ground.filter(op => ['window', 'door', 'shopfront', 'arch'].includes(op[0])).map(op => op[0] === 'arch' ? [op[1] - 0.2, op[1] + op[2] + 0.2] : op[0] === 'shopfront' ? [op[1], op[1] + op[2]] : [op[1] - 0.15, op[1] + op[op[0] === 'window' ? 3 : 2] + 0.15]).sort((p, q) => p[0] - q[0]);
-  let from = 0.5;
-  for (const [x0, x1] of [...used, [w - 0.5, w]]) {
-    if (x0 - from >= 1.9 && !soviet && chance(L, 0.45)) { over.push(['poster', from + (x0 - from - 1.25) / 2, 0.75, 1.25, 1.6, posterOf(L)]); v.posters++; }
-    from = Math.max(from, x1);
-  }
-  if (!soviet && floors >= 2 && chance(L, 0.05)) over.push(['scaffold', GROUND_H + 0.3, B.h - 0.6, pick(L, [0x356f42, 0x283f6b, 0x6a7182]), FLOOR_H]);
-  B.ops = [...B.ops.slice(0, 1), ...extra, ...B.ops.slice(1), ...over].filter(op => op[0] !== 'skip');
-}
-const op_ = (op) => op.length - 1;
-const POSTERS = [['ТЕАТР', 0xe2dac6, 0x9e3c36, 0x283f6b], ['КИНО', 0x23252f, 0xf8e08a, 0x6e2a2e], ['ДЖАЗ', 0x283f6b, 0xf8e08a, 0x4a2a52],
-  ['ЦИРК', 0xf8e08a, 0x9e3c36, 0x3b6296], ['БАЛЕТ', 0xf6f4ee, 0x4a2a52, 0xc95c45], ['ОПЕРА', 0x6e2a2e, 0xf6f4ee, 0x23252f]];
-function posterOf(L) { const [words, bg, fg, art] = pick(L, POSTERS); return { words, bg, fg, art }; }
 
 /** Which sections a street map spans around x, within its bounds (i0 … i1, either null when endless). */
 export function sectionsAround(map, x, reachM) {

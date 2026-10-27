@@ -14,6 +14,7 @@
 //
 // It shows the state and routes the player's choices to the callbacks it's given (src/main.js); it
 // never changes the state itself. Times are game time (sim/clock.js); rolls read through checkText().
+import { townOf, localize } from '../sim/cities/index.js';
 import { clockText, stampText, dateText } from '../sim/clock.js';
 import { checkText } from '../sim/checks.js';
 import { SCENARIOS } from '../sim/scenarios/index.js';
@@ -105,7 +106,16 @@ export function createUI({ input, cb }) {
   // ---------- the title ----------
   function showTitle({ version, auto, farm = false }) {
     // The Farm: the lesson, or, the lesson had, a memory first (sim/scenarios/dojo.js, chapter 'remembered').
-    const entry = (key, s) => key !== 'dojo' ? [el('button', { className: 'item', onclick: () => cb.newGame(key) }, s.name, el('small', { textContent: s.about }))] : [
+    // (the free walk in any of the cities, one entry: sim/cities/; the line under it says where the pointer is)
+    const CITY_WALKS = [['moscow', 'Moscow', 'A boulevard in central Moscow: plaster and Stalinist stone, the lanes north and south, the sun down at ten to five.'],
+      ['london', 'London', 'Notting Hill\'s terraces and pubs, a November afternoon, the pavements wet.'], ['beirut', 'Beirut', 'Gemmayzeh and Achrafieh: old houses, stairs up the hill, cables everywhere.'], ['cairo', 'Cairo', 'Downtown and the lanes off it: dust, signs in Arabic, a minaret.']];
+    const walkEntry = (key, s) => {
+      const about = el('small', { textContent: 'Walk, look, get the feel of it, a November afternoon: in Moscow, London, Beirut or Cairo.' });
+      return [el('div', { className: 'item walk' }, s.name, about, el('div', { className: 'cities' }, ...CITY_WALKS.map(([c, name, words]) =>
+        el('button', { className: 'small', onclick: () => cb.newGame(key, null, c === 'moscow' ? null : c), onmouseenter: () => { about.textContent = words; }, onfocus: () => { about.textContent = words; } }, name))))];
+    };
+    const entry = (key, s) => key === 'walk' ? walkEntry(key, s)
+      : key !== 'dojo' ? [el('button', { className: 'item', onclick: () => cb.newGame(key) }, s.name, el('small', { textContent: s.about }))] : [
       el('button', { className: 'item', onclick: () => cb.newGame('dojo', farm ? 'remembered' : 'lesson') }, farm ? 'The Farm, remembered' : s.name,
         el('small', { textContent: farm ? 'The bouts you remember, three of your class and Hale; and what brought them back, years on, in Moscow.' : s.about })),
       el('button', { className: 'item', onclick: () => cb.newGame('dojo', farm ? 'lesson' : 'remembered') }, farm ? 'The Farm: the whole lesson again' : 'The Farm, remembered',
@@ -139,12 +149,13 @@ export function createUI({ input, cb }) {
   // ---------- the HUD ----------
   /** view: { posOf(id) → [x, z] as drawn, camera { x, z } }, for the marker over a scenario's target. */
   function update(state, paused, view) {
+    here = state.map?.city ?? null;
     watch.querySelector('.time').textContent = clockText(state.time.ms);
     watch.querySelector('.date').textContent = stampText(state.time.ms).split(',')[0];
     const me = state.actors.find(a => a.who === state.player);
     const held = weaponOf(state.people[state.player]?.hand);       // (what's in your hand, under the watch: sim/items.js)
     watch.querySelector('.hand').textContent = held ? `in hand: ${bare(held)}` : '';
-    if (me && state.map?.kind === 'street') watch.querySelector('.place').textContent = placeName(state.map.seed, state.map.row ?? 0, me.x, me.z);
+    if (me && state.map?.kind === 'street') watch.querySelector('.place').textContent = placeName(townOf(state.map), state.map.row ?? 0, me.x, me.z);
     else watch.querySelector('.place').textContent = SCENARIOS[state.scenario.kind]?.place?.(state) ?? '';
     frame.classList.toggle('paused', paused && menu.hidden && log.hidden && paper.hidden);
     if (paused && banner.dataset.key !== input.label('pause')) { banner.dataset.key = input.label('pause'); banner.textContent = `PAUSED · ${input.label('pause')}`; }
@@ -335,7 +346,8 @@ export function createUI({ input, cb }) {
     return (iconCache[name] = cv.toDataURL());
   }
 
-  const keyed = (text) => text.split(/(\{[a-z]+\})/).filter(Boolean).map(part => {
+  let here = null;                                                 // (the city the game's in: its words for a Moscow scene's: sim/cities/ localize())
+  const keyed = (text) => localize(here, text).split(/(\{[a-z]+\})/).filter(Boolean).map(part => {
     const m = part.match(/^\{([a-z]+)\}$/);
     return m ? el('kbd', { textContent: input.label(m[1]) }) : el('span', { textContent: part });
   });
@@ -348,7 +360,8 @@ export function createUI({ input, cb }) {
     toasts.append(t);
     while (toasts.children.length > 3) toasts.firstChild.remove();
   }
-  const clearToasts = () => { toasts.replaceChildren(); speech.replaceChildren(); balloons.clear(); };
+  /** A new game: the HUD's lines and balloons cleared, and its city's words (sim/cities/ localize()) from now on. */
+  const clearToasts = (city = here) => { toasts.replaceChildren(); speech.replaceChildren(); balloons.clear(); here = city; };
 
   // ---------- speech: a balloon over whoever said it (a log line's says: { id, words }: sim/log.js) ----------
   const balloons = new Map();                                      // actor id → the balloon (its lines, each with when it was said)
@@ -419,7 +432,7 @@ export function createUI({ input, cb }) {
   }
   // ---------- the character sheet (C) ----------
   const LEVEL = Object.fromEntries(Object.entries(TRAINED).map(([k, v]) => [v, k]));
-  const LANGS = { en: 'English', ru: 'Russian', es: 'Spanish', fr: 'French', de: 'German', ar: 'Arabic', zh: 'Chinese' };
+  const LANGS = { en: 'English', ru: 'Russian', es: 'Spanish', fr: 'French', de: 'German', ar: 'Arabic', zh: 'Chinese', pl: 'Polish', pt: 'Portuguese', hi: 'Hindi', hy: 'Armenian' };
   function openSheet(state) {
     const p = state.people[state.player], cls = CLASSES[p.cls], os = p.os ?? 0;
     const rows = Object.entries(SKILLS).map(([k, sk]) => {
@@ -524,7 +537,7 @@ export function createUI({ input, cb }) {
     const them = atHand(state);
     if (!them) return false;
     askFor = them;
-    const p = them.who ? state.people[them.who] : null, q = !p && them.seed !== null ? passerby(them.seed) : null;
+    const p = them.who ? state.people[them.who] : null, q = !p && them.seed !== null ? passerby(them.seed, state.map.city) : null;
     const whoText = p ? (p.known === false ? p.seen : p.name) : q ? describe(q.look, q.sex) : 'someone';
     const show = (list, sub) => {
       ask.replaceChildren(el('div', { className: 'who', textContent: whoText.charAt(0).toUpperCase() + whoText.slice(1) }),
@@ -648,12 +661,12 @@ export function createUI({ input, cb }) {
     menu.hidden = log.hidden = true;
   }
 
-  function showBrief(brief, onBegin) {
+  function showBrief(brief, onBegin, city = here) {
     const begin = () => { paper.hidden = true; paper.dataset.kind = ''; onBegin(); };
     paper.replaceChildren(el('div', { className: 'sheet brief' },
       el('span', { className: 'stamp', textContent: 'SECRET' }),
       el('h2', { textContent: brief.title }), el('hr'),
-      ...brief.body.map(t => el('p', { textContent: t })),
+      ...brief.body.map(t => el('p', { textContent: localize(city, t) })),
       el('p', { className: 'note', textContent: brief.footer }), el('hr'),
       brief.keys ? el('ul', { className: 'keylist' }, brief.keys.map(([k, what]) => el('li', {}, el('kbd', { textContent: input.label(k) }), ` ${what}`))) : null,
       el('button', { className: 'item go', onclick: begin }, 'Begin', el('small', { textContent: `${input.label('instinct')} does what your instinct offers; ${input.label('log')} is the log.` })),
@@ -694,15 +707,15 @@ export function createUI({ input, cb }) {
       paper.replaceChildren(el('div', { className: 'sheet result' },
         el('span', { className: `stamp ${own.good ? 'good' : ''}`, textContent: own.stamp }),
         el('h2', { textContent: own.title }), el('hr'),
-        el('p', { textContent: own.text }),
+        el('p', { textContent: localize(state.map?.city, own.text) }),
         own.lead ? el('p', { className: 'lead', textContent: `Lead. ${own.lead}` }) : null,
-        ...own.notes.map(t => el('p', { className: 'truth', textContent: t })),
+        ...own.notes.map(t => el('p', { className: 'truth', textContent: localize(state.map?.city, t) })),
         el('p', { className: 'note', textContent: own.stats }),
         ...ways));
     } else paper.replaceChildren(el('div', { className: 'sheet result' },
       el('span', { className: `stamp ${sc.outcome === 'seen' ? 'good' : ''}`, textContent: stampOf(sc) }),
       el('h2', { textContent: (state.campaign && sc.kind === 'tail' ? `Tailing: ${state.people.orlov?.name ?? ''}` : S.name.replace(/^\d+\.\s*/, '')).toUpperCase() }), el('hr'),
-      el('p', { textContent: sc.endText }),
+      el('p', { textContent: localize(state.map?.city, sc.endText) }),
       sc.lead ? el('p', { className: 'lead', textContent: `Lead. ${sc.lead}` }) : null,
       ...(debug ? unseenOf(state) : []),
       el('p', { className: 'note', textContent: `${Math.floor(secs / 60)} min ${secs % 60} s on his tail · ${seenText(sc)} · closest ${sc.closest < 1e8 ? sc.closest.toFixed(1) : '?'} m`

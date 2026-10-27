@@ -9,15 +9,16 @@ import { planRoute, clearAt, sectionOf, LINE } from '../src/sim/city.js';
 import { withHabits } from '../src/sim/habits.js';
 import { at } from '../src/sim/clock.js';
 import { Z } from '../src/sim/map/street.js';
+import { townOf } from '../src/sim/cities/index.js';
 import { stream, range, int, chance } from '../src/sim/rng.js';
 import { assert, fmt } from './helpers.mjs';
 
 /** A run: a target off ten streets and more, a follower after him. → what happened. */
-export function chase(seed, { hour = 12, evasive = 1, keep = 18, style = 'calm', limitMin = 50 } = {}) {
-  const g = newGame({ seed, scenario: 'walk' });
+export function chase(seed, { hour = 12, evasive = 1, keep = 18, style = 'calm', limitMin = 50, city = null } = {}) {
+  const g = newGame({ seed, scenario: 'walk', city });
   g.time.ms = at(2026, 11, 2, hour, 0);
   start(g, null);
-  const r = stream('chase', seed), s = g.map.seed;
+  const r = stream('chase', seed), s = townOf(g.map);
   const rows = (chance(r, 0.5) ? 1 : -1) * (10 + int(r, 3));
   const door = sectionOf(s, 0, 0).doors.find(d => d.z === Z.front && d.kind !== 'arch') ?? { x: 20 };
   const goal = { row: rows, x: door.x + range(r, -500, 500), z: LINE.P };

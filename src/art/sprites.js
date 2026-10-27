@@ -361,6 +361,63 @@ const T = {
         'yyyyyyyyyyyyy..',
         'yyyyyyyyyyyy...']],
     },
+    // A headscarf (hijab): over the head and round the face, down over the shoulders (Cairo's, Beirut's, London's).
+    hijab: {
+      down: [3, 5, [
+        '.....aaaaaaa.....',
+        '...aaaaaaaaaaa...',
+        '..aaaaaaaaaaaaa..',
+        '.aaaaaaaaaaaaaaa.',
+        '.aaaaaaaaaaaaaaa.',
+        '.aaa.........aaa.',
+        '.aa...........aa.',
+        '.aa...........aa.',
+        '.aa...........aa.',
+        '.aa...........aa.',
+        '.aaa.........aaa.',
+        '..aaa.......aaa..',
+        '..AAaaa...aaaAA..',
+        '.aaaaaaaaaaaaaaa.',
+        'aaaaaaaaaaaaaaaaa']],
+      up: [3, 5, [
+        '.....aaaaaaa.....',
+        '...aaaaaaaaaaa...',
+        '..aaaaaaaaaaaaa..',
+        '.aaaaaaaaaaaaaaa.',
+        '.aaaaaaaaaaaaaaa.',
+        '.aaaaaaaaaaaaaaa.',
+        '.aaaaaaaaaaaaaaa.',
+        '.aaaaaaaaaaaaaaa.',
+        '.aaaaaaaaaaaaaaa.',
+        '.aaaaaaaaaaaaaaa.',
+        '.aaaaaaaaaaaaaaa.',
+        '..aaaaaaaaaaaaa..',
+        '..AAAAAAAAAAAAA..',
+        '.aaaaaaaaaaaaaaa.',
+        'aaaaaaaaaaaaaaaaa']],
+      right: [4, 5, [
+        '....aaaaaa......',
+        '..aaaaaaaaaa....',
+        '.aaaaaaaaaaaa...',
+        'aaaaaaaaaaaaaa..',
+        'aaaaaaaaaaaaaa..',
+        'aaaaaaaaa.......',
+        'aaaaaaaa........',
+        'aaaaaaaa........',
+        'aaaaaaaa........',
+        'aaaaaaaa........',
+        'aaaaaaaaa.......',
+        'aaaaaaaaaa......',
+        '.AAAAaaaaaaa....',
+        'aaaaaaaaaaaa....',
+        'aaaaaaaaaaa.....']],
+    },
+    // A skullcap (a taqiyah): a white knitted cap on the crown (Cairo's older men).
+    skullcap: {
+      down: [5, 6, ['...aaaaaaa...', '.aaaaaaaaaaa.', 'aayayayayayaa', 'AAAAAAAAAAAAA']],
+      up: [5, 6, ['...aaaaaaa...', '.aaaaaaaaaaa.', 'aaaaaaaaaaaaa', 'AAAAAAAAAAAAA']],
+      right: [5, 6, ['....aaaaaa....', '..aaaaaaaaaa..', '.aayayayayaa..', '.AAAAAAAAAAA..']],
+    },
     peaked: {
       down: [3, 3, [
         '..aaaaaaaaaaaaa..',
@@ -429,6 +486,8 @@ function torsoFront(kind, back) {
   let out = rows.slice();
   if (kind === 'dress') { x = 5; out = ['...ttttttt...', '..ttttttttt..', '..ttttttttt..', '..ttttttttt..', '..yyyyyyyyy..', '..ttttttttt..', '.ttttttttttt.', '.ttttttttttt.', 'ttttttttttttt', 'ttttttttttttt']; }
   if (kind === 'coat') { x = 6; out = ['..ttttttt..', '.ttttttttt.', '.ttttttttt.', '.ttttttttt.', '.ttttttttt.', '.ttttttttt.', '.ttttttttt.', '.ttttttttt.', 'ttttttttttt', 'ttttttttttt', 'ttttttttttt']; }
+  // A galabeya: a long robe to the ankles, its neck slit, its hem flaring a little.
+  if (kind === 'robe') { x = 6; out = ['..ttttttt..', '.ttttttttt.', '.ttttttttt.', '.ttttttttt.', '.ttttttttt.', '.ttttttttt.', '.ttttttttt.', '.ttttttttt.', '.ttttttttt.', 'ttttttttttt', 'ttttttttttt', 'ttttttttttt', 'TTTTTTTTTTT']; }
   if (back) return [x, 19, out];
   // Front details, drawn into the rows (x relative to the template).
   const put = (r, c, ch) => { out[r] = out[r].slice(0, c) + ch + out[r].slice(c + 1); };
@@ -450,6 +509,7 @@ function torsoFront(kind, back) {
       for (let r = 6; r < out.length; r++) put(r, mid, 'T');
       break;
     case 'dress': for (const c of [-1, 0, 1]) put(0, mid + c, 's'); put(1, mid, 's'); break;
+    case 'robe': put(0, mid, 's'); put(1, mid, 'y'); put(2, mid, 'y'); put(3, mid, 'y'); break;
     case 'uniform':
       put(0, mid - 1, 's'); put(0, mid, 's'); put(0, mid + 1, 's');
       for (let r = 1; r < 7; r++) put(r, mid, 'T');
@@ -486,6 +546,7 @@ function torsoSide(kind) {
   let x = 8;
   if (kind === 'coat') { x = 7; rows = ['..tttt.', '.tttttt', '.tttttt', '.tttttt', '.tttttt', '.yyyyyy', '.tttttt', '.tttttt', 'ttttttt', 'ttttttt', 'tttttt.']; }
   if (kind === 'dress') { x = 6; rows = ['...tttt.', '..tttttt', '..tttttt', '..tttttt', '..yyyyyy', '..tttttt', '.ttttttt', '.ttttttt', 'tttttttt', 'tttttttt']; }
+  if (kind === 'robe') { x = 7; rows = ['..tttt.', '.tttttt', '.tttttt', '.tttttt', '.tttttt', '.tttttt', '.tttttt', '.tttttt', '.tttttt', 'ttttttt', 'ttttttt', 'ttttttt', 'TTTTTTT']; }
   const put = (r, c, ch) => { rows[r] = rows[r].slice(0, c) + ch + rows[r].slice(c + 1); };
   const front = rows[1].length - 1;
   if (kind === 'suit') { put(0, front - 1, 'w'); put(1, front, 'w'); put(2, front, 'y'); put(3, front, 'y'); }

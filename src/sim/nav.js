@@ -13,7 +13,7 @@
 // zone, else the gap toward it on the next boundary, reached along the zone's walking line. It's
 // greedy, one boundary at a time, which is enough for a map that's one row of a city. A follower
 // should come within 0.25 m of a waypoint before asking for the next.
-import { Z, LANES } from './map/street.js';
+import { Z, LANES, inLane, mouthOf, laneLine } from './map/street.js';
 import { sectionAt } from './world.js';
 
 export function zoneOf(state, x, z) {
@@ -45,13 +45,18 @@ export function waypoint(state, a, x, z) {
   const line = from === 'street' ? (a.z < Z.kerbN ? laneMid('far') : laneMid('near')) : from === 'band' ? laneMid('path') : from === 'far' ? laneMid('south') : a.z;
   const at = (cx, zz) => (Math.abs(a.x - cx) > 0.25 ? [cx, Math.abs(a.x - cx) > 3 ? line : a.z] : [cx, zz]);
   // A lane: the one the target's in (or at), else the nearest.
-  const lane = (key) => sectionAt(state, x)?.[key].find(g => x >= g.x0 - 0.5 && x <= g.x1 + 0.5)
+  const lane = (key) => sectionAt(state, x)?.[key].find(g => (key === 'gapsN' && z < Z.front ? inLane(g, x, z, 0.5) : x >= g.x0 - 0.5 && x <= g.x1 + 0.5))
     ?? [...S[key]].sort((p, q) => Math.abs((p.x0 + p.x1) / 2 - a.x) - Math.abs((q.x0 + q.x1) / 2 - a.x))[0];
   if ((from === 'street' && step === 'north') || (from === 'north' && step === 'street')) {
-    const g = lane('gapsN');
+    const g = from === 'north' ? S.gapsN.find(gp => inLane(gp, a.x, a.z, 0.5)) ?? lane('gapsN') : lane('gapsN');
     if (!g) return [a.x + Math.sign(x - a.x || 1) * 10, a.z];
-    if (from === 'north') return [a.x, Z.front + 0.8];
-    return a.x > g.x0 + 0.5 && a.x < g.x1 - 0.5 ? [into(g, a.x), Z.front - 1] : [into(g, a.x), Math.max(a.z, Z.front + 0.6)];
+    const m = mouthOf(g);
+    if (from === 'north') {                                        // (out by its mouth: round a dogleg's turn first)
+      if (!g.jog || (a.z > g.jog.z && a.x > m.x0 - 0.5 && a.x < m.x1 + 0.5)) return [a.x, Z.front + 0.8];
+      const [, leg, top] = laneLine(g);
+      return a.z < leg.z - 0.25 ? [top.x, leg.z] : [leg.x, leg.z + 0.5];
+    }
+    return a.x > m.x0 + 0.5 && a.x < m.x1 - 0.5 ? [into(m, a.x), Z.front - 1] : [into(m, a.x), Math.max(a.z, Z.front + 0.6)];
   }
   if ((from === 'street' && step === 'band') || (from === 'band' && step === 'street')) {
     const cx = nearest(S.crossings, a.x);

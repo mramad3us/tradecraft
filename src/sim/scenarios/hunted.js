@@ -20,6 +20,7 @@ import { at, TICK_MS, MIN, clockText, dateText } from '../clock.js';
 import { handler, sheet, streetLook, describe } from '../people.js';
 import { heatKey } from '../heat.js';
 import { say, speak } from '../log.js';
+import { townOf } from '../cities/index.js';
 import { settle } from '../instinct.js';
 import { skill } from '../skills.js';
 import { opposed } from '../checks.js';
@@ -59,7 +60,7 @@ export const hunted = {
       title: 'BLOWN',
       body: [
         `${state.people[state.player].name}: under a legend, no immunity. At ${clockText(sc.began)} the phone in the flat rang twice and stopped. That's the signal: the network's rolled up, and they have your face.`,
-        `The station has a car for you, ${rowsText(e.row)} and a way along, by ${streetName(state.map.seed, e.row)}: a driver in a dark cap, until ${clockText(sc.deadline)}. After that he's gone, and so are you.`,
+        `The station has a car for you, ${rowsText(e.row)} and a way along, by ${streetName(townOf(state.map), e.row)}: a driver in a dark cap, until ${clockText(sc.deadline)}. After that he's gone, and so are you.`,
         `They'll be looking: men in plain clothes with your description, ${sc.hunters.length} of them on the streets round here, and they talk to each other. Don't run, don't look at them, keep to people and the dark.`,
         'Two safe houses on the way: in and out, a different coat, a minute to breathe. If one of them gets hold of you, fight, or that\'s the end.',
       ],
@@ -68,7 +69,7 @@ export const hunted = {
     };
   },
 
-  setup(state, { campaign: C = null } = {}) {
+  setup(state, { campaign: C = null, city = null } = {}) {
     const r = state.rng;
     state.time.ms = C?.startMs ?? at(2026, 11, 6, 18, 40);
     state.legend = { id: 'legend', name: 'A translator at a news agency (your legend)', cover: 'legend', floor: 40 };
@@ -78,8 +79,9 @@ export const hunted = {
     state.people.me = me;
     state.player = 'me';
     const seed = C?.mapSeed ?? Math.floor(range(r, 0, 4294967296));
-    state.map = { kind: 'street', seed, row: 0, i0: null, i1: null, crowd: 1, city: C?.city };
-    const home = [0, 1].flatMap(i => sectionOf(seed, 0, i).doors).find(d => d.kind === 'entrance' && d.z === Z.front) ?? { x: 14 };
+    state.map = { kind: 'street', seed, row: 0, i0: null, i1: null, crowd: 1, city: C?.city ?? city ?? undefined };
+    const town = townOf(state.map);
+    const home = [0, 1].flatMap(i => sectionOf(town, 0, i).doors).find(d => d.kind === 'entrance' && d.z === Z.front) ?? { x: 14 };
     state.actors.push({ id: 'a0', who: 'me', seed: null, row: 0, x: home.x, z: -2.6, vx: 0, vz: 0, face: 'down', head: Math.PI / 2, gait: 'idle', stride: 0, stuck: 0, ai: null });
     // The car: a driver on a pavement streets away, a way along.
     const dir = chance(r, 0.5) ? -1 : 1, erow = dir * (EXTRACT_ROWS[0] + int(r, EXTRACT_ROWS[1] - EXTRACT_ROWS[0] + 1));
@@ -90,7 +92,7 @@ export const hunted = {
     // Two safe houses on the way: a block's entrance on a street between, roughly on the line there.
     const safehouses = [1, 2].map(k => {
       const row = Math.round(erow * k / 3) || dir, along = home.x + (ex - home.x) * k / 3;
-      const S = sectionOf(seed, row, Math.floor(along / SECTION_M));
+      const S = sectionOf(town, row, Math.floor(along / SECTION_M));
       const d = S.doors.filter(o => o.kind === 'entrance' && o.z === Z.front).sort((a, b) => Math.abs(a.x - along) - Math.abs(b.x - along))[0] ?? { x: Math.floor(along / SECTION_M) * SECTION_M + 12 };
       return { row, x: d.x, used: false };
     });
@@ -232,7 +234,7 @@ function leg(state, a, to = null) {
   const last = to ?? sc.lastSeen;
   const recent = state.time.ms - last.ms < 4 * MIN;
   const row = recent ? last.row : last.row + int(r, 5) - 2, x = last.x + (recent ? range(r, -6, 6) : range(r, -90, 90));
-  try { setRoute(state, a, routeFrom(state.map.seed, { row: rowOf(state, a), x: a.x, z: a.z }, { row, x, z: chance(r, 0.5) ? LINE.F : LINE.N })); } catch {}
+  try { setRoute(state, a, routeFrom(townOf(state.map), { row: rowOf(state, a), x: a.x, z: a.z }, { row, x, z: chance(r, 0.5) ? LINE.F : LINE.N })); } catch {}
 }
 
 /** One of them has hold of you: a fight. */

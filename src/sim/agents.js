@@ -26,9 +26,10 @@
 // their way (SEARCH_S), and not finding them on the street, watches the shopfronts nearby from the
 // pavement (DOOR_WAIT_S). Then it's lost them. Its eyes stay on them while they're anywhere it can
 // turn its head to; stood at a shop window, on their reflection in it (gazeInto()).
+import { townOf } from './cities/index.js';
 import { TICK_MS } from './clock.js';
 import { placeAt, routeFrom, finish, sectionOf, clearAt, LINE } from './city.js';
-import { Z, SECTION_M } from './map/street.js';
+import { Z, SECTION_M, mouthOf, inLane as inLaneG, laneLine } from './map/street.js';
 import { near } from './world.js';
 import { seesActor, headOf, gazeInto, openAir, SIGHT_M, LIGHT_M } from './perception.js';
 import { paneAt, seatTaken } from './acts.js';
@@ -72,11 +73,21 @@ function laneOf(seed, T, v) {
   const south = p.z > Z.south - 0.6 || (p.z > Z.fenceS && uz > 0.85 && p.z > Z.south - LANE_HEAD_M);
   if (!north && !south) return null;
   const S = sectionOf(seed, p.row, Math.floor(p.x / SECTION_M));
-  const g = (north ? S.gapsN : S.gapsS).find(g => p.x >= g.x0 - 0.6 && p.x <= g.x1 + 0.6);
+  // (north: up the lane, round a dogleg's turn, or at its mouth on the street; south: in its strip)
+  const at = (g, q) => (q.z < Z.front - 0.5 ? inLaneG(g, q.x, q.z, 0.6) : q.x >= mouthOf(g).x0 - 0.6 && q.x <= mouthOf(g).x1 + 0.6);
+  const g = north ? S.gapsN.find(g => at(g, p)) : S.gapsS.find(g => p.x >= g.x0 - 0.6 && p.x <= g.x1 + 0.6);
   if (!g) return null;
   // (Not the lane they're coming out of, or were in a few metres ago.)
-  const inLane = (q) => q.row === p.row && q.x >= g.x0 - 0.6 && q.x <= g.x1 + 0.6 && (north ? q.z < Z.front - 0.5 : q.z > Z.south + 0.5);
-  if (inLane(p)) return (north ? uz > 0.3 : uz < -0.3) ? null : { g, north };
+  const inLane = (q) => q.row === p.row && (north ? q.z < Z.front - 0.5 && inLaneG(g, q.x, q.z, 0.6) : q.x >= g.x0 - 0.6 && q.x <= g.x1 + 0.6 && q.z > Z.south + 0.5);
+  // (moving along it which way: up a dogleg's turn is along x; a straight lane's, along z)
+  const along = () => {
+    if (!north || !g.jog || sp <= 0.3) return -uz;
+    const L = laneLine(g);
+    let best = [0, -1], bd = Infinity;
+    for (let k = 1; k < L.length; k++) { const a = L[k - 1], b = L[k], len = Math.hypot(b.x - a.x, b.z - a.z) || 1, t = Math.max(0, Math.min(1, ((p.x - a.x) * (b.x - a.x) + (p.z - a.z) * (b.z - a.z)) / (len * len))), d = Math.hypot(a.x + (b.x - a.x) * t - p.x, a.z + (b.z - a.z) * t - p.z); if (d < bd) { bd = d; best = [(b.x - a.x) / len, (b.z - a.z) / len]; } }
+    return (v.vx * best[0] + v.vz * best[1]) / sp;
+  };
+  if (inLane(p)) return (north ? along() < -0.3 : uz < -0.3) ? null : { g, north };
   for (let j = T.length - 1, len = 0; j > 0 && len < 12; j--) {
     if (inLane(T[j - 1])) return null;
     len += T[j].jump ? 0 : Math.hypot(T[j].x - T[j - 1].x, T[j].z - T[j - 1].z);
@@ -100,7 +111,7 @@ export const isAgent = (a) => a.ai?.kind === 'agent';
 // passer-by's route is 2 KB, its plan a few numbers (sim/crowd.js registers its planner). The route
 // is planned again on load, the same.
 export const PLANNERS = {
-  way: (state, plan) => routeFrom(state.map.seed, plan.from, plan.to),     // (just a way from one place to another)
+  way: (state, plan) => routeFrom(townOf(state.map), plan.from, plan.to),     // (just a way from one place to another)
 };
 
 /** An agent's route: its own (ai.route), or the one its plan makes (runtime: ai.$route). */
@@ -122,7 +133,7 @@ export function setRoute(state, a, route) {
 
 /** A route for an agent from where it is to a place (on to a line first, if need be). */
 export function routeTo(state, a, to, opts = {}) {
-  return routeFrom(state.map.seed, { row: rowOf(state, a), x: a.x, z: a.z }, to, opts);
+  return routeFrom(townOf(state.map), { row: rowOf(state, a), x: a.x, z: a.z }, to, opts);
 }
 
 // ---------- walking ----------
@@ -219,7 +230,7 @@ function faceFor(ux, uz, was) {
  */
 export function follow(state, a, target, keep) {
   a.ai.follow = { id: target.id, keep, trail: [], seenMs: state.time.ms, lost: false, search: 0 };
-  const way = routeFrom(state.map.seed, { row: rowOf(state, a), x: a.x, z: a.z }, { row: rowOf(state, target), x: target.x, z: target.z });
+  const way = routeFrom(townOf(state.map), { row: rowOf(state, a), x: a.x, z: a.z }, { row: rowOf(state, target), x: target.x, z: target.z });
   a.ai.follow.trail = way.pts.map(p => ({ row: p.row, x: p.x, z: p.z, jump: p.jump }));
 }
 
@@ -261,7 +272,7 @@ export function watchTarget(state, a) {
   if (last.row === here.row && d < 1.5) { fo.trail.push(here); return; }
   // A gap (they moved out of sight and back): bridge it with a planned way.
   try {
-    const way = routeFrom(state.map.seed, last, here);
+    const way = routeFrom(townOf(state.map), last, here);
     for (const p of way.pts.slice(1)) fo.trail.push({ row: p.row, x: p.x, z: p.z, jump: p.jump });
   } catch { fo.trail.push(here); }
 }
@@ -271,7 +282,7 @@ export function watchTarget(state, a) {
  * seen (the nearest shop: wait on its door), or, with no shop near, they're lost.
  */
 function giveUp(state, a, fo) {
-  const seed = state.map.seed, door = !fo.triedDoor && doorNear(seed, fo.trail.at(-1), 15);
+  const seed = townOf(state.map), door = !fo.triedDoor && doorNear(seed, fo.trail.at(-1), 15);
   fo.triedDoor = true; fo.guessing = false;
   if (!door) { fo.lost = true; return; }
   fo.inside = door; fo.door = door; fo.search = 0;
@@ -311,7 +322,7 @@ function unguess(T, here) {
 export function routeFollower(state, a) {
   const fo = a.ai.follow;
   if (!fo || fo.lost || a.ai.hold > state.time.ms || a.ai.waiting) return;   // (busy with a stop of its own)
-  const T = fo.trail, seed = state.map.seed, row = rowOf(state, a);
+  const T = fo.trail, seed = townOf(state.map), row = rowOf(state, a);
   const t = state.actors.find(o => o.id === fo.id), unseen = (state.time.ms - fo.seenMs) / 1000;
   // How far back: never further than KEEP_SIGHT of how far the eye reaches (perception.js) in the
   // open air's light, not a lamp's: they'll walk out of the lamplight.
@@ -424,14 +435,18 @@ function throughLane(state, fo) {
   const T = fo.trail, last = T[T.length - 1];
   if (state.time.ms - fo.seenMs < 600) fo.through = false;
   if (!last || state.time.ms - fo.seenMs <= 900 || fo.through) return;
-  const lane = laneOf(state.map.seed, T, fo.v);
+  const lane = laneOf(townOf(state.map), T, fo.v);
   if (!lane) return;
   const { g, north } = lane, gx = (g.x0 + g.x1) / 2, row = last.row + (north ? -1 : 1), mouthZ = north ? Z.front - 1 : Z.south + 1;
+  // (a dogleg's turn: up from its mouth on this street, or down from its top into the next)
+  const turn = g.jog ? laneLine(g).slice(1, -1) : [], mx = (mouthOf(g).x0 + mouthOf(g).x1) / 2;
   try {
-    const mouth = routeFrom(state.map.seed, last, { row: last.row, x: gx, z: mouthZ });
+    const mouth = routeFrom(townOf(state.map), last, { row: last.row, x: north ? mx : gx, z: mouthZ });
     for (const p of mouth.pts.slice(1)) T.push({ row: p.row, x: p.x, z: p.z, guess: true });
-  } catch { T.push({ row: last.row, x: gx, z: mouthZ, guess: true }); }
-  T.push({ row: last.row, x: gx, z: north ? Z.north : Z.edge, guess: true },
-    { row, x: gx, z: north ? Z.edge : Z.north, jump: true, guess: true }, { row, x: gx, z: north ? LINE.S : LINE.F, guess: true });
+  } catch { T.push({ row: last.row, x: north ? mx : gx, z: mouthZ, guess: true }); }
+  if (north) for (const q of turn) T.push({ row: last.row, x: q.x, z: q.z, guess: true });
+  T.push({ row: last.row, x: gx, z: north ? Z.north : Z.edge, guess: true }, { row, x: gx, z: north ? Z.edge : Z.north, jump: true, guess: true });
+  if (!north) for (const q of turn.slice().reverse()) T.push({ row, x: q.x, z: q.z, guess: true });
+  T.push({ row, x: north ? gx : mx, z: north ? LINE.S : LINE.F, guess: true });
   fo.through = true;
 }

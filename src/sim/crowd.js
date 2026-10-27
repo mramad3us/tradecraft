@@ -23,6 +23,7 @@
 // the route is planned again on load, the same (agents.js PLANNERS).
 //
 // The steering below (follow, steer, walk) is for a scenario's own people who walk a plan of steps.
+import { townOf } from './cities/index.js';
 import { range, int, chance, weighted, stream } from './rng.js';
 import { LANES, Z, SECTION_M } from './map/street.js';
 import { near, move, blocked, sectionAt } from './world.js';
@@ -74,7 +75,7 @@ function destination(seed, r, from, dir = 0) {
 
 /** A passer-by's route, from its plan: the way to the door, with a civilian's habits, and in. */
 function passerRoute(state, plan) {
-  const seed = state.map.seed;
+  const seed = townOf(state.map);
   const way = routeFrom(seed, plan.from, { row: plan.to.row, x: plan.to.x, z: LINE.F }, { walker: plan.seed });
   const route = withHabits(seed, way, stream('passer', plan.seed), 'civil');
   const end = route.pts[route.pts.length - 1];
@@ -86,7 +87,7 @@ PLANNERS.passer = passerRoute;
 
 /** Someone new, at `from` ({ row, x, z }), going somewhere (toward dir along the street, if given). */
 function spawn(state, r, from, dir = 0) {
-  const to = destination(state.map.seed, r, from, dir);
+  const to = destination(townOf(state.map), r, from, dir);
   if (!to) return null;
   const plan = { kind: 'passer', seed: seedFrom(r), from, to };
   let route;
@@ -109,7 +110,7 @@ function stays(state, a, rows, focusX) {
  */
 export function populate(state, focusX, { fill = false } = {}) {
   if (state.map.kind !== 'street') return;                         // (a room has no passers-by)
-  const r = state.rng, R = state.map.row, seed = state.map.seed, rows = [];
+  const r = state.rng, R = state.map.row, seed = townOf(state.map), rows = [];
   for (let k = -BUBBLE_ROWS; k <= BUBBLE_ROWS; k++) rows.push(R + k);
   state.actors = state.actors.filter(a => !isPasserby(a) || stays(state, a, rows, focusX));
   const target = Math.round(CROWD_PER_100M * (2 * WINDOW_M / 100) * density(state.time.ms) * (state.map.crowd ?? 1));

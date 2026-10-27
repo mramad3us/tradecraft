@@ -33,6 +33,7 @@
 // The instinct talks you through it (instinct()): the way to him, the time, the faces, the lessons.
 // Everything shown is what the character knows: the result paper too (result()), with the rest told
 // later by the world (epilogue()), and in full only in debug mode.
+import { townOf } from '../cities/index.js';
 import { at, TICK_MS, clockText, dateText } from '../clock.js';
 import { handler, sheet, streetLook, describe, passerby } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
@@ -88,7 +89,7 @@ export const sdr = {
     });
   },
 
-  setup(state, { campaign: C = null } = {}) {
+  setup(state, { campaign: C = null, city = null } = {}) {
     const r = state.rng;
     // (from a campaign, its context: the character, the time, the city, the asset, the team by the heat: sim/campaign.js context())
     const hour = C ? { id: 'campaign', h: 0, m: 0 } : weighted(r, HOURS.map(h => [h, h.w])), team = C?.team ?? weighted(r, TEAMS);
@@ -100,7 +101,7 @@ export const sdr = {
     state.people[me.id] = me;
     state.player = me.id;
     state.people.solovey = sheet({ id: 'solovey', name: C?.asset?.codename ?? 'SOLOVEY', sex: 'm', look: C?.asset?.look ?? SOLOVEY_LOOK, persistent: true, skills: { awareness: [3, 0] } });
-    state.map = { kind: 'street', seed: C ? C.mapSeed : Math.floor(range(r, 0, 4294967296)), row: 0, i0: null, i1: null, crowd: 1, city: C?.city };
+    state.map = { kind: 'street', seed: C ? C.mapSeed : Math.floor(range(r, 0, 4294967296)), row: 0, i0: null, i1: null, crowd: 1, city: C?.city ?? city ?? undefined };
     state.actors.push({ id: 'a0', who: me.id, seed: null, x: 0, z: -2.6, vx: 0, vz: 0, face: 'right', head: 0, gait: 'idle', stride: 0, stuck: 0, ai: null });
     const meet = placeMeeting(state, r);
     meet.from = C?.meetFrom ?? state.time.ms + Math.round(range(r, ...MEET_AFTER_MIN) * 60) * 1000;
@@ -123,7 +124,7 @@ export const sdr = {
       prompt: null, outcome: null, rolls: 0, began: state.time.ms, met: false, burned: false,
       role: C?.asset?.role ?? null, campaign: !!C,
     };
-    say(state, null, { kind: 'note', text: sub(state, `${me.name}. ${clockText(state.time.ms)}, out of the embassy on ${streetName(state.map.seed, 0)}. SOLOVEY: ${meet.place}, ${rowsText(meet.row)}, from ${clockText(meet.from)}.`) });
+    say(state, null, { kind: 'note', text: sub(state, `${me.name}. ${clockText(state.time.ms)}, out of the embassy on ${streetName(townOf(state.map), 0)}. SOLOVEY: ${meet.place}, ${rowsText(meet.row)}, from ${clockText(meet.from)}.`) });
   },
 
   // The team picks you up as you come out: behind you, off the screen's edge.
@@ -324,7 +325,7 @@ export const rowsText = (row) => (row === 0 ? 'on this street' : `${Math.abs(row
 // The bench: in a park (or failing that on a boulevard) a street or two north (now and then south),
 // some 200–500 m east.
 function placeMeeting(state, r) {
-  const seed = state.map.seed, row = weighted(r, [[-1, 3], [-2, 2], [1, 1.5]]);
+  const seed = townOf(state.map), row = weighted(r, [[-1, 3], [-2, 2], [1, 1.5]]);
   const pickIn = (S) => { const b = pick(r, S.props.filter(p => p.kind === 'bench')); return b && { row, i: S.i, x: b.seats[0], z: 12.96, seat: b.seats[0], seat2: b.seats.at(-1), seats: b.seats.slice() }; };   // (the far end: room between)
   let found = null;
   for (let i = 4; i <= 11 && !found; i++) { const S = section(seed, i, row); if (S.band === 'park') found = pickIn(S); }
@@ -457,8 +458,8 @@ function sighting(state, bus, a, roll) {
   const sc = state.scenario, me = playerOf(state), key = String(a.who ?? a.seed);
   const p = a.who ? state.people[a.who] : null, look = p?.look ?? null;
   const f = sc.faces[key] ??= { n: 0, look: a.who ? describe(look, p.sex) : null, crew: !!a.who?.startsWith('fsb'), last: null, rows: [], places: [] };
-  if (!f.look) f.look = describeSeed(a.seed);
-  const row = state.map.row, place = placeName(state.map.seed, row, me.x, me.z);
+  if (!f.look) f.look = describeSeed(a.seed, state.map.city);
+  const row = state.map.row, place = placeName(townOf(state.map), row, me.x, me.z);
   // A first look at a face behind you, going your way, is worth a word: it may be nothing.
   if (f.n === 0 && roll.ours && sc.lastCheck !== 'passive') {
     const behind = (a.x - me.x) * sc.heading.dir < -3, along = Math.sign(a.vx) === sc.heading.dir && Math.abs(a.vx) > 0.4;
@@ -496,7 +497,7 @@ function sighting(state, bus, a, roll) {
   }
 }
 
-const describeSeed = (seed) => { const p = passerby(seed); return describe(p.look, p.sex); };
+const describeSeed = (seed, city) => { const p = passerby(seed, city); return describe(p.look, p.sex); };
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
 
 /** Something conspicuous, if a watcher sees us do it: they write it down (once in a while, per kind). */

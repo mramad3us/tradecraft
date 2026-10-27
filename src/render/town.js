@@ -24,14 +24,21 @@
 // seamlessly; the street's own texture takes the section's offset in world pixels for the same reason.
 // Past the map's edges, where its ways lead off, a few metres of what's beyond are drawn (the next
 // street's pavement and road up a lane; the lane going on south), so a way out looks like one.
+// The section's city (sim/cities/; S.city) brings its own: London's areas and their railings,
+// Belisha beacons, telephone boxes, a pub's sign, chimney pots; Cairo's carts, stalls, souk stalls,
+// a mosque's minaret and dome; Beirut's scooters, generators, stairs, and its cables slung along the
+// fronts and across the lanes (one mesh a section); a dogleg drawn round its turn, the lot beside it
+// (lotOf()), a court's setts, a square's pavement and what stands in it. Parked cars face the way
+// their side of the road runs (the city's `drive`).
 // Textures are shared by make and kept (pixeltown.js keep()); a section frees only its own.
 import * as THREE from 'three';
-import { ground, tile, mat, glow, box, roundedBox, paint, PX_PER_M } from '../art/pixelart.js';
-import { street, building, facade, lamp, bench, bin, car, railing, awning, hangingSign, hedgeLeaves, keep } from '../art/pixeltown.js';
+import { ground, tile, mat, glow, box, roundedBox, paint, part, tone, PX_PER_M } from '../art/pixelart.js';
+import { street, building, facade, lamp, bench, bin, car, railing, awning, hangingSign, hedgeLeaves, keep, phonebox, beacon, pubSign, cart, stall, soukStall, minaret, generator, cablesMesh, cell } from '../art/pixeltown.js';
 import { treeCard, propCard } from '../art/townsprites.js';
 import { spritePerson, frame, card } from '../art/sprites.js';
-import { Z } from '../sim/map/street.js';
-import { stream, range } from '../sim/rng.js';
+import { Z, laneRects } from '../sim/map/street.js';
+import { cityById } from '../sim/cities/index.js';
+import { stream, range, pick, chance } from '../sim/rng.js';
 
 const tiles = new Map();
 const T = (kind, m) => { const k = `${kind}${m}`; if (!tiles.has(k)) tiles.set(k, mat(0, tile(kind, m))); return tiles.get(k); };
@@ -61,10 +68,22 @@ const run = (ops, night) => (f) => {
 
 // The ground's tiles by make: a pavement kind (the street's, sim LOOKS.pave) as a repeating tile, and
 // the lanes' and alleys' surfaces.
-const PAVE_TILE = { slabs: ['slabs', 3.75], squares: ['squares', 1], granite: ['granite', 3], pavers: ['pavers', 1], asphalt: ['tarmac', 3] };
+const PAVE_TILE = { slabs: ['slabs', 3.75], squares: ['squares', 1], granite: ['granite', 3], pavers: ['pavers', 1], asphalt: ['tarmac', 3], york: ['york', 3], pcc: ['pcc', 3], terrazzo: ['terrazzo', 1], broken: ['broken', 3] };
 const paveT = (kind) => T(...(PAVE_TILE[kind] ?? PAVE_TILE.slabs));
-const LANE_T = { asphalt: ['asphalt', 3], setts: ['cobble', 1], patched: ['patched', 6], slabs: ['roadslabs', 3], concrete: ['concrete', 3], dirt: ['dirt', 3] };
+const LANE_T = { asphalt: ['asphalt', 3], setts: ['cobble', 1], patched: ['patched', 6], slabs: ['roadslabs', 3], concrete: ['concrete', 3], dirt: ['dirt', 3], york: ['york', 3] };
 const laneT = (kind) => T(...(LANE_T[kind] ?? LANE_T.asphalt));
+// Stairs up a hill (Beirut's escaliers): two steps a metre, each a lit tread over the shade of its riser;
+// in stone, in concrete, or with the risers painted (the steps people paint).
+const stairsT = (kind) => keep(`stairs-${kind}`, () => {
+  const base = kind === 'concrete' ? 0xa8a49c : 0xc4b494, cols = [0xc95c45, 0xe7b84a, 0x3b6296, 0x356f42, 0x7a4a86, 0xe8896a];
+  return mat(0, paint(48, 48, (px) => {
+    for (let y = 0, k = 0; y < 48; y += 8, k++) {
+      px(0, y, 48, 5, tone(base, 0.06)); px(0, y, 48, 1, tone(base, 0.1));
+      for (let x = 0; x < 48; x += 3) if (cell(x, y, 71) < 0.3) px(x, y + 1 + (x % 3), 1, 1, tone(base, -0.02));
+      px(0, y + 5, 48, 3, kind === 'painted' ? cols[k % cols.length] : tone(base, -0.12)); px(0, y + 7, 48, 1, tone(base, -0.2));
+    }
+  }, { repeat: true }));
+});
 
 // The far road's scheme, from a stretch's: its own pavement and asphalt, the street's kerbs.
 const farLooks = new WeakMap();
@@ -77,7 +96,7 @@ const STONE = 0xa0978a;
 const BRONZE = { skin: 'dark', hair: { style: 'short', color: 0x47302a }, top: { kind: 'coat', color: 0x47302a, trim: 0x2a1c18 }, legs: 0x47302a, shoes: 0x2a1c18 };
 const PATINA = { skin: 0x2f6b62, hair: { style: 'long', color: 0x2f6b62 }, beard: 0x2f6b62, top: { kind: 'coat', color: 0x2f6b62, trim: 0x173327 }, legs: 0x2f6b62, shoes: 0x173327 };
 const SOLDIER = { skin: 'dark', hair: { style: 'short', color: 0x47302a }, hat: { kind: 'peaked', color: 0x47302a }, top: { kind: 'uniform', color: 0x47302a, trim: 0x2a1c18 }, legs: 0x47302a, shoes: 0x2a1c18 };
-const KIOSKS = [['ПЕЧАТЬ', 0x24503a], ['КОФЕ', 0x6e2a2e], ['ЦВЕТЫ', 0x283f6b], ['МОРОЖЕНОЕ', 0x3b6296]];
+// (a kiosk's sign and colour are its city's: sim/cities/ kiosks)
 
 /** A bust: a bronze person's head and shoulders (the top of their sprite), as a card. */
 function bustCard(spec) {
@@ -98,7 +117,8 @@ function bustCard(spec) {
 // with age, a seated figure, a bust on a column, a soldier with flowers at his feet), a kiosk (its
 // front to the south walk: plaster, a newsstand, a glass pavilion, a cabin), or two flower beds (clipped
 // box, ornamental cabbages, spruce boughs over them for the winter, dead stalks).
-export function feature(g, f, sprites) {
+export function feature(g, f, sprites, city = cityById(null)) {
+  const KIOSKS = city.kiosks;
   const w = f.x1 - f.x0, d = f.z1 - f.z0, cx = (f.x0 + f.x1) / 2, cz = (f.z0 + f.z1) / 2, look = f.look;
   const put = (m, x, z, y = 0) => { m.position.set(x, y, z); g.add(m); return m; };
   const rim = (t, sides, top) => { for (const [x, z, ww, dd] of [[cx, f.z0 + t / 2, w, t], [cx, f.z1 - t / 2, w, t], [f.x0 + t / 2, cz, t, d - 2 * t], [f.x1 - t / 2, cz, t, d - 2 * t]]) put(box(ww, 0.3, dd, { sides: mat(sides), top: mat(top) }), x, z); };
@@ -170,7 +190,7 @@ export function feature(g, f, sprites) {
     const spec = { x0: f.x0, x1: f.x1, z: f.z1, h: 2.6, d: 2, wall: 'plaster', wallColor: colour, seed: f.seed, kit: 'none' };
     if (look === 'news') {                                       // a newsstand: glass all round, papers in it, a blue roof
       g.add(building({ ...spec, wallColor: 0x8f96a6, roofColor: 0x3b6296,
-        draw: (fc) => { fc.shopfront(0.1, 2.8, 2.0, { frame: 0x6a7182, goods: [0xf6f4ee, 0xe2dac6, 0x9e3c36, 0x3b6296], lit: false }); fc.sign(0.1, 2.1, 2.8, 0.45, 'ПЕЧАТЬ', { bg: 0x3b6296, fg: 0xf6f4ee, border: 0x283f6b }); } }));
+        draw: (fc) => { fc.shopfront(0.1, 2.8, 2.0, { frame: 0x6a7182, goods: [0xf6f4ee, 0xe2dac6, 0x9e3c36, 0x3b6296], lit: false }); fc.sign(0.1, 2.1, 2.8, 0.45, city.news, { bg: 0x3b6296, fg: 0xf6f4ee, border: 0x283f6b }); } }));
     } else if (look === 'glass') {                               // a pavilion: a white frame, its counter behind glass
       g.add(building({ ...spec, wallColor: 0xdfe2e8, roofColor: 0x6a7182,
         draw: (fc) => { fc.shopfront(0.15, 1.9, 1.9, { frame: 0xb8bdc8, goods: [0x6b4636, 0xf6f4ee, 0xe7b84a], lit: false }); fc.door(2.2, 0.65, 1.9, { color: 0xb8bdc8, frame: 0xb8bdc8, style: 'shop' }); fc.sign(0.1, 2.05, 2.8, 0.45, sign, { bg: 0xf6f4ee, fg: colour, border: 0xb8bdc8, style: 'lightbox' }); } }));
@@ -183,9 +203,49 @@ export function feature(g, f, sprites) {
     }
     return;
   }
+  if (f.kind === 'garden') {                                     // a square's railed garden: lawn, a shrub or two, the railings round it
+    g.add(ground(f.x0, f.z0, f.x1, f.z1, T('grass', 3), 0.004));
+    for (const z of [f.z0 + 0.03, f.z1 - 0.03]) g.add(railing(f.x0, f.x1, z, { kind: 'spears' }));
+    for (const x of [f.x0 + 0.03, f.x1 - 0.03]) { const pivot = new THREE.Group(); pivot.add(railing(0, f.z1 - f.z0, 0, { kind: 'spears' })); pivot.rotation.y = -Math.PI / 2; pivot.position.set(x, 0, f.z0); g.add(pivot); }
+    for (const dx of [-1.2, 1.2]) sprites.push(seeThrough(put(propCard('shrub', { seed: f.seed + dx * 10 }), snap(cx + dx), snap(cz + 0.4))));
+    return;
+  }
   if (f.kind === 'beds') {
     const top = { kale: T('kale', 1), boughs: T('boughs', 1), stalks: T('stalks', 1) }[look] ?? T('leaves', 1);
     for (const z0 of [f.z0, f.z0 + 2.6]) put(box(4, 0.3, 1.6, { sides: mat(0x5c5650), top }), f.x0 + 2, z0 + 0.8);
+  }
+}
+
+/**
+ * The walled lot beside a dogleg (sim/map/street.js), low so the lane's turn behind it shows: London's
+ * a walled garden (lawn, a tree, shrubs, a brick wall round it), Beirut's a car park (asphalt, its
+ * bays, two cars nosed in, a barrier), Cairo's a vacant lot (dirt, rubble, a broken wall, a palm).
+ */
+function lotOf(g, lot, sprites, C) {
+  const { x0, x1, z: zb } = lot, zf = Z.front, w = x1 - x0, d = zf - zb, cx = (x0 + x1) / 2, r = stream('lot', lot.seed);
+  const put = (m, x, z, y = 0) => { m.position.set(x, y, z); g.add(m); return m; }, at = (m, x, z) => put(m, snap(x), snap(z));
+  const wallM = lot.kind === 'garden' ? keep('lot-brick', () => mat(0, tile('brick', 1))) : lot.kind === 'parking' ? mat(0xa0978a) : mat(0xc4a882);
+  const walls = (h, gaps = 0) => {
+    for (const [ax, az, bx, bz] of [[x0, zf - 0.12, x1, zf - 0.12], [x0, zb + 0.12, x1, zb + 0.12]]) put(box(bx - ax, h, 0.24, { sides: wallM, top: mat(0x8f8a84) }), (ax + bx) / 2, az);
+    for (const x of [x0 + 0.12, x1 - 0.12]) put(box(0.24, h, d, { sides: wallM, top: mat(0x8f8a84) }), x, (zb + zf) / 2);
+  };
+  if (lot.kind === 'garden') {
+    g.add(ground(x0, zb, x1, zf, T('grass', 3), 0.003));
+    walls(1.4);
+    sprites.push(seeThrough(at(treeCard({ seed: lot.seed, size: 0.9, species: chance(r, 0.5) ? 'cherry' : 'plane', month: 11 }), cx, (zb + zf) / 2)));
+    for (const dx of [-w / 3, w / 3]) sprites.push(seeThrough(at(propCard('shrub', { seed: lot.seed + dx }), cx + dx, zf - 1)));
+  } else if (lot.kind === 'parking') {
+    g.add(ground(x0, zb, x1, zf, T('asphalt', 3), 0.003));
+    walls(0.7);
+    for (let k = 0; k < Math.floor(w / 2.8); k++) { const m = car(pick(r, [0xf6f4ee, 0x23252f, 0xb8bdc8, 0x9e3c36]), { seed: lot.seed + k, kind: pick(r, ['sedan', 'suv', 'boxy']) }); m.rotation.y = -Math.PI / 2; m.position.set(x0 + 1.5 + k * 2.8, 0, zb + 2.6); g.add(m); }
+    const arm = box(w * 0.6, 0.08, 0.08, { sides: keep('barrier', () => mat(0, paint(16, 2, (px) => { for (let x = 0; x < 16; x += 4) { px(x, 0, 2, 2, 0x9e3c36); px(x + 2, 0, 2, 2, 0xf6f4ee); } }, { repeat: true }))) });
+    put(arm, x0 + w * 0.35, zf - 0.4, 1.0);
+    put(box(1.0, 2.1, 1.0, { sides: mat(0xdfe2e8), top: mat(0x8f96a6) }), x1 - 0.9, zf - 1.0);   // the attendant's booth
+  } else {                                                         // rubble
+    g.add(ground(x0, zb, x1, zf, T('dirt', 3), 0.003));
+    for (const [ax, bx, az] of [[x0, x1, zf - 0.12], [x0, x1, zb + 0.12]]) for (let x = ax; x < bx - 0.3; x += 1.2) put(box(Math.min(1.2, bx - x), 0.5 + range(r, 0, 1.2), 0.24, { sides: wallM, top: mat(0xa0978a) }), x + 0.6, az);
+    for (let k = 0; k < 5; k++) put(roundedBox(0.6 + range(r, 0, 0.8), 0.3 + range(r, 0, 0.4), 0.6 + range(r, 0, 0.8), 0.15, { sides: mat(pick(r, [0xa0978a, 0x8f6345, 0xc4a882])), top: mat(0xc4bba9) }), x0 + 1 + range(r, 0, w - 2), zb + 1 + range(r, 0, d - 2));
+    sprites.push(seeThrough(at(treeCard({ seed: lot.seed, size: 0.9, species: 'palm', month: 11 }), cx + range(r, -1, 1), (zb + zf) / 2)));
   }
 }
 
@@ -193,20 +253,29 @@ export function* buildSection(S, { month = 11 } = {}) {
   const g = new THREE.Group();
   const fronts = [], heads = [], sprites = [];
   const at = (m, x, z) => { m.position.set(snap(x), 0, snap(z)); g.add(m); return m; };
-  const L = S.look, leaves = LEAF_LITTER[month] ?? 0;
+  const C = cityById(S.city), L = S.look, leaves = (LEAF_LITTER[month] ?? 0) * (C.litter ?? 1);
+  // (London's ground: its areas' lightwells and its residents' bays, painted with the street)
+  const areas = S.props.filter(p => p.kind === 'area' && Math.abs(p.z - (Z.front + 0.62)) < 0.01).map(p => [p.x0, p.x1]);   // (a set-back house's lightwell is drawn on its own, below)
+  const bays = C.id === 'london' ? S.props.filter(p => p.kind === 'car' && p.z < 5).map(p => [p.x - 2.5, p.x + 2.5]) : [];
+  const lit = (m) => { for (const head of m.userData.heads) heads.push({ head, day: head.material, night: [head.material].flat().map((mm, i) => (i === 2 ? mm : LAMP_LIT)) }); };
 
   // The ground: the street (pavement, road, near pavement); the side streets and alleys north, and a
   // glimpse of the street beyond; the south band (a boulevard and its far road, or a park); the strip
   // behind the hedge, and the lanes going on south through it.
   const c = S.crossings[0], cs = S.crossingsS[0];
   g.add(street({ x0: S.x0, x1: S.x1, zB: Z.front, zK1: Z.kerbN, zK2: Z.kerbS, z1: Z.fence, zebra: c ? [c.x0, c.x1] : null, seed: S.seed % 100000, ox: Math.round(S.x0 * PX_PER_M), calm: true,
-    look: { a: L.a, b: L.b, breakX: L.breakN }, zebraKind: L.zebra, rowSeed: L.rowSeed, leaves }));
+    look: { a: L.a, b: L.b, breakX: L.breakN }, zebraKind: L.zebra, rowSeed: L.rowSeed, leaves, city: S.city ?? null, areas, bays }));
   const lane = (gp, look, za, zb, y = 0) => {                       // a side street (pavements and a road) or an alley
     if (gp.kind === 'side') g.add(ground(gp.x0, za, gp.x0 + 2, zb, paveT(look.walks), y), ground(gp.x1 - 2, za, gp.x1, zb, paveT(look.walks), y), ground(gp.x0 + 2, za, gp.x1 - 2, zb, laneT(look.ground), y));
+    else if (gp.kind === 'stairs') {                                // the steps, their handrails down both sides
+      g.add(ground(gp.x0, za, gp.x1, zb, stairsT(look.ground), y));
+      if (zb <= Z.front + 0.01) for (const x of [gp.x0 + 0.2, gp.x1 - 0.2]) { const rl = box(0.06, 0.9, Z.front - 1 - Math.max(za, Z.north), { sides: mat(0x23252f) }); rl.position.set(x, 0, (Z.front - 1 + Math.max(za, Z.north)) / 2); g.add(rl); }
+    }
     else g.add(ground(gp.x0, za, gp.x1, zb, laneT(look.ground), y));
   };
   S.gapsN.forEach((gp, k) => {
-    lane(gp, L.lanesN[k], Z.north - 4.5, Z.front);
+    if (gp.jog) for (const q of laneRects(gp)) lane({ ...gp, x0: q.x0, x1: q.x1 }, L.lanesN[k], q.z0 === Z.north ? Z.north - 4.5 : q.z0, q.z1);   // (a dogleg: its mouth, its turn, its top)
+    else lane(gp, L.lanesN[k], Z.north - 4.5, Z.front);
     g.add(ground(gp.x0 - 3, Z.north - 8, gp.x1 + 3, Z.north - 4.5, T('cobble', 1)), ground(gp.x0 - 3, Z.north - 16, gp.x1 + 3, Z.north - 8, T('asphalt', 3)));
   });
   if (S.band === 'boulevard') {
@@ -215,23 +284,36 @@ export function* buildSection(S, { month = 11 } = {}) {
     if (cs) g.add(ground(cs.x0, Z.pathS, cs.x1, Z.fenceS, T('gravel', 3), 0.005));
     const fa = far(L.a), fb = L.a === L.b ? fa : far(L.b);
     g.add(street({ x0: S.x0, x1: S.x1, zB: Z.fenceS, zK1: Z.roadN, zK2: Z.roadS, z1: Z.south, zebra: cs ? [cs.x0, cs.x1] : null, seed: (S.seed >>> 3) % 100000, ox: Math.round(S.x0 * PX_PER_M), calm: true,
-      look: { a: fa, b: fb, breakX: L.breakS }, zebraKind: L.zebraS, rowSeed: L.rowSeed + 1, leaves: leaves * 0.6 }));
+      look: { a: fa, b: fb, breakX: L.breakS }, zebraKind: L.zebraS, rowSeed: L.rowSeed + 1, leaves: leaves * 0.6, city: S.city ?? null }));
   } else {
     g.add(ground(S.x0, Z.fence, S.x1, Z.roadS, T('grass', 3)), ground(S.x0, Z.pathN, S.x1, Z.pathS, T('gravel', 3), 0.004), ground(S.x0, Z.roadS, S.x1, Z.south, T('gravel', 3)));
     for (const p of S.park.paths) g.add(ground(p.x0, p.x0 === c?.x0 ? Z.fence : Z.pathS, p.x1, Z.roadS, T('gravel', 3), 0.005));
     const f = S.park.feature;
-    if (f) feature(g, f, sprites);
+    if (f) feature(g, f, sprites, C);
   }
   g.add(ground(S.x0, Z.south, S.x1, Z.edge + 12, T('grass', 3)));
+  // Off the street, north of the building line: a square's or a crescent's pavement before the fronts set
+  // back, a court's setts to the house at its end, and what stands in the square.
+  for (const B of S.buildings) if (!B.back && B.z < Z.front - 0.01) g.add(ground(B.x0, B.z, B.x1, Z.front, paveT(L.b.paveN), 0.002));
+  for (const p of S.props) if (p.kind === 'area' && p.z < Z.front + 0.6) g.add(ground(p.x0, p.z - 0.62, p.x1, p.z, mat(0x23252f), 0.004));
+  for (const c of S.courts ?? []) g.add(ground(c.x0, c.z, c.x1, Z.front, laneT(L.lanesN[0]?.ground === 'dirt' ? 'dirt' : 'setts'), 0.002));
+  if (S.square) feature(g, S.square, sprites, C);
+  for (const lot of S.lots ?? []) lotOf(g, lot, sprites, C);
   S.gapsS.forEach((gp, k) => lane(gp, L.lanesS[k], Z.south, Z.edge + 12, 0.006));   // (over the strip's grass)
   yield;
 
   // The buildings, each in its dress; awnings over some shops.
   const r = stream('dusk', S.seed);
   for (const B of S.buildings) {
-    const spec = { x0: B.x0, x1: B.x1, z: B.z, h: B.h, d: B.d, wall: B.wall, wallColor: B.wallColor, roof: B.roof, roofColor: B.roofColor, kit: B.look?.roofKit, draw: run(B.ops, false), seed: B.seed, split: true };
+    const spec = { x0: B.x0, x1: B.x1, z: B.z, h: B.h, d: B.d, wall: B.wall, wallColor: B.wallColor, roof: B.roof, roofColor: B.roofColor, kit: B.look?.roofKit, draw: run(B.ops, false), seed: B.seed, split: true, stacks: B.look?.party ? [0.4, ...B.look.party, B.x1 - B.x0 - 0.4] : null };
     const b = building(spec);
     g.add(b);
+    if (B.look?.pubSign) g.add(pubSign(B.x0 + (B.x1 - B.x0 > 9 ? 1.0 : 0.7), 4.0, B.z, B.look.pubSign.sign));
+    if (B.look?.minaret) {                                         // a mosque's minaret, and its dome
+      const m = B.look.minaret, d = B.look.dome;
+      g.add(minaret(B.x0 + m.x, B.z - 1.6, B.h - 0.2, m.h, m.kind, B.wallColor));
+      if (d) { const dome = roundedBox(2 * d.r, d.r * 1.3, 2 * d.r, d.r * 0.95, { sides: mat(0xc4bba9), top: mat(0xe2dac6) }); dome.position.set(B.x0 + d.x, B.h, B.z - d.r - 2.5); g.add(part(dome)); }
+    }
     for (const a of B.look?.awnings ?? []) g.add(awning(B.x0 + a.x0, B.x0 + a.x1, 3.0, B.z, { depth: 0.7, drop: 0.35, color: a.color }));
     for (const s of B.look?.hanging ?? []) g.add(hangingSign(B.x0 + s.x, 3.0, B.z, s.text, { bg: s.bg, fg: s.fg }));
     const body = b.userData.body;
@@ -261,7 +343,22 @@ export function* buildSection(S, { month = 11 } = {}) {
         const pivot = new THREE.Group(); pivot.add(rl); pivot.rotation.y = -Math.PI / 2; pivot.position.set(p.x0, 0, p.z0); g.add(pivot);
         break;
       }
-      case 'car': { const m = car(p.color, { seed: p.seed, kind: p.look }); m.position.set(snap(p.x), 0, snap(p.z)); g.add(m); cost += 1; break; }
+      case 'car': {
+        // Parked with the traffic: driving on the right, the street's north kerb faces west and the far
+        // road's south kerb east; on the left (London), the other way round.
+        const m = car(p.color, { seed: p.seed, kind: p.look });
+        m.position.set(snap(p.x), 0, snap(p.z));
+        if ((p.z < Z.fence) === (C.drive !== 'left')) m.rotation.y = Math.PI;
+        g.add(m); cost += 1; break;
+      }
+      case 'area': g.add(railing(p.x0, p.x1, p.z, { kind: 'spears' })); break;
+      case 'cart': g.add(cart(snap(p.x), snap(p.z), p.look, Math.round(p.x * 7))); cost += 1; break;
+      case 'stall': g.add(stall(snap(p.x), snap(p.z), p.look)); cost += 1; break;
+      case 'souk': { const m = soukStall(snap(p.x), snap(p.z), p.side, p.look); g.add(m); lit(m); cost += 1; break; }
+      case 'scooter': sprites.push(seeThrough(at(propCard('scooter', { seed: [0x9e3c36, 0x23252f, 0xdfe2e8, 0x3b6296, 0xe7b84a].indexOf(p.look) + 5 * Math.round(p.x) }), p.x, p.z + 0.05))); break;
+      case 'generator': g.add(generator(snap(p.x), snap(p.z))); cost += 1; break;
+      case 'beacon': { const m = beacon(p.x, p.z); g.add(m); lit(m); break; }
+      case 'phonebox': { const m = phonebox(p.x, p.z); g.add(m); lit(m); cost += 1; break; }
       case 'hedge': {
         const leavesM = hedgeLeaves(p.look, month), hh = { thuja: 1.05, hawthorn: 0.8, twigs: 0.75 }[p.look] ?? 0.85;
         const h = box(p.x1 - p.x0, hh, Z.hedge - Z.south - 0.1, { sides: leavesM, top: leavesM });
@@ -271,6 +368,22 @@ export function* buildSection(S, { month = 11 } = {}) {
       case 'shrub': sprites.push(seeThrough(at(propCard('shrub', { seed: p.seed }), p.x, p.z))); break;
     }
     if (cost >= 12) { cost = 0; yield; }
+  }
+
+  // Cables (Beirut's): along the fronts, tacked to the walls on a grid of the world (so they run on from
+  // section to section), across the lanes' mouths, down to the lamps, up the side streets.
+  if (C.cables) {
+    const runs = [], sag = (a, b, s, n = 8) => { const pts = []; for (let k = 0; k <= n; k++) { const t = k / n; pts.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t - Math.sin(t * Math.PI) * s, a[2] + (b[2] - a[2]) * t]); } return pts; };
+    const H = (x, k) => 4.5 + k * 0.6 + cell(Math.round(x * 4), k, 81) * 0.9;
+    for (let k = 0; k < 3; k++) for (let x = S.x0; x < S.x1 - 0.01; x += 7.5) {
+      if (S.gapsN.some(gp => x + 7.5 > gp.x0 && x < gp.x1)) continue;
+      runs.push(sag([x, H(x, k), Z.front + 0.12 + k * 0.05], [x + 7.5, H(x + 7.5, k), Z.front + 0.12 + k * 0.05], 0.25 + cell(Math.round(x), k, 82) * 0.5));
+    }
+    for (const gp of S.gapsN) { const m = gp.jog ?? gp; for (let k = 0; k < 2 + (gp.kind === 'side' ? 2 : 0); k++) runs.push(sag([m.x0, 5 + k * 0.5, Z.front - 0.5 - k * 3], [m.x1, 5.3 + k * 0.4, Z.front - 0.8 - k * 3.4], 0.5 + k * 0.2)); }
+    for (const p of S.props) if (p.kind === 'lamp' && p.z < 0 && p.z > -2) runs.push(sag([p.x - 1.2, 5.2, Z.front + 0.1], [p.x, 3.4, p.z], 0.4, 6));
+    for (const gp of S.gapsN) if (gp.kind === 'side') for (const x of [gp.x0 + 0.1, gp.x1 - 0.1]) runs.push(sag([x, 5.5, Z.front - 0.5], [x, 5.8, Z.front - 18], 0.6, 10));
+    const m = cablesMesh(runs);
+    if (m) g.add(m);
   }
 
   const dispose = () => {

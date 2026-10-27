@@ -19,6 +19,8 @@
 // stream, so who they are doesn't change).
 //   - pickUp(): into the hand; what was in it goes where it's carried, or is dropped;
 //   - draw(): the next weapon carried into the hand, and the hand's put away (G); stow(), drop().
+import { mouthOf } from './map/street.js';
+import { townOf } from './cities/index.js';
 import { stream, hash, int, chance, pick, range, weighted } from './rng.js';
 import { WEAPONS, weaponOf } from './weapons.js';
 import { say } from './log.js';
@@ -65,7 +67,7 @@ export function sectionItems(seed, S) {
     else if (p.kind === 'tree') put('tree', p.x + 0.6, p.z + 0.5);
     else if (p.kind === 'hedge') for (let x = p.x0 + 4; x < p.x1 - 2; x += 12) put('hedge', x, p.z + 1.4);
   }
-  for (const g of S.gapsN ?? []) if (g.kind === 'alley') put('alley', (g.x0 + g.x1) / 2, range(r, -26, -9));
+  for (const g of S.gapsN ?? []) if (g.kind === 'alley') put('alley', (mouthOf(g).x0 + mouthOf(g).x1) / 2, g.jog ? range(r, g.jog.z + 1, -9) : range(r, -26, -9));   // (a dogleg's: before its turn)
   for (const d of S.doors) {
     if (d.kind === 'arch') put('arch', d.x, d.z + 0.8);
     else if (d.kind === 'shop') put('shop', d.x + 0.8, d.z + 0.7);
@@ -77,7 +79,7 @@ const round = (v) => Math.round(v * 100) / 100;
 /** The things lying on the row's sections in play, less what's been taken, plus what's been dropped there. */
 export function lyingAbout(state) {
   const W = state.$world, row = state.map.row ?? 0, taken = state.items?.taken ?? {}, out = [];
-  if (state.map.kind === 'street' && W) for (const S of W.sections.values()) for (const it of (S.$items ??= sectionItems(state.map.seed, S))) if (!taken[it.id]) out.push(it);
+  if (state.map.kind === 'street' && W) for (const S of W.sections.values()) for (const it of (S.$items ??= sectionItems(townOf(state.map), S))) if (!taken[it.id]) out.push(it);
   for (const it of state.items?.dropped ?? []) if (it.row === row && state.map.kind === (it.map ?? 'street')) out.push(it);
   return out;
 }

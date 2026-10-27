@@ -87,7 +87,7 @@ function hurtNow(state, them) {
 /** Make sure they have a sheet in state.people (a passer-by is made one from their seed: kept from now on). */
 function person(state, them) {
   if (them.who) return state.people[them.who];
-  const p = passerby(them.seed);
+  const p = passerby(them.seed, state.map.city);
   p.known = false; p.seen = describe(p.look, p.sex);                // (a stranger: their name's not ours to know)
   p.items = armsOf(them.seed, p.sex);                                // (what they carry, if anything: sim/items.js)
   state.people[p.id] ??= p;

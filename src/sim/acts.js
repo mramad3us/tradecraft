@@ -19,6 +19,7 @@
 // Also here, the bits of the street they read: where the crossings and the shop windows are, the
 // instinct's offer of what T would do here, and a calm way to pick a line of the instinct's without
 // touching the dice.
+import { townOf } from './cities/index.js';
 import { TICK_MS } from './clock.js';
 import { hash } from './rng.js';
 import { LANES, Z, SECTION_M } from './map/street.js';
@@ -81,7 +82,7 @@ export function paneNear(state, a, m = 1.5) {
 /** The pane in front of (x, z) on a row (the map's, unless said), close enough to look in (GLASS_REACH_M), or null. */
 export function paneAt(state, x, z, row = state.map.row) {
   if (z <= Z.front || z - Z.front > GLASS_REACH_M) return null;
-  return sectionOf(state.map.seed, row, Math.floor(x / SECTION_M)).doors.find(d => d.pane && x > d.pane.x0 - 0.3 && x < d.pane.x1 + 0.3)?.pane ?? null;
+  return sectionOf(townOf(state.map), row, Math.floor(x / SECTION_M)).doors.find(d => d.pane && x > d.pane.x0 - 0.3 && x < d.pane.x1 + 0.3)?.pane ?? null;
 }
 
 /** The pane the actor is looking into, stood at it with the eyes into it, or null. */

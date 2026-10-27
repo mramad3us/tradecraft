@@ -60,7 +60,7 @@ export default [
       await withGame(async (page, errors) => {
         await page.goto(`http://localhost:${PORT}/`);
         await page.waitForFunction("!document.getElementById('title').hidden", null, { timeout: 30000 });
-        await page.locator('#title .item', { hasText: 'Free walk' }).first().click();
+        await page.locator('#title .cities button', { hasText: 'Moscow' }).click();   // (the free walk: a button per city)
         await page.waitForFunction('window.__ready === true', null, { timeout: 30000 });
         const t0 = Date.now();
         await page.keyboard.down('KeyD');

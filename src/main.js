@@ -8,7 +8,8 @@
 //
 // Saves: an autosave every 30 game minutes, on leaving the page and on quitting to the title
 // (src/ui/store.js); the menu exports and imports save files. ?play=<scenario>&seed=<n>&hour=<h>
-// skips the title and starts a new game there (for shots and smoke tests); &autoplay[=<m>] has the
+// skips the title and starts a new game there (for shots and smoke tests), &city=<london | beirut |
+// cairo> in another city (sim/cities/; Moscow by default); &autoplay[=<m>] has the
 // game's own AI play the character (sim/agents.js; a follower m metres back). window.__tradecraft is
 // the debug handle: { state, step(n, input), start(state or JSON), newGame(opts), save() (the JSON),
 // skip(ms), autosave(), pause(on), view }.
@@ -34,7 +35,7 @@ let paused = false, running = false, acts = [];
 let prev = new Map(), acc = 0, last = performance.now(), frames = 0;
 
 const ui = createUI({ input, cb: {
-  newGame: (kind, chapter = null) => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter })),
+  newGame: (kind, chapter = null, city = null) => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city })),
   // (the campaign: three officers, one picked, the posting's brief, then the posting: sim/campaign.js)
   newCampaign: () => {
     const seed = randomSeed(), list = candidates(seed, 'moscow');
@@ -96,28 +97,28 @@ function launch(s, { hour = null } = {}) {
     setTimeout(() => { if (state === s) result(); }, 1800);
   });
   bus.on('cut', () => ui.flash());                                 // (a scene's cut to another time: sim/scenarios/dojo.js)
-  bus.on('brief', (b) => ui.showBrief(b, () => {}));
+  bus.on('brief', (b) => ui.showBrief(b, () => {}, state.map?.city));
   bus.on('map', () => { prev = new Map(); view.flush(); });         // the next street: no gliding there from the last
   start(state, bus);
   view.flush();                                                    // the street around you, before the first frame
   if (Number.isFinite(hour)) skip(state, bus, ((hour - hourOfDay(state.time.ms)) * HOUR % (24 * HOUR) + 24 * HOUR) % (24 * HOUR));
   ui.hideTitle();
   ui.closeAll();
-  ui.clearToasts();
+  ui.clearToasts(state.map?.city ?? null);
   for (const e of state.log.slice(-2)) ui.toast(e);
   prev = new Map(); acc = 0; paused = false; running = true; acts = [];
   const sc = SCENARIOS[state.scenario.kind];
   if (state.scenario.outcome) result();
-  else if (sc.brief && state.tick === 0) ui.showBrief(typeof sc.brief === 'function' ? sc.brief(state) : sc.brief, () => {});
+  else if (sc.brief && state.tick === 0) ui.showBrief(typeof sc.brief === 'function' ? sc.brief(state) : sc.brief, () => {}, state.map?.city);
 }
 
 /** A test's result paper, with the ways on. */
 function result() {
-  const kind = state.scenario.kind, seed = state.seed, chapter = state.scenario.chapter ?? null;
+  const kind = state.scenario.kind, seed = state.seed, chapter = state.scenario.chapter ?? null, city = state.map?.city ?? null;
   if (state.campaign) return ui.showResult(state, { back: () => backToPosting(state), title: async () => { await autosave(); stop(); showTitle(); } }, settings);
   ui.showResult(state, {
-    again: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter })),
-    same: () => launch(newGame({ seed, scenario: kind, version: VERSION, chapter })),
+    again: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city })),
+    same: () => launch(newGame({ seed, scenario: kind, version: VERSION, chapter, city })),
     title: async () => { await autosave(); stop(); showTitle(); },
   }, settings);
 }
@@ -250,7 +251,7 @@ window.__tradecraft = {
 
 if (q.has('play') && SCENARIOS[q.get('play')]) {
   const autoplay = q.has('autoplay') ? { keep: Number(q.get('autoplay')) || 20 } : null;
-  launch(newGame({ seed: Number(q.get('seed') ?? 1), scenario: q.get('play'), version: VERSION, autoplay, chapter: q.get('chapter') }), { hour: q.has('hour') ? Number(q.get('hour')) : null });
+  launch(newGame({ seed: Number(q.get('seed') ?? 1), scenario: q.get('play'), version: VERSION, autoplay, chapter: q.get('chapter'), city: q.get('city') }), { hour: q.has('hour') ? Number(q.get('hour')) : null });
 }
 else showTitle();
 requestAnimationFrame(frame);

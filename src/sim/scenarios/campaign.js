@@ -18,6 +18,7 @@ import { heatKey } from '../heat.js';
 import { say } from '../log.js';
 import { Z, streetName } from '../map/street.js';
 import { sectionOf } from '../city.js';
+import { townOf } from '../cities/index.js';
 import { skip, newMap } from '../game.js';
 import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, KINDS, WORK } from '../campaign.js';
 
@@ -39,11 +40,11 @@ export const campaignHub = {
     const row = c.where?.row ?? p.home.row;
     state.map = { kind: 'street', seed: p.mapSeed, row, i0: null, i1: null, crowd: 1, city: p.city };
     // (home: the flat's door, a block's entrance on the street; or wherever the last assignment left you)
-    const door = [0, 1].flatMap(i => sectionOf(p.mapSeed, row, i).doors).find(d => d.kind === 'entrance' && d.z === Z.front) ?? { x: 12 };
+    const door = [0, 1].flatMap(i => sectionOf(townOf({ seed: p.mapSeed, city: p.city }), row, i).doors).find(d => d.kind === 'entrance' && d.z === Z.front) ?? { x: 12 };
     const x = c.where?.x ?? door.x;
     state.actors.push({ id: 'a0', who: 'me', seed: null, row, x, z: c.where?.z ?? -2.6, vx: 0, vz: 0, face: 'down', head: Math.PI / 2, gait: 'idle', stride: 0, stuck: 0, ai: null });
     state.scenario = { kind: 'campaign', prompt: null, outcome: null, began: state.time.ms };
-    say(state, null, { kind: 'note', text: c.where ? `${clockText(state.time.ms)}, ${streetName(p.mapSeed, row)}.` : `${state.people.me.name}, ${p.job}. Day one of the posting: ${p.subject}. ${clockText(state.time.ms)}, outside the flat on ${streetName(p.mapSeed, row)}. Tab: the desk.` });
+    say(state, null, { kind: 'note', text: c.where ? `${clockText(state.time.ms)}, ${streetName(townOf({ seed: p.mapSeed, city: p.city }), row)}.` : `${state.people.me.name}, ${p.job}. Day one of the posting: ${p.subject}. ${clockText(state.time.ms)}, outside the flat on ${streetName(townOf({ seed: p.mapSeed, city: p.city }), row)}. Tab: the desk.` });
   },
 
   act(state, bus, action) {
@@ -121,11 +122,11 @@ export const campaignHub = {
 /** Arrive at a place: its street loaded, the player at its door (sim/game.js newMap()). */
 function goTo(state, bus, to) {
   const c = state.campaign, p = c.posting, me = state.actors.find(a => a.who === state.player);
-  const door = [0, 1].flatMap(i => sectionOf(p.mapSeed, to.row, i).doors).find(d => d.kind === (to.id === 'embassy' ? 'shop' : 'entrance') && d.z === Z.front) ?? { x: 12 };
+  const door = [0, 1].flatMap(i => sectionOf(townOf({ seed: p.mapSeed, city: p.city }), to.row, i).doors).find(d => d.kind === (to.id === 'embassy' ? 'shop' : 'entrance') && d.z === Z.front) ?? { x: 12 };
   Object.assign(me, { x: door.x, z: -2.6, vx: 0, vz: 0, face: 'down', head: Math.PI / 2, busy: null });
   newMap(state, bus, { kind: 'street', seed: p.mapSeed, row: to.row, i0: null, i1: null, crowd: 1, city: p.city }, door.x);
   c.where = { row: to.row, x: door.x, z: -2.6 };
-  say(state, bus, { kind: 'note', text: `${cap(to.label)}, on ${streetName(p.mapSeed, to.row)}.` });
+  say(state, bus, { kind: 'note', text: `${cap(to.label)}, on ${streetName(townOf({ seed: p.mapSeed, city: p.city }), to.row)}.` });
 }
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 

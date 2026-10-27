@@ -29,6 +29,7 @@ import { TICK_MS, MIN, DAY, dateText } from './clock.js';
 import { SAVE_SCHEMA } from './state.js';
 import { attach, refocus, rehash, move, near, exitAt } from './world.js';
 import { Z, placeName } from './map/street.js';
+import { CITIES, townOf } from './cities/index.js';
 import { say } from './log.js';
 import { populate, think, walk, facing, isPasserby, noticeAgent } from './crowd.js';
 import { look, headOf, faceOf } from './perception.js';
@@ -60,7 +61,7 @@ const TICKS_PER_S = Math.round(1000 / TICK_MS);
  * player's character played by the game's own AI (an agent: sim/agents.js), with its options (as the
  * scenario reads them, e.g. { keep } for a follower); null, by hand.
  */
-export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = null, chapter = null, campaign = null, context = null } = {}) {
+export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = null, chapter = null, campaign = null, context = null, city = null } = {}) {
   const state = {
     game: 'tradecraft', schema: SAVE_SCHEMA, version, seed, rng: seedRng(seed), tick: 0, time: { ms: 0 }, autoplay,
     scenario: { kind: scenario }, country: 'ru', legend: null, player: null, focus: null,
@@ -69,7 +70,11 @@ export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = 
   // (a campaign rides along, the persistent part: sim/campaign.js; context, an assignment's, for its scene's setup)
   state.campaign = campaign;
   state.assignment = context?.assignment ?? null;
-  SCENARIOS[scenario].setup(state, { chapter, campaign: context });
+  // The city (sim/cities/): a street map is generated from its profile (state.map.city; none is Moscow).
+  const C = city && CITIES[city];
+  if (C) state.country = C.country;
+  SCENARIOS[scenario].setup(state, { chapter, campaign: context, city: C && city !== 'moscow' ? city : null });
+  if (C && city !== 'moscow' && state.map?.kind === 'street') state.map.city ??= city;
   return state;
 }
 
@@ -121,7 +126,7 @@ export function step(state, input = {}, bus) {
       if (to && me && !state.fight && atKerb(state, me)) {
         say(state, bus, { kind: 'note', text: `A taxi pulls in. ${cap(to.label)}, you tell him, and he grunts.` });
         const m = ride(state, bus, to, { scenario, skip, loadRow });
-        if (m) say(state, bus, { kind: 'note', text: `${Math.round(m)} minutes later, ${placeName(state.map.seed, state.map.row ?? 0, playerActor(state).x, 0)}: you pay, and get out.` });
+        if (m) say(state, bus, { kind: 'note', text: `${Math.round(m)} minutes later, ${placeName(townOf(state.map), state.map.row ?? 0, playerActor(state).x, 0)}: you pay, and get out.` });
       }
       continue;
     }
@@ -344,8 +349,8 @@ export function loadRow(state, bus, row, x, { way = null, from = state.map.row, 
   rehash(state);
   scenario.mapChanged?.(state, bus, way, from);
   const f = focusActor(state), north = row < from;
-  const lane = way?.name ?? placeName(state.map.seed, north ? from : row, f.x, north ? Z.front - 10 : Z.front - 10);
-  if (!quiet) say(state, bus, { kind: 'note', text: north ? `Up ${lane}, and out onto the far side of ${placeName(state.map.seed, row, f.x, Z.fence + 5)}.` : `Down ${lane}, toward ${placeName(state.map.seed, row, f.x, 0)}.` });   // (a taxi tells its own arrival)
+  const town = townOf(state.map), lane = way?.name ?? placeName(town, north ? from : row, f.x, north ? Z.front - 10 : Z.front - 10);
+  if (!quiet) say(state, bus, { kind: 'note', text: north ? `Up ${lane}, and out onto the far side of ${placeName(town, row, f.x, Z.fence + 5)}.` : `Down ${lane}, toward ${placeName(town, row, f.x, 0)}.` });   // (a taxi tells its own arrival)
   bus?.emit('map', state.map);
   bus?.emit('autosave', 'map');
 }

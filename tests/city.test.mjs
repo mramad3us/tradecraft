@@ -54,7 +54,7 @@ export default [
         for (const [line, z] of Object.entries(LINE)) for (let x = S.x0; x < S.x1; x += 0.5) for (const o of [-HALF[line], 0, HALF[line]]) probe(x, z + o, `line ${line}`);
         for (const c of S.crossings) { const x = (c.x0 + c.x1) / 2; for (let z = LINE.F; z <= LINE.P; z += 0.25) for (const o of [-HALF.zebra, 0, HALF.zebra]) probe(x + o, z, 'the zebra and the gate'); }
         for (const c of S.crossingsS) { const x = (c.x0 + c.x1) / 2; for (let z = LINE.P; z <= LINE.S; z += 0.25) for (const o of [-HALF.zebra, 0, HALF.zebra]) probe(x + o, z, 'the way south'); }
-        for (const g of S.gapsN) { const x = (g.x0 + g.x1) / 2; for (let z = Z.north + 0.4; z <= LINE.F; z += 0.25) for (const o of [-HALF[g.kind], 0, HALF[g.kind]]) probe(x + o, z, g.name); }
+        for (const g of S.gapsN) { const x = (g.x0 + g.x1) / 2; for (let z = Z.north + 0.4; z <= LINE.F; z += 0.25) for (const o of [-HALF[g.kind], 0, HALF[g.kind]]) probe(x + o, z, g.name); }   // (Moscow's lanes run straight: tests/cities.test.mjs walks the other cities' doglegs)
         for (const g of S.gapsS) { const x = (g.x0 + g.x1) / 2; for (let z = LINE.S; z <= Z.edge - 0.4; z += 0.25) for (const o of [-HALF[g.kind], 0, HALF[g.kind]]) probe(x + o, z, `${g.name}, south`); }
       }
       console.log(`      ${checked} points on the ways of 3 cities × 13 streets × 13 sections: clear`);

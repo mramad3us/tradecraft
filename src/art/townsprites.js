@@ -8,8 +8,11 @@
 // twigs instead. Its card casts the sun's shadow: the silhouette, flattened onto the ground behind it.
 //
 // The props are templates shaded by sprites.js (drawSprite): a potted shrub, post boxes (Russian
-// Post's blue, the Soviet one, an old red one, one on a pillar), a café chalkboard, a bistro table
-// and chair, a bicycle, a pigeon (two frames: standing, pecking); and dry reeds, drawn.
+// Post's blue, the Soviet one, an old red one, one on a pillar, London's red pillar box), a café
+// chalkboard, a bistro table and chair, a bicycle, a scooter (Beirut's), a pigeon (two frames:
+// standing, pecking); and dry reeds, drawn. The cities' trees: London's plane, horse chestnut and
+// cherry; the evergreens of Beirut and Cairo (ficus, flame tree, jacaranda, eucalyptus, stone pine,
+// olive), and palms (palm(): a date palm, a royal palm, a Washingtonia).
 import * as THREE from 'three';
 import { rng, tone } from './pixelart.js';
 import { drawSprite, blit, card } from './sprites.js';
@@ -84,6 +87,17 @@ const AUTUMN = {
   brown: [0x2a1c18, 0x47302a, 0x6b4636, 0x8f6345, 0xb48459, 0xd6ad7a],
   lime: [0x173327, 0x356f42, 0x7a5a22, 0xb9862e, 0xa6cc5e, 0xe7c060],
   spruce: [0x14151c, 0x173327, 0x24503a, 0x2f6b62, 0x356f42, 0x4f8f45],
+  plane: [0x2a1c18, 0x6b4636, 0x8f6345, 0xb48459, 0xb9862e, 0xd6ad7a],
+};
+// Evergreen crowns, by species (dark → light): a ficus's glossy dark green, a flame tree's and a
+// jacaranda's feathery light green, a eucalyptus's grey-green, a stone pine's dark umbrella, an olive's silver.
+const EVER = {
+  ficus: [0x14151c, 0x173327, 0x24503a, 0x356f42, 0x4f8f45, 0x76ad4c],
+  flame: [0x173327, 0x356f42, 0x4f8f45, 0x76ad4c, 0xa6cc5e, 0xc8dc8a],
+  jacaranda: [0x173327, 0x2f6b3a, 0x4f8f45, 0x76ad4c, 0xa6cc5e, 0xb8d890],
+  eucalyptus: [0x23252f, 0x2f4a40, 0x4f6f5a, 0x76907a, 0x9ab0a0, 0xc4d0c4],
+  pine: [0x14151c, 0x173327, 0x24503a, 0x2f5a3a, 0x356f42, 0x4f8f45],
+  olive: [0x23252f, 0x3f4a3a, 0x5c6a50, 0x7d8a6c, 0xa0aa90, 0xc4ccb8],
 };
 export const SPECIES = {
   lime: { w: 72, h: 88, rx: 0.62, ry: 0.58, fork: 0.62, trunk: [BARK[2], BARK[1], BARK[3]], attract: 150, jitter: 0.35, haze: 0.85, twigs: [0x47302a, 0x5e4238, 0x7a5c4c], fall: 'yellow', clings: 0 },
@@ -92,25 +106,42 @@ export const SPECIES = {
   poplar: { w: 62, h: 108, rx: 0.42, ry: 0.68, fork: 0.72, trunk: [0x7d756c, 0x5c5650, 0xa0978a], attract: 140, jitter: 0.25, haze: 0.8, twigs: [0x4c4844, 0x6a645e, 0x8f8880], fall: 'lime', clings: 0.2 },
   oak: { w: 84, h: 88, rx: 0.7, ry: 0.5, fork: 0.5, trunk: [BARK[1], BARK[0], BARK[2]], attract: 100, jitter: 0.9, haze: 0.75, twigs: [0x2a1c18, 0x47302a, 0x6b4636], fall: 'brown', clings: 0.42 },
   spruce: { w: 56, h: 92, evergreen: true },
+  // London's: the plane (big, its bark flaking in patches, its seed balls hanging on into the winter, its
+  // leaves late to fall), the horse chestnut, a cherry in a garden square.
+  plane: { w: 92, h: 104, rx: 0.66, ry: 0.56, fork: 0.58, trunk: [0xa0978a, 0x6a645e, 0xc4bba9], attract: 170, jitter: 0.4, haze: 0.8, twigs: [0x47403c, 0x6a5e54, 0x8f8478], fall: 'plane', clings: 0.4, mottled: true, balls: true },
+  chestnut: { w: 80, h: 86, rx: 0.68, ry: 0.54, fork: 0.55, trunk: [0x6b4636, 0x47302a, 0x8f6345], attract: 130, jitter: 0.5, haze: 0.8, twigs: [0x3f2a24, 0x5e4238, 0x7a5c4c], fall: 'orange', clings: 0.1 },
+  cherry: { w: 56, h: 62, rx: 0.62, ry: 0.48, fork: 0.5, trunk: [0x6e2a2e, 0x3f1a22, 0x8f5a50], attract: 90, jitter: 0.5, haze: 0.85, twigs: [0x3f1a22, 0x5e3a3a, 0x7a5050], fall: 'orange', clings: 0.18 },
+  // Beirut's and Cairo's: evergreens in leaf all year (EVER), and palms (palm(): a date palm, a royal
+  // palm's smooth grey column, a Washingtonia's fan of leaves over its skirt of dead ones).
+  ficus: { w: 88, h: 84, rx: 0.72, ry: 0.58, fork: 0.48, trunk: [0x8f8a84, 0x5c5650, 0xb4ada4], attract: 120, jitter: 0.5, haze: 0.8, twigs: [0x47403c, 0x6a645e, 0x8f8880], ever: 'ficus' },
+  flame: { w: 96, h: 70, rx: 0.86, ry: 0.36, fork: 0.42, trunk: [0x7d756c, 0x5c5650, 0xa0978a], attract: 120, jitter: 0.6, haze: 0.8, twigs: [0x47403c, 0x6a645e, 0x8f8880], ever: 'flame' },
+  jacaranda: { w: 78, h: 80, rx: 0.7, ry: 0.5, fork: 0.5, trunk: [0x6a645e, 0x47403c, 0x8f8880], attract: 110, jitter: 0.6, haze: 0.8, twigs: [0x47403c, 0x6a645e, 0x8f8880], ever: 'jacaranda' },
+  eucalyptus: { w: 66, h: 110, rx: 0.5, ry: 0.62, fork: 0.62, trunk: [0xc4bba9, 0x8f8a84, 0xe2dac6], attract: 100, jitter: 0.6, haze: 0.8, twigs: [0x6a645e, 0x8f8880, 0xa0978a], ever: 'eucalyptus' },
+  pine: { w: 90, h: 104, rx: 0.86, ry: 0.3, fork: 0.32, trunk: [0x8f6345, 0x6b4636, 0xb48459], attract: 120, jitter: 0.4, haze: 0.8, twigs: [0x47302a, 0x6b4636, 0x8f6345], ever: 'pine', high: 0.24 },
+  olive: { w: 60, h: 56, rx: 0.7, ry: 0.5, fork: 0.5, trunk: [0x6a645e, 0x47403c, 0x8f8880], attract: 90, jitter: 0.8, haze: 0.8, twigs: [0x47403c, 0x6a645e, 0x8f8880], ever: 'olive' },
+  palm: { w: 72, h: 122, palm: 'date' },
+  royal: { w: 70, h: 132, palm: 'royal' },
+  fan: { w: 58, h: 146, palm: 'fan' },
 };
 
 /** How a species is in leaf in a month (1–12): { amount 0 … 1, palette dark → light }. */
 export function leafState(species, month = 11) {
   const s = SPECIES[species] ?? SPECIES.lime;
   if (s.evergreen) return { amount: 1, palette: AUTUMN.spruce };
+  if (s.ever) return { amount: 1, palette: EVER[s.ever] };
   if (month >= 5 && month <= 8) return { amount: 1, palette: LEAF };
   if (month === 9) return { amount: 1, palette: species === 'oak' || species === 'poplar' ? LEAF : AUTUMN.lime };
-  if (month === 10) return { amount: { lime: 0.35, maple: 0.6, birch: 0.5, poplar: 0.75, oak: 0.85 }[species] ?? 0.5, palette: AUTUMN[s.fall] };
+  if (month === 10) return { amount: { lime: 0.35, maple: 0.6, birch: 0.5, poplar: 0.75, oak: 0.85, plane: 0.9, chestnut: 0.45, cherry: 0.4 }[species] ?? 0.5, palette: AUTUMN[s.fall] };
   if (month === 11) return { amount: s.clings, palette: AUTUMN[s.fall] };
   if (month === 4) return { amount: 0, palette: LEAF };
-  return { amount: species === 'oak' ? 0.25 : 0, palette: AUTUMN[s.fall] };
+  return { amount: species === 'oak' ? 0.25 : species === 'plane' && (month === 12 || month === 1) ? 0.12 : 0, palette: AUTUMN[s.fall] };
 }
 
 /** A tree: a card a few metres wide and tall, its trunk over its origin: a species in a month (see above). */
 export function treeCard({ seed = 3, size = 1, species = 'lime', month = 5 } = {}) {
   const S = SPECIES[species] ?? SPECIES.lime;
   const { amount, palette } = leafState(species, month);
-  const px = species === 'spruce' ? spruce(S, seed, size) : broadleaf(S, species, seed, size, amount, palette);
+  const px = S.palm ? palm(S, seed, size) : species === 'spruce' ? spruce(S, seed, size) : broadleaf(S, species, seed, size, amount, palette);
   const w = px[0].length, h = px.length;
   const [cv, g] = canvasOf(w, h);
   blit(g, px);
@@ -128,7 +159,7 @@ const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 function broadleaf(S, species, seed, size, amount, palette) {
   const { w, h } = S, cx = Math.floor(w / 2), r = rng(seed * 7 + species.length);
   const R = (w * 0.4) * size, rx = R * S.rx / 0.62, ry = R * S.ry / 0.62 * (species === 'poplar' ? 1.3 : 1);
-  const cy = Math.round(h * 0.4 + (1 - size) * 14);
+  const cy = Math.round(h * (S.high ?? 0.4) + (1 - size) * 14);
   const grid = () => Array.from({ length: h }, () => Array(w).fill(null));
   const bark = grid(), haze = grid(), leafL = grid(), dry = grid();
   const put = (buf, x, y, c) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < w && y < h) buf[y][x] = c; };
@@ -143,6 +174,7 @@ function broadleaf(S, species, seed, size, amount, palette) {
       const k = x - (cx - half);
       let c = k === 0 ? tl : k >= 2 * half ? td : tc;
       if (species === 'birch' && ((y * 5 + x * 3) % 11 === 0 || (y % 7 === 3 && k > 0 && k < 2 * half))) c = 0x23252f;
+      else if (S.mottled && edge(x * 2.3, y * 1.7) > 0.62) c = k === 0 ? 0xe2dac6 : 0xc4b890;   // (a plane's bark, flaked off in pale patches)
       else if ((x === cx + 1 && (y * 7) % 5 < 2) || (x === cx - 1 && (y * 3) % 7 === 0)) c = td;
       put(bark, x, y, c);
     }
@@ -235,6 +267,7 @@ function broadleaf(S, species, seed, size, amount, palette) {
       put(haze, x, y, c); if (r() < 0.6) put(haze, x + 1, y, tone(c, -0.08)); if (r() < 0.3) put(haze, x, y + 1, palette[2]);
     }
   }
+  if (S.balls) for (const n of N) if (n.tip && r() < 0.18) { put(haze, n.x, n.y + 2, 0x47302a); put(haze, n.x, n.y + 1, 0x6a5e54); }   // (a plane's seed balls)
   // Composed back to front, then outlined: dark round the leaves and the limbs; the twigs keep a soft edge.
   const px = grid(), solid = grid();
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -284,6 +317,56 @@ function spruce(S, seed, size) {
   return out;
 }
 
+// A palm: its trunk, slender and leaning a little (a date palm's scaled with the bases of old leaves, a
+// royal palm's a smooth grey column with a green crownshaft, a Washingtonia's tall and thin under a
+// skirt of dead leaves), and its crown of fronds, each a curve with its leaflets hanging from it, lit
+// on the side to the sun; a date palm's fruit in orange bunches under them.
+function palm(S, seed, size) {
+  const { w, h } = S, r = rng(seed * 11 + 7), kind = S.palm;
+  const px = Array.from({ length: h }, () => Array(w).fill(null));
+  const put = (x, y, c) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < w && y < h) px[y][x] = c; };
+  const cx = Math.floor(w / 2), top = Math.round(kind === 'fan' ? 14 : 20 + (1 - size) * 16), lean = (r() - 0.5) * 6, half = kind === 'royal' ? 2 : kind === 'fan' ? 1 : 3;
+  const at = (y) => cx + lean * (1 - (y - top) / (h - top)) ** 2;           // the trunk's line, leaning at the top
+  for (let y = top; y < h - 1; y++) {
+    const x = at(y), bulge = kind === 'royal' && y > h - 30 ? 1 : 0;
+    for (let i = -half - bulge; i <= half + bulge; i++) {
+      let c = i <= -half - bulge + 0 ? 0xa0978a : i >= half + bulge ? 0x5c5650 : 0x7d756c;
+      if (kind === 'date') c = (y + (i & 1) * 2) % 4 === 0 ? 0x47302a : i <= -half ? 0x8f6345 : i >= half ? 0x47302a : 0x6b4636;
+      if (kind === 'fan') c = i < 0 ? 0x8f8a84 : 0x6a645e;
+      if (kind === 'royal') c = i <= -half - bulge ? 0xdfe2e8 : i >= half + bulge ? 0x8f96a6 : (y % 9 === 0 ? 0x8f96a6 : 0xb8bdc8);
+      put(x + i, y, c);
+    }
+  }
+  const crownY = top + (kind === 'royal' ? 6 : 0);
+  if (kind === 'royal') for (let y = top - 2; y < top + 8; y++) for (let i = -2; i <= 2; i++) put(at(y) + i, y, i < 0 ? 0x76ad4c : 0x4f8f45);   // the crownshaft
+  if (kind === 'fan') for (let y = top + 2; y < top + 26; y++) for (let i = -5 + Math.floor((y - top) / 6); i <= 5 - Math.floor((y - top) / 6); i++) if ((i + y) % 3) put(at(y) + i, y, (i * 7 + y) % 5 ? 0x8f6345 : 0x6b4636);   // the skirt
+  const fronds = kind === 'fan' ? 0 : 19 + Math.floor(r() * 5);
+  for (let k = 0; k < fronds; k++) {
+    const a = -Math.PI / 2 + (k / fronds - 0.5) * Math.PI * 1.9 + (r() - 0.5) * 0.25, len = (kind === 'royal' ? 26 : 22) * size * (0.8 + r() * 0.35);
+    const droop = 0.9 + r() * 0.5;
+    for (let t = 0; t < len; t += 0.5) {
+      const u = t / len, x = at(crownY) + Math.cos(a) * t, y = crownY - 2 + Math.sin(a) * t * 0.75 + droop * u * u * len * 0.55;
+      const lit = (Math.cos(a) < 0 ? 0.3 : -0.1) - Math.sin(a) * 0.3 + (r() - 0.5) * 0.3;
+      put(x, y, lit > 0.25 ? 0x76ad4c : lit > -0.05 ? 0x4f8f45 : 0x356f42);
+      if (u < 0.5) put(x, y + 1, lit > 0.1 ? 0x4f8f45 : 0x356f42);   // (the stem thick near the crown)
+      if (u > 0.15 && (Math.floor(t * 2) % 2 === 0)) {          // leaflets hanging off it
+        const ll = 3 + Math.round((1 - Math.abs(u - 0.5) * 1.6) * 4);
+        for (let j = 1; j <= ll; j++) put(x + (Math.cos(a) > 0 ? 0.3 : -0.3) * j, y + j * 0.9, j === ll ? 0x24503a : lit > 0.1 ? 0x4f8f45 : 0x356f42);
+      }
+    }
+  }
+  if (kind === 'fan') {                                           // a Washingtonia's head: fan leaves round a ball
+    for (let k = 0; k < 15; k++) {
+      const a = (k / 15) * Math.PI * 2, rr = 7 + r() * 3;
+      for (let t = 0; t < rr; t++) for (let j = -1; j <= 1; j++) put(at(top) + Math.cos(a) * t + j * Math.sin(a), top + 2 + Math.sin(a) * t * 0.8 + j * Math.cos(a) * 0.5, t > rr - 2 ? 0x24503a : Math.cos(a) < 0 ? 0x76ad4c : 0x4f8f45);
+    }
+  }
+  if (kind === 'date') for (let k = 0; k < 4; k++) { const bx = at(crownY) + (k - 1.5) * 3, by = crownY + 3; for (let j = 0; j < 5; j++) for (let i = 0; i < 2; i++) if ((i + j) % 2 || j < 3) put(bx + i, by + j, j % 2 ? 0xb9862e : 0xc95c45); }
+  const out = px.map(row => row.slice());
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (px[y][x] === null && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => px[y + dy]?.[x + dx] != null)) out[y][x] = 0x14151c;
+  return out;
+}
+
 // ---------- props from templates ----------
 
 const PROPS = {
@@ -305,6 +388,11 @@ const PROPS = {
   'postbox-pillar': [12, 26, () => ({ layers: [[3, 15, ['kkkk', 'kkkk', 'kkkk', 'kkkk', 'kkkk', 'kkkk', 'kkkk', 'kkkk', 'kkkk', 'kkkkkk'.slice(0, 4)]],
     [1, 2, ['..tttttt..', '.tttttttt.', 'tttttttttt', 'TTTTTTTTTT', 'tkkkkkkkkt', 'tttttttttt', 'wwwwwwwwww', 'wwyyywwwww', 'wwwwwwwwww', 'tttttttttt', 'tttttttttt', 'TTTTTTTTTT', '.tttttttt.']],
     [2, 24, ['kkkkkkkk']]], col: { t: 0x3b6296, w: 0xdfe2e8, y: 0x283f6b } })],
+  // London's pillar box: a red cylinder under its cap, the slot, the crest, the collection plate.
+  'postbox-pillar-red': [12, 27, () => ({ layers: [[1, 2, [
+    '..tttttt..', '.tttttttt.', 'tttttttttt', 'TTTTTTTTTT', '.tttttttt.', '.tkkkkkkt.', '.tttttttt.', '.ttyyyytt.', '.tttttttt.', '.twwwwwwt.', '.twkwkwwt.',
+    '.twwwwwwt.', '.tttttttt.', '.tttttttt.', '.tttttttt.', '.tttttttt.', '.tttttttt.', '.tttttttt.', '.tttttttt.', '.tttttttt.', '.TTTTTTTT.', 'kkkkkkkkkk', 'kkkkkkkkkk']]],
+    col: { t: 0x9e3c36, w: 0xf6f4ee, y: 0xe7b84a } })],
   chalkboard: [14, 18, () => ({ layers: [
     [1, 1, ['.uuuuuuuuuu.', 'uu........uu', 'u..........u', 'u..........u', 'u..........u', 'u..........u', 'u..........u', 'u..........u', 'u..........u', 'uu........uu', '.uuuuuuuuuu.', '.u........u.', '.u........u.', 'u..........u', 'u..........u', 'u..........u']],
     [2, 2, ['kkkkkkkkkk', 'kwwkwwwkkk', 'kkkkkkkkkk', 'kgggkggkkk', 'kkkkkkkkkk', 'kwkwwkwwkk', 'kkkkkkkkkk', 'kwwwkwwkkk', 'kkkkkkkkkk']],
@@ -326,6 +414,12 @@ const PROPS = {
       [7, 4, ['kkk']], [17, 3, ['.kk', 'kk.']],
     ], col: { y: 0x3b6296, m: 0x8f96a6 } };
   }],
+  // A scooter parked side on (Beirut's): its body in a colour, the seat, the wheels, a top box.
+  scooter: [30, 20, (seed) => ({ layers: [
+    [2, 11, ['..kkkk................kkkk..', '.k....k..............k....k.', 'k..mm..k............k..mm..k', 'k..mm..k............k..mm..k', '.k....k..............k....k.', '..kkkk................kkkk..']],
+    [4, 4, ['...................yyyy...', '..........kkkkkk...yyyy...', '..........kkkkkk....tt....', '.tttttt....tttttttttttt...', 'tttttttttttttttttttttttt..', 'TTTTTTTTTTTTTTTTTTTTTTT...', '..TTTT..........TTTTT.....']],
+    [21, 1, ['.kk', 'kk.', 'k..']],
+  ], col: { t: [0x9e3c36, 0x23252f, 0xdfe2e8, 0x3b6296, 0xe7b84a][seed % 5], y: 0x353947, m: 0x8f96a6 } })],
   pigeon: [9, 7, (seed, peck) => ({ layers: [[1, 1, peck
     ? ['.......', '.tttt..', 'ttttttt', '.TTTThg', '..k.k..']
     : ['....hh.', '.tttthg', 'tttttt.', '.TTTT..', '..k.k..']]], col: { t: 0x8f96a6, h: 0x6a7182 } })],

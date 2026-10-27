@@ -1,7 +1,9 @@
 // TRADECRAFT sim: light, from the clock. One helper for what the scene shows and what the dice see.
 //
-// The sun stands where it really stands over Moscow (55.75° N, 37.62° E) at the game time, by NOAA's
-// short solar-position formulas (good to a fraction of a degree). Its elevation sets everything:
+// The sun stands where it really stands over the city (Moscow, 55.75° N, 37.62° E, unless a city's
+// `geo` says otherwise: sim/cities/, its latitude, longitude and the clock's offset from UTC) at the
+// game time, by NOAA's short solar-position formulas (good to a fraction of a degree). Its elevation
+// sets everything:
 //   - sky(ms): the light of the whole scene, as keyframes by elevation (full day, golden, sunset,
 //     blue hour, night), each the colours and strengths of the renderer's two lights (a sun and a
 //     sky fill, calibrated in src/art/pixelart.js so a front shows its painted colour by day), the
@@ -16,12 +18,13 @@
 import { calendar, hourOfDay, TZ_H } from './clock.js';
 
 export const LAT = 55.75, LON = 37.62;
+export const MOSCOW_GEO = { lat: LAT, lon: LON, tz: TZ_H };
 const RAD = Math.PI / 180;
 
-/** The sun at a game time: { elev, az } in degrees (azimuth from north, clockwise). */
-export function sun(ms) {
+/** The sun at a game time (a city's local clock): { elev, az } in degrees (azimuth from north, clockwise). */
+export function sun(ms, geo = MOSCOW_GEO) {
   const { doy } = calendar(ms);
-  const hour = hourOfDay(ms);
+  const hour = hourOfDay(ms), TZ_H = geo.tz, LON = geo.lon, LAT = geo.lat;
   const g = 2 * Math.PI / 365 * (doy - 1 + (hour - TZ_H - 12) / 24);
   const eqt = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
   const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g)
@@ -56,8 +59,8 @@ const clamp01 = (x) => Math.max(0, Math.min(1, x));
  * glow 0..1: windows and lamps lit (on from 2° above the horizon to 3° below);
  * shadow 0..1: the sun's shadows (they fade out as it sets; the moon casts none).
  */
-export function sky(ms) {
-  const { elev } = sun(ms);
+export function sky(ms, geo = MOSCOW_GEO) {
+  const { elev } = sun(ms, geo);
   let i = 0;
   while (i < KEYS.length - 1 && elev < KEYS[i + 1].elev) i++;
   const a = KEYS[i], b = KEYS[Math.min(i + 1, KEYS.length - 1)];

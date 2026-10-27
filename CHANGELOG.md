@@ -4,6 +4,16 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc6 (2026-10-27)
+
+- **Three more cities beside Moscow:** London, Beirut and Cairo (your ask: cities to post in), a free walk in each from the title (one entry now, a button per city). Each has its own names, buildings, shops and signs, street furniture, trees and people, and the sun where it stands over it. The mechanic tests run there too (`?play=tail&city=cairo`, or `sdr`, `hunted`), their words in the city's own (its name, its service, its prison) until the scenes are written for each.
+  - London: brick and stucco terraces behind their areas and black railings, sash windows, pubs and their signs, parades under their fascias. Pillar boxes, red telephone boxes, black cabs, Belisha zebras with LOOK RIGHT, plane trees, rain-dark York stone. Cars drive on the left.
+  - Beirut: Ottoman houses with triple arched windows and red tile roofs, mandate balconies, post-war concrete with awnings and plants, the war still in the walls. Cables everywhere, generators, scooters, escaliers up the hill.
+  - Cairo: khedival blocks the colour of the dust, mashrabiyas, unfinished brick and concrete, a mosque and its minaret, carts, stalls and souk passages.
+  - Signs in Arabic, in a pixel script of its own (joined, right to left), with French or English beside them. People dress as their city does: headscarves, galabeyas, the names of its families.
+  - The streets aren't a grid: lanes that dogleg behind the houses, dead-end courts, squares and midans set back from the street, London crescents, mews, stairs and souks. Anyone can still be followed through all of it (24 chases of 24 in the new cities' test; at night, 25 m back, a Beirut chase is now and then lost at its very start).
+  - Moscow is as it was (its streets byte for byte the same), but its parked cars now face the way the traffic runs.
+
 ## v0.1.0-rc5 (2026-10-27)
 
 - **Speech balloons** (your ask). What's said aloud shows in a balloon over whoever said it (Hale on the mat, the hunter who takes your arm, you on SOLOVEY's bench), for as long as a line at the top left lingers (16 s, waiting while a brief, a sheet or the pause is up). Several lines from one person stack in the one balloon; the rest of the line (the score, "a hand on your arm") stays top left. Someone off the picture still speaks top left; the log (J) keeps it all.

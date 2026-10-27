@@ -12,8 +12,9 @@
 // place() says where someone is, the way the instinct speaks of it, so that a rule written for the
 // street doesn't fire in a lane: 'shops' (the pavement along the shops), 'road', 'near' (the near
 // pavement), 'boulevard', 'park', 'far-road', 'far' (the far pavement), 'strip' (behind the hedge),
-// 'lane' (a side street or an alley, which: lane), 'hall' (a room), or null off the map.
-import { Z } from './map/street.js';
+// 'lane' (a side street or an alley, which: lane), 'court' (a court or a square off the street, in a
+// city that has them), 'hall' (a room), or null off the map.
+import { Z, inLane } from './map/street.js';
 import { sectionAt } from './world.js';
 
 export const RANK = { calm: 0, note: 1, warn: 2, urgent: 3 };
@@ -34,7 +35,10 @@ export function place(state, a) {
   const S = sectionAt(state, a.x);
   if (!S) return { at: null, lane: null };
   const inGap = (g) => a.x > g.x0 - 0.3 && a.x < g.x1 + 0.3;
-  if (a.z < Z.front - 0.3) return { at: 'lane', lane: S.gapsN.find(inGap) ?? null };
+  if (a.z < Z.front - 0.3) {                                       // (a lane north, round a dogleg; or off the street in a court or a square)
+    const g = S.gapsN.find(gp => inLane(gp, a.x, a.z, 0.3));
+    return g || !(S.courts?.length || S.squares?.length) ? { at: 'lane', lane: g ?? null } : { at: 'court', lane: null };
+  }
   if (a.z > Z.south + 0.3) { const g = S.gapsS.find(inGap); return { at: g ? 'lane' : 'strip', lane: g ?? null }; }
   if (a.z < Z.kerbN) return { at: 'shops', lane: null };
   if (a.z < Z.kerbS) return { at: 'road', lane: null };

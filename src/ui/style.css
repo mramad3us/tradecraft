@@ -64,6 +64,11 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .sheet .item:hover, .sheet .item:focus-visible { background: var(--paper-2); outline: none; }
 .sheet .item small { display: block; color: #6a7182; font-size: 12px; margin-top: 2px; }
 .sheet .item[disabled] { color: #a0978a; cursor: default; background: none; }
+.sheet .item.walk { cursor: default; }
+.sheet .item.walk:hover { background: none; }
+.sheet .cities { display: flex; gap: 6px; margin-top: 7px; }
+.sheet .cities button { font: 13px var(--type); padding: 3px 12px; cursor: pointer; background: var(--paper-2); border: 1px solid #b9b2a2; color: var(--ink); }
+.sheet .cities button:hover, .sheet .cities button:focus-visible { background: var(--ink); color: var(--paper); outline: none; }
 .sheet .note { color: #6a7182; font-size: 12px; }
 
 .overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(20, 21, 28, 0.55); }

@@ -28,6 +28,7 @@
 // and where each was last seen; state.mind.at is the time of the last look. Looking is passive: every tick the player sees what their eyes take
 // in, and the record is renewed. Out of sight, the view draws them as they were, frozen and dimmed;
 // when their place is in view again and they aren't there, they're forgotten (and beyond FORGET_M).
+import { geoOf } from './cities/index.js';
 import { lightLevel, sky } from './light.js';
 import { skill } from './skills.js';
 
@@ -77,7 +78,7 @@ export function eyes(state, a) {
 export function skyNow(state) {
   const c = state.$sky;
   if (c && c.ms === state.time.ms) return c.s;
-  const s = sky(state.time.ms);
+  const s = sky(state.time.ms, geoOf(state.map));
   state.$sky = { ms: state.time.ms, s };
   return s;
 }
