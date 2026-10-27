@@ -9,20 +9,25 @@
 // says so. The face washes clean in a café's, a bar's or a restaurant's toilet (sim/shops.js 'wash');
 // the clothes want changing.
 // mods(): what shows, for someone looking for you (sim/scenarios: the tail's Orlov, Blown's hunters):
-// blood on the face +4, on the clothes +2, something in your hand +3. One helper, so it counts the same
+// blood on the face +4, on the clothes +2, something in your hand +3, something at your belt with no
+// coat over it +2, a pocket bulging +1 (sim/items.js placed()). One helper, so it counts the same
 // everywhere.
 import { addHeat } from './heat.js';
 import { say } from './log.js';
 import { seesActor } from './perception.js';
 import { DAY } from './clock.js';
+import { showing } from './items.js';
 
 export const SEEN_M = 10;
 export const BLOOD_HEAT_S = 20;
 export const BLOOD_HEAT_MAX = 6;
-export const FACE_MOD = 4, CLOTHES_MOD = 2, HELD_MOD = 3;
+export const FACE_MOD = 4, CLOTHES_MOD = 2, HELD_MOD = 3, BELT_MOD = 2, BULGE_MOD = 1;
 
-/** What shows on someone: { face, clothes } (blood), hand (a weapon held). */
-export const shown = (p) => ({ face: p?.bloody?.face !== undefined, clothes: p?.bloody?.clothes !== undefined, hand: !!p?.hand });
+/** What shows on someone: { face, clothes } (blood), hand (a weapon held), belt (one tucked there with no coat over it), bulge (a pocket stuffed: sim/items.js). */
+export function shown(p) {
+  const c = p ? showing(p) : [];
+  return { face: p?.bloody?.face !== undefined, clothes: p?.bloody?.clothes !== undefined, hand: !!p?.hand, belt: c.some(o => o.at === 'belt'), bulge: c.some(o => o.at !== 'belt') };
+}
 
 /** What shows, as modifiers for someone looking for them. */
 export function mods(p) {
@@ -30,6 +35,8 @@ export function mods(p) {
   if (s.face) out.push({ why: 'blood on your face', v: FACE_MOD });
   else if (s.clothes) out.push({ why: 'blood on your clothes', v: CLOTHES_MOD });
   if (s.hand) out.push({ why: 'something in your hand', v: HELD_MOD });
+  if (s.belt) out.push({ why: 'something at your belt', v: BELT_MOD });
+  else if (s.bulge) out.push({ why: 'a bulge in your pocket', v: BULGE_MOD });
   return out;
 }
 

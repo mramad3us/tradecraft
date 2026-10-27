@@ -12,9 +12,11 @@
 // Nothing is placed inside anything (the section's blockers).
 //
 // **Carried.** A person's p.hand is what they hold (a weapon kind, or nothing) and p.items what they
-// carry (kinds), each where it fits (sim/weapons.js carry) and only if there's room (room()): POCKETS in
-// the trousers, more in a coat or a jacket; BELT_SLOTS in the beltline, under whatever's on top; no
-// bags yet. A pipe is held or put down. (Volumes, clothes and money are the inventory's, to come.) Passers-by mostly carry nothing to fight
+// carry (kinds), each where it fits by its size (sim/weapons.js SIZES) and only if there's room
+// (placed(), SPACES below: the user, "very little storage space, no magic inventory, volumes and
+// pockets. Concealed weapons only when concealable"); no bags yet. A pipe is held or put down. What
+// shows (a knife at a belt with no coat over it, a bottle bulging a pocket) counts for anyone looking
+// (sim/notice.js). Passers-by mostly carry nothing to fight
 // with; some men a penknife, fewer a switchblade or a box cutter (armsOf(): from their seed, its own
 // stream, so who they are doesn't change).
 //   - pickUp(): into the hand; what was in it goes where it's carried, or is dropped;
@@ -22,18 +24,47 @@
 import { mouthOf } from './map/street.js';
 import { townOf } from './cities/index.js';
 import { stream, hash, int, chance, pick, range, weighted } from './rng.js';
-import { WEAPONS, weaponOf } from './weapons.js';
+import { WEAPONS, weaponOf, sizeOf } from './weapons.js';
 import { say } from './log.js';
 
-export const POCKETS = { base: 2, coat: 2, suit: 2, jacket: 2 };   // (the trousers', and what a top adds)
-export const BELT_SLOTS = 2;
-/** Room left where a weapon of this carry goes: pockets by the clothes, the beltline's slots. */
-export function room(p, carry) {
-  const used = (p.items ?? []).filter(k => weaponOf(k)?.carry === carry).length;
-  if (carry === 'pocket') return POCKETS.base + (POCKETS[p.look?.top?.kind] ?? 0) - used;
-  if (carry === 'belt') return BELT_SLOTS - used;
-  return 0;
+// Where things go on a person: SPACES, each so many, each holding so much (litres) of things no longer
+// than so much (cm): the trousers' pockets (not under a dress), a coat's, a jacket's or a suit's two
+// outside pockets and its inside one, the beltline (two thin things tucked in it, one each: not with a dress). What's
+// carried is placed (placed()) each thing in turn in the most hidden space with room for it (SPACES'
+// order), so nothing needs keeping of where it went. What shows: anything in the beltline without a
+// top over it (COVERS), and a pocket filled past BULGE of it (a bottle in a coat pocket).
+export const SPACES = [
+  { id: 'trousers', n: 2, l: 0.3, cm: 16, label: 'a trouser pocket' },
+  { id: 'inside', n: 1, l: 0.4, cm: 26, label: 'the inside pocket', top: true },
+  { id: 'coat', n: 2, l: 0.9, cm: 24, label: 'a coat pocket', top: true },
+  { id: 'belt', n: 2, l: 0.5, cm: 36, label: 'the beltline', belt: true, one: true },   // (a thing tucked in each: a knife, a hammer; not a brick)
+];
+export const POCKETED = new Set(['coat', 'jacket', 'suit']);      // (tops with pockets, and an inside one)
+export const COVERS = new Set(['coat', 'jacket', 'suit', 'sweater']);   // (tops that hang over the beltline)
+export const BULGE = 0.6;
+
+/** Where each thing carried goes: [{ kind, at: space id | null (it doesn't fit), label, shows }]; and the spaces, filled. */
+export function placed(p, items = p.items ?? []) {
+  const top = p.look?.top?.kind, dress = top === 'dress', spaces = [];
+  for (const S of SPACES) {
+    if ((S.top && !POCKETED.has(top)) || (dress && (S.id === 'trousers' || S.belt))) continue;
+    for (let i = 0; i < S.n; i++) spaces.push({ ...S, used: 0 });
+  }
+  const out = items.map(kind => {
+    const [cm, l] = sizeOf(kind), sp = spaces.find(s => cm <= s.cm && s.used + l <= s.l + 1e-9 && !(s.one && s.n1));
+    if (sp) { sp.used += l; sp.n1 = (sp.n1 ?? 0) + 1; }
+    return { kind, sp };
+  });
+  return {
+    spaces,
+    out: out.map(({ kind, sp }) => ({ kind, at: sp?.id ?? null, label: sp?.label ?? null,
+      shows: !!sp && (sp.belt ? !COVERS.has(top) : sp.used > BULGE * sp.l), how: sp ? (sp.belt ? 'at your belt' : 'a bulge in your pocket') : null })),
+  };
 }
+/** Whether this thing would fit, on top of what's carried. */
+export const fits = (p, kind) => !!weaponOf(kind) && placed(p, [...(p.items ?? []), kind]).out.at(-1).at !== null;
+/** What shows of what's carried (not the hand's): [{ kind, how }]. */
+export const showing = (p) => placed(p).out.filter(o => o.shows);
 export const REACH_M = 1.1;                                        // close enough to pick up
 
 /**
@@ -106,7 +137,7 @@ export function pickUp(state, p, a, it) {
 export function stow(p) {
   const w = weaponOf(p.hand);
   if (!w) return false;
-  if (room(p, w.carry) <= 0) return false;
+  if (!fits(p, p.hand)) return false;
   (p.items ??= []).push(p.hand);
   p.hand = null;
   return true;

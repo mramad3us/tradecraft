@@ -6,8 +6,8 @@ import { seedRng } from '../src/sim/rng.js';
 import { sheet } from '../src/sim/people.js';
 import { startFight, resolve, technique, MOVES, THROUGH_CAP } from '../src/sim/cqc.js';
 import { takes } from '../src/sim/health.js';
-import { WEAPONS, TECHS, weaponOf } from '../src/sim/weapons.js';
-import { sectionItems, itemNear, room, armsOf } from '../src/sim/items.js';
+import { WEAPONS, TECHS, weaponOf, SIZES } from '../src/sim/weapons.js';
+import { sectionItems, itemNear, placed, armsOf } from '../src/sim/items.js';
 import { section } from '../src/sim/map/street.js';
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
 import { isPasserby } from '../src/sim/crowd.js';
@@ -41,7 +41,7 @@ export default [
       assert(knives.length >= 6 && knives.every(([, w]) => w.grab === 0 && w.awkward === 0 && w.edge === 'blade' && w.k >= 1.3), 'six knives at least, no drawback, they cut');
       const rest = Object.entries(WEAPONS).filter(([, w]) => w.kind !== 'knife');
       assert(rest.length >= 12 && rest.every(([k, w]) => w.grab < 0 || w.awkward < 0 || w.k < 1.6 || w.guard === 0 || k === 'screwdriver'), 'what\'s to hand: every one costs something');
-      assert(Object.values(WEAPONS).every(w => ['pocket', 'belt', 'hand'].includes(w.carry)), 'no bags: a pocket, the beltline, or the hand');
+      assert(Object.keys(WEAPONS).every(k => SIZES[k]?.length === 2), 'each its length and its bulk (where it fits: sim/items.js placed())');
       console.log(`      ${Object.entries(WEAPONS).map(([k, w]) => `${k} ${w.k}${w.edge ? ' cuts' : ''}${w.grab ? ` grab ${w.grab}` : ''}${w.awkward ? ` awk ${w.awkward}` : ''} guard ${w.guard} ${w.carry}`).join('; ')}`);
     },
   },
@@ -159,7 +159,7 @@ export default [
       step(g, { act: ['instinct'] }, null);
       const second = p.hand;
       step(g, { act: ['draw'] }, null);
-      console.log(`      picked up ${first}, put away: ${stowed}; then ${second}, and G: in hand ${p.hand}, carried ${p.items}; room in the pockets: ${room(p, 'pocket')}`);
+      console.log(`      picked up ${first}, put away: ${stowed}; then ${second}, and G: in hand ${p.hand}, carried ${p.items} (${placed(p).out.map(o => o.label).join(', ')})`);
       assert(first && stowed && second && second !== first, 'picked up, put away, the other picked up');
       assert((second === 'pipe' && p.hand === 'penknife' && g.items.dropped.some(it => it.kind === 'pipe')) || (second === 'penknife'), 'a pipe can\'t be put away: drawing the knife puts it down');
       const carry = Array.from({ length: 2000 }, (_, i) => armsOf(i + 1, i % 2 ? 'm' : 'f')).filter(a => a.length).length;

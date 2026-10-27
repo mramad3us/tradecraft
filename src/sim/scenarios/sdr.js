@@ -52,6 +52,7 @@ import { eyes, sees, seesActor, inView, lightHere, gazeInto } from '../perceptio
 import { act, paneAt, paneNear, crossingAt, laneMid, say1 } from '../acts.js';
 import { waypoint, zoneOf } from '../nav.js';
 import { weatherMods } from '../weather.js';
+import { shown as shownOn } from '../notice.js';
 
 const TPS = 1000 / TICK_MS;
 export const MEET_AFTER_MIN = [5, 6.5];
@@ -416,8 +417,8 @@ const CAUGHT_LINE = {
   doubled: (who) => `When you turn round, ${who[0].toLowerCase() + who.slice(1)} stops too, and finds a shop window very interesting.`,
 };
 const CAUGHT = { bloody: 'walk about bloody', armed: 'carry a weapon in your hand', ran: 'run', checked: 'look back', glassed: 'check behind you in a shop window', jaywalked: 'cross away from the zebra', doubled: 'double back' };
-const FLAGS = { changed: 'you went into a shop in one coat and came out in another', bloody: 'you walked about with blood on you', backway: 'you went into a shop and out the back', armed: 'you walked the street with a weapon in your hand', assaulted: 'you went for one of them', spoke: 'you spoke to one of them', ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back', taxi: 'you jumped into a taxi', marked: 'you chalked a mark on a lamppost' };
-const SAW = { changed: 'saw you come out in another coat', bloody: 'saw the blood on you', backway: 'waited on a shop door for nothing', armed: 'saw what was in your hand', assaulted: 'took it from you', spoke: 'had a word from you', ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back', taxi: 'saw you jump into a taxi', marked: 'saw you chalk a lamppost' };
+const FLAGS = { changed: 'you went into a shop in one coat and came out in another', bloody: 'you walked about with blood on you', backway: 'you went into a shop and out the back', armed: 'you walked the street with a weapon showing', assaulted: 'you went for one of them', spoke: 'you spoke to one of them', ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back', taxi: 'you jumped into a taxi', marked: 'you chalked a mark on a lamppost' };
+const SAW = { changed: 'saw you come out in another coat', bloody: 'saw the blood on you', backway: 'waited on a shop door for nothing', armed: 'saw the weapon on you', assaulted: 'took it from you', spoke: 'had a word from you', ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back', taxi: 'saw you jump into a taxi', marked: 'saw you chalk a lamppost' };
 export const FLAGS_MAX = 2;
 export const ASSAULT_HEAT = 12;
 export const BACK_COVERED = 0.3;
@@ -671,7 +672,7 @@ function second(state, bus, me) {
   const sc = state.scenario, now = state.time.ms;
   const still = Math.hypot(me.vx, me.vz) < 0.05 && !me.busy;
   sc.stillS = still ? sc.stillS + 1 : 0;
-  if (state.people[state.player]?.hand) flag(state, bus, 'armed');   // (a weapon in the hand, seen: written down)
+  if (state.people[state.player]?.hand || shownOn(state.people[state.player]).belt) flag(state, bus, 'armed');   // (a weapon in the hand, or at an uncovered belt, seen: written down)
   if (state.people[state.player]?.bloody) flag(state, bus, 'bloody');   // (blood on you: sim/notice.js)
   // Our heading along the street, and doubling back (a sharp reversal after a steady stretch).
   const vdir = Math.abs(me.vx) > 0.5 ? Math.sign(me.vx) : 0;

@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc18 (2026-10-27)
+
+- **Pockets by volume.** Everything you carry has a length and a bulk, and goes where it fits: the trousers' pockets (a penknife, a box cutter), a coat's or a jacket's two pockets and its inside one (a bottle, a finka, half a brick), the beltline (a kitchen knife, a hammer: one thin thing in each of two places). A pipe, a crowbar, a shovel: the hand or the ground. No coat, no coat pockets. I shows where each thing is and the room left.
+- **What shows counts.** A knife tucked at your belt with no coat or jumper over it is seen (+2 for anyone looking for you, between a stuffed pocket's +1 and a weapon in your hand's +3), and being tailed, it's written down like one in your hand.
+
 ## v0.1.0-rc17 (2026-10-27)
 
 - **Traffic.** Cars on the road, a lane each way on the city's side (London's on the left), every few seconds by day and a trickle at night: the city's makes and colours, its taxis, and its buses (Moscow's white and green, London's red double-decker, Beirut's van, Cairo's white and blue), their lights on after dark. They stop for anyone on a zebra, and short of anyone in the road; they never stop on a crossing; they ease round someone standing in the way, and let a bus out of its stop. People walk round them, and go round the end of one that's stopped. Step out under a car's nose and it stops, just: a horn, and you're shaken.

@@ -31,6 +31,7 @@ import { allowed, cqcOf, BREAK_CQC } from '../sim/cqc.js';
 import { deathPaper } from '../sim/game.js';
 import { shortName, statusLine } from '../sim/fight.js';
 import { weaponOf, bare } from '../sim/weapons.js';
+import { placed, fits } from '../sim/items.js';
 import { options as aidOptions, bodyLine } from '../sim/aid.js';
 import { agenda as agendaOf, heatWord as heatWordOf, places as placesOf, KINDS as KINDS_ } from '../sim/campaign.js';
 import { streetName as streetNameOf } from '../sim/map/street.js';
@@ -559,18 +560,25 @@ export function createUI({ input, cb }) {
   function openInventory(state, act) {
     const p = state.people[state.player], go = (cmd) => () => { closeOverlays(); act(cmd); };
     let n = 0;
-    const row = (kind, inHand) => {
-      const w = weaponOf(kind), first = inHand ? (w?.carry !== 'hand' ? ['stow', 'put away'] : ['drop:' + kind, 'put down']) : [`wield:${kind}`, 'take out'];
+    const where = placed(p).out, room = placed(p).spaces;
+    const row = (kind, inHand, k = -1) => {
+      const w = weaponOf(kind), first = inHand ? (fits(p, kind) ? ['stow', 'put away'] : ['drop:' + kind, 'put down']) : [`wield:${kind}`, 'take out'];
+      const at = inHand ? 'in hand' : where[k]?.label ? `${where[k].label}${where[k].shows ? (where[k].at === 'belt' ? ' (it shows)' : ' (it bulges)') : ''}` : 'nowhere it fits';
       n++;
-      return el('tr', {}, el('td', {}, el('kbd', { textContent: String(n) })), el('td', { textContent: w?.name ?? kind }), el('td', { className: 'where', textContent: inHand ? 'in hand' : w?.carry ?? '' }),
+      return el('tr', {}, el('td', {}, el('kbd', { textContent: String(n) })), el('td', { textContent: w?.name ?? kind }), el('td', { className: 'where', textContent: at }),
         el('td', {}, el('button', { className: 'small', dataset: { n }, onclick: go(first[0]) }, first[1]),
           first[0].startsWith('drop:') ? null : el('button', { className: 'small', onclick: go(`drop:${kind}`) }, 'drop')));
     };
-    const list = [...(p.hand ? [row(p.hand, true)] : []), ...(p.items ?? []).map(k => row(k, false))];
+    const list = [...(p.hand ? [row(p.hand, true)] : []), ...(p.items ?? []).map((kind, k) => row(kind, false, k))];
+    // (the room left, space by space: pockets in litres, the beltline in things)
+    const left = ['trousers', 'inside', 'coat', 'belt'].map(id => { const sp = room.filter(s => s.id === id); if (!sp.length) return null;
+      const free = sp.reduce((a, s) => a + (s.l - s.used), 0), cap = sp.reduce((a, s) => a + s.l, 0);
+      return `${{ trousers: 'trouser pockets', inside: 'inside pocket', coat: 'coat pockets', belt: 'beltline' }[id]} ${id === 'belt' ? `${sp.filter(s => !s.used).length} of ${sp.length} free` : `${free.toFixed(2)} of ${cap.toFixed(1)} L free`}`; }).filter(Boolean);
     card.replaceChildren(el('div', { className: 'sheet charsheet inventory' },
       el('span', { className: 'stamp', textContent: 'CARRIED' }),
       el('h2', { textContent: 'WHAT YOU CARRY' }),
-      el('p', { className: 'note', textContent: 'Little, and only where it fits: a pocket, or tucked in the beltline under your coat. Anything else is held, or put down.' }), el('hr'),
+      el('p', { className: 'note', textContent: 'Little, and only where it fits, by its length and its bulk: a pocket, or tucked in the beltline (under a coat, a jacket or a jumper, or it shows). Anything else is held, or put down.' }),
+      el('p', { className: 'note', textContent: `Room: ${left.join('; ') || 'none'}.` }), el('hr'),
       list.length ? el('table', { className: 'skills' }, el('tbody', {}, list)) : el('p', { textContent: 'Nothing to fight with. Things lie about: T picks one up.' }),
       el('p', { className: 'note', textContent: `1–9: the first button on its row. ${input.label('gun')} takes out the next thing, or puts it away; in a fight, drawing costs you the exchange (you can only cover while you do). ${input.label('inventory')} or ${input.label('menu')} to close.` })));
     card.hidden = false;

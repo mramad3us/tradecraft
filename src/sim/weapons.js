@@ -17,10 +17,9 @@
 //   - awkward: what it costs every CQC roll, and a tick longer to come (the user: "lower damage
 //     especially weapons that are awkward to wield"): a brick, a chain, a shovel. Knives have none:
 //     "the preferred balanced weapons for CQC and have almost no drawback";
-//   - carry: where it goes when not in the hand (the user: "no backpack or similar yet, so only pockets
-//     and weapons can be shoved in our beltline"; sim/items.js room()): 'pocket' (a penknife, a box
-//     cutter), 'belt' (tucked in the beltline, under a coat: a kitchen knife, a hammer), or 'hand' (no
-//     hiding it: you hold it or put it down: a bottle, a brick, a pipe);
+//   - carry: where it mostly ends up when not in the hand ('pocket', 'belt', or 'hand': no hiding it,
+//     you hold it or put it down), for the words; where it really goes is its size (SIZES: its length
+//     and its volume) against the room on whoever carries it (sim/items.js placed());
 //   - breaks: the chance a hit breaks it, and into what (a bottle → a broken bottle); splint: rigid and
 //     long enough to splint a limb with (first aid, later).
 // How it's used (TECHS): a blade slashes and stabs, a point stabs, something blunt clubs, a long one
@@ -28,6 +27,13 @@
 // (WEAPON_PREF: the user, "skilled characters will prefer hitting with a weapon than kick or elbow
 // most of the time but not all the time"); the untrained nearly always.
 export const SOLID_GUARD = 0.8;
+// (length cm, volume litres; the long ones go nowhere but the hand)
+export const SIZES = {
+  penknife: [10, 0.03], boxcutter: [15, 0.04], switchblade: [12, 0.04], screwdriver: [20, 0.06], kitchen: [30, 0.15], finka: [25, 0.12], combat: [30, 0.2],
+  bottle: [24, 0.6], brokenbottle: [18, 0.4], brick: [11, 0.7], hammer: [30, 0.5], spanner: [25, 0.25], chain: [22, 0.8], bikelock: [30, 1.5],
+  pipe: [90, 1.5], crowbar: [75, 1.2], stick: [90, 1.0], umbrella: [90, 1.2], shovel: [130, 6],
+};
+export const sizeOf = (kind) => SIZES[kind] ?? [100, 5];
 export const HEAVY_K = 1.5;
 export const FUMBLE_PER_PT = 0.08;
 export const NO_GRAB = -6;
