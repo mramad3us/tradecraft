@@ -4,7 +4,7 @@
 // meeting; and on the way, his tells, a sighting, the grey coats, a shop, a lane, the other pavement.
 import { Z } from '../map/street.js';
 import { rowOf } from '../agents.js';
-import { me, actorId, gap, secs, sees, busyAtSomething } from './common.js';
+import { me, actorId, gap, secs, sees, busyAtSomething, aside } from './common.js';
 
 const him = (state) => actorId(state, state.scenario.target);
 
@@ -59,6 +59,7 @@ export const tailing = {
     { id: 'run', now: true, every: 30, when: (s) => me(s)?.gait === 'run', say: '"Don\'t run. Nobody runs in Moscow in November unless something\'s on fire."' },
     { id: 'meet', now: true, when: (s) => s.scenario.phase === 'meet',
       say: '"He\'s sitting down, and someone\'s coming to him. Get them both in view, twenty metres off, and keep still: hold {watch} and look."' },
+    aside('tailing', 200),
   ],
   debrief(state) {
     const sc = state.scenario, out = [];

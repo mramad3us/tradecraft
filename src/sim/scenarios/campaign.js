@@ -17,11 +17,12 @@ import { TICK_MS, DAY, HOUR, MIN, calendar, clockText } from '../clock.js';
 import { heatKey } from '../heat.js';
 import { say } from '../log.js';
 import { Z, streetName } from '../map/street.js';
-import { sectionOf } from '../city.js';
 import { townOf, cityById } from '../cities/index.js';
 import { skip, newMap } from '../game.js';
 import { eat } from '../needs.js';
 import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, KINDS, WORK } from '../campaign.js';
+import { signOf } from '../places.js';
+import { rowsText } from './sdr.js';
 
 const TPS = 1000 / TICK_MS;
 
@@ -40,8 +41,8 @@ export const campaignHub = {
     state.player = 'me';
     const row = c.where?.row ?? p.home.row;
     state.map = { kind: 'street', seed: p.mapSeed, row, i0: null, i1: null, crowd: 1, city: p.city };
-    // (home: the flat's door, a block's entrance on the street; or wherever the last assignment left you)
-    const door = [0, 1].flatMap(i => sectionOf(townOf({ seed: p.mapSeed, city: p.city }), row, i).doors).find(d => d.kind === 'entrance' && d.z === Z.front) ?? { x: 12 };
+    // (home: the flat's door; or wherever the last assignment left you)
+    const door = { x: p.home.x ?? 12 };                             // (the flat's front door: sim/places.js)
     const x = c.where?.x ?? door.x;
     state.actors.push({ id: 'a0', who: 'me', seed: null, row, x, z: c.where?.z ?? -2.6, vx: 0, vz: 0, face: 'down', head: Math.PI / 2, gait: 'idle', stride: 0, stuck: 0, ai: null });
     state.scenario = { kind: 'campaign', prompt: null, outcome: null, began: state.time.ms };
@@ -100,7 +101,19 @@ export const campaignHub = {
   },
 
   /** A taxi (sim/taxi.js) to the posting's places. */
-  destinations(state) { return places(state.campaign).map(pl => ({ id: pl.id, label: pl.label, row: pl.row, x: 12 })); },
+  destinations(state) { return places(state.campaign).map(pl => ({ id: pl.id, label: pl.label, row: pl.row, x: pl.x ?? 12 })); },
+
+  /** The posting's places on this street, named over their doors (sim/places.js). */
+  signs(state) { return places(state.campaign).filter(pl => pl.row === state.map.row && pl.x !== undefined).map(pl => ({ x: pl.x, z: pl.z ?? Z.front, label: signOf(pl) })); },
+
+  /** Where you'd want to be: the embassy on a working morning not yet worked; the flat late at night. */
+  goal(state) {
+    const c = state.campaign, p = c.posting, now = state.time.ms, k = calendar(now);
+    const pl = k.weekday < 5 && !c.worked[Math.floor(now / DAY)] && k.hour >= 7 && k.hour < WORK.to - 2 ? p.embassy : k.hour >= 22 || k.hour < 5 || fatigue(c, now).v ? p.home : null;
+    const me = state.actors.find(a => a.who === state.player);
+    if (!pl || pl.x === undefined || !me || (pl.row === state.map.row && Math.abs(me.x - pl.x) < 4)) return null;
+    return { row: pl.row, x: pl.x, z: pl.z ?? Z.front, label: `${signOf(pl)} · ${pl.row === state.map.row ? `${Math.round(Math.abs(pl.x - me.x))} m` : rowsText(pl.row - state.map.row)}` };
+  },
 
   /** Where we are, for the watch: the street (the engine names it). */
   place() { return ''; },
@@ -124,7 +137,7 @@ export const campaignHub = {
 /** Arrive at a place: its street loaded, the player at its door (sim/game.js newMap()). */
 function goTo(state, bus, to) {
   const c = state.campaign, p = c.posting, me = state.actors.find(a => a.who === state.player);
-  const door = [0, 1].flatMap(i => sectionOf(townOf({ seed: p.mapSeed, city: p.city }), to.row, i).doors).find(d => d.kind === (to.id === 'embassy' ? 'shop' : 'entrance') && d.z === Z.front) ?? { x: 12 };
+  const door = { x: to.x ?? 12 };                                  // (its door: sim/places.js)
   Object.assign(me, { x: door.x, z: -2.6, vx: 0, vz: 0, face: 'down', head: Math.PI / 2, busy: null });
   newMap(state, bus, { kind: 'street', seed: p.mapSeed, row: to.row, i0: null, i1: null, crowd: 1, city: p.city }, door.x);
   c.where = { row: to.row, x: door.x, z: -2.6 };

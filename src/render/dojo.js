@@ -4,13 +4,13 @@
 //
 // A pale hall with a wood wainscot: high windows along the back wall, the flag, a sign over the main
 // mat, a clock; planks underfoot and the mats on them (blue, edged in red, the main one with its
-// centre line); benches along the back, heavy bags on stands and a rack at the east end, a water
+// start marks); benches along the back, heavy bags on stands and a rack at the east end, a water
 // cooler by the door. The side walls stand to the ceiling's height; the near wall is cut away to a
 // sill, so the view looks in.
 import * as THREE from 'three';
 import { ground, tile, mat, box, paint, PX_PER_M } from '../art/pixelart.js';
 import { building, bench } from '../art/pixeltown.js';
-import { DOJO_W, Z_BACK, Z_FRONT, MAT, MAT2 } from '../sim/map/dojo.js';
+import { DOJO_W, Z_BACK, Z_FRONT, MAT, MAT2, FIGHT } from '../sim/map/dojo.js';
 
 const WALL = 0xe2dac6, WOOD = 0x8f6345, MAT_BLUE = 0x3b6296, MAT_EDGE = 0x9e3c36;
 
@@ -48,7 +48,8 @@ export function* buildDojo(S) {
   // The floor, the mats.
   g.add(ground(0, Z_BACK, DOJO_W, Z_FRONT + 0.4, mat(0, tile('planks', 1))));
   for (const M of [MAT, MAT2]) g.add(ground(M.x0, M.z0, M.x1, M.z1, matMaterial(M.x1 - M.x0, M.z1 - M.z0), 0.02));
-  g.add(ground((MAT.x0 + MAT.x1) / 2 - 0.04, MAT.z0 + 1, (MAT.x0 + MAT.x1) / 2 + 0.04, MAT.z1 - 1, mat(0xf6f4ee), 0.025));
+  // (the start marks: a white tape and a red, where the two in a bout face each other)
+  for (const [dx, c] of [[-1.3, 0xf6f4ee], [1.3, 0xc44a3c]]) g.add(ground(FIGHT.x + dx - 0.05, FIGHT.z - 0.4, FIGHT.x + dx + 0.05, FIGHT.z + 0.4, mat(c), 0.025));
   yield;
   // The walls: the back (a building, its front painted), the sides, the sill.
   const back = building({ x0: 0, x1: DOJO_W, z: Z_BACK, h: 5.2, d: 4, wall: 'plaster', wallColor: WALL, draw: drawWall, seed: S.seed % 1000 });

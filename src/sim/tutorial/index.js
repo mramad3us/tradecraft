@@ -11,6 +11,7 @@ import { watching } from './watching.js';
 import { brushPass, deadDrop } from './handover.js';
 import { blown } from './blown.js';
 import { umbrella } from './umbrella.js';
+import { HEARSAY } from '../hale.js';
 
 export const FARM = { id: 'farm', title: 'Hand to hand, at the Farm', scenario: 'dojo', chapter: 'lesson', farm: true,
   about: 'Camp Peary, week six: Hale teaches you to hit, grab and cover, then puts you in the ring with your class, and with himself.' };
@@ -22,9 +23,10 @@ export const nextLesson = (id) => { const i = LESSONS.findIndex(l => l.id === id
 /** Its number in the tutorial (the Farm's 0). */
 export const numberOf = (id) => LESSONS.findIndex(l => l.id === id);
 
-/** The scene's brief, as the lesson gives it: its title, Hale's framing first, an exercise. */
+/** The scene's brief, as the lesson gives it: its title, Hale's framing first, an exercise; and the canteen's talk of him (sim/hale.js). */
 export function briefFor(state, b) {
   const L = state.tutor && lessonOf(state.tutor.lesson);
   if (!L || !b) return b;
-  return { ...b, stamp: 'EXERCISE', title: `TUTORIAL ${numberOf(L.id)}: ${L.title.toUpperCase()}`, body: [...(L.intro?.(state) ?? []), ...(b.body ?? [])], footer: `${b.footer ?? ''} · an exercise` };
+  const talk = `In the station's canteen, they say things about Hale. ${HEARSAY[(numberOf(L.id) * 3 + 1) % HEARSAY.length]}`;
+  return { ...b, stamp: 'EXERCISE', title: `TUTORIAL ${numberOf(L.id)}: ${L.title.toUpperCase()}`, body: [...(L.intro?.(state) ?? []), ...(b.body ?? []), talk], footer: `${b.footer ?? ''} · an exercise` };
 }

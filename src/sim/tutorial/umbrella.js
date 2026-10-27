@@ -1,7 +1,7 @@
 // TRADECRAFT sim: lesson 7 of the tutorial, the umbrella (sim/scenarios/tail.js umbrellaTest). Brennan
 // plays Kostin and Ruiz his minder; the umbrella's a plain one, and the tip touched to the back of
 // Brennan's leg is the whole of it. In the rain, the umbrella's cover.
-import { me, actorId, gap, secs, sees, around } from './common.js';
+import { me, actorId, gap, secs, sees, around, aside } from './common.js';
 
 const him = (state) => actorId(state, state.scenario.target);
 const atStop = (state) => { const h = state.scenario.hit, p = me(state); return p && state.map.row === h.stop.row && Math.abs(p.x - h.stop.x) < h.stop.w / 2 + 4 && p.z > -3.2 && p.z < -0.3; };
@@ -35,6 +35,7 @@ export const umbrella = {
     { id: 'now', now: true, when: (s) => s.scenario.prompt?.act === 'jab', say: '"Now: {instinct}. A touch, and walk on."' },
     { id: 'away', now: true, when: (s) => s.scenario.hit.done && !s.scenario.hit.chased, say: '"Walk. Don\'t look back. Don\'t hurry."' },
     { id: 'chased', now: true, when: (s) => s.scenario.hit.chased, say: '"Ruiz saw it, and he\'s coming. Lose him: people, a lane, a shop\'s back door. Or put him down."' },
+    aside('umbrella', 45),
   ],
   debrief(state) {
     const sc = state.scenario, h = sc.hit, d = h.done, out = [];

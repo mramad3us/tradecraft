@@ -1,7 +1,7 @@
 // TRADECRAFT sim: lessons 4 and 5 of the tutorial, the brush pass and the dead drop (sim/scenarios/sdr.js
 // brushTest, dropTest): being tailed's evening, with something to hand over at the end of it. Petrov
 // plays SOLOVEY; some of ours may be out playing the FSB, as in lesson 2.
-import { me, actorWho, gap, secs, still } from './common.js';
+import { me, actorWho, gap, secs, still, aside } from './common.js';
 import { laneMid } from '../acts.js';
 
 const TEAM_WORDS = { none: 'nobody was out tonight', overt: 'two of ours were on you, playing an overt pair', covert: 'three of ours were on you, playing a proper team' };
@@ -37,6 +37,7 @@ export const brushPass = {
     { id: 'how', when: (s) => secs(s) >= 30, say: '"How it goes: you\'re on the path, walking toward him, steady. When you\'re at arm\'s length, {instinct}, and the paper\'s yours. Neither of you breaks step. A stop is what anyone watching remembers."' },
     { id: 'coming', now: true, when: (s) => { const a = actorWho(s, 'solovey'); return a && gap(s, me(s), a) < 25; }, say: '"There he is, paper under his arm. Walk to meet him. Pass close."' },
     { id: 'stopped', now: true, when: (s, m) => m.stopped, say: '"Don\'t stop. Keep walking."' },
+    aside('brush', 90),
   ],
   debrief(state) {
     const sc = state.scenario, out = [];
@@ -63,6 +64,7 @@ export const deadDrop = {
     { id: 'how', when: (s) => secs(s) >= 30, say: '"How it goes: at the bench, {instinct}: you sit on its end, retie a shoelace, and the tin goes behind the leg. Six seconds. Then the lamppost along the path: a line of chalk at waist height, two seconds, and walk on."' },
     { id: 'bench', when: (s) => { const d = s.scenario.drop, p = me(s); return d && !d.loaded && s.map.row === d.site.row && Math.abs(p.x - d.site.x) < 15; }, say: '"That\'s the bench. Before you stoop: anyone about who\'s been about before?"' },
     { id: 'doing', when: (s) => s.scenario.drop?.doing?.what === 'load', say: '"Easy. Don\'t look round while you\'re at it."' },
+    aside('drop', 90),
   ],
   debrief(state) {
     const sc = state.scenario, out = [];

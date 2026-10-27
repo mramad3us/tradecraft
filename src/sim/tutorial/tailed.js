@@ -2,7 +2,7 @@
 // and find out whether you're followed: two of ours playing an overt FSB pair more often than not (you
 // can learn to see them), sometimes three playing a proper team, sometimes nobody. Hale knows which, and
 // won't say till after; he tells you how to look.
-import { me, actorWho, secs, gap } from './common.js';
+import { me, actorWho, secs, gap, aside } from './common.js';
 import { paneNear } from '../acts.js';
 
 const faces = (state) => Object.values(state.scenario.faces ?? {});
@@ -34,7 +34,7 @@ export const tailed = {
       say: '"That look over your shoulder: if anyone\'s there, they wrote it down. A look behind you wants a reason. A shop window. A crossing. A turn."' },
     { id: 'window', when: (s) => secs(s) > 30 && !(s.scenario.windows) && paneNear(s, me(s)),
       say: '"A shop window. Stand at it, {instinct}, and look at the street behind you in the glass. Who stops when you stop?"' },
-    { id: 'glass', when: (s) => !!me(s)?.glass, say: '"Don\'t stare into it. A few seconds, like a man choosing boots. Faces, coats, who\'s in no hurry. Hold {watch} and slant your eyes along it for the pavement."' },
+    { id: 'glass', when: (s) => !!me(s)?.glass, say: '"Don\'t stare into it. A few seconds, like a man choosing boots. Faces, coats, who\'s in no hurry. Hold {watch}, and left or right slants your eyes along it: the pavement behind you, that side."' },
     { id: 'face1', when: (s) => faces(s).some(f => f.n === 1),
       say: '"You\'ve marked a face. Hold on to it. If it turns up again somewhere it has no business being, that\'s not a small town, that\'s a team."' },
     { id: 'face2', now: true, when: (s) => faces(s).some(f => f.n >= 2),
@@ -48,6 +48,7 @@ export const tailed = {
     { id: 'bench', when: (s) => { const a = actorWho(s, 'solovey'); return a && s.scenario.phase === 'walk' && gap(s, me(s), a) < 12; },
       say: '"That\'s Petrov on the bench. Sure you\'re clean? Sit down beside him, {instinct}. Not sure? Walk past him: he\'ll understand. That\'s what calling it off looks like."' },
     { id: 'meet', now: true, when: (s) => s.scenario.phase === 'meet', say: '"The weather, the traffic, his wife\'s sister. Twenty seconds. Don\'t look round."' },
+    aside('tailed', 150),
   ],
   debrief(state) {
     const sc = state.scenario, out = [];

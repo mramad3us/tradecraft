@@ -149,6 +149,10 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
   color: var(--ink); background: var(--paper-2); border: 1px solid #6a7182; padding: 0 4px; white-space: nowrap; }   /* (as wide as its words, centred over them) */
 .tag[hidden] { display: none; }
 .tag.sure { background: var(--red); color: var(--paper); border-color: var(--ink); font-weight: bold; }
+/* A place that's yours, over its door: a brass plate. */
+.placetag { position: absolute; left: 0; top: 0; translate: -50% -100%; font: bold calc(11px * var(--ui, 1)) var(--type); color: var(--ink);
+  background: var(--brass); border: 1px solid var(--ink); padding: 1px 6px; white-space: nowrap; pointer-events: none; }
+.placetag[hidden] { display: none; }
 /* Where you're going, at the picture's edge. */
 .goal { position: absolute; left: 0; top: 0; transform-origin: 0 0; margin: -9px 0 0 0; font: calc(11px * var(--ui, 1)) var(--type); color: var(--paper);
   background: var(--hud); border: 1px solid #6a7182; padding: 2px 6px; white-space: nowrap; pointer-events: none; translate: -100% 0; }
@@ -287,3 +291,5 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .result .debrief .steps { margin-top: 6px; font-size: 0.9em; }
 .result .debrief .steps .done { color: #2f6b62; }
 .result .debrief .steps .not { color: #8f6345; }
+
+.keys.folded { opacity: 0.75; }   /* ("?": the keys behind it, the user's: a hint until it's pressed) */

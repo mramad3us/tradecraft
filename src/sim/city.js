@@ -69,6 +69,14 @@ function forget() {
   for (let j = 0; kept > SECTIONS_KEPT * 0.75; j++, kept--) all[j][1].delete(all[j][2]);
   for (const [s, m] of cache) if (!m.size && m !== last) cache.delete(s);
 }
+/** A town's sections forgotten (its marks changed: sim/places.js), to be made again as they now are. */
+export function forgetSections(seed) {
+  const m = cache.get(seed);
+  if (!m) return;
+  kept -= m.size;
+  cache.delete(seed);
+  if (lastSeed === seed) { lastSeed = null; last = null; }
+}
 /** Section i of row `row` (kept: see above). */
 export const sectionOf = (seed, row, i) => entryOf(seed, row, i).S;
 /** How many sections are kept (for tests). */

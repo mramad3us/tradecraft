@@ -1,7 +1,7 @@
 // TRADECRAFT sim: lesson 3 of the tutorial, watching and photographing (sim/scenarios/watch.js). Two of
 // ours play Volkov and his contact at a café; Ruiz plays the FSB minder across the road. Where to wait,
 // what the minder looks for, and the photograph.
-import { me, actorWho, secs, sees, busyAtSomething } from './common.js';
+import { me, actorWho, secs, sees, busyAtSomething, aside } from './common.js';
 
 export const watching = {
   id: 'watching', title: 'Watching and photographing', scenario: 'watch',
@@ -30,6 +30,7 @@ export const watching = {
     { id: 'coming', now: true, when: (s) => s.scenario.phase === 'walk' && sees(s, actorWho(s, 'volkov')), say: '"There\'s Volkov: glasses, dark coat, briefcase. Let him get there. Don\'t move to meet him."' },
     { id: 'together', now: true, when: (s) => s.scenario.phase === 'meet', say: '"They\'re together. Both of them in your sight, then {camera}. Not where Ruiz can see you lift it."' },
     { id: 'made', now: true, when: (s) => s.scenario.made, say: '"Ruiz made you. Words into his collar, and now watch: they\'ll walk past each other like strangers."' },
+    aside('watching', 70),
   ],
   debrief(state) {
     const sc = state.scenario, out = [];

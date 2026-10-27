@@ -100,7 +100,15 @@ export function createCrowd(scene) {
       }`,
   });
   const cards = new THREE.InstancedMesh(geo, material, MAX_PEOPLE);
-  cards.userData.noId = true;                                      // sprites bring their own outline
+  // (sprites bring their own outline; but in the outline pass's ID buffer they're there, cut to their shape and
+  // all one part, so nothing behind a person is outlined across them: a building's sill drew a line through heads)
+  cards.userData.idMaterial = new THREE.ShaderMaterial({ uniforms: material.uniforms, vertexShader: material.vertexShader, fragmentShader: `
+      uniform sampler2D atlas;
+      varying vec2 vUv;
+      void main() {
+        if (texture2D(atlas, vUv).a < 0.5) discard;
+        gl_FragColor = vec4(0.53, 0.02, 0.91, 1.0);
+      }` });
   cards.frustumCulled = false;
   const blobs = new THREE.InstancedMesh(new THREE.CircleGeometry(0.42, 16).rotateX(-Math.PI / 2).scale(1, 1, 0.6),
     new THREE.MeshBasicMaterial({ color: INK, transparent: true, opacity: 0.4, depthWrite: false }), MAX_PEOPLE);

@@ -1,6 +1,6 @@
 // TRADECRAFT sim: lesson 6 of the tutorial, blown (sim/scenarios/hunted.js): your cover gone, out of the
 // city to a car, with them looking for you. Four of ours play the hunters, with your description.
-import { me, secs, around, dark } from './common.js';
+import { me, secs, around, dark, aside } from './common.js';
 
 export const blown = {
   id: 'blown', title: 'Blown', scenario: 'hunted',
@@ -25,6 +25,7 @@ export const blown = {
     { id: 'known', now: true, when: (s) => Object.keys(s.scenario.known ?? {}).length > 0, say: '"He\'s got you. Don\'t run: lose him. People, a lane, a shop with a back door. Or, if he gets his hands on you, fight."' },
     { id: 'run', now: true, every: 30, when: (s) => me(s)?.gait === 'run', say: '"Don\'t run: a running man is the man they\'re looking for."' },
     { id: 'late', when: (s) => s.scenario.deadline - s.time.ms < 12 * 60000, say: '"Twelve minutes, and the car goes."' },
+    aside('blown', 50),
   ],
   debrief(state) {
     const sc = state.scenario, out = [];

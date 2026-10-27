@@ -53,6 +53,8 @@ import { stream, int, range, pick, chance, weighted, hash } from '../rng.js';
 import { LAMP } from '../light.js';
 import { SECTION_M, Z, LANES, GAP_M, STRETCH, ROW_M } from './layout.js';
 import { cityOf } from '../cities/index.js';
+import { marksAt } from './marks.js';
+import { embassyBuilding } from '../cities/embassy.js';
 
 export { SECTION_M, Z, LANES, GAP_M, STRETCH, ROW_M };
 export const PARK_SHARE = 0.35;                                    // (Moscow's; a city's own is its profile's parkShare)
@@ -171,6 +173,16 @@ export function section(seed, i, row = 0) {
     }
   }
   if (T) turnBlocks(S, T, block, P.lot ?? 'garden');
+  // A posting's places (sim/places.js, sim/map/marks.js): the embassy in place of the building that
+  // stood there, its one door; the entrances that are someone's.
+  for (const m of marksAt(seed, row, i)) {
+    if (m.kind === 'embassy' && S.buildings[m.b]) {
+      const B = S.buildings[m.b];
+      S.doors = S.doors.filter(d => !(d.x > B.x0 && d.x < B.x1 && Math.abs(d.z - B.z) < 1));
+      S.buildings[m.b] = embassyBuilding(B);
+      S.doors.push({ x: (B.x0 + B.x1) / 2, z: B.z, w: 1.6, kind: 'embassy', place: 'embassy' });
+    } else if (m.kind === 'door') { const d = S.doors.find(o => o.kind === 'entrance' && Math.abs(o.x - m.x) < 0.01); if (d) d.place = m.place; }
+  }
   // The ways north: a side street has its lamps and a bin; an alley is dark, with a bin.
   for (const g of S.gapsN) {
     if (g.kind === 'side') {
@@ -529,7 +541,7 @@ function dress(S, seed, row, zx, sx, P) {
   const f = S.park?.feature;
   if (f) f.look = w(f.kind);
   if (S.square && LOOKS[S.square.kind]) S.square.look = w(S.square.kind);
-  for (const B of S.buildings) P.dress(B, L, S);
+  for (const B of S.buildings) if (B.style !== 'embassy') P.dress(B, L, S);   // (the embassy wears its own: sim/cities/embassy.js)
 }
 
 

@@ -28,7 +28,8 @@
 import { at, TICK_MS, dateText } from '../clock.js';
 import { recruit } from '../people.js';
 import { say, speak } from '../log.js';
-import { pick, int } from '../rng.js';
+import { pick, int, stream } from '../rng.js';
+import { HEARSAY, haleStream } from '../hale.js';
 import { follow } from '../crowd.js';
 import { headOf } from '../perception.js';
 import { dojo as hall, FIGHT, SPOTS } from '../map/dojo.js';
@@ -124,7 +125,8 @@ export const dojoScenario = {
     state.player = 'me';
     state.map = { kind: 'dojo', seed: int(r, 1e9), row: 0, i0: 0, i1: 0, crowd: 0 };
     // Hale, and the class: one weaker (in from the analysts, a few weeks of it), one even, the rest.
-    state.people.hale = recruit(r, { id: 'hale', cqc: [20, 3], os: 60, age: 46, instructor: true });
+    // (Hale is one man, here and on the earpiece: his own dice, sim/hale.js)
+    state.people.hale = recruit(haleStream(), { id: 'hale', cqc: [20, 3], os: 60, age: 46, instructor: true, sex: 'm' });
     state.people.hale.name = `${state.people.hale.name.split(' ')[0]} Hale`;
     const names = new Set([me.name.split(' ')[1], state.people.hale.name.split(' ')[1]]);
     const cls = [{ cqc: [0, 2], os: 10 }, { cqc: [5, 2], os: 15 }, { cqc: [5, 1], os: 12 }, { cqc: [5, 0], os: 14 }, { cqc: [8, 2], os: 18 }].map((o, i) => {
@@ -169,6 +171,7 @@ export const dojoScenario = {
   tick(state, bus) {
     const sc = state.scenario;
     if (sc.outcome) return;
+    if (sc.gossipAt && state.tick >= sc.gossipAt) { sc.gossipAt = null; if (sc.phase === 'ready' || sc.phase === 'walk') gossip(state, bus); }
     // Into place for a fight: both on their marks, and it starts.
     if (sc.phase === 'walk') {
       const me = playerOf(state), them = actorOfWho(state, sc.with);
@@ -272,6 +275,16 @@ function next(state, bus) {
   for (const line of step.lines) hale(state, bus, `Hale: ${fill(state, who, line)}`);
 }
 
+/** A classmate on the bench, low, about Hale: the canteen's hearsay (sim/hale.js), a different piece each time. */
+const GOSSIP_S = 5;
+function gossip(state, bus) {
+  const sc = state.scenario, n = sc.gossip = (sc.gossip ?? 0) + 1;
+  const g = stream('gossip', state.seed ?? 0), first = int(g, HEARSAY.length);
+  const bench = state.actors.filter(a => /^c\d$/.test(a.who) && a.who !== sc.with && !state.people[a.who]?.dead && a.gait === 'idle');
+  const a = bench.length ? bench[int(stream('gossip', state.seed ?? 0, n), bench.length)] : null;
+  if (a) speak(state, bus, a.id, `${short(state, a.who)}, low, from the bench: “${HEARSAY[(first + n * 3) % HEARSAY.length]}”`, 'Bench talk.');
+}
+
 /** Hale says it aloud: the log's line, and a balloon over him (sim/log.js speak()). */
 const hale = (state, bus, text, aside = null) => speak(state, bus, actorOfWho(state, 'hale')?.id, text, aside);
 
@@ -306,6 +319,7 @@ function finishBout(state, bus, f) {
     const line = f.ended.why === 'stopped' ? (won ? `“Stop. That's enough, ${short(state, who)}'s hurt.”` : '“Stop. You\'re hurt: that\'s the bout.”') : won ? '“That\'s the bout. Good.”' : '“That\'s the bout.”';
     const score = `${won ? `You win it, ${f.score.a}–${f.score.b}` : `${short(state, who)} takes it, ${f.score.b}–${f.score.a}`}.`;   // (the winner's score first)
     hale(state, bus, `Hale: ${line} ${score}`, score);
+    if (sc.bouts.length === 1 || sc.bouts.length === 3) sc.gossipAt = state.tick + GOSSIP_S * TPS;   // (and on the bench, while he's not listening)
     if (sc.chapter === 'remembered' && step.id === 'hale') Object.assign(sc, { phase: 'cut', cutAt: state.tick + CUT_S * TPS });   // (and then the floor)
   } else hale(state, bus, `Hale: ${step.done}`);
 }

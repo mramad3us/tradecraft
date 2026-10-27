@@ -48,6 +48,7 @@ import { passerby, describe } from '../sim/people.js';
 import { CHOICES as TALK_CHOICES } from '../sim/talk.js';
 import { LESSONS, FARM, lessonOf, numberOf, nextLesson } from '../sim/tutorial/index.js';
 import { READ_S, WORD_S } from '../sim/tutorial/earpiece.js';
+import { HEARSAY } from '../sim/hale.js';
 
 const el = (tag, { dataset, ...props } = {}, ...kids) => {
   const e = Object.assign(document.createElement(tag), props);
@@ -84,10 +85,11 @@ export function createUI({ input, cb }) {
   const talkbox = el('div', { className: 'ask talkbox', hidden: true }); // a conversation, over them (time stands still)
   const states = [0, 1].map(() => el('div', { className: 'fstate', hidden: true }));   // staggered, dazed: over a fighter
   const tags = el('div', { className: 'tags' });                   // faces you've marked: seen before, a tail
+  const signs = el('div', { className: 'tags' });                  // the places that are yours, over their doors (a scenario's signs())
   const goal = el('div', { className: 'goal', hidden: true });      // where you're going, when it's off the picture
   const prompt = el('div', { className: 'prompt', hidden: true });
   const veil = el('div', { className: 'bloodveil' });                 // (the blood lost: the world dims and reddens at the edges)
-  const hud = el('div', { id: 'hud' }, veil, tags, marker, bubble, intent, ...states, you, pointed, speech, reach, ask, talkbox, bout, moves, goal, prompt, watch, toasts, earpiece, keys, banner);
+  const hud = el('div', { id: 'hud' }, veil, signs, tags, marker, bubble, intent, ...states, you, pointed, speech, reach, ask, talkbox, bout, moves, goal, prompt, watch, toasts, earpiece, keys, banner);
   const menu = el('div', { className: 'overlay', hidden: true });
   const log = el('div', { className: 'overlay', hidden: true });
   const paper = el('div', { className: 'overlay', hidden: true });     // a brief, a result
@@ -112,16 +114,22 @@ export function createUI({ input, cb }) {
   addEventListener('resize', fit);
 
   // The keys at the bottom right, for what you're doing: on the street, in a fight, in a conversation.
-  let hintsFor = null;
+  // (the keys in play: behind "?", the user's, folded to a hint until it's pressed; the choice kept for this browser)
+  let hintsFor = null, keysOpen = false;
+  try { keysOpen = localStorage.getItem('tradecraft.keys') === 'open'; } catch {}
   const keyHints = (mode = hintsFor ?? 'street') => {
     hintsFor = mode;
     const k = (a) => `<kbd>${input.label(a)}</kbd>`;
+    keys.classList.toggle('folded', !keysOpen);
+    if (!keysOpen) { keys.innerHTML = '<kbd>?</kbd> keys'; return; }
     keys.innerHTML = mode === 'fight' ? `${k('hit')} hit · ${k('grapple')} grab · ${k('guard')} cover · ${k('run')} held: spend an edge · ${k('gun')} draw · ${k('interact')} your read · ${k('log')} log · ${k('pause')} pause`
       : mode === 'talk' ? `<kbd>1</kbd>–<kbd>4</kbd> say · ${k('menu')} leave it there`
       : `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look (tap: glance) · ${k('instinct')} instinct · ${k('interact')} people · ${k('aid')} first aid · ${k('inventory')} carry · ${k('gun')} draw · ${k('sheet')} sheet · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
   };
   keyHints();
   setTimeout(() => keyHints(), 300);                               // once the keyboard's layout is known
+  /** "?": the keys shown, or folded away. */
+  const toggleKeys = () => { keysOpen = !keysOpen; try { localStorage.setItem('tradecraft.keys', keysOpen ? 'open' : 'folded'); } catch {} keyHints(); };
 
   // ---------- the title ----------
   let titleWas = null;
@@ -167,7 +175,7 @@ export function createUI({ input, cb }) {
           el('hr'),
           el('button', { className: 'item', onclick: () => cb.importSave() }, 'Load a save file…', el('small', { textContent: 'A .json save exported from the menu.' })))),
       el('hr'),
-      el('p', { className: 'note', textContent: 'Keys are read by where they sit on the keyboard, so they work on any layout.' }),
+      el('p', { className: 'note', textContent: 'Keys are read by where they sit on the keyboard, so they work on any layout. In play, ? shows them.' }),
     ));
     title.hidden = false;
     title.querySelector('.item')?.focus();
@@ -190,6 +198,7 @@ export function createUI({ input, cb }) {
     title.replaceChildren(el('div', { className: 'sheet directory' },
       el('h1', { textContent: 'TUTORIAL' }),
       el('p', { className: 'sub', textContent: 'Your first month at the station. Hale, who taught you at the Farm, runs its training: before you\'re trusted with the real thing, he takes you through it on the street, an earpiece in your ear, the station\'s own people playing the parts.' }),
+      el('p', { className: 'note hearsay', textContent: `They say things about Hale, in the canteen. ${HEARSAY[Math.floor(Math.random() * HEARSAY.length)]}` }),
       el('hr'),
       el('div', { className: 'lessons' }, ...LESSONS.map((L, n) => row(L, n))),
       el('hr'),
@@ -257,6 +266,16 @@ export function createUI({ input, cb }) {
       t.textContent = sus[i][1] >= 2 ? 'tail' : 'seen before';
       t.classList.toggle('sure', sus[i][1] >= 2);
       t.style.transform = `translate(${Math.round((RES[0] / 2 + (at[0] - cam0.x) * 16) * k0)}px, ${Math.round((RES[1] / 2 + (at[1] - cam0.z) * 16 - 2.6 * 16) * k0)}px)`;
+    });
+    // The places that are yours on this street (a scenario's signs(): [{ x, z, label }]), over their doors.
+    const sgs = (!sc.outcome && cam0 && SCENARIOS[sc.kind]?.signs?.(state)) || [];
+    while (signs.children.length < sgs.length) signs.append(el('div', { className: 'placetag' }));
+    [...signs.children].forEach((t, i) => {
+      const s = sgs[i], sx = s && RES[0] / 2 + (s.x - cam0.x) * 16, sy = s && RES[1] / 2 + (s.z - cam0.z) * 16 - 3.4 * 16;
+      t.hidden = !s || sx < -40 || sx > RES[0] + 40 || sy < 0 || sy > RES[1];
+      if (t.hidden) return;
+      if (t.textContent !== s.label) t.textContent = s.label;
+      t.style.transform = `translate(${Math.round(sx * k0)}px, ${Math.round(sy * k0)}px)`;
     });
     // Where you're going (a scenario's goal(): { row, x, z, label }), at the picture's edge when it's off it.
     const gl = !sc.outcome && SCENARIOS[sc.kind]?.goal?.(state);
@@ -482,6 +501,9 @@ export function createUI({ input, cb }) {
   /** Each line its TOAST_S, as a line at the top left (the same clock); over the speaker's head, kept inside the picture. */
   function placeBalloons(view, now, W) {
     const k = W / RES[0], cam = view?.camera;
+    const o = speech.getBoundingClientRect(), tagBoxes = balloons.size ? [intent, reach, bubble, ...states].filter(e => !e.hidden && e.isConnected)
+      .map(e => { const r = e.getBoundingClientRect(); return { left: r.left - o.left, right: r.right - o.left, top: r.top - o.top, bottom: r.bottom - o.top }; })
+      .sort((a, b) => b.top - a.top) : [];
     for (const [id, b] of balloons) {
       for (const p of [...b.children]) {
         if (now - p.born > TOAST_S * 1000 && !p.classList.contains('gone')) p.classList.add('gone');
@@ -491,8 +513,12 @@ export function createUI({ input, cb }) {
       const at = view?.posOf(id);
       b.hidden = !at || !cam;
       if (b.hidden) continue;
-      const w = b.offsetWidth, cx = (RES[0] / 2 + (at[0] - cam.x) * 16) * k;
-      const x = Math.max(8, Math.min(W - w - 8, cx - w / 2)), y = Math.max(b.offsetHeight + 8, (RES[1] / 2 + (at[1] - cam.z) * 16 - 2.6 * 16) * k);
+      const w = b.offsetWidth, h = b.offsetHeight, cx = (RES[0] / 2 + (at[0] - cam.x) * 16) * k;
+      const x = Math.max(8, Math.min(W - w - 8, cx - w / 2));
+      let y = (RES[1] / 2 + (at[1] - cam.z) * 16 - 2.6 * 16) * k;
+      // (over the tags it would cover, a fighter's next move, a key, a ? or a !: lifted clear of each, its tail too)
+      for (const r of tagBoxes) if (r.left < x + w && r.right > x && r.top < y + 9 && r.bottom > y - h) y = r.top - 9;
+      y = Math.max(h + 8, y);
       b.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
       b.style.setProperty('--tail', `${Math.round(Math.max(10, Math.min(w - 10, cx - x)))}px`);   // (the tail points at them, wherever the balloon's pushed)
     }
@@ -537,10 +563,10 @@ export function createUI({ input, cb }) {
   function openSheet(state) {
     const p = state.people[state.player], cls = CLASSES[p.cls], os = p.os ?? 0;
     const rows = Object.entries(SKILLS).map(([k, sk]) => {
-      const [base = 0, practice = 0] = p.skills?.[k] ?? [], w = cls?.weights[k] ?? 0;
+      const [base = 0, practice = 0] = p.skills?.[k] ?? [], w = cls?.weights[k] ?? 0, bg = Math.min(practice, p.bg?.points?.[k] ?? 0);
       return el('tr', { className: base ? '' : 'none' },
         el('td', { textContent: sk.name, title: sk.about }),
-        el('td', { className: 'lvl', textContent: `${LEVEL[base] ?? `base ${base}`}${practice ? ` ${'•'.repeat(practice)}` : ''}` }),
+        el('td', { className: 'lvl', textContent: `${LEVEL[base] ?? `base ${base}`}${practice ? ` ${'◆'.repeat(bg)}${'•'.repeat(practice - bg)}` : ''}`, title: bg ? `${bg} from your background` : '' }),
         el('td', { className: 'mult', textContent: w && os ? `× ${(1 + w * os / 100).toFixed(2)}` : '' }),
         el('td', { className: 'val', textContent: String(skill(p, k)) }));
     });
@@ -555,7 +581,7 @@ export function createUI({ input, cb }) {
       el('div', { className: 'cols' },
         el('div', {},
           el('table', { className: 'skills' }, el('tbody', {}, rows)),
-          el('p', { className: 'note', textContent: 'The level is the training you had (a course, advanced…); each • is practice since, a point each.' }),
+          el('p', { className: 'note', textContent: `The level is the training you had (a course, advanced…); each • is practice since, ${p.bg ? 'each ◆ what your background brought, ' : ''}a point each.` }),
           (() => { const nw = needsWords(p, state.time.ms); return el('p', { className: 'langs', textContent: `${nw.fed[0].toUpperCase()}${nw.fed.slice(1)} · ${nw.stress}${nw.hungry || nw.edgy ? ' (it costs: see a roll\'s modifiers)' : ''} · ${price(state, cashOf(p))} on you` }); })(),
           el('p', { className: 'langs', textContent: Object.entries(p.langs ?? {}).map(([c, l]) => `${LANGS[c] ?? c}: ${l}`).join(' · ') }),
           el('p', { className: 'langs', textContent: `Carrying: ${[p.hand && `${weaponOf(p.hand).name}, in hand`, ...(p.items ?? []).map(k => weaponOf(k)?.name ?? k)].filter(Boolean).join('; ') || 'nothing to fight with'}. (${input.label('inventory')})` })),
@@ -721,7 +747,7 @@ export function createUI({ input, cb }) {
       el('h2', { textContent: 'WHO GOES' }),
       el('p', { className: 'note', textContent: `Station ${C.name} needs a Handler under official cover. Three files on the desk.` }), el('hr'),
       ...list.map((p, i) => el('button', { className: 'item cand', onclick: () => { paper.hidden = true; paper.dataset.kind = ''; onPick(i); } },
-        `${p.name}, ${p.age}`, el('small', { textContent: `${p.background} Best at: ${top(p)}. ${LANGS[lang] ?? lang}: ${p.langs[lang] ?? 'none'}. Tradecraft ${p.os}.` })))));
+        `${p.name}, ${p.age}`, el('small', { textContent: `${p.background} ${p.bg ? `From it: ${Object.entries(p.bg.points).map(([k, v]) => `${SKILLS[k]?.name ?? k} +${v}`).join(', ')}. ` : ''}Best at: ${top(p)}. ${LANGS[lang] ?? lang}: ${p.langs[lang] ?? 'none'}. Tradecraft ${p.os}.` })))));
     paper.hidden = false;
     paper.dataset.kind = 'brief';
     paper.querySelector('.cand')?.focus();
@@ -873,5 +899,5 @@ export function createUI({ input, cb }) {
     setTimeout(() => f.remove(), 1600);
   }
 
-  return { frame, fit, flash, openInventory, openAid, openDesk, openChoices, showCandidates, showPaper, showTitle, showTutorial, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
+  return { frame, fit, flash, openInventory, openAid, openDesk, openChoices, showCandidates, showPaper, showTitle, showTutorial, toggleKeys, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
 }

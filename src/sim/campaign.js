@@ -80,13 +80,20 @@ export const SUBJECTS = {
 const CODENAMES = ['SOLOVEY', 'ZHURAVL', 'SKVORETS', 'KUKUSHKA', 'SINITSA', 'GRACH', 'SOKOL', 'DROZD'];
 const ROLES = ['a ministry clerk', 'a defence engineer', 'a banker\'s assistant', 'a journalist', 'a customs officer', 'a translator at a state firm'];
 const MOTIVES = ['money', 'ideology', 'ego', 'revenge'];
-const BACKGROUNDS = [
-  { id: 'army', text: 'Army intelligence, then the Farm: a linguist who learned to walk a street.', skills: { awareness: 3, tracking: 2, cqc: 3, fitness: 2 } },
+// What a life before the Agency brings (the user, 2026-10-27: "background should impact starting skills by up
+// to +4 points (an ex marine would know how to fight)"): points on top of the training, BG_MAX at most a
+// skill, kept apart on the sheet (p.bg: ◆, where practice is •).
+export const BG_MAX = 4;
+export const BACKGROUNDS = [
+  { id: 'marine', text: 'A Marine infantry officer, two tours, then the Farm: knows how to fight, and how to keep going.', skills: { cqc: 4, weapons: 4, fitness: 3, awareness: 1 } },
+  { id: 'army', text: 'Army intelligence, then the Farm: a linguist who learned to walk a street.', skills: { awareness: 3, tracking: 2, cqc: 2, fitness: 2 } },
+  { id: 'police', text: 'A city detective once: patient on a street, hard to lose, handy in a scuffle.', skills: { tracking: 4, awareness: 2, cqc: 3 } },
   { id: 'econ', text: 'An economist out of Treasury: reads a balance sheet like a face.', skills: { analysis: 4, social: 2, deception: 1 } },
   { id: 'state', text: 'Four years at State before the Agency took them: at home at a reception.', skills: { social: 4, deception: 2, awareness: 1 } },
-  { id: 'police', text: 'A city detective once: patient on a street, hard to lose.', skills: { tracking: 4, awareness: 2, cqc: 2 } },
-  { id: 'medic', text: 'A Navy corpsman before the Farm: steady hands, steadier nerves.', skills: { medicine: 5, fitness: 2, awareness: 1 } },
+  { id: 'medic', text: 'A Navy corpsman before the Farm: steady hands, steadier nerves.', skills: { medicine: 4, fitness: 2, awareness: 1 } },
   { id: 'journo', text: 'A foreign correspondent, recruited in Istanbul: knows how to ask.', skills: { social: 3, deception: 3, pathfinding: 1 } },
+  { id: 'nsa', text: 'An engineer at NSA who wanted to see the other end of the wire.', skills: { tech: 4, analysis: 3, awareness: 1 } },
+  { id: 'wrestler', text: 'A college wrestler, then the Peace Corps in the Caucasus: strong, and at home anywhere.', skills: { fitness: 4, cqc: 3, social: 1, pathfinding: 1 } },
 ];
 const US = { f: ['Rebecca', 'Laura', 'Megan', 'Claire', 'Diane', 'Hannah', 'Julia', 'Sarah'], m: ['Daniel', 'Michael', 'Thomas', 'Andrew', 'Mark', 'Peter', 'James', 'Robert'],
   family: ['Price', 'Walker', 'Brennan', 'Hollis', 'Mercer', 'Dalton', 'Keane', 'Whitlock', 'Sutton', 'Garrett'] };
@@ -100,12 +107,14 @@ export function candidates(seed, city = 'moscow') {
     const age = 29 + int(r, 14);
     const base = { deception: [10, int(r, 3)], tracking: [10, int(r, 3)], pathfinding: [10, int(r, 3)], awareness: [10, int(r, 3)], social: [10, int(r, 3)],
       analysis: [5, int(r, 3)], tech: [5, int(r, 2)], medicine: [5, 0], cqc: [5, 1 + int(r, 2)], weapons: [5, int(r, 2)], fitness: [5, 1 + int(r, 3)] };
-    for (const [k, v] of Object.entries(bg.skills)) base[k] = [base[k][0], Math.min(9, base[k][1] + v)];
+    const points = Object.fromEntries(Object.entries(bg.skills).map(([k, v]) => [k, Math.min(BG_MAX, v)]));
+    for (const [k, v] of Object.entries(points)) base[k] = [base[k][0], Math.min(9, base[k][1] + v)];
     const lang = CITY[city]?.lang ?? 'ru';
     const p = sheet({ id: 'me', name: `${pick(r, US[sex])} ${pick(r, US.family)}`, sex, cls: 'spook', os: 30 + int(r, 16), skills: base,
       langs: { en: 'native', ...(lang !== 'en' ? { [lang]: pick(r, ['working', 'working', 'fluent']) } : {}) }, persistent: true });
     p.age = age;
     p.background = bg.text;
+    p.bg = { id: bg.id, points };                                   // (of the dots, these are the background's: the sheet shows them apart)
     p.look = { skin: pick(r, ['light', 'light', 'tan', 'brown']), hair: { style: sex === 'f' ? pick(r, ['bun', 'long']) : chance(r, age > 38 ? 0.25 : 0.05) ? 'bald' : 'short', color: pick(r, [0x2a1c18, 0x47302a, 0x6b4636, 0x14151c, 0xb9862e]) },
       top: { kind: 'coat', color: pick(r, [0x353947, 0x4c5262, 0x47302a, 0x23252f]), trim: 0x23252f }, legs: 0x23252f, shoes: 0x14151c };
     return p;

@@ -33,7 +33,7 @@ import { Z, placeName } from './map/street.js';
 import { CITIES, townOf } from './cities/index.js';
 import { say } from './log.js';
 import { populate, think, walk, facing, isPasserby, noticeAgent } from './crowd.js';
-import { look, headOf, faceOf } from './perception.js';
+import { look, headOf, faceOf, GLASS_MAX_DEG } from './perception.js';
 import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } from './agents.js';
 import { drift } from './people.js';
 import { heal, bleeding, bloodTick, bandOf, canStand, kill, BLOOD, COME_ROUND_S } from './health.js';
@@ -55,6 +55,7 @@ import * as interact from './interact.js';
 import * as talk from './talk.js';
 import * as items from './items.js';
 import { SCENARIOS } from './scenarios/index.js';
+import { settle } from './places.js';
 
 export const WALK_MS = 1.45;                                       // the player's walk, m/s
 export const STROLL_MS = 0.95;                                     // a stroll (Alt held): to keep a pace without stopping
@@ -64,6 +65,7 @@ export const GLANCE_S = 1.2;                                       // a look ove
 export const AUTOSAVE_MS = 30 * MIN;
 const DT = TICK_MS / 1000;
 const TICKS_PER_S = Math.round(1000 / TICK_MS);
+export const SLANT_DEG_S = 70;                                     // (the eyes slanted along a shop's glass, E held: degrees a second)
 
 /**
  * A new game: a scenario (SCENARIOS) from a seed. Call start() before stepping it. autoplay: the
@@ -86,6 +88,7 @@ export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = 
   // (a campaign rides along, the persistent part: sim/campaign.js; context, an assignment's, for its scene's setup)
   state.campaign = campaign;
   state.assignment = context?.assignment ?? null;
+  settle(campaign);                                                 // (its embassy and doors on its streets: sim/places.js)
   // The city (sim/cities/): a street map is generated from its profile (state.map.city; none is Moscow).
   const C = city && CITIES[city];
   if (C) state.country = C.country;
@@ -97,6 +100,7 @@ export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = 
 
 /** Attach the runtime world (state.$world) to a state, new or loaded, and fill the street if it's new. */
 export function start(state, bus) {
+  settle(state.campaign);                                           // (a loaded campaign's places marked again)
   const f = focusActor(state);
   attach(state, bus, f?.x ?? 0);
   rehash(state);
@@ -190,7 +194,14 @@ export function step(state, input = {}, bus) {
     if (me.busy) busy(me);
     else if (input.look) {
       me.vx = me.vz = 0; me.gait = 'idle';
-      if (n > 0.01) { me.head = Math.atan2(mz, mx); me.face = faceOf(me.head); }
+      // (at a shop's glass, left and right slant the eyes along it, a little at a time, as far as the glass
+      // shows, and up brings them back to straight in; down turns away from it. The user, 2026-10-27: E
+      // held "tends to slant the wrong direction (up instead of left)": left turned you from the window.)
+      if (n > 0.01 && me.glass && mz <= 0) {
+        const max = GLASS_MAX_DEG * Math.PI / 180, to = mx ? -Math.PI / 2 + Math.sign(mx) * max : -Math.PI / 2, step = SLANT_DEG_S * Math.PI / 180 / TICKS_PER_S;
+        const at = Math.max(-Math.PI / 2 - max, Math.min(-Math.PI / 2 + max, me.head > Math.PI / 2 ? me.head - 2 * Math.PI : me.head));
+        me.head = at + Math.max(-step, Math.min(step, to - at));
+      } else if (n > 0.01) { me.head = Math.atan2(mz, mx); me.face = faceOf(me.head); }
     } else {
       if (n > 1) { mx /= n; mz /= n; }
       const run = input.run && bandOf(mine) !== 'shock';             // (in shock from the blood lost, no running)

@@ -8,7 +8,7 @@
 // Alt (Option on a Mac) strolls, E held (longer than TAP_MS) stands still and looks, the move keys
 // turning the eyes. E tapped is the action 'glance': a look over the shoulder, walking on.
 // Everything else is an action fired once on the key going down (pause, the log, the menu…), for the
-// UI to route.
+// UI to route; and "?", read by the character it types (the user: "put the keybinds behind '?'"), 'help'.
 export const KEYS = {
   up: 'KeyW', left: 'KeyA', down: 'KeyS', right: 'KeyD', run: 'ShiftLeft', slow: 'AltLeft',
   interact: 'KeyF', inventory: 'KeyI', aid: 'KeyH', instinct: 'KeyT', watch: 'KeyE', sheet: 'KeyC', camera: 'KeyP',
@@ -34,6 +34,9 @@ export function createInput(target = window) {
     if (MOVE[e.code] || ['Tab', 'Space', 'AltLeft', 'AltRight'].includes(e.code) || e.altKey) e.preventDefault();
     if (e.repeat) return;
     held.add(e.code);
+    // ("?", whatever key makes it on this layout: the keys, shown or put away; on AZERTY it's Shift and the
+    // comma's key, which no action has, so it never steals a move)
+    if (e.key === '?') { for (const h of handlers) h('help', e); return; }
     if (e.code === KEYS.watch) { eDown = performance.now(); return; }   // (a tap or a hold: known when it's let go)
     const action = ACTIONS[e.code];
     if (action) for (const h of handlers) h(action, e);

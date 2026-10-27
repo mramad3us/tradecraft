@@ -434,7 +434,9 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
       // The part-ID pass: each mesh drawn flat in its part's colour.
       const saved = [];
       // Things marked noId (a blob of shadow) stay out of it, so they draw no outline.
-      scene.traverse(o => { if (o.isMesh && o.visible) { saved.push([o, o.material, o.visible]); if (o.userData.noId) o.visible = false; else o.material = idMat(o.userData.part ?? 0); } });
+      // (a mesh may bring an ID material of its own: people's sprites, cut to their shape, one ID for all of them,
+      // so a building's edges behind a head aren't inked across it: src/render/crowd.js)
+      scene.traverse(o => { if (o.isMesh && o.visible) { saved.push([o, o.material, o.visible]); if (o.userData.idMaterial) o.material = o.userData.idMaterial; else if (o.userData.noId) o.visible = false; else o.material = idMat(o.userData.part ?? 0); } });
       const bg = scene.background;
       scene.background = null;
       renderer.setRenderTarget(rtId);

@@ -31,7 +31,7 @@
 //   - in a fight, a blow landing jolts the picture a pixel to three, the way it went, for SHAKE_TICKS;
 //   - the camera leans where the eyes go (LEAD_M: a little walking, far looking with E held, more
 //     north–south, where the picture is shorter; the user, 2026-10-26: "targets up and down are out
-//     of the field of view"), and in a scene following someone (scenario.watch()) toward them while
+//     of the field of view"; into a shop's glass, where its mirror looks: the street behind), and in a scene following someone (scenario.watch()) toward them while
 //     they're in sight; never past what the crowd's rule allows (sim/crowd.js SCREEN_HALF_M: nobody
 //     comes or goes on screen), and eased (LEAD_S). The fog still says what's seen;
 //   - what the player's character is aware of (sim/perception.js): a mask on the ground, FOG_CELL_M
@@ -341,7 +341,8 @@ export function createView({ parent, bus, month = () => 11 }) {
       leadAt = now;
       if (pc && f === pc) {
         const L = pc.looking ? LEAD_M.look : (pc.vx || pc.vz) ? LEAD_M.walk : [0, 0], h = pc.head ?? 0;
-        want[0] = Math.cos(h) * L[0]; want[1] = Math.sin(h) * L[1];
+        // (into a shop's glass, what the eyes see is its mirror: the street behind, on the side they slant to)
+        want[0] = Math.cos(h) * L[0]; want[1] = (pc.glass ? -1 : 1) * Math.sin(h) * L[1];
         const w = SCENARIOS[state.scenario.kind]?.watch?.(state);
         if (w) { want[0] += (w.x - fx) * 0.5; want[1] += (w.z - fz) * 0.5; }
       }
