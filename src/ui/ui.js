@@ -26,6 +26,7 @@ import { atHand, options as interactOptions } from '../sim/interact.js';
 import { allowed, cqcOf, BREAK_CQC } from '../sim/cqc.js';
 import { deathPaper } from '../sim/game.js';
 import { shortName, statusLine } from '../sim/fight.js';
+import { weaponOf, bare } from '../sim/weapons.js';
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 import { knownOf, classOf, READABLE } from '../sim/know.js';
@@ -44,7 +45,7 @@ const TOAST_S = 16;                                                // (a log lin
 
 export function createUI({ input, cb }) {
   const frame = el('div', { id: 'frame' });
-  const watch = el('div', { className: 'watch' }, el('div', { className: 'time' }), el('div', { className: 'date' }), el('div', { className: 'place' }));
+  const watch = el('div', { className: 'watch' }, el('div', { className: 'time' }), el('div', { className: 'date' }), el('div', { className: 'place' }), el('div', { className: 'hand' }));
   const toasts = el('div', { className: 'toasts' });
   const keys = el('div', { className: 'keys' });
   const banner = el('div', { className: 'banner', textContent: 'PAUSED' });
@@ -84,7 +85,7 @@ export function createUI({ input, cb }) {
 
   const keyHints = () => {
     const k = (a) => `<kbd>${input.label(a)}</kbd>`;
-    keys.innerHTML = `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look · ${k('interact')} interact · ${k('sheet')} sheet · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
+    keys.innerHTML = `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look · ${k('interact')} interact · ${k('inventory')} carry · ${k('gun')} draw · ${k('sheet')} sheet · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
   };
   keyHints();
   setTimeout(keyHints, 300);                                       // once the keyboard's layout is known
@@ -123,6 +124,8 @@ export function createUI({ input, cb }) {
     watch.querySelector('.time').textContent = clockText(state.time.ms);
     watch.querySelector('.date').textContent = stampText(state.time.ms).split(',')[0];
     const me = state.actors.find(a => a.who === state.player);
+    const held = weaponOf(state.people[state.player]?.hand);       // (what's in your hand, under the watch: sim/items.js)
+    watch.querySelector('.hand').textContent = held ? `in hand: ${bare(held)}` : '';
     if (me && state.map?.kind === 'street') watch.querySelector('.place').textContent = placeName(state.map.seed, state.map.row ?? 0, me.x, me.z);
     else watch.querySelector('.place').textContent = SCENARIOS[state.scenario.kind]?.place?.(state) ?? '';
     frame.classList.toggle('paused', paused && menu.hidden && log.hidden && paper.hidden);
@@ -373,7 +376,8 @@ export function createUI({ input, cb }) {
       el('div', { className: 'cols' },
         el('div', {},
           el('table', { className: 'skills' }, el('tbody', {}, rows)),
-          el('p', { className: 'langs', textContent: Object.entries(p.langs ?? {}).map(([c, l]) => `${LANGS[c] ?? c}: ${l}`).join(' · ') })),
+          el('p', { className: 'langs', textContent: Object.entries(p.langs ?? {}).map(([c, l]) => `${LANGS[c] ?? c}: ${l}`).join(' · ') }),
+          el('p', { className: 'langs', textContent: `Carrying: ${[p.hand && `${weaponOf(p.hand).name}, in hand`, ...(p.items ?? []).map(k => weaponOf(k)?.name ?? k)].filter(Boolean).join('; ') || 'nothing to fight with'}. (${input.label('inventory')})` })),
         el('div', { className: 'body' },
           el('div', { className: 'figure' }, part('head'), part('armR'), part('torso'), part('armL'), part('legR'), part('legL')),
           el('ul', {}, Object.keys(PARTS).map(k => el('li', { className: `${stateOf(p, k)}${injuriesOn(p, k) ? ' injured' : ''}` }, el('span', { textContent: PARTS[k].name }), el('span', { textContent: stateText(p, k) }),
@@ -382,6 +386,28 @@ export function createUI({ input, cb }) {
       el('p', { className: 'note', textContent: `${input.label('sheet')} or ${input.label('menu')} to close.` }),
     ));
     card.hidden = false;
+    card.dataset.kind = '';
+    menu.hidden = log.hidden = true;
+  }
+
+  /** I: what you carry, and what's in your hand; each a button (take out, put away, drop) that closes it and does it. */
+  function openInventory(state, act) {
+    const p = state.people[state.player], go = (cmd) => () => { closeOverlays(); act(cmd); };
+    const row = (kind, inHand) => {
+      const w = weaponOf(kind);
+      return el('tr', {}, el('td', { textContent: w?.name ?? kind }), el('td', { className: 'where', textContent: inHand ? 'in hand' : w?.carry ?? '' }),
+        el('td', {}, inHand ? (w?.carry !== 'hand' ? el('button', { className: 'small', onclick: go('stow') }, 'put away') : null) : el('button', { className: 'small', onclick: go(`wield:${kind}`) }, 'take out'),
+          el('button', { className: 'small', onclick: go(`drop:${kind}`) }, 'drop')));
+    };
+    const list = [...(p.hand ? [row(p.hand, true)] : []), ...(p.items ?? []).map(k => row(k, false))];
+    card.replaceChildren(el('div', { className: 'sheet charsheet inventory' },
+      el('span', { className: 'stamp', textContent: 'CARRIED' }),
+      el('h2', { textContent: 'WHAT YOU CARRY' }),
+      el('p', { className: 'note', textContent: 'Little, and only where it fits: a pocket, or tucked in the beltline under your coat. Anything else is held, or put down.' }), el('hr'),
+      list.length ? el('table', { className: 'skills' }, el('tbody', {}, list)) : el('p', { textContent: 'Nothing to fight with. Things lie about: T picks one up.' }),
+      el('p', { className: 'note', textContent: `${input.label('gun')} takes out the next one, or puts it away (in a fight, that exchange you only cover). ${input.label('inventory')} or ${input.label('menu')} to close.` })));
+    card.hidden = false;
+    card.dataset.kind = 'inventory';
     menu.hidden = log.hidden = true;
   }
 
@@ -445,6 +471,7 @@ export function createUI({ input, cb }) {
       el('p', { className: 'note', textContent: `${state.fight ? `${input.label('interact')}, ` : ''}${input.label('sheet')} or ${input.label('menu')} to close.` }),
     ));
     card.hidden = false;
+    card.dataset.kind = '';
     menu.hidden = log.hidden = true;
   }
 
@@ -512,7 +539,7 @@ export function createUI({ input, cb }) {
 
   const closeOverlays = () => { menu.hidden = log.hidden = card.hidden = true; closeAsk(); };
   const closeAll = () => { menu.hidden = log.hidden = card.hidden = paper.hidden = true; paper.dataset.kind = ''; closeAsk(); };
-  const overlay = () => (!menu.hidden ? 'menu' : !log.hidden ? 'log' : !card.hidden ? 'sheet' : !ask.hidden ? 'interact' : !paper.hidden ? paper.dataset.kind : null);
+  const overlay = () => (!menu.hidden ? 'menu' : !log.hidden ? 'log' : !card.hidden ? (card.dataset.kind || 'sheet') : !ask.hidden ? 'interact' : !paper.hidden ? paper.dataset.kind : null);
 
   /** A white flash over the picture, fading: a blow, and another time. */
   function flash() {
@@ -521,5 +548,5 @@ export function createUI({ input, cb }) {
     setTimeout(() => f.remove(), 1600);
   }
 
-  return { frame, fit, flash, showTitle, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
+  return { frame, fit, flash, openInventory, showTitle, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
 }

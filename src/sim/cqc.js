@@ -63,6 +63,19 @@
 // may kill (deathChance(): DEATH_BASE, and DEATH_WEAR_K for how beaten up they were before it, up to
 // DEATH_MAX; a botched one half that). Their side does it to a stunned player too, in a real fight. In
 // a bout it's a foul: nothing pulled, and the bout is lost by whoever did it (f.fouled).
+// **Weapons** (the user, 2026-10-26: "fight is still CQC and works the same"; sim/weapons.js): what's in a
+// fighter's hand changes how, not what. Armed, a hit is mostly the weapon's (a slash, a stab, a club, a
+// thrust: technique()), its weight the weapon's k, a blade or a point cutting what it lands on (bleeding
+// by the weapon's bleed); the trained still kick or knee or elbow now and then, never a cross with the
+// knife hand. A cover is held with the weapon if it's any good for it (guard 0.4 and over). Blocking
+// a blade, or a heavy weapon (HEAVY_K), with less than SOLID_GUARD in your hands is a CQC roll for a
+// clean block (the guard's worth adds GUARD_PER_PT × 8): lost, it comes through the guard, mostly into
+// the forearms (THROUGH_AT), THROUGH_K of a hit, never past a wound (THROUGH_CAP). A grab with a hand
+// full costs the weapon's grab on the roll and may fumble (FUMBLE_PER_PT a point); an awkward weapon
+// costs every roll. A grab that lands may knock the weapon out of the hand (DISARM, by how it was
+// done); a bottle may break into a broken one. Armed, Shift with a hit on someone stunned is an attempt
+// to kill (finish(): 'kill'; the user, "if wielding a weapon, shift hitting a stunned opponent is us
+// attempting a kill"). An armed fighter hits more and grabs less (choose()).
 // **Injuries** besides the hurt (sim/health.js injure(): a crack, a split brow or lip, a bloody nose),
 // and blood flying from a blow that drew it, or landed on a face already bleeding (out.blood: how much;
 // the picture flings it, sim/cqcshow.js, onto the floor, sim/blood.js).
@@ -74,6 +87,7 @@ import { skill } from './skills.js';
 import { opposed } from './checks.js';
 import { int, chance, weighted } from './rng.js';
 import { check } from './checks.js';
+import { wielded, techsOf, canGrabWith, bare, WEAPON_PREF, TRAINED_CQC, SOLID_GUARD, HEAVY_K, FUMBLE_PER_PT, TECHS } from './weapons.js';
 import { hurt, injure, stateOf, takes, mods as hurtMods, canGrapple, canStand, kill, wear } from './health.js';
 
 export const MOVES = ['hit', 'grapple', 'guard'];
@@ -87,6 +101,12 @@ export const DAZE_MOD = -4;
 export const RIPOSTE_K = 1.5;
 export const SPEND_BLIND = 0.7;
 export const FINISH_DC = 4;
+export const THROUGH_K = 0.4;
+export const THROUGH_CAP = 0.6;                                    // (a cut through the guard never takes a part past this share)
+export const THROUGH_AT = { armL: 36, armR: 36, head: 11, torso: 11, legL: 3, legR: 3 };
+export const GUARD_PER_PT = 8;
+export const DISARM = { armlock: 0.5, hip: 0.15, sweep: 0.15, choke: 0.2, shove: 0.08 };
+const HAND = new Set(['cross', 'hook', 'palm']);                    // (the weapon hand isn't a fist)
 export const BREAK_CQC = 21;
 export const FRACTURE_ON_BOTCH = 0.45;
 export const DEATH_BASE = 0.02;
@@ -129,9 +149,19 @@ export const TECHNIQUES = {
   ],
 };
 
-/** The technique a fighter of this CQC does a move with: one of what they know, the newer the likelier. */
-export function technique(r, move, cqc) {
-  const known = (TECHNIQUES[move] ?? []).filter(t => (t.from ?? 0) <= cqc && (t.below ?? Infinity) > cqc);
+/** The weapon's way of doing a move, as a technique: its weight, and a tick longer to come for something awkward. */
+const armed = (t, w) => ({ ...t, k: w.k, weapon: true, wind: (t.wind ?? 1) + (w.awkward <= -2 ? 1 : 0) });
+
+/**
+ * The technique a fighter of this CQC does a move with: one of what they know, the newer the likelier.
+ * Armed (w: sim/weapons.js), a hit is mostly the weapon's (WEAPON_PREF), and a cover is made with it if
+ * it's any good for that.
+ */
+export function technique(r, move, cqc, w = null) {
+  if (w && move === 'hit' && chance(r, cqc >= TRAINED_CQC ? WEAPON_PREF.trained : WEAPON_PREF.untrained)) { const ts = techsOf(w); return armed(ts[int(r, ts.length)], w); }
+  if (w && move === 'guard' && w.guard >= 0.4) return { id: 'wblock', pose: 'guard', weapon: true };
+  let known = (TECHNIQUES[move] ?? []).filter(t => (t.from ?? 0) <= cqc && (t.below ?? Infinity) > cqc);
+  if (w && move === 'hit' && known.some(t => !HAND.has(t.id))) known = known.filter(t => !HAND.has(t.id));
   if (!known.length) return null;
   return weighted(r, known.map(t => [t, 1 + Math.max(0, Math.min(10, cqc - (t.from ?? 0))) / 10]));
 }
@@ -180,7 +210,7 @@ export function prepare(state, f) {
   const r = state.rng;
   // (us stunned, an edge in hand, a real fight: they go to finish it, a grab from a fighter who can break an arm)
   if (f.status?.a === 'stunned' && f.status?.b !== 'stunned' && f.adv.b > 0 && !f.bout && !f.script) {
-    const grab = canGrapple(state.people[f.b]) && chance(r, cqcOf(state, f.b) >= BREAK_CQC ? 0.4 : 0.25);
+    const B = state.people[f.b], grab = canGrapple(B) && canGrabWith(wielded(B)) && !wielded(B) && chance(r, cqcOf(state, f.b) >= BREAK_CQC ? 0.4 : 0.25);
     f.theirs = { move: grab ? 'grapple' : 'hit', spend: true };
     f.read = true;
     return;
@@ -197,14 +227,17 @@ export function prepare(state, f) {
 /** Their choice: their style's mix, turned against what we lean on the better they fight. */
 export function choose(state, f) {
   const r = state.rng, me = state.people[f.b], st = f.status?.b;
-  const ok = (m) => (m !== 'grapple' || canGrapple(me)) && allowed(st, m);
+  const W = wielded(me);
+  const ok = (m) => (m !== 'grapple' || (canGrapple(me) && canGrabWith(W))) && allowed(st, m);
   const adapt = Math.min(ADAPT_MAX, cqcOf(state, f.b) * ADAPT_PER_CQC);
   if (f.seen.length >= 2 && chance(r, adapt)) {
     const counts = MOVES.map(m => [m, f.seen.filter(x => x === m).length]).sort((p, q) => q[1] - p[1]);
     const counter = BEATEN_BY[counts[0][0]];
     if (ok(counter)) return counter;
   }
-  const mix = STYLES[f.style] ?? STYLES.even;
+  const base = STYLES[f.style] ?? STYLES.even;
+  // (armed: they hit more, and grab less the more the weapon's in the way)
+  const mix = W ? { hit: base.hit * 1.5, grapple: base.grapple * Math.max(0.15, 1 + W.grab / 6), guard: base.guard } : base;
   return weighted(r, MOVES.filter(ok).map(m => [m, mix[m]]));
 }
 
@@ -225,17 +258,19 @@ export function resolve(state, f, ours) {
   const r = state.rng, A = state.people[f.a], B = state.people[f.b];
   const was = { ...f.status };
   const forced = (st, m) => (st === 'stunned' ? 'open' : allowed(st, m) ? m : 'open');   // (what a handicap forbids does nothing)
-  const moves = { a: forced(was.a, ours.move === 'grapple' && !canGrapple(A) ? 'guard' : ours.move), b: forced(was.b, f.theirs.move) };
+  const arms = { a: wielded(A), b: wielded(B) };
+  const moves = { a: forced(was.a, ours.move === 'grapple' && (!canGrapple(A) || !canGrabWith(arms.a)) ? 'guard' : ours.move), b: forced(was.b, f.theirs.move) };
   // (the better one, if it's them, may see ours coming and answer it)
   const answer = BEATEN_BY[moves.a];
-  if (moves.b !== 'open' && moves.a !== 'open' && !f.script && (answer !== 'grapple' || canGrapple(B)) && allowed(was.b, answer) && chance(r, readChance(state, f.b, f.a, f))) {
+  if (moves.b !== 'open' && moves.a !== 'open' && !f.script && (answer !== 'grapple' || (canGrapple(B) && canGrabWith(arms.b))) && allowed(was.b, answer) && chance(r, readChance(state, f.b, f.a, f))) {
     moves.b = answer; f.theirs.read = true;
     if (answer === 'guard' && f.adv.b > 0) f.theirs.spend = true;  // (they see the hit coming, an edge in hand: the riposte)
   }
-  const tech = { a: (ours.tech && TECHNIQUES[moves.a]?.find(t => t.id === ours.tech)) || technique(r, moves.a, cqcOf(state, f.a)), b: technique(r, moves.b, cqcOf(state, f.b)) };
+  const asked = ours.tech && (TECHNIQUES[moves.a]?.find(t => t.id === ours.tech) ?? (arms.a && TECHS[ours.tech] && armed(TECHS[ours.tech], arms.a)));   // (an opening's: a stab, a shove)
+  const tech = { a: asked || technique(r, moves.a, cqcOf(state, f.a), arms.a), b: technique(r, moves.b, cqcOf(state, f.b), arms.b) };
   const wants = { a: !!ours.spend && f.adv.a > 0 && moves.a !== 'open', b: !!f.theirs.spend && f.adv.b > 0 };
   const out = { round: f.round, ours: moves.a, theirs: moves.b, tech: { a: tech.a?.id ?? null, b: tech.b?.id ?? null }, kind: 'circle', by: null, part: null, dmg: 0, force: 0, roll: null,
-    spent: { a: false, b: false }, gained: null, read: f.read, status: { a: null, b: null }, was };
+    spent: { a: false, b: false }, gained: null, read: f.read, status: { a: null, b: null }, was, arms: { a: A.hand ?? null, b: B.hand ?? null } };
   f.status = { a: null, b: null };
   // Who comes out on top: the triangle (someone stunned loses to anything but a cover), or, the same move both ways, the dice.
   let by = null;
@@ -243,7 +278,9 @@ export function resolve(state, f, ours) {
   else if (moves.a !== moves.b) by = BEATS[moves.a] === moves.b ? 'a' : 'b';
   else if (moves.a !== 'guard') {
     const off = (s) => (was[s] === 'staggered' ? [{ why: 'off balance', v: STAGGER_MOD }] : was[s] === 'dazed' ? [{ why: 'dazed', v: DAZE_MOD }] : []);
-    const roll = opposed(r, { skill: 'cqc', value: cqcOf(state, f.a), mods: [...hurtMods(A, 'cqc'), ...off('a')] }, { skill: 'cqc', value: cqcOf(state, f.b), mods: [...hurtMods(B, 'cqc'), ...off('b')] });
+    // (a weapon: awkward costs every roll; a hand full, a grab)
+    const held = (s) => { const w = arms[s]; return !w ? [] : [...(w.awkward ? [{ why: `${bare(w)}, awkward`, v: w.awkward }] : []), ...(moves[s] === 'grapple' && w.grab ? [{ why: 'a hand full', v: w.grab }] : [])]; };
+    const roll = opposed(r, { skill: 'cqc', value: cqcOf(state, f.a), mods: [...hurtMods(A, 'cqc'), ...off('a'), ...held('a')] }, { skill: 'cqc', value: cqcOf(state, f.b), mods: [...hurtMods(B, 'cqc'), ...off('b'), ...held('b')] });
     out.roll = roll;
     by = roll.ok ? 'a' : 'b';
   }
@@ -254,6 +291,7 @@ export function resolve(state, f, ours) {
     if (win !== 'guard' && lose === 'open' && was[l] === 'stunned' && wants[w]) {
       finish(state, f, out, w, l, win, T);                          // (they can't defend: a fight ender)
     } else if (win === 'guard' && wants[w]) {                              // a hit, covered with an edge held ready (Shift): the riposte, the edge kept
+      throughGuard(state, f, out, w, l, tech, arms);
       out.kind = 'riposte';
       out.part = partHit(r, { head: 70, torso: 30 }, true);
       out.dmg = damage(state, f, (int(r, HIT_PTS[1] - HIT_PTS[0] + 1) + HIT_PTS[0]) * RIPOSTE_K, W, L);
@@ -263,13 +301,16 @@ export function resolve(state, f, ours) {
       if (f.adv[l] > 0) { f.adv[l]--; out.taken = l; }                // (zero-sum: theirs goes first)
       else if (f.adv[w] < advMax(state, W)) { f.adv[w]++; out.gained = w; }
       if (T?.stagger && chance(r, T.stagger)) out.status[l] = 'staggered';
+      throughGuard(state, f, out, w, l, tech, arms);
     } else if (win === 'grapple') {                                 // a throw, a shove, a lock, a choke
       if (lose === 'guard' && wants[l]) { f.adv[l]--; out.spent[l] = true; out.kind = 'fended'; }
+      else if (lose === 'guard' && arms[w]?.grab < 0 && chance(r, -arms[w].grab * FUMBLE_PER_PT)) out.kind = 'fumbled';   // (a hand full: the grip won't take)
       else {
         out.part = partHit(r, T?.at ?? { torso: 1 }, false);
         out.kind = T?.down ? 'thrown' : T?.id === 'shove' ? 'shoved' : T?.id === 'armlock' ? 'locked' : T?.id === 'choke' ? 'choked' : 'thrown';
-        out.dmg = damage(state, f, (int(r, THROW_PTS[1] - THROW_PTS[0] + 1) + THROW_PTS[0]) * (T?.k ?? 1), W, L);
+        out.dmg = damage(state, f, (int(r, THROW_PTS[1] - THROW_PTS[0] + 1) + THROW_PTS[0]) * (T?.k ?? 1) * (1 + Math.min(0, arms[w]?.grab ?? 0) * 0.05), W, L);
         if (T?.stagger) out.status[l] = 'staggered';
+        if (arms[l] && chance(r, DISARM[T?.id] ?? 0.1)) { out.dropped = { side: l, kind: LP.hand }; LP.hand = null; }   // (knocked out of the hand)
       }
     } else {                                                        // a blow lands (on someone grabbing, or open, or the other's hit beaten)
       const clean = lose === 'grapple' || lose === 'open';
@@ -288,7 +329,9 @@ export function resolve(state, f, ours) {
       out.force = Math.round(out.dmg / takes(LP, out.part) * 100) / 100;
       hurt(LP, out.part, out.dmg);
       // What else it did (a crack, a split, a bloody nose), and whether it drew blood to fly.
-      out.injuries = injure(LP, out.part, out.force, r, state.time.ms);
+      const wpn = T?.weapon ? arms[w] : null;
+      out.injuries = injure(LP, out.part, out.force, r, state.time.ms, { edge: !!wpn?.edge, bleedK: wpn?.bleed ?? 1, crackK: wpn?.crack ?? 0 });
+      if (wpn?.breaks && chance(r, wpn.breaks)) { out.broke = { side: w, from: state.people[W].hand, into: wpn.into ?? null }; state.people[W].hand = wpn.into ?? null; }
       out.blood = out.injuries.some(i => i.bleed) || (out.part === 'head' && LP.injuries?.some(i => i.bleed > state.time.ms)) ? Math.round(4 + out.force * 20) : 0;
       // A heavy blow staggers; a hard one to the head dazes, a very hard one stuns (likelier for a technique made for it).
       const head = out.part === 'head', t = T?.stun ?? 0;
@@ -317,7 +360,8 @@ export function resolve(state, f, ours) {
 function finish(state, f, out, w, l, win, T) {
   const r = state.rng, W = w === 'a' ? f.a : f.b, L = w === 'a' ? f.b : f.a, LP = state.people[L], ms = state.time.ms;
   f.adv[w]--; out.spent[w] = true;
-  const how = win === 'hit' ? 'knockout' : cqcOf(state, W) >= BREAK_CQC ? 'break' : 'slam';
+  const wpn = win === 'hit' && T?.weapon ? wielded(state.people[W]) : null;   // (armed, a hit on someone stunned is to kill)
+  const how = wpn ? 'kill' : win === 'hit' ? 'knockout' : cqcOf(state, W) >= BREAK_CQC ? 'break' : 'slam';
   const roll = check(r, { skill: 'cqc', value: cqcOf(state, W), dc: finishDC(state, L), mods: hurtMods(state.people[W], 'cqc') });
   const before = wear(LP), edge = Math.max(0, cqcOf(state, W) - cqcOf(state, L)) / EDGE_PER_PT;
   out.roll = roll;
@@ -328,10 +372,22 @@ function finish(state, f, out, w, l, win, T) {
     out.dmg = Math.round((pts + edge) * 10) / 10;
     out.force = Math.round(out.dmg / takes(LP, part) * 100) / 100;
     hurt(LP, part, out.dmg);
-    out.injuries = injure(LP, part, out.force, r, ms, { fracture });
+    out.injuries = injure(LP, part, out.force, r, ms, { fracture, edge: !!wpn?.edge, bleedK: wpn?.bleed ?? 1 });
   };
   const roll1 = (lo, hi) => int(r, hi - lo + 1) + lo;
-  if (how === 'break') {
+  if (how === 'kill') {
+    const part = wpn.edge ? weighted(r, [['torso', 6], ['head', 4]]) : 'head';
+    if (roll.ok) {
+      blow(part, Math.max(0, takes(LP, part) - (LP.body?.[part] ?? 0)) + 0.1, 0);
+      kill(LP, ms, wpn.edge ? (part === 'head' ? 'a knife across the throat' : 'a knife under the ribs') : 'a blow to the skull');
+      out.killed = true; out.kind = 'killed';
+    } else {
+      blow(part, roll1(...HIT_PTS) * wpn.k * 2, FRACTURE_ON_BOTCH);
+      out.kind = 'botched';
+      out.status[l] = 'dazed';
+      if (chance(r, deathChance(before, false) + (wpn.edge ? 0.15 : 0.05))) { kill(LP, ms, wpn.edge ? 'a knife wound' : 'a blow to the head'); out.killed = true; }
+    }
+  } else if (how === 'break') {
     const limbs = ['armL', 'armR', 'legL', 'legR'].filter(k => stateOf(LP, k) !== 'out');
     const part = limbs.length ? weighted(r, limbs.map(k => [k, k.startsWith('arm') ? 7 : 3])) : 'torso';
     if (roll.ok) { blow(part, Math.max(0, takes(LP, part) - (LP.body?.[part] ?? 0)) + 0.1, 1); out.kind = 'broken'; }
@@ -350,6 +406,30 @@ function finish(state, f, out, w, l, win, T) {
     if (chance(r, deathChance(before, roll.ok))) { kill(LP, ms, how === 'knockout' ? 'a blow to the head' : 'slammed into the floor'); out.killed = true; }
   }
   out.blood = out.injuries?.some(i => i.bleed) || (out.part === 'head' && out.force > 0.4) ? Math.round(6 + out.force * 20) : 0;
+}
+
+/**
+ * A hit stopped by w's cover, from l armed: a blade, or a heavy weapon, against less than SOLID_GUARD in
+ * w's hands is a CQC roll for a clean block (the guard's worth helps); lost, it comes through, into the
+ * forearms mostly, THROUGH_K of a hit, never past THROUGH_CAP of what the part takes. out.through: { part, dmg, injuries }; out.clean.
+ */
+function throughGuard(state, f, out, w, l, tech, arms) {
+  const r = state.rng, aw = tech[l]?.weapon ? arms[l] : null;
+  if (!aw || !(aw.edge || aw.k >= HEAVY_K)) return;
+  const g = tech[w]?.weapon ? arms[w]?.guard ?? 0 : 0;
+  if (g >= SOLID_GUARD) { out.clean = 'tool'; return; }
+  const Wd = w === 'a' ? f.a : f.b, La = w === 'a' ? f.b : f.a, P = state.people[Wd];
+  const roll = opposed(r, { skill: 'cqc', value: cqcOf(state, Wd), mods: [...hurtMods(P, 'cqc'), ...(g ? [{ why: `${bare(arms[w])} across it`, v: Math.round(g * GUARD_PER_PT) }] : [])] }, { skill: 'cqc', value: cqcOf(state, La) });
+  out.guardRoll = roll;
+  if (roll.ok) { out.clean = 'block'; return; }
+  const part = weighted(r, Object.entries(THROUGH_AT));
+  const pts = (int(r, HIT_PTS[1] - HIT_PTS[0] + 1) + HIT_PTS[0]) * aw.k * THROUGH_K * (1 - g) * f.pull;
+  const dmg = Math.round(Math.min(pts, Math.max(0, takes(P, part) * THROUGH_CAP - (P.body?.[part] ?? 0))) * 10) / 10;
+  if (!dmg) { out.clean = 'block'; return; }
+  hurt(P, part, dmg);
+  const force = Math.round(dmg / takes(P, part) * 100) / 100;
+  out.through = { part, dmg, force, injuries: injure(P, part, force, r, state.time.ms, { edge: !!aw.edge, bleedK: (aw.bleed ?? 1) * 0.6 }) };
+  out.blood = Math.max(out.blood ?? 0, aw.edge ? 6 : 0);
 }
 
 /** Damage done: the edge the winner has, a bout's pulled blows. */

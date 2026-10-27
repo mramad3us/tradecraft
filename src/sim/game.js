@@ -40,6 +40,7 @@ import { glassAhead, affordance, act as doAct } from './acts.js';
 import * as fight from './fight.js';
 import * as interact from './interact.js';
 import * as talk from './talk.js';
+import * as items from './items.js';
 import { SCENARIOS } from './scenarios/index.js';
 
 export const WALK_MS = 1.45;                                       // the player's walk, m/s
@@ -102,6 +103,8 @@ export function step(state, input = {}, bus) {
       if (done?.show === 'read') bus?.emit('read', done.who);
       continue;
     }
+    if (act === 'draw') { if (state.fight) fight.drawMove(state, bus, scenario); else if (me) items.use(state, bus, me, 'draw'); continue; }   // (G: sim/items.js; in a fight, it costs the exchange)
+    if (String(act).startsWith('inv:')) { if (me && !state.fight) items.use(state, bus, me, act.slice(4)); continue; }   // (the inventory's buttons)
     if (act === 'glance' && me && !me.glance) me.glance = Math.round(GLANCE_S * TICKS_PER_S);
     // T, when the scene's line offers nothing of its own: what's at hand (sim/acts.js affordance()).
     const here = act === 'instinct' && !state.fight && !scenario.holds?.(state) && !state.scenario.prompt?.act && state.scenario.prompt?.tone !== 'urgent' && affordance(state, me);

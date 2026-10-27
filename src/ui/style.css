@@ -219,3 +219,6 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 @keyframes flash { from { opacity: 1; } to { opacity: 0; } }
 .moves .move.spend.ender { color: #f4efe6; background: #6e2a2e; border-color: #c95c45; }
 .moves .move.spend.ender.foul { background: #3a1416; border-style: dashed; }
+.watch .hand { color: var(--brass); font-size: 11px; }
+.inventory td.where { color: #6a7182; font-size: 12px; }
+.inventory button.small { font: 12px var(--mono); margin-left: 6px; padding: 2px 8px; cursor: pointer; pointer-events: auto; }

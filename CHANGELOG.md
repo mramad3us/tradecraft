@@ -4,6 +4,17 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.45 (2026-10-26)
+
+- **Knives and what's to hand** (your round). Nineteen weapons: six knives (penknife, box cutter, switchblade, kitchen knife, finka, combat knife) and what lies about (a screwdriver, a bottle, half a brick, a hammer, a spanner, a length of pipe, a crowbar, a stick, an umbrella, a snow shovel, a bike lock, a chain).
+  - **In a fight it's still CQC.** Armed, you mostly hit with the weapon (the trained three times in four; they still kick and knee, never punch with the knife hand), and cover with it if it's any good for that. Knives are balanced, no drawback, and a direct hit is heavy (2.2 to 2.9 times a fist) and cuts. Everything else costs: a full hand fumbles grabs (a pipe one in five; a shovel can't grab at all), awkward things cost every roll and come slower.
+  - **Blocking a blade bare-handed** is a CQC roll for a clean block; lose it and it comes through your guard, mostly into the forearms, never past a wound. A pipe or a crowbar across it stops it whole.
+  - **Disarmed:** a grab can knock a weapon out of a hand (an arm lock half the time), and it lies where it fell. A bottle can break into a broken one.
+  - **A kill:** with a weapon in hand, Shift with a hit on someone stunned is an attempt to kill (your rule).
+  - **The street** has things lying about, about two every 45 m: bottles by the bins, pipes and bricks down the alleys, a snow shovel by a courtyard's arch, a stick under a tree. T picks one up. G takes out a weapon you carry or puts it away (in a fight, that exchange you only cover). I shows what you carry. Pockets by your clothes (two in the trousers, two more in a coat), two weapons in the beltline, no bags yet: a pipe is held or put down. What's in your hand shows under the watch, and on you.
+  - **Others:** a few passers-by carry a blade; whoever does draws it when it turns bad ("Steel"), a criminal at once.
+  - Numbers: CQC 10 with a penknife against 10 bare-handed wins half the time (35% without); 20 bare-handed against 10 with a kitchen knife, four times in five. The sprite cell is 4 px wider, for what's held.
+
 ## v0.0.44 (2026-10-26)
 
 - **Women and men no longer share a haircut** (your report: him against her looked like him against him): women's hair is long or up in a bun, men's short (or gone); a woman's short cut was a man's. More cuts each side come next.

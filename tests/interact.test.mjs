@@ -31,7 +31,7 @@ export default [
       assert(o.map(x => x.id).join() === 'talk,violence,read', 'talk, violence, read');
       const grab = v.find(x => x.id === 'grab'), stab = v.find(x => x.id === 'stab');
       const cqc = skill(g.people[g.player], 'cqc');
-      assert(grab.ok === (cqc >= GRAB_CQC) && !stab.ok && stab.why === 'no blade drawn', `grab by CQC (${cqc}), stab greyed`);
+      assert(grab.ok === (cqc >= GRAB_CQC) && !stab.ok && /no blade drawn/.test(stab.why), `grab by CQC (${cqc}), stab greyed`);
       console.log(`      ${v.map(x => `${x.label}${x.ok ? '' : ` (greyed: ${x.why})`}`).join(', ')}`);
       me.x = them.x - 5;
       assert(!atHand(g), 'nobody, five metres off');

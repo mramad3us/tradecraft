@@ -117,17 +117,18 @@ const has = (p, part, kind) => (p.injuries ?? []).some(i => i.part === part && i
  * What a blow of `force` (its share of what the part can take) did besides hurt, at game time ms:
  * the new injuries, kept on p.injuries (edge: a blade's, which cuts). r: the dice.
  */
-export function injure(p, part, force, r, ms, { edge = false, fracture = 0 } = {}) {
+export function injure(p, part, force, r, ms, { edge = false, fracture = 0, bleedK = 1, crackK = 0 } = {}) {
   const out = [];
+  // (bleedK: a weapon's, how long what it cuts bleeds; crackK: a hammer's, how likely it cracks)
   const add = (kind) => {
-    const K = INJURIES[kind], i = { part, kind, name: K.name(part, r), ms, until: ms + K.days * DAY, bleed: K.bleedS ? ms + Math.round(range(r, ...K.bleedS)) * 1000 : 0 };
+    const K = INJURIES[kind], i = { part, kind, name: K.name(part, r), ms, until: ms + K.days * DAY, bleed: K.bleedS ? ms + Math.round(range(r, ...K.bleedS) * (kind === 'cut' ? bleedK : 1)) * 1000 : 0 };
     (p.injuries ??= []).push(i);
     out.push(i);
     if (i.bleed) (p.bloody ??= {})[part === 'head' ? 'face' : 'clothes'] = ms;
   };
   // (fracture: the chance a blow that goes wrong breaks the bone outright: a fight ender's, sim/cqc.js)
   if (fracture && !has(p, part, 'fracture') && chance(r, fracture)) add('fracture');
-  else if (force >= CRACK_AT && !has(p, part, 'crack') && chance(r, Math.min(1, 0.4 + (force - CRACK_AT) * 2))) add('crack');
+  else if (force >= CRACK_AT - crackK && !has(p, part, 'crack') && chance(r, Math.min(1, 0.4 + crackK + (force - CRACK_AT) * 2))) add('crack');
   if (edge && force > 0.05) add('cut');
   else if (part === 'head') {
     if (force >= SPLIT_AT && chance(r, 0.45)) add('split');

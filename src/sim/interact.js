@@ -28,6 +28,8 @@ import { addHeat } from './heat.js';
 import { begin as beginFight, exchange, owners, shortName } from './fight.js';
 import { read, fought } from './know.js';
 import { begin as beginTalk } from './talk.js';
+import { wielded, canGrabWith } from './weapons.js';
+import { armsOf } from './items.js';
 import { nudge } from './people.js';
 import { LINE } from './city.js';
 import { rowOf } from './agents.js';
@@ -59,13 +61,14 @@ const seesUs = (state, them) => seesActor(state, them, playerOf(state));
 
 /** What's open to do with them: the menu, and VIOLENCE's openings. */
 export function options(state, them) {
-  const me = state.people[state.player], cqc = skill(me, 'cqc'), armed = false;   // (no weapons yet)
+  const me = state.people[state.player], cqc = skill(me, 'cqc'), w = wielded(me), cuts = !!w?.edge;
+  const grabs = cqc >= GRAB_CQC && canGrabWith(w);
   const violence = [
-    { id: 'hit', label: OPENING_WORDS.hit, ok: !armed },
-    { id: 'sucker', label: OPENING_WORDS.sucker, ok: !armed, why: seesUs(state, them) ? 'they\'re looking: it has to be quick' : null },
-    { id: 'push', label: OPENING_WORDS.push, ok: !armed },
-    { id: 'grab', label: OPENING_WORDS.grab, ok: cqc >= GRAB_CQC, why: cqc >= GRAB_CQC ? null : `CQC ${GRAB_CQC} and over (yours: ${cqc})` },
-    { id: 'stab', label: OPENING_WORDS.stab, ok: false, why: 'no blade drawn' },
+    { id: 'hit', label: w && !cuts ? `Hit them with ${w.name.replace(/^(a|an|half a) /, 'the ')}` : OPENING_WORDS.hit, ok: true },
+    { id: 'sucker', label: OPENING_WORDS.sucker, ok: true, why: seesUs(state, them) ? 'they\'re looking: it has to be quick' : null },
+    { id: 'push', label: OPENING_WORDS.push, ok: true },
+    { id: 'grab', label: OPENING_WORDS.grab, ok: grabs, why: grabs ? null : cqc < GRAB_CQC ? `CQC ${GRAB_CQC} and over (yours: ${cqc})` : 'your hand is full' },
+    { id: 'stab', label: cuts ? `Stab: ${w.name.replace(/^(a|an) /, 'the ')}` : OPENING_WORDS.stab, ok: cuts, why: cuts ? null : 'no blade drawn (G draws one)' },
   ];
   return [
     { id: 'talk', label: 'Talk', ok: true },
@@ -79,6 +82,7 @@ function person(state, them) {
   if (them.who) return state.people[them.who];
   const p = passerby(them.seed);
   p.known = false; p.seen = describe(p.look, p.sex);                // (a stranger: their name's not ours to know)
+  p.items = armsOf(them.seed, p.sex);                                // (what they carry, if anything: sim/items.js)
   state.people[p.id] ??= p;
   them.who = p.id;
   return p;
@@ -95,7 +99,8 @@ export function act(state, bus, id, them) {
     say(state, bus, { kind: 'roll', roll, text: roll.ok ? `You size up ${name}: the build, the hands, the eyes.` : `You look ${name} over, and can't make up your mind.` });
     return { show: 'read', who: them.who, k };
   }
-  if (!OPENINGS.includes(id) || id === 'stab' || (id === 'grab' && skill(state.people[state.player], 'cqc') < GRAB_CQC)) return null;
+  const mine = state.people[state.player];
+  if (!OPENINGS.includes(id) || (id === 'stab' && !wielded(mine)?.edge) || (id === 'grab' && (skill(mine, 'cqc') < GRAB_CQC || !canGrabWith(wielded(mine))))) return null;
   // The opening: the fight's first exchange, ours; them caught open if they didn't see it coming.
   const f = beginFight(state, bus, them, { style: 'even', owner: 'street' });
   f.opening = id;
@@ -108,7 +113,7 @@ export function act(state, bus, id, them) {
   if (open) { f.theirs = { move: 'open', spend: false }; f.read = true; }
   if (id === 'sucker' && open) f.adv.a = 1;                            // (all your weight behind it: an edge, spent)
   const move = id === 'push' || id === 'grab' ? 'grapple' : 'hit';
-  exchange(state, bus, { move, spend: id === 'sucker' && open, tech: id === 'push' ? 'shove' : undefined }, null);
+  exchange(state, bus, { move, spend: id === 'sucker' && open, tech: id === 'push' ? 'shove' : id === 'stab' ? 'stab' : undefined }, null);
   return { show: null };
 }
 
@@ -119,7 +124,7 @@ owners.street = {
     if (f.ended) return;
     // (nerve: a civilian hurt, or outclassed, or both, runs; a trained one rarely)
     const hurt = out.dmg && out.by === 'a', outclassed = skill(state.people[state.player], 'cqc') - skill(p, 'cqc');
-    const flee = (p.cls === 'civilian' ? 0.25 : 0.05) + (hurt ? 0.3 : 0) + Math.max(0, outclassed) * 0.03 + (out.status.b ? 0.15 : 0);
+    const flee = ((p.cls === 'civilian' ? 0.25 : 0.05) + (hurt ? 0.3 : 0) + Math.max(0, outclassed) * 0.03 + (out.status.b ? 0.15 : 0)) * (p.hand ? 0.35 : 1);   // (a blade in the hand: they fight)
     if (chance(state.rng, Math.min(0.9, flee))) f.ended = { by: 'a', why: 'fled' };
   },
   onFightEnd(state, bus, f) {

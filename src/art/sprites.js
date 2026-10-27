@@ -26,10 +26,18 @@
 // grab, a throw and a sweep, a parry, a slip, and what a blow does (a reel, a stagger, standing
 // dazed); seen from the front they're a stance. Lying down is no frame: the view lays the card down
 // (src/render/crowd.js).
+//
+// **What's in the hand** (spec.hand, a weapon kind: sim/weapons.js): drawn from the near hand outward,
+// the way the pose holds it (HOLD: hanging at the side, up in a guard, out in a thrust, raised in a
+// swing), from its shape (HELD: grip and blade or shaft, and what's on the end: a hammer's head, a
+// shovel's blade), in its own colours (v steel, n a dark grip, o wood, d green glass, j brick, i
+// yellow, u black), shaded and outlined like the rest. The cell is PAD pixels wider each side than the
+// figure, so a blade held out has somewhere to go. Seen from behind, the body hides it.
 import * as THREE from 'three';
 import { PX_PER_M } from './pixelart.js';
 
-export const CELL = [24, 34];
+export const PAD = 2;
+export const CELL = [24 + 2 * PAD, 34];
 export const FRAMES = ['idle0', 'idle1', 'walk0', 'walk1', 'walk2', 'walk3', 'run0', 'run1', 'run2', 'run3', 'sit', 'guard', 'punch', 'grab', 'reel',
   'chamber', 'swing', 'hook', 'elbow', 'knee', 'kick', 'highkick', 'lowkick', 'throw', 'sweep', 'parry', 'slip', 'stagger', 'stun'];
 /** The fight's frames (sim/cqcshow.js poses): a gait of one of these is drawn as that frame. */
@@ -588,11 +596,12 @@ function compose(spec, dir, frame) {
     const [x, y, rows] = tpl;
     if (!same) part++;
     rows.forEach((row, j) => [...row].forEach((ch, i) => {
-      const X = x + i + dx, Y = y + j + dy;
+      const X = x + i + dx + PAD, Y = y + j + dy;
       if (ch === '.' || X < 0 || Y < 0 || X >= W || Y >= H) return;
       cells[Y][X] = { ch, part };
     }));
   };
+  let hand = 0;                                                    // (the near hand's part: what's held is drawn from it)
   const bob = P.bob, lean = view === 'right' ? (P.lean ?? 0) : 0;
   const pick = (byView) => byView?.[view] ?? (view === 'up' ? byView?.down : undefined);
   const hat = spec.hat ? T.hat[spec.hat.kind] : null;
@@ -605,12 +614,13 @@ function compose(spec, dir, frame) {
     if (!P.legOver) draw(legsSide(P.side[0], true), 0, air);
     draw(torsoSide(kind), lean, bob);
     if (P.legOver) draw(legsSide(P.side[0], true), 0, air);        // (a kick: the leg comes in front)
-    if (!P.over) draw(armSide(kind, P.swing[0], false), lean, bob);
+    if (!P.over) { draw(armSide(kind, P.swing[0], false), lean, bob); hand = part; }
   } else {
     draw(legsFront(view === 'up' ? -P.front : P.front, P.sit));
     draw(torsoFront(kind, view === 'up'), 0, bob);
     const [l, r] = view === 'up' ? [P.reach[1], P.reach[0]] : P.reach;
     draw(armFront(5, kind, l, -1), 0, bob);
+    hand = part;
     draw(armFront(16, kind, r, 1), 0, bob);
   }
   if (spec.carry && view !== 'up') {                              // in the hand nearest the camera's left
@@ -633,8 +643,50 @@ function compose(spec, dir, frame) {
   if (spec.blood?.face && view !== 'up') draw(BLOOD.face[view], lean, hb, true);
   if (spec.blood?.clothes && view !== 'up') draw(BLOOD.clothes[view], lean, bob, true);
   if (hat) draw(hat[view] ?? hat.down, lean, hb);
-  if (P.over && view === 'right') draw(armSide(kind, P.swing[0], false), lean, bob);   // (a fist before the face)
+  if (P.over && view === 'right') { draw(armSide(kind, P.swing[0], false), lean, bob); hand = part; }   // (a fist before the face)
+  if (spec.hand && view !== 'up' && HELD[spec.hand]) held(cells, W, H, hand, ++part, HELD[spec.hand], view === 'right' ? (HOLD[frame] ?? [0, 1]) : [0, 1]);
   return cells;
+}
+
+/**
+ * How each weapon is drawn in the hand: `line`, its roles from the fist outward (the grip mostly in the
+ * fist), and `end`, what's across its far end ([along, across] offsets from the tip and a role), or
+ * `block`, something held whole in the fist (a brick).
+ */
+const HELD = {
+  penknife: { line: 'nvv' }, boxcutter: { line: 'ivv' }, switchblade: { line: 'nvvv' }, kitchen: { line: 'ovvvv' },
+  finka: { line: 'nvvvv' }, combat: { line: 'nvvvvv', end: [[-4, 1, 'n'], [-4, -1, 'n']] }, screwdriver: { line: 'iivv' },
+  bottle: { line: 'dddd', end: [[0, 1, 'd'], [-1, 1, 'd'], [-2, 1, 'd']] }, brokenbottle: { line: 'ddd', end: [[0, 1, 'd'], [1, -1, 'd']] },
+  brick: { block: [[0, 0, 'j'], [1, 0, 'j'], [0, 1, 'j'], [1, 1, 'j'], [2, 0, 'j'], [2, 1, 'j']] },
+  hammer: { line: 'oooo', end: [[0, 1, 'v'], [0, -1, 'v'], [0, -2, 'v']] }, spanner: { line: 'vvvvv', end: [[1, 1, 'v'], [1, -1, 'v']] },
+  pipe: { line: 'vvvvvvvvvv' }, crowbar: { line: 'vvvvvvvvv', end: [[1, 1, 'v'], [0, 1, 'v']] }, stick: { line: 'oooooooooo' },
+  umbrella: { line: 'nuuuuuuuuu', end: [[0, 1, 'u'], [-1, 1, 'u']] }, shovel: { line: 'ooooooo', end: [[1, 0, 'v'], [1, 1, 'v'], [1, -1, 'v'], [2, 0, 'v'], [2, 1, 'v'], [2, -1, 'v']] },
+  bikelock: { line: 'iv', end: [[1, 1, 'v'], [1, -1, 'v'], [2, 1, 'v'], [2, -1, 'v'], [3, 0, 'v']] }, chain: { line: 'v.v.v.v' },
+};
+/** Which way what's held points, by frame (side on): [dx, dy], x forward, y down. Anything else hangs. */
+const HOLD = {
+  punch: [1, 0], grab: [1, 0], throw: [1, 0], sweep: [1, 0], parry: [1, -1],
+  swing: [1, -1], hook: [1, -1], chamber: [0, -1], elbow: [1, -1], guard: [0, -1], slip: [0, -1],
+  kick: [0, -1], highkick: [0, -1], lowkick: [0, -1], knee: [0, -1],
+};
+
+const HELD_ROLES = new Set(['v', 'n', 'o', 'd', 'j', 'i', 'u']);
+
+/** Draw a weapon (shape) out of the hand's part, pointing d (tilted up, if that way it'd mostly run off the cell), as part `part`. */
+function held(cells, W, H, hand, part, shape, d0) {
+  const hs = [];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const c = cells[y][x]; if (c && c.part === hand && (c.ch === 's' || c.ch === 'S')) hs.push([x, y]); }
+  if (!hs.length) return;
+  // (the fist's pixel furthest the way it points: the weapon leaves the hand there)
+  const n = shape.line?.length ?? 2, inside = (d, [x, y]) => { let k = 0; for (let i = 1; i <= n; i++) { const X = x + d[0] * i, Y = y + d[1] * i; if (X >= 0 && Y >= 0 && X < W && Y < H) k++; } return k; };
+  const tip = (d) => hs.reduce((b, p) => (p[0] * d[0] + p[1] * d[1] > b[0] * d[0] + b[1] * d[1] ? p : b));
+  const d = [d0, [d0[0], -1], [0, -1]].find(c => inside(c, tip(c)) >= n * 0.7) ?? [0, -1];
+  const [hx, hy] = tip(d);
+  const put = (x, y, ch) => { if (x >= 0 && y >= 0 && x < W && y < H && ch !== '.') cells[y][x] = { ch, part }; };
+  const across = [-d[1] || 0, d[0] || 0];                          // (perpendicular: the side of the shaft)
+  if (shape.block) { for (const [a, b, ch] of shape.block) put(hx + d[0] * a + across[0] * b, hy + d[1] * a + across[1] * b, ch); return; }
+  [...shape.line].forEach((ch, i) => put(hx + d[0] * (i + 1), hy + d[1] * (i + 1), ch));
+  for (const [a, b, ch] of shape.end ?? []) put(hx + d[0] * (n + a) + across[0] * b, hy + d[1] * (n + a) + across[1] * b, ch);
 }
 
 // ---------- shading and colour ----------
@@ -647,6 +699,8 @@ function colours(spec) {
     p: spec.legs ?? 0x283f6b, f: spec.shoes ?? 0x2a1c18, a: spec.hat?.color ?? 0x353947,
     r: spec.beard === true ? (spec.hair?.color ?? 0x2a1c18) : (spec.beard ?? spec.hair?.color ?? 0x2a1c18),
     y: spec.top?.trim ?? spec.top?.tie ?? 0x9e3c36, x: 0x6b4636, w: 0xf6f4ee,
+    // (what's in the hand: steel, a dark grip, wood, green glass, brick, yellow plastic, black cloth)
+    v: 0x9aa1ae, n: 0x353947, o: 0x8a5a3c, d: 0x3f6b4a, j: 0xb5493c, i: 0xd9a83a, u: 0x23252f,
   };
 }
 
@@ -671,6 +725,7 @@ export function shade(cells, col, { outline = INK } = {}) {
     const r = role(c);
     if (!r) continue;
     const R = ramps[r];
+    if (HELD_ROLES.has(c.ch)) { out[y][x] = R.base; continue; }      // (a weapon a pixel wide: its own colour, or it'd vanish into a coat)
     let tone = c.ch === c.ch.toUpperCase() ? R.shade : R.base;
     if (tone === R.base) {
       const up = at(x, y - 1);

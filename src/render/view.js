@@ -38,6 +38,7 @@ import { buildSection } from './town.js';
 import { buildDojo } from './dojo.js';
 import { createCrowd } from './crowd.js';
 import { createBlood } from './blood.js';
+import { createItems } from './items.js';
 import { sky, lightAt, lightLevel, LAMP } from '../sim/light.js';
 import { Z, SECTION_M } from '../sim/map/street.js';
 import { passerby } from '../sim/people.js';
@@ -76,6 +77,7 @@ export function createView({ parent, bus }) {
   const sections = new Map();
   const crowd = createCrowd(scene);
   const blood = createBlood(scene);
+  const items = createItems(scene);                                // (things lying about: src/render/items.js)
   const looks = new Map();                                         // passer-by seed → look (generated once)
   const building = new Map();                                     // i → a section's build, under way
   const off = [
@@ -303,9 +305,10 @@ export function createView({ parent, bus }) {
       drawn.set(a.id, [x, z]);
       const look = lookFor(a.who ?? a.seed);
       if (!look) continue;
-      // (blood worn is part of the look: its own sheet)
-      const bl = a.who && state.people[a.who]?.bloody, key = bl ? `${a.who}~${Object.keys(bl).sort().join('')}` : a.who ?? a.seed;
-      people.push({ key, look: bl ? { ...look, blood: bl } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S) });
+      // (blood worn, and what's in the hand, are part of the look: their own sheet)
+      const P = a.who && state.people[a.who], bl = P?.bloody, hand = P?.hand;
+      const key = bl || hand ? `${a.who}~${bl ? Object.keys(bl).sort().join('') : ''}~${hand ?? ''}` : a.who ?? a.seed;
+      people.push({ key, look: bl || hand ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S) });
     }
     for (const id in aware ? {} : seen) {                          // (and as remembered, those out of sight)
       const r = seen[id];
@@ -317,6 +320,7 @@ export function createView({ parent, bus }) {
     }
     crowd.update(people, t);
     blood.update(state);
+    items.update(state);
     stage.render();
   }
   function lookOf(seed) {

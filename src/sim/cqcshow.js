@@ -18,6 +18,7 @@
 // f.impact is the moment of the blow (tick, who, how hard), for the view's shake; a blow that drew blood
 // flings it then, the way it went, onto the floor (sim/blood.js).
 import { TECHNIQUES } from './cqc.js';
+import { TECHS, weaponOf } from './weapons.js';
 import { skill } from './skills.js';
 import { spatter } from './blood.js';
 
@@ -29,7 +30,7 @@ export const DOWN_M = 0.7;
 const LUNGE_M = { hit: 0.42, grapple: 0.5 };
 const LUNGE = { kick: 0.15, highkick: 0.08, lowkick: 0.2, knee: 0.55, elbow: 0.5, swing: 0.5 };
 
-const techOf = (move, id) => TECHNIQUES[move]?.find(t => t.id === id);
+const techOf = (move, id) => TECHNIQUES[move]?.find(t => t.id === id) ?? TECHS[id] ?? (id === 'wblock' ? { id, pose: 'guard' } : undefined);
 
 /** A fighter's pace by CQC: { wind (extra ticks to wind up), strike, recover } (ticks). */
 export function pace(cqc) {
@@ -45,7 +46,8 @@ export function plan(state, f, out) {
   const side = (s) => {
     const move = s === 'a' ? out.ours : out.theirs, t = techOf(move, out.tech[s]);
     const acts = move === 'hit' || move === 'grapple';
-    const wind = acts ? Math.max(1, (t?.wind ?? 1) + P[s].wind) : 0;
+    const awk = (weaponOf(out.arms?.[s])?.awkward ?? 0) <= -2 ? 1 : 0;   // (an awkward weapon: a tick longer to come)
+    const wind = acts ? Math.max(1, (t?.wind ?? 1) + P[s].wind + awk) : 0;
     return { move, t, acts, wind, strike: P[s].strike, recover: P[s].recover };
   };
   const A = side('a'), B = side('b');

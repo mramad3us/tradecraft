@@ -10,6 +10,10 @@
 // hears of each exchange and of the end (scenario.onExchange(state, bus, out), onFightEnd(state, bus,
 // f)); without one (a brawl), the end is the engine's (sim/interact.js afterFight()).
 // While a fight is on, the player's feet are the fight's: the move keys do nothing.
+// Weapons (sim/weapons.js, sim/items.js): one knocked out of a hand lies where it fell; someone carrying
+// one draws it when the fight turns against them (drawsNow(): a criminal at once; anyone else hurt, or
+// losing, now and then), the log says so ("Steel"); G in a fight draws ours, and that exchange we only
+// cover (drawMove()).
 // A fight reads them as it goes (the user, 2026-10-26: "during combat it should automatically do READ
 // against our opponent"; sim/know.js read()): as you square up, and every READ_EVERY exchanges after;
 // F shows the read (src/main.js). A drill (a script) reads nobody.
@@ -23,9 +27,14 @@ import { say } from './log.js';
 import { headOf } from './perception.js';
 import { canStand } from './health.js';
 import { read } from './know.js';
+import { weaponOf } from './weapons.js';
+import { draw, drop } from './items.js';
+import { wear } from './health.js';
+import { chance } from './rng.js';
 
 export const FIGHT_GAP_M = 1.5;
 export const READ_EVERY = 4;
+export const DRAW_HURT = 0.2;                                      // (worn this much, someone carrying a blade will draw it)
 
 /**
  * The instinct on how things stand (the user, 2026-10-26: "instinct reminders about dazed (us or
@@ -81,6 +90,7 @@ export function begin(state, bus, them, opts = {}) {
   me.busy = null; me.glass = false;
   if (them.ai) them.ai.fighting = true;
   if (!f.script) readThem(state, bus, them, 'as you square up');
+  if (!f.bout && !f.script) drawsNow(state, bus, f, them);
   return f;
 }
 
@@ -97,12 +107,17 @@ export function act(state, bus, action, scene) {
 export function exchange(state, bus, ours, scene) {
   const f = state.fight;
   const out = resolve(state, f, ours);
-  say(state, bus, { kind: out.roll ? 'roll' : 'note', roll: out.roll ?? undefined, text: exchangeText(out, shortName(state, f.b), state.people[f.b], state.map.seed) });
+  say(state, bus, { kind: out.roll ? 'roll' : 'note', roll: out.roll ?? undefined, text: `${ours.drew ? `You pull ${weaponOf(ours.drew).name} and cover. ` : ''}${exchangeText(out, shortName(state, f.b), state.people[f.b], state.map.seed)}` });
+  if (out.dropped) {                                                // (knocked out of a hand: it lies where it fell)
+    const a = out.dropped.side === 'a' ? playerOf(state) : actorOfWho(state, f.b);
+    if (a) drop(state, state.people[a.who], a, out.dropped.kind);
+  }
   f.phase = 'show';
   f.shown = state.tick;
   f.until = state.tick + length(state, f, out);
-  hooksOf(f, scene)?.onExchange?.(state, bus, out);
   const them = actorOfWho(state, f.b);
+  if (!f.bout && !f.script && !f.ended && them) drawsNow(state, bus, f, them);   // (before they decide anything else: a blade comes out)
+  hooksOf(f, scene)?.onExchange?.(state, bus, out);
   if (!f.script && !f.ended && f.round % READ_EVERY === 0 && them) readThem(state, bus, them, 'between blows');
   return out;
 }
@@ -119,6 +134,27 @@ export function tick(state, bus, scene) {
   const sides = { a: playerOf(state), b: actorOfWho(state, f.b) };
   animate(state, f, sides);
   if (f.flip) for (const s of ['a', 'b']) if (sides[s]) { sides[s].face = sides[s].face === 'right' ? 'left' : 'right'; sides[s].head = headOf(sides[s].face); sides[s].x = 2 * f.marks[s].x - sides[s].x; }
+}
+
+/** Someone carrying a weapon, not holding one, draws it when it's time: a criminal at once; anyone else worn, or two exchanges down, now and then. */
+function drawsNow(state, bus, f, them) {
+  const p = state.people[f.b];
+  if (p.hand || !(p.items ?? []).some(k => weaponOf(k))) return;
+  const losing = f.round >= 2 && (f.last?.by === 'a');
+  if (p.cls === 'criminal' || wear(p) >= DRAW_HURT || (losing && chance(state.rng, 0.35))) {
+    draw(state, p, them);
+    if (p.hand) say(state, bus, { kind: 'note', text: `Steel: ${shortName(state, f.b)} has ${weaponOf(p.hand).name} out.` });
+  }
+}
+
+/** G in a fight: ours out of where it's carried (or put away), and this exchange a plain cover while we do it. */
+export function drawMove(state, bus, scene) {
+  const f = state.fight, me = playerOf(state), p = state.people[state.player];
+  if (!f || f.phase !== 'choose' || f.status?.a === 'stunned' || !me) return false;
+  const was = p.hand, now = draw(state, p, me);
+  if (now === was) return false;
+  exchange(state, bus, { move: 'guard', drew: now ?? undefined }, scene);
+  return true;
 }
 
 /** The fight's read of them (an Analysis check, kept: sim/know.js), a line in the log. */

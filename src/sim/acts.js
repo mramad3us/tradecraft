@@ -11,7 +11,8 @@
 //     there; the eyes can slant along it (E held).
 //   - 'bench': sit on a bench on the boulevard's path, until you move;
 //   - 'lace': stop to tie a shoelace (not again within LACE_AGAIN_S: twice is a story);
-//   - 'cross': over the street at its zebra, or over the boulevard's far road at its own.
+//   - 'cross': over the street at its zebra, or over the boulevard's far road at its own;
+//   - 'pickup': something lying within reach (sim/items.js), into the hand, stooping for it.
 // Each becomes the player's busy plan (sim/game.js busy()), which moving cancels; busy.since is when
 // it began (a scenario may care whether that was before or after someone looked).
 // Also here, the bits of the street they read: where the crossings and the shop windows are, the
@@ -24,6 +25,10 @@ import { sectionOf } from './city.js';
 import { sectionAt } from './world.js';
 import { say } from './log.js';
 import { GLASS_REACH_M, intoGlass } from './perception.js';
+import { itemNear, pickUp } from './items.js';
+import { weaponOf } from './weapons.js';
+
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export const LACE_AGAIN_S = 40;
 const TPS = 1000 / TICK_MS;
@@ -91,7 +96,10 @@ const COVER = { window: 'look in the window', bench: 'sit on the bench', lace: '
 
 /** What's at hand for T, the engine's: a shop window, a free seat, a zebra ({ act, text }), or null. */
 export function affordance(state, me) {
-  if (!me || me.ai || me.busy || me.glass || me.gait === 'sit' || state.map.kind !== 'street' || !sectionAt(state, me.x)) return null;
+  if (!me || me.ai || me.busy || me.glass || me.gait === 'sit') return null;
+  const it = itemNear(state, me);
+  if (it) return { act: 'pickup', text: ` {instinct} pick up ${weaponOf(it.kind)?.name ?? 'it'}.` };
+  if (state.map.kind !== 'street' || !sectionAt(state, me.x)) return null;
   const act = paneNear(state, me) ? 'window' : benchNear(state, me) !== null ? 'bench' : crossingNear(state, me, 4) ? 'cross' : null;
   return act && { act, text: ` {instinct} ${COVER[act]}.` };
 }
@@ -108,6 +116,14 @@ export function act(state, bus, me, what, opts = {}) {
 }
 
 function act1(state, bus, me, what, { toward = Math.cos(me.head ?? 0) >= 0 ? -1 : 1 } = {}) {
+  if (what === 'pickup') {
+    const it = itemNear(state, me), p = state.people[me.who];
+    if (!it || !p) return;
+    const off = pickUp(state, p, me, it), w = weaponOf(it.kind);
+    me.busy = { what: 'pickup', steps: [['wait', 0.6, me.face, 'crouch']], wait: 0 };
+    say(state, bus, { kind: 'note', text: `You pick up ${w.name}.${off ? ` ${cap(weaponOf(off.kind).name)} goes down where you stood: nowhere to put it.` : ''}` });
+    return;
+  }
   if (what === 'window') {
     const pane = paneNear(state, me);
     if (!pane) return;
