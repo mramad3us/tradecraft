@@ -427,6 +427,64 @@ const T = {
         'hh............']],
     },
   },
+  // ----- rainwear (the weather's: src/render/view.js): a hood up, in the coat's colour; an umbrella -----
+  hood: {
+    down: [3, 4, [
+      '.....ttttttt.....',
+      '...ttttttttttt...',
+      '..ttttttttttttt..',
+      '.ttttttttttttttt.',
+      '.ttttttttttttttt.',
+      'ttttttttttttttttt',
+      'ttttttttttttttttt',
+      'tttTTTTTTTTTTTttt',
+      'ttT...........Ttt',
+      'ttT...........Ttt',
+      'ttT...........Ttt',
+      'ttt...........ttt',
+      'tttt.........tttt',
+      '.tttt.......tttt.',
+      '..ttttttttttttt..']],
+    up: [3, 4, [
+      '.....ttttttt.....',
+      '...ttttttttttt...',
+      '..ttttttttttttt..',
+      '.ttttttttttttttt.',
+      '.ttttttttttttttt.',
+      'ttttttttttttttttt',
+      'ttttttttttttttttt',
+      'ttttttttttttttttt',
+      'ttttttttttttttttt',
+      'ttttttttttttttttt',
+      'ttttttttttttttttt',
+      'ttttttttttttttttt',
+      '.ttttttttttttttt.',
+      '..ttttttttttttt..',
+      '...TTTTTTTTTTT...']],
+    right: [4, 4, [
+      '.....tttttt.....',
+      '...tttttttttt...',
+      '..tttttttttttt..',
+      '.ttttttttttttt..',
+      'tttttttttttttTt.',
+      'tttttttttttTT...',
+      'ttttttttttT.....',
+      'ttttttttttT.....',
+      'ttttttttttT.....',
+      'tttttttttT......',
+      'tttttttttT......',
+      '.tttttttt.......',
+      '..ttttttt.......']],
+  },
+  umbrella: {
+    canopy: [1, 0, [
+      '.......uuuuuuuu.......',
+      '...uuuuuuuuuuuuuuuu...',
+      '.uuuuuuuuuuuuuuuuuuuu.',
+      'uUuuUuuUuuUuuUuuUuuUuu',
+      'U..U..U..U..U..U..U..U']],
+    shaft: { down: [4, 5, ['n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n']], right: [11, 5, ['n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n']] },
+  },
   // ----- hats -----
   hat: {
     fedora: {
@@ -846,6 +904,9 @@ function compose(spec, dir, frame) {
       : (view === 'right' ? [9, 21, ['wwww', 'WWWW']] : [4, 21, ['ww', 'ww', 'WW']]);
     draw(item, view === 'right' ? lean : 0, bob);
   }
+  // (an umbrella's shaft, from the hand up: before the head, which hides it where they cross)
+  const rain = spec.rainwear;
+  if (rain === 'umbrella') draw(view === 'right' ? T.umbrella.shaft.right : T.umbrella.shaft.down, view === 'right' ? lean : 0, bob);
   // The head and everything on it.
   const hb = bob + (P.sit ? 0 : 0);
   draw(pick(T.head) ?? T.head.down, lean, hb);
@@ -854,13 +915,16 @@ function compose(spec, dir, frame) {
   else if (spec.moustache && view !== 'up') draw(pick(T.moustache), lean, hb);
   const hair = T.hair[style];
   const cropped = ['short', 'crew', 'side'].includes(style);       // (a short cut is all under a hat; longer hair shows below it)
-  if (!(hat && cropped)) draw(hair[view] ?? hair.down, lean, hb);
+  if (rain === 'hood') {}                                          // (the hood's over it all)
+  else if (!(hat && cropped)) draw(hair[view] ?? hair.down, lean, hb);
   else if (view === 'up') draw(hair.up, lean, hb);
   else draw([4, 12, view === 'right' ? ['hhhh', 'hhh.', 'hh..'] : ['hh...........hh', 'h.............h']], lean, hb);
   if (spec.glasses && view !== 'up') draw(T.glasses[spec.glasses][view], lean, hb);
   if (spec.blood?.face && view !== 'up') draw(BLOOD.face[view], lean, hb, true);
   if (spec.blood?.clothes && view !== 'up') draw(BLOOD.clothes[view], lean, bob, true);
-  if (hat) draw(hat[view] ?? hat.down, lean, hb);
+  if (rain === 'hood') draw(T.hood[view] ?? T.hood.down, lean, hb);
+  else if (hat) draw(hat[view] ?? hat.down, lean, hb);
+  if (rain === 'umbrella') draw(T.umbrella.canopy, view === 'right' ? lean : 0, hb);
   if (P.over && view === 'right') { draw(armSide(kind, P.swing[0], false), lean, bob); hand = part; }   // (a fist before the face)
   if (spec.hand && view !== 'up' && HELD[spec.hand]) held(cells, W, H, hand, ++part, HELD[spec.hand], view === 'right' ? (HOLD[frame] ?? [0, 1]) : [0, 1]);
   return cells;

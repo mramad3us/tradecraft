@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc14 (2026-10-27)
+
+- **Hoods up, umbrellas open.** In rain and sleet a share of the street opens an umbrella (a fifth in light rain, more the harder it comes), others put a hood up; in snow it's mostly hoods. Nobody holds an umbrella in a gale, or with something else in their hand. The same people, the same way, every time: who they are decides it.
+- **Hanging signs light up at night**, their letters glowing as the shopfronts' do (the env's open point). And the trees in the cities' walled lots go with the month like the others.
+
 ## v0.1.0-rc13 (2026-10-27)
 
 - **Weather** (your ask: snow, rain and wind, light to extreme, real effects). Every city has its own climate now, and every day its own weather, the same for the same game and date: Moscow's November is low grey cloud, light snow or sleet often, now and then a heavy fall, rarely a clear frost; London drizzles and sometimes pours; Beirut has showers and the odd storm; Cairo is sun, with haze and dust some days. A front comes and goes: the snow starts light, thickens, thins, and the log says so; the watch says what it's like ("Sleet, and a raw wind off the river").

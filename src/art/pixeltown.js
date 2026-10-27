@@ -36,7 +36,7 @@
 // the joints). The plain finish is untouched: sample 006 draws as it did.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { PX_PER_M, GLOWS, mat, glow, paint, tile, box, roundedBox, ground, part, pool, rng, text, textWidth, finish, tone, noise, tnoise, fineBricks } from './pixelart.js';
+import { PX_PER_M, GLOWS, mat, glow, paint, tile, box, roundedBox, ground, part, pool, rng, text, textWidth, finish, tone, noise, tnoise, fineBricks, emissiveOf } from './pixelart.js';
 
 const M = PX_PER_M;
 const INK = 0x14151c;
@@ -1392,6 +1392,10 @@ export function hangingSign(x, y, z, str, { bg = 0x6e2a2e, fg = 0xf8e08a } = {})
   board.position.set(x, y - h - 0.12, z + 0.5); g.add(board);
   const arm = box(0.05, 0.05, 0.62, { sides: iron }); arm.position.set(x, y, z + 0.31); g.add(arm);
   for (const dx of [-w / 2 + 0.06, w / 2 - 0.06]) { const c = box(0.03, 0.12, 0.03, { sides: iron }); c.position.set(x + dx, y - 0.12, z + 0.5); g.add(c); }
+  // (at night its letters glow, as a front's do: its board swapped to `night` with the lamps, src/render/town.js)
+  const lit = keep(`hanging-lit-${str}-${bg}-${fg}`, () => { const m = mat(0, face.map); const e = emissiveOf(face.map); if (e) { m.emissiveMap = e; m.emissive.set(0xffffff); } return m; });
+  board.userData.night = [board.material].flat().map(m => (m === face ? lit : m));
+  g.userData.signs = [board];
   return part(g);
 }
 

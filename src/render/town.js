@@ -221,7 +221,7 @@ export function feature(g, f, sprites, city = cityById(null)) {
  * a walled garden (lawn, a tree, shrubs, a brick wall round it), Beirut's a car park (asphalt, its
  * bays, two cars nosed in, a barrier), Cairo's a vacant lot (dirt, rubble, a broken wall, a palm).
  */
-function lotOf(g, lot, sprites, C) {
+function lotOf(g, lot, sprites, C, month = 11) {
   const { x0, x1, z: zb } = lot, zf = Z.front, w = x1 - x0, d = zf - zb, cx = (x0 + x1) / 2, r = stream('lot', lot.seed);
   const put = (m, x, z, y = 0) => { m.position.set(x, y, z); g.add(m); return m; }, at = (m, x, z) => put(m, snap(x), snap(z));
   const wallM = lot.kind === 'garden' ? keep('lot-brick', () => mat(0, tile('brick', 1))) : lot.kind === 'parking' ? mat(0xa0978a) : mat(0xc4a882);
@@ -232,7 +232,7 @@ function lotOf(g, lot, sprites, C) {
   if (lot.kind === 'garden') {
     g.add(ground(x0, zb, x1, zf, T('grass', 3), 0.003));
     walls(1.4);
-    sprites.push(seeThrough(at(treeCard({ seed: lot.seed, size: 0.9, species: chance(r, 0.5) ? 'cherry' : 'plane', month: 11 }), cx, (zb + zf) / 2)));
+    sprites.push(seeThrough(at(treeCard({ seed: lot.seed, size: 0.9, species: chance(r, 0.5) ? 'cherry' : 'plane', month }), cx, (zb + zf) / 2)));
     for (const dx of [-w / 3, w / 3]) sprites.push(seeThrough(at(propCard('shrub', { seed: lot.seed + dx }), cx + dx, zf - 1)));
   } else if (lot.kind === 'parking') {
     g.add(ground(x0, zb, x1, zf, T('asphalt', 3), 0.003));
@@ -245,7 +245,7 @@ function lotOf(g, lot, sprites, C) {
     g.add(ground(x0, zb, x1, zf, T('dirt', 3), 0.003));
     for (const [ax, bx, az] of [[x0, x1, zf - 0.12], [x0, x1, zb + 0.12]]) for (let x = ax; x < bx - 0.3; x += 1.2) put(box(Math.min(1.2, bx - x), 0.5 + range(r, 0, 1.2), 0.24, { sides: wallM, top: mat(0xa0978a) }), x + 0.6, az);
     for (let k = 0; k < 5; k++) put(roundedBox(0.6 + range(r, 0, 0.8), 0.3 + range(r, 0, 0.4), 0.6 + range(r, 0, 0.8), 0.15, { sides: mat(pick(r, [0xa0978a, 0x8f6345, 0xc4a882])), top: mat(0xc4bba9) }), x0 + 1 + range(r, 0, w - 2), zb + 1 + range(r, 0, d - 2));
-    sprites.push(seeThrough(at(treeCard({ seed: lot.seed, size: 0.9, species: 'palm', month: 11 }), cx + range(r, -1, 1), (zb + zf) / 2)));
+    sprites.push(seeThrough(at(treeCard({ seed: lot.seed, size: 0.9, species: 'palm', month }), cx + range(r, -1, 1), (zb + zf) / 2)));
   }
 }
 
@@ -298,7 +298,7 @@ export function* buildSection(S, { month = 11 } = {}) {
   for (const p of S.props) if (p.kind === 'area' && p.z < Z.front + 0.6) g.add(ground(p.x0, p.z - 0.62, p.x1, p.z, mat(0x23252f), 0.004));
   for (const c of S.courts ?? []) g.add(ground(c.x0, c.z, c.x1, Z.front, laneT(L.lanesN[0]?.ground === 'dirt' ? 'dirt' : 'setts'), 0.002));
   if (S.square) feature(g, S.square, sprites, C);
-  for (const lot of S.lots ?? []) lotOf(g, lot, sprites, C);
+  for (const lot of S.lots ?? []) lotOf(g, lot, sprites, C, month);
   S.gapsS.forEach((gp, k) => lane(gp, L.lanesS[k], Z.south, Z.edge + 12, 0.006));   // (over the strip's grass)
   yield;
 
@@ -315,7 +315,11 @@ export function* buildSection(S, { month = 11 } = {}) {
       if (d) { const dome = roundedBox(2 * d.r, d.r * 1.3, 2 * d.r, d.r * 0.95, { sides: mat(0xc4bba9), top: mat(0xe2dac6) }); dome.position.set(B.x0 + d.x, B.h, B.z - d.r - 2.5); g.add(part(dome)); }
     }
     for (const a of B.look?.awnings ?? []) g.add(awning(B.x0 + a.x0, B.x0 + a.x1, 3.0, B.z, { depth: 0.7, drop: 0.35, color: a.color }));
-    for (const s of B.look?.hanging ?? []) g.add(hangingSign(B.x0 + s.x, 3.0, B.z, s.text, { bg: s.bg, fg: s.fg }));
+    for (const s of B.look?.hanging ?? []) {
+      const hs = hangingSign(B.x0 + s.x, 3.0, B.z, s.text, { bg: s.bg, fg: s.fg });
+      for (const b of hs.userData.signs) heads.push({ head: b, day: b.material, night: b.userData.night });   // (lit with the lamps)
+      g.add(hs);
+    }
     const body = b.userData.body;
     fronts.push({ body, day: body.material[4], night: null, spec, dusk: range(r, 0.08, 0.7),
       paintNight() { this.night = mat(0, facade({ w: B.x1 - B.x0, h: B.h, wall: B.wall, wallColor: B.wallColor, draw: run(B.ops, true), seed: B.seed, night: true, split: true })); } });

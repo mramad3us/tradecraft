@@ -70,6 +70,20 @@ import { Z_BACK, Z_FRONT } from '../sim/map/dojo.js';
 import { eyes, visibility, openAir } from '../sim/perception.js';
 import { sectionFor } from '../sim/world.js';
 import { weatherAt, sightM, FALLS } from '../sim/weather.js';
+import { hash as hashOf } from '../sim/rng.js';
+
+/**
+ * Under what falls, some open an umbrella and some put a hood up (by who they are, so the same people
+ * the same way; more of both the heavier it comes; a full hand can't hold an umbrella, nor can anyone
+ * in a gale). Only how they're drawn: what it does to faces is the sim's (sim/weather.js weatherMods()).
+ */
+function rainwearOf(w, who, hand) {
+  if (!w || !FALLS.has(w.kind) || !w.level) return null;
+  const v = hashOf('rainwear', who) % 100, lv = w.level;
+  const umbrella = w.kind === 'snow' ? 6 + lv * 4 : 18 + lv * 14, hood = w.kind === 'snow' ? 18 + lv * 12 : 10 + lv * 8;
+  if (!hand && (w.wind ?? 0) < 3 && v < umbrella) return 'umbrella';
+  return v < umbrella + hood ? 'hood' : null;
+}
 import { TICK_MS } from '../sim/clock.js';
 
 export const RES = [640, 360];
@@ -407,10 +421,10 @@ export function createView({ parent, bus, month = () => 11 }) {
       drawn.set(a.id, [x, z]);
       const look = lookFor(a.who ?? a.seed);
       if (!look) continue;
-      // (blood worn, and what's in the hand, are part of the look: their own sheet)
-      const P = a.who && state.people[a.who], bl = P?.bloody, hand = P?.hand;
-      const key = bl || hand ? `${a.who}~${bl ? Object.keys(bl).sort().join('') : ''}~${hand ?? ''}` : a.who ?? a.seed;
-      people.push({ key, look: bl || hand ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S) });
+      // (blood worn, what's in the hand, and the rainwear the weather puts on them are part of the look: their own sheet)
+      const P = a.who && state.people[a.who], bl = P?.bloody, hand = P?.hand, rain = rainwearOf(wx, a.who ?? a.seed, hand);
+      const key = bl || hand || rain ? `${a.who ?? a.seed}~${bl ? Object.keys(bl).sort().join('') : ''}~${hand ?? ''}~${rain ?? ''}` : a.who ?? a.seed;
+      people.push({ key, look: bl || hand || rain ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}), ...(rain ? { rainwear: rain } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S) });
     }
     for (const id in aware ? {} : seen) {                          // (and as remembered, those out of sight)
       const r = seen[id];
