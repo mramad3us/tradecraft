@@ -40,6 +40,7 @@ import { heal, bleeding, bloodTick, bandOf, canStand, kill, BLOOD, COME_ROUND_S 
 import { PRESSURE_K, treat } from './aid.js';
 import { atKerb, destinations, ride } from './taxi.js';
 import { shopNear, goIn, insideTick } from './shops.js';
+import * as buses from './buses.js';
 import { notice } from './notice.js';
 import { needsTick, strain } from './needs.js';
 import { weatherAt, footing, weatherTick, parseWeather, SLIP_S } from './weather.js';
@@ -148,6 +149,16 @@ export function step(state, input = {}, bus) {
       }
       continue;
     }
+    if (String(act).startsWith('bus:')) {                          // (on the bus at the stop, where to chosen: sim/buses.js)
+      const b = me?.busy?.what === 'shelter' && me.busy.bus && !state.fight ? me.busy : null;
+      const to = b && buses.destinations(state, b.stop, b.bus.dir).find(d => d.id === act.slice(4));
+      if (to) {
+        say(state, bus, { kind: 'note', text: `On, a coin for the driver, a seat by the window. ${cap(to.label)}.` });
+        const m = buses.ride(state, bus, to, { scenario, skip, loadRow });
+        if (m) say(state, bus, { kind: 'note', text: `${Math.round(m)} minutes later, ${placeName(townOf(state.map), state.map.row ?? 0, playerActor(state).x, 0)}: off at the stop.` });
+      } else if (me?.busy?.what === 'shelter') say(state, bus, { kind: 'note', text: 'Too late: it\'s gone.' });
+      continue;
+    }
     if (act === 'draw') { if (state.fight) fight.drawMove(state, bus, scenario); else if (me) items.use(state, bus, me, 'draw'); continue; }   // (G: sim/items.js; in a fight, it costs the exchange)
     if (String(act).startsWith('inv:')) { if (me && !state.fight) items.use(state, bus, me, act.slice(4)); continue; }   // (the inventory's buttons)
     if (act === 'glance' && me && !me.glance) me.glance = Math.round(GLANCE_S * TICKS_PER_S);
@@ -160,6 +171,7 @@ export function step(state, input = {}, bus) {
   if (state.fight?.phase === 'choose' || state.talk) return;
   if (state.fight || scenario.holds?.(state) || me?.inside) input = { act: input.act };   // (a fight, the scenario, or a shop has the player's feet)
   if (me?.inside) insideTick(state, bus, me, scenario, { loadRow });
+  buses.waitTick(state, bus, me);                                  // (sat at a stop: the bus comes, waits, goes: sim/buses.js)
   const mine = me && state.people[me.who], fallen = mine && (mine.dead || !canStand(mine));
   if (fallen) input = { act: [] };                                 // (collapsed, out cold or dead: nothing answers)
   if (me && !me.ai) {

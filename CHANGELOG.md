@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc16 (2026-10-27)
+
+- **Buses and bus shelters.** A shelter stands at the far kerb every hundred and fifty metres or so, in each city's colours and words (ОСТАНОВКА in Moscow, BUS STOP in London, BUS in Beirut, موقف in Cairo, and the line), its fascia lit at night. T at it: you sit on its bench and wait, the street going by in front of you, a natural place to watch from for as long as the bus takes. The bus comes on the stop's timetable (every 6 to 12 minutes, half as often at night), going north or south by turns; the card asks how far (one, two or four streets, 100 ₽ / £1 / $1). Unlike a taxi, nobody writes a bus down. But a tail on foot can get on too: an overt pair runs for it and rides with you; a covert team's nearest man gets on if he's close, and their car may follow the bus. Watch who gets off at your stop.
+- **Notice boards** in half the parks and boulevards, at the path's edge: T reads the notices (30 s), the path at the corner of your eye.
+
 ## v0.1.0-rc15 (2026-10-27)
 
 - **Mechanic test 5: a brush pass and a dead drop** (5a and 5b on the title), both on being tailed's evening, the team or none.

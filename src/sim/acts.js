@@ -28,6 +28,7 @@ import { sectionOf } from './city.js';
 import { sectionAt } from './world.js';
 import { say } from './log.js';
 import { GLASS_REACH_M, intoGlass } from './perception.js';
+import { stopNear, nextBus, lineOf, STOP_Z } from './buses.js';
 import { itemNear, pickUp } from './items.js';
 import { atKerb, destinations } from './taxi.js';
 import { shopNear, ways, shopWord } from './shops.js';
@@ -77,12 +78,14 @@ export function benchNear(state, a) {
 }
 
 /**
- * A place to watch the street from, within reach (the user, 2026-10-27: "lateral observation spots"):
- * a kiosk (Moscow's; Cairo's paper stalls): buy a paper and read it there (KIOSK_S); a phone box
- * (London's): a call to nobody, behind glass (PHONE_S). { kind: 'kiosk' | 'phone', x, z (where you
- * stand), face } or null.
+ * A place to watch the street from, within reach (the user, 2026-10-27: "lateral observation spots";
+ * "bus shelters and notice boards"): a kiosk (Moscow's; Cairo's paper stalls): buy a paper and read it
+ * there (KIOSK_S); a phone box (London's): a call to nobody, behind glass (PHONE_S); a bus shelter: sat
+ * on its bench till the bus comes (sim/buses.js), the street in front of you; a park's notice board:
+ * the notices read (NOTICES_S), the path at the corner of your eye. { kind: 'kiosk' | 'phone' |
+ * 'shelter' | 'notices', x, z (where you stand or sit), face } or null.
  */
-export const KIOSK_S = 25, PHONE_S = 45;
+export const KIOSK_S = 25, PHONE_S = 45, NOTICES_S = 30;
 export function spotNear(state, a) {
   const S = sectionAt(state, a.x);
   if (!S) return null;
@@ -92,6 +95,10 @@ export function spotNear(state, a) {
   if (st) return { kind: 'kiosk', x: st.x, z: st.z + 0.8, face: 'up' };
   const ph = S.props.find(p => p.kind === 'phonebox' && Math.abs(p.x - a.x) < 1.2 && Math.abs(a.z - (p.z - 0.7)) < 1.2);
   if (ph) return { kind: 'phone', x: ph.x, z: ph.z - 0.7, face: 'down' };
+  const sh = stopNear(state, a);
+  if (sh) return { kind: 'shelter', x: Math.max(sh.x - 0.9, Math.min(sh.x + 0.9, a.x)), z: STOP_Z, face: 'down', stop: sh };
+  const nb = S.props.find(p => p.kind === 'notices' && Math.abs(p.x - a.x) < 1.2 && Math.abs(a.z - (p.z + 0.6)) < 1.0);
+  if (nb) return { kind: 'notices', x: nb.x, z: nb.z + 0.6, face: 'up' };
   return null;
 }
 
@@ -118,7 +125,7 @@ export function coverHere(state, a) {
   return state.time.ms - (state.scenario.laceMs ?? -1e12) > LACE_AGAIN_S * 1000 ? 'lace' : null;
 }
 
-const COVER = { window: 'look in the window', bench: 'sit on the bench', lace: 'tie a shoelace', cross: 'cross', taxi: 'hail a taxi', kiosk: 'buy a paper at the kiosk', phone: 'make a call from the phone box' };
+const COVER = { window: 'look in the window', bench: 'sit on the bench', lace: 'tie a shoelace', cross: 'cross', taxi: 'hail a taxi', kiosk: 'buy a paper at the kiosk', phone: 'make a call from the phone box', shelter: 'wait for a bus', notices: 'read the notices' };
 
 /** What's at hand for T, the engine's: a shop window, a free seat, a zebra ({ act, text }), or null. */
 export function affordance(state, me) {
@@ -163,6 +170,25 @@ function act1(state, bus, me, what, { toward = Math.cos(me.head ?? 0) >= 0 ? -1 
     // (stood at it, the business of it, the street over the top of the paper, or through the glass)
     me.busy = { what, steps: [['go', sp.x, sp.z], ['wait', (what === 'kiosk' ? KIOSK_S : PHONE_S) * TPS, sp.face, 'idle']], wait: 0, since: state.time.ms };
     say(state, bus, { kind: 'instinct', text: what === 'kiosk' ? (paid ? 'A paper from the kiosk, and the front page read standing, the street over the top of it.' : 'You read the headlines off the kiosk\'s rack, the street over the top of them.') : 'Into the phone box, a call to nobody, the receiver to your ear: the glass shows the street all round.' });
+    return;
+  }
+  if (what === 'shelter') {
+    const sp = spotNear(state, me);
+    if (!sp || sp.kind !== what) return;
+    // (sat on its bench, facing the road, till the bus: sim/buses.js waitTick(); up and off, and you've stopped waiting)
+    const due = nextBus(state, sp.stop), st = sp.stop, h = st.w / 2;
+    // (from the pavement behind it, round its nearer end and in at the open front: its back's in the way)
+    const ex = st.x + (me.x >= st.x ? 1 : -1) * (h + 0.45), round = me.z < -1.1 ? [['go', ex, Math.min(me.z, -1.7)], ['go', ex, -0.56], ['go', sp.x, -0.56]] : [];
+    me.busy = { what, steps: [...round, ['go', sp.x, sp.z], ['wait', 12 * 3600 * TPS, 'down', 'sit']], wait: 0, since: state.time.ms, stop: st, due };
+    const m = Math.max(1, Math.round((due.at - state.time.ms) / 60000));
+    say(state, bus, { kind: 'instinct', text: `You sit in the shelter. The ${lineOf(state)}, says the board, every few minutes; the next in ${m === 1 ? 'a minute' : `${m} minutes`} or so. The street goes by in front of you.` });
+    return;
+  }
+  if (what === 'notices') {
+    const sp = spotNear(state, me);
+    if (!sp || sp.kind !== what) return;
+    me.busy = { what, steps: [['go', sp.x, sp.z], ['wait', NOTICES_S * TPS, 'up', 'idle']], wait: 0, since: state.time.ms };
+    say(state, bus, { kind: 'instinct', text: say1(state, 'notices', ['A lost cat, a choir, a flat to let, a concert last month: you read them all, slowly, the path at the corner of your eye.', 'The notices: lessons, a dog found, the council\'s plans for the pond. You read them, and the path behind you in the edge of your sight.']) });
     return;
   }
   if (what === 'window') {

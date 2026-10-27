@@ -33,7 +33,7 @@
 // Textures are shared by make and kept (pixeltown.js keep()); a section frees only its own.
 import * as THREE from 'three';
 import { ground, tile, mat, glow, box, roundedBox, paint, part, tone, PX_PER_M } from '../art/pixelart.js';
-import { street, building, facade, lamp, bench, bin, car, railing, awning, hangingSign, hedgeLeaves, keep, phonebox, beacon, pubSign, cart, stall, soukStall, minaret, generator, cablesMesh, cell } from '../art/pixeltown.js';
+import { street, building, facade, lamp, bench, bin, car, railing, awning, hangingSign, hedgeLeaves, keep, phonebox, shelter, noticeBoard, beacon, pubSign, cart, stall, soukStall, minaret, generator, cablesMesh, cell } from '../art/pixeltown.js';
 import { treeCard, propCard } from '../art/townsprites.js';
 import { spritePerson, frame, card } from '../art/sprites.js';
 import { Z, laneRects } from '../sim/map/street.js';
@@ -363,6 +363,12 @@ export function* buildSection(S, { month = 11 } = {}) {
       case 'generator': g.add(generator(snap(p.x), snap(p.z))); cost += 1; break;
       case 'beacon': { const m = beacon(p.x, p.z); g.add(m); lit(m); break; }
       case 'phonebox': { const m = phonebox(p.x, p.z); g.add(m); lit(m); cost += 1; break; }
+      case 'stop': {                                               // (a bus shelter: its fascia lit with the lamps)
+        const m = shelter(p.x, p.z, { w: p.w, line: p.line, ...C.stop });
+        for (const b of m.userData.signs) heads.push({ head: b, day: b.material, night: b.userData.night });
+        g.add(m); cost += 2; break;
+      }
+      case 'notices': g.add(noticeBoard(p.x, p.z, p.seed)); cost += 1; break;
       case 'hedge': {
         const leavesM = hedgeLeaves(p.look, month), hh = { thuja: 1.05, hawthorn: 0.8, twigs: 0.75 }[p.look] ?? 0.85;
         const h = box(p.x1 - p.x0, hh, Z.hedge - Z.south - 0.1, { sides: leavesM, top: leavesM });

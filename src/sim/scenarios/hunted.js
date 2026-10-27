@@ -237,6 +237,14 @@ export const hunted = {
     else sc.lastSeen = { row: state.map.row, x: playerOf(state).x, ms: state.time.ms };
   },
 
+  /** A bus (sim/buses.js): a hunter who saw you get on radios the line, and they look where it goes; nobody saw, and it's lost them. */
+  onBus(state, bus, to, phase) {
+    const sc = state.scenario, me = playerOf(state);
+    if (phase === 'board') { sc.busSeen = sc.hunters.some(id => { const a = actorOf(state, id); return a && Math.hypot(a.x - me.x, a.z - me.z) < 40 && seesActor(state, a, me); }); return; }
+    if (sc.busSeen) sc.lastSeen = { row: to.row, x: me.x, ms: state.time.ms };
+    sc.busSeen = false;
+  },
+
   goal(state) {
     const sc = state.scenario, e = sc.extract, me = playerOf(state);
     if (sc.outcome || !me) return null;

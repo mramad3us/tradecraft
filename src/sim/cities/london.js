@@ -384,7 +384,7 @@ export const LONDON = {
   terrace: { court: 0.14, square: 0.05, crescent: 0.22, jog: 0.35 },
   courtName: (seed, row, i) => at(['Ledbury Court', 'Pember Yard', 'Archer Court', 'Rede Yard', 'Talbot Court', 'Elgin Yard', 'Basing Court', 'Hayden Court', 'Vernon Court'], seed, row, i, 'court'),
   squareName: (seed, row, i) => at(['Ladbroke Place', 'Pembridge Place', 'Clarendon Place', 'Lansdowne Place', 'Chepstow Place'], seed, row, i, 'square'),
-  kiosks: [['CAFE', 0x173327], ['TEAS', 0x6e2a2e], ['NEWS', 0x1b2541], ['ICES', 0x283f6b]], news: 'NEWS',
+  kiosks: [['CAFE', 0x173327], ['TEAS', 0x6e2a2e], ['NEWS', 0x1b2541], ['ICES', 0x283f6b]], news: 'NEWS', stop: { frame: 0x23252f, roof: 0x23252f, sign: ['BUS STOP', 0x9e3c36, 0xf4efe6] },
   people: {
     name: (r, sex) => londonName(r, sex),
     langs: (r) => ({ en: 'native', ...(chance(r, 0.25) ? { [pick(r, ['fr', 'es', 'pl', 'ar', 'hi', 'pt'])]: pick(r, ['working', 'fluent', 'native']) } : {}) }),

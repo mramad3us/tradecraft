@@ -269,7 +269,7 @@ export const BEIRUT = {
   terrace: { court: 0.22, square: 0.1, jog: 0.32 },
   courtName: (seed, row, i) => at(['Impasse Sursock', 'Impasse Saint-Nicolas', 'Impasse Kassab', 'Impasse Hobeiche', 'Impasse Mar Mitr', 'Impasse Trad', 'Impasse Bustros'], seed, row, i, 'court'),
   squareName: (seed, row, i) => at(['Place Debbas', 'Place Sassine', 'Place Saint-Nicolas', 'Place Tabaris', 'Place Mar Mikhael', 'Place Chehab'], seed, row, i, 'square'),
-  kiosks: [['قهوة', 0x6e2a2e], ['CAFE', 0x24503a], ['جرائد', 0x283f6b], ['كعك', 0x9e3c36]], news: 'جرائد',
+  kiosks: [['قهوة', 0x6e2a2e], ['CAFE', 0x24503a], ['جرائد', 0x283f6b], ['كعك', 0x9e3c36]], news: 'جرائد', stop: { frame: 0x6a7182, roof: 0x24503a, sign: ['BUS', 0x24503a, 0xf4efe6] },
   litter: 0, cables: true,                                         // (no autumn on the ground; its cables slung across: src/render/town.js)
   people: {
     name: (r, sex) => beirutName(r, sex),

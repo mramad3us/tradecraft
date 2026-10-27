@@ -228,7 +228,34 @@ export function section(seed, i, row = 0) {
   // What else stands on this city's streets (none in Moscow): from a stream of its own.
   P.furnish?.(S, { seed, row, r: stream('street-city', seed, row, i), block, lamp, inGap, inMouth: (x, m = 0) => inGap(mouths, x, m) || inGap(S.courts ?? [], x, m) || inGap(S.squares ?? [], x, m), near, zx, sx });
   dress(S, seed, row, zx, sx, P);
+  amenities(S, stream('amenities', seed, row, i), lineNumber(seed, row), zx, block, near, (x, m = 0) => inGap(mouths, x, m) || inGap(S.courts ?? [], x, m) || inGap(S.squares ?? [], x, m));
   return S;
+}
+
+// A bus shelter at the far kerb, now and then (STOP_SHARE of sections, where its bay is clear of
+// parked cars): its back to the shops, clear of the walkers' lane, its sides, a bench along its back
+// (sat at, sim/buses.js). A notice board at the park path's edge, in some parks and boulevards (NOTICES_SHARE): read
+// standing on the path (sim/acts.js). From a stream of their own, so nothing else on the street moves.
+export const STOP_SHARE = 0.45, NOTICES_SHARE = 0.5, STOP_W = 3.2;
+/** The street's bus line: a number, the same at every stop on it (sim/buses.js). */
+export const lineNumber = (seed, row) => 3 + hash(seed, row, 'line') % 89;
+function amenities(S, r, line, zx, block, near, inMouth) {
+  const clear = (ax, az, bx, bz) => !S.blockers.some(b => b.x1 > ax && b.x0 < bx && b.z1 > az && b.z0 < bz);
+  if (chance(r, STOP_SHARE)) for (let k = 0; k < 8; k++) {
+    const x = S.x0 + 3 + range(r, 0, SECTION_M - 6), h = STOP_W / 2;
+    // (room at its ends to walk round into it; and the bus's bay, where nobody's parked)
+    if (near(x, zx, h + 2) || inMouth(x, h + 0.6) || !clear(x - h - 0.8, -1.5, x + h + 0.8, -0.4) || S.blockers.some(b => b.what === 'car' && b.z1 < 5 && Math.abs((b.x0 + b.x1) / 2 - x) < 4.6)) continue;
+    S.props.push({ kind: 'stop', x, z: -0.825, w: STOP_W, line });       // (0.65 m deep, the kerb's strip: its back a walker's width off the passers-by's lane, its roof out over the kerb)
+    block(x - h, -1.15, x + h, -1.08, 'stop'); block(x - h, -1.15, x - h + 0.08, -0.85, 'stop'); block(x + h - 0.08, -1.15, x + h, -0.85, 'stop');   // (its roof held from the back: the front open)
+    break;
+  }
+  if ((S.band === 'park' || S.band === 'boulevard') && chance(r, NOTICES_SHARE)) for (let k = 0; k < 8; k++) {
+    const x = S.x0 + 2 + range(r, 0, SECTION_M - 4);
+    if (near(x, zx, 3) || !clear(x - 1.2, 12.0, x + 1.2, 12.8)) continue;
+    S.props.push({ kind: 'notices', x, z: 12.4, seed: int(r, 1000) });
+    block(x - 0.85, 12.32, x + 0.85, 12.48, 'notices');
+    break;
+  }
 }
 
 /**

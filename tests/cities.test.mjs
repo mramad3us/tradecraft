@@ -38,7 +38,10 @@ export default [
       const want = { 7: 3473505852, 77: 2440374664, 1234: 4204233180, people: 2649027127 };
       for (const seed of [7, 77, 1234]) {
         const parts = [];
-        for (const row of [-1, 0, 2]) for (let i = -2; i <= 2; i++) parts.push(JSON.stringify(section(seed, i, row)));
+        // (the bus shelters and notice boards of 0.1.0-rc16, from a stream of their own, left out)
+        const amenity = (o) => o.kind === 'stop' || o.kind === 'notices' || o.what === 'stop' || o.what === 'notices';
+        const before = (S) => ({ ...S, props: S.props.filter(o => !amenity(o)), blockers: S.blockers.filter(o => !amenity(o)) });
+        for (const row of [-1, 0, 2]) for (let i = -2; i <= 2; i++) parts.push(JSON.stringify(before(section(seed, i, row))));
         parts.push(JSON.stringify(planRoute(seed, { row: 0, x: 5, z: LINE.F }, { row: -6, x: 260, z: LINE.P }, { walker: 3, evasive: true })));
         assert(hash(...parts) === want[seed], `Moscow's streets with seed ${seed} differ from v0.0.46's`);
       }

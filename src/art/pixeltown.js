@@ -1841,6 +1841,76 @@ export function phonebox(x, z) {
   return g;
 }
 
+/**
+ * A bus shelter (sim/map/street.js amenities()), x its middle, z its middle, its back to the shops and
+ * open to the road: a frame in the city's colour, glass back and sides (painted panes, a streak of
+ * light: the street through them would be a lie in a still), a bench along the back, a timetable, a
+ * roof, and along the roof's front a fascia with the city's word for a stop and the line, its letters
+ * lit at night (userData.signs: swapped to `night` with the lamps, src/render/town.js).
+ */
+export function shelter(x, z, { w = 3.2, line = null, frame = 0x6a7182, roof = 0x3b6296, sign = ['ОСТАНОВКА', 0x3b6296, 0xf4efe6] } = {}) {
+  const g = new THREE.Group(), fr = mat(frame), D = 0.65, back = -0.325, H = 2.1, OVER = 0.3;   // (the roof out over the kerb by OVER)
+  const add = (m, ox, oy, oz) => { m.position.set(x + ox, oy, z + oz); g.add(m); return m; };
+  const glass = (W, Hp) => keep(`shelter-glass-${W}-${Hp}-${frame}`, () => mat(0, paint(W, Hp, (px) => {
+    px(0, 0, W, Hp, 0x5d7486); px(0, 0, W, 1, frame); px(0, Hp - 1, W, 1, frame);
+    for (let k = 0; k < 7; k++) { px(3 + k, 5 + k * 2, 1, 4, 0x9dbbcc); px(W - 12 + k, 9 + k * 2, 1, 3, 0x86a6b9); }   // (two streaks of light across it)
+    for (let i = 16; i < W - 1; i += 16) px(i, 0, 1, Hp, frame);        // (the frame between panes)
+  })));
+  // (its roof held out from the back posts, the side panels half its depth: the front open, to walk in from the kerb)
+  const SD = 0.3, backGlass = glass(Math.round(w * M), Math.round(H * M)), sideGlass = glass(Math.round(SD * M), Math.round(H * M));
+  add(box(w, H, 0.05, { sides: fr, front: backGlass, back: backGlass }), 0, 0.12, back);
+  for (const sx of [-1, 1]) add(box(0.05, H, SD, { sides: sideGlass, front: fr, back: fr, top: fr }), sx * (w / 2 - 0.03), 0.12, back + SD / 2);
+  for (const sx of [-1, 1]) { add(box(0.08, 2.32, 0.08, { sides: fr }), sx * (w / 2), 0, back - 0.02); add(box(0.06, 0.06, D + OVER, { sides: fr }), sx * (w / 2), 2.24, back + (D + OVER) / 2); }   // (the posts, the arms out under the roof)
+  // (the bench along the back, the timetable on the glass at its end)
+  add(box(w - 0.9, 0.06, 0.26, { sides: fr, top: mat(0x8f6345) }), 0, 0.44, back + 0.17);
+  for (const sx of [-1, 1]) add(box(0.05, 0.44, 0.2, { sides: fr }), sx * (w / 2 - 0.7), 0, back + 0.17);
+  const table = keep('shelter-timetable', () => mat(0, paint(8, 11, (px) => { px(0, 0, 8, 11, 0xe2dac6); px(1, 1, 6, 2, 0x283f6b); for (let j = 4; j < 10; j += 2) px(1, j, 5 - (j % 3), 1, 0x6a7182); })));
+  add(box(0.5, 0.69, 0.02, { sides: fr, front: table }), w / 2 - 0.45, 1.1, back + 0.04);
+  // (a glass roof in a frame of the city's colour: from above it reads as glass, not a slab over the pavement)
+  const RW = Math.round((w + 0.2) * M), RD = Math.round((D + OVER) * M);
+  const top = keep(`shelter-roof-${RW}-${RD}-${roof}`, () => mat(0, paint(RW, RD, (px) => {
+    px(0, 0, RW, RD, 0x7d93a3); px(0, 0, RW, 2, roof); px(0, RD - 2, RW, 2, roof); px(0, 0, 2, RD, roof); px(RW - 2, 0, 2, RD, roof);
+    for (let i = 13; i < RW - 2; i += 13) px(i, 0, 1, RD, roof);
+    for (let k = 0; k < 6; k++) px(4 + k * 2, 3 + k, 2, 1, 0xa9c0cd);   // (a glint)
+  })));
+  add(box(w + 0.2, 0.08, D + OVER, { sides: mat(roof), top }), 0, 2.3, back + (D + OVER) / 2);
+  // (the fascia: the stop, and the line where it fits)
+  const FW = Math.round(w * M), FH = 7, [word, bg, fg] = sign, both = line ? `${word} ${line}` : word, str = textWidth(both) <= FW - 4 ? both : word;
+  const face = keep(`shelter-fascia-${str}-${bg}-${fg}-${FW}`, () => mat(0, paint(FW, FH, (px) => {
+    px(0, 0, FW, FH, bg); px(0, 0, FW, 1, tone(bg, 0.08));
+    text(px, Math.floor((FW - textWidth(str)) / 2), 1, str, fg);
+  }, { glows: [fg] })));
+  const fascia = add(box(w + 0.2, FH / M, 0.05, { sides: mat(bg), front: face }), 0, 2.38 - FH / M + 0.08, back + D + OVER + 0.02);
+  const lit = keep(`shelter-fascia-lit-${str}-${bg}-${fg}-${FW}`, () => { const m = mat(0, face.map); const e = emissiveOf(face.map); if (e) { m.emissiveMap = e; m.emissive.set(0xffffff); } return m; });
+  fascia.userData.night = [fascia.material].flat().map(m => (m === face ? lit : m));
+  g.userData.signs = [fascia];
+  return part(g);
+}
+
+/**
+ * A notice board at a park path's edge (sim/map/street.js amenities()), x its middle, its face to the
+ * path at z: two posts, a little roof, a board with the notices pinned to it (a lost cat, a concert,
+ * a flat to let: coloured sheets, lines of print).
+ */
+export function noticeBoard(x, z, seed = 0) {
+  const g = new THREE.Group(), wood = mat(0x3a2b22), W = 26, Hp = 14, Y = 1.05;   // (at eye height: over a reader's shoulders)
+  const face = keep(`notices-${seed % 6}`, () => mat(0, paint(W, Hp, (px) => {
+    px(0, 0, W, Hp, 0x3a2b22); px(1, 1, W - 2, Hp - 2, 0x8f6345);
+    const rr = rng(seed % 6 + 11), sheets = [0xf4efe6, 0xe7d58a, 0xe2b8b0, 0xb7cbe0, 0xf4efe6, 0xc9dcb5];
+    for (let k = 0; k < 5; k++) {
+      const sw = 4 + Math.floor(rr() * 3), sh = 4 + Math.floor(rr() * 3), sx = 2 + Math.floor(rr() * (W - 4 - sw)), sy = 2 + Math.floor(rr() * (Hp - 4 - sh));
+      px(sx, sy, sw, sh, sheets[k % sheets.length]); px(sx, sy, sw, 1, 0x23252f);
+      for (let j = sy + 2; j < sy + sh - 1; j += 2) px(sx + 1, j, sw - 2 - (j % 2), 1, 0x6a7182);
+      px(sx + Math.floor(sw / 2), sy, 1, 1, 0x9e3c36);                   // (the pin)
+    }
+  })));
+  const add = (m, ox, oy, oz) => { m.position.set(x + ox, oy, z + oz); g.add(m); return m; };
+  add(box(W / M, Hp / M, 0.06, { sides: wood, front: face }), 0, Y, 0);
+  for (const sx of [-1, 1]) add(box(0.07, Y + Hp / M + 0.05, 0.07, { sides: wood }), sx * (W / M / 2 + 0.02), 0, -0.02);
+  add(box(W / M + 0.3, 0.06, 0.32, { sides: wood, top: mat(0x24503a) }), 0, Y + Hp / M + 0.04, 0.04);
+  return part(g);
+}
+
 /** A Belisha beacon: a pole in black and white bands, an amber globe (lit at night: userData.heads). */
 export function beacon(x, z) {
   const g = new THREE.Group();

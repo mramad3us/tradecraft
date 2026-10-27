@@ -1,0 +1,109 @@
+// Buses (sim/buses.js): shelters at the far kerb in every city, room to walk round into them, and
+// notice boards in the parks (sim/map/street.js amenities()); sat at one, the bus comes on its
+// timetable, waits, and takes you where you ask, to the stop there, for its fare; being tailed's team
+// gets on with you if they saw you and were near enough (an overt pair; a covert team's nearest, and
+// its car), and gets off behind you; nobody minds a bus (it isn't written down).
+import { newGame, start, step, playerActor } from '../src/sim/game.js';
+import { section, SECTION_M } from '../src/sim/map/street.js';
+import { townOf } from '../src/sim/cities/index.js';
+import { cashOf } from '../src/sim/money.js';
+import { OFF_Z, EVERY_MIN, DWELL_S } from '../src/sim/buses.js';
+import { goTo } from './bots.mjs';
+import { assert, fmt } from './helpers.mjs';
+
+/** The stop on the player's street nearest them. */
+function nearestStop(g) {
+  const me = playerActor(g), i0 = Math.floor(me.x / SECTION_M);
+  let best = null;
+  for (let i = i0 - 8; i <= i0 + 8; i++) for (const p of section(townOf(g.map), i, g.map.row ?? 0).props) if (p.kind === 'stop' && (!best || Math.abs(p.x - me.x) < Math.abs(best.x - me.x))) best = p;
+  return best;
+}
+
+/** Walk to the stop, sit, wait for the bus, and take it `which` (bus0: a street on); returns what happened. */
+function takeBus(g, which = 'bus0', bus = null) {
+  const st = nearestStop(g), sc = g.scenario;
+  let t = 0;
+  for (; t < 25 * 60 * 6 && !(playerActor(g).busy?.what === 'shelter'); t++) {
+    const me = playerActor(g);
+    const input = Math.abs(me.x - st.x) < 1.2 && me.z > -2.8 && me.z < -1.6 ? { act: ['instinct'] } : goTo(g, me, g.map.row ?? 0, st.x + 0.6, -2.3);
+    step(g, input, bus);
+    if (sc.outcome) return null;
+  }
+  const sat = g.time.ms, row = g.map.row ?? 0, cash = cashOf(g.people[g.player]);
+  for (t = 0; t < 25 * 60 * 30 && !playerActor(g).busy?.bus; t++) step(g, {}, bus);
+  const came = g.time.ms, dir = playerActor(g).busy?.bus?.dir;
+  if (!dir) return { stop: st, waited: (came - sat) / 60000 };
+  step(g, { act: [`bus:${which}`] }, bus);
+  const there = nearestStop(g);
+  return { stop: st, waited: (came - sat) / 60000, dir, rode: (g.time.ms - came) / 60000, rows: (g.map.row ?? 0) - row, paid: cash - cashOf(g.people[g.player]), to: there?.x };
+}
+
+export default [
+  {
+    name: 'buses: a shelter every few sections in every city, room at its ends; notice boards in half the parks',
+    fn() {
+      for (const [city, town] of [['Moscow', 7], ['London', 'london:7'], ['Beirut', 'beirut:7'], ['Cairo', 'cairo:7']]) {
+        let n = 0, stops = 0, parks = 0, boards = 0;
+        for (let row = -4; row <= 4; row++) for (let i = 0; i < 13; i++) {
+          const S = section(town, i, row);
+          n++;
+          for (const st of S.props.filter(p => p.kind === 'stop')) {
+            stops++;
+            // (round its ends, at a walker's width: clear)
+            for (const x of [st.x - st.w / 2 - 0.45, st.x + st.w / 2 + 0.45]) for (const z of [-1.7, -1.0, -0.56])
+              assert(!S.blockers.some(b => x + 0.25 > b.x0 && x - 0.25 < b.x1 && z + 0.25 > b.z0 && z - 0.25 < b.z1), `${city} row ${row}: the end of the shelter at ${fmt(st.x, 1)} blocked at (${fmt(x, 1)}, ${z})`);
+            assert(!S.blockers.some(b => b.what === 'car' && Math.abs((b.x0 + b.x1) / 2 - st.x) < 4.6 && b.z1 < 5), `${city}: a car parked in the bus's bay`);
+          }
+          if (S.band === 'park' || S.band === 'boulevard') { parks++; boards += S.props.filter(p => p.kind === 'notices').length; }
+        }
+        console.log(`      ${city}: ${stops} shelters in ${n} sections (one every ${fmt(n * SECTION_M / stops, 0)} m of street); notice boards in ${boards} of ${parks} parks and boulevards`);
+        assert(stops >= n / 5 && boards >= parks / 4, `${city}: enough of both`);
+      }
+    },
+  },
+  {
+    name: 'buses: sat in the shelter, the bus comes on its timetable; on it, a street on for its fare, off at the stop there',
+    fn() {
+      const got = [];
+      for (let seed = 1; seed <= 6; seed++) {
+        const g = newGame({ seed, scenario: 'walk', weather: 'clear' });
+        start(g, null);
+        const asked = [], bus = { emit: (k, v) => { if (k === 'bus') asked.push(v); }, on() {} };
+        const r = takeBus(g, seed % 2 ? 'bus0' : 'bus1', bus);
+        const me = playerActor(g);
+        got.push(r);
+        assert(r?.dir && asked.length === 1 && asked[0].list.length === 3, `seed ${seed}: the bus came and asked where to`);
+        assert(r.waited <= 2 * Math.max(...EVERY_MIN) + DWELL_S / 60, `seed ${seed}: waited ${fmt(r.waited, 1)} min`);
+        assert(r.rows === r.dir * (seed % 2 ? 1 : 2) && r.paid === 1 && Math.abs(me.z - OFF_Z) < 0.01 && Math.abs(me.x - r.to) < 0.01, `seed ${seed}: there, at the stop, paid`);
+      }
+      console.log(`      waited ${got.map(r => fmt(r.waited, 1)).join(', ')} min; rode ${got.map(r => `${r.rows > 0 ? '+' : ''}${r.rows} (${fmt(r.rode, 0)} min)`).join(', ')}`);
+    },
+  },
+  {
+    name: 'buses: being tailed\'s team gets on with you if they saw you and were near (overt both, covert one, and a car); the bus itself written down never',
+    heavy: true,
+    fn() {
+      const by = { overt: { n: 0, kept: 0, riders: 0 }, covert: { n: 0, kept: 0, riders: 0, car: 0 } };
+      let flags = 0; const kinds = [];
+      for (let seed = 1; seed <= 20; seed++) {
+        const g = newGame({ seed, scenario: 'sdr', weather: 'clear' });
+        start(g, null);
+        const sc = g.scenario;
+        if (sc.team === 'none') continue;
+        for (let t = 0; t < 25 * 40; t++) step(g, goTo(g, playerActor(g), g.map.row ?? 0, playerActor(g).x + 30, -2.7), null);   // (a walk first: the team takes up behind)
+        const r = takeBus(g);
+        if (!r?.dir) continue;
+        const b = by[sc.team];
+        b.n++; b.riders += sc.riders.length;
+        if (sc.team === 'covert' && sc.carKeeps) b.car++;
+        for (let t = 0; t < 25 * 180; t++) step(g, goTo(g, playerActor(g), g.map.row ?? 0, playerActor(g).x + 30, -2.7), null);
+        if (!sc.teamLost) b.kept++;
+        flags += sc.flags.length; kinds.push(...sc.flags.map(f => f.kind));
+      }
+      console.log(`      overt: ${by.overt.riders} rode with you in ${by.overt.n} rides, kept you ${by.overt.kept}; covert: ${by.covert.riders} rode, the car kept up ${by.covert.car}, kept you ${by.covert.kept} of ${by.covert.n}; things written down: ${flags} (${[...new Set(kinds)].join(', ')})`);
+      assert(by.overt.n && by.overt.kept / by.overt.n >= 0.5, 'an overt pair mostly gets on with you');
+      assert(by.covert.n && by.covert.kept < by.covert.n, 'a covert team loses you, sometimes');
+      assert(!kinds.includes('taxi') && !kinds.includes('bus'), 'a bus is what people take: nothing to write down (the bot\'s own walk may be)');
+    },
+  },
+];

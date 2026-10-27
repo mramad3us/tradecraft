@@ -177,6 +177,40 @@ export const sdr = {
     }
   },
 
+  /**
+   * A bus (sim/buses.js): nothing written down (people take buses), but a man on foot can get on one
+   * too. Getting on: whoever of them saw you, near enough the doors (BUS_BOARD_M: an overt pair runs
+   * for it), gets on (an overt pair both; a covert team its nearest, and the car may keep the bus in
+   * sight, BUS_CAR_KEEPS). Getting off: they get off behind you (off the bus after you, their faces
+   * easier to know), and you look, as anyone would; the car's man gets out a way behind you a minute
+   * or two later.
+   * Nobody saw you get on, or nobody made it: lost.
+   */
+  onBus(state, bus, to, phase) {
+    const sc = state.scenario, me = playerOf(state), now = state.time.ms;
+    if (phase === 'board') {
+      sc.riders = []; sc.carKeeps = false;
+      if (sc.teamLost) return;
+      const dist = (a) => Math.hypot(a.x - me.x, a.z - me.z);
+      const saw = sc.crew.map((c, k) => ({ k, a: actorOf(state, c.id) })).filter(o => o.a && dist(o.a) < BUS_SEEN_M && seesActor(state, o.a, me)).sort((p, q) => dist(p.a) - dist(q.a));
+      const made = saw.filter(o => dist(o.a) < BUS_BOARD_M[sc.team]);
+      sc.riders = (sc.team === 'overt' ? made : made.slice(0, 1)).map(o => o.k);
+      sc.carKeeps = sc.team === 'covert' && saw.length > 0 && chance(stream('bus-car', state.map.seed, now), BUS_CAR_KEEPS);
+      const ids = sc.crew.map(c => c.id).filter(Boolean);
+      for (const c of sc.crew) c.id = null;
+      state.actors = state.actors.filter(a => !ids.includes(a.id));   // (left at the stop, or on the bus with you: brought back at the other end)
+      sc.pending = [];
+      if (!sc.riders.length && !sc.carKeeps) { sc.teamLost = true; sc.lostHow = 'on a bus'; }
+      return;
+    }
+    sc.arrival = { x: me.x, z: me.z };
+    sc.riders.forEach((k, n) => sc.pending.push({ crew: k, at: now + 1200 + n * 900, bus: true }));
+    const car = sc.carKeeps && sc.crew.findIndex((c, k) => !sc.riders.includes(k));
+    if (car !== false && car >= 0) sc.pending.push({ crew: car, at: now + Math.round(range(stream('bus-car', state.map.seed, now), 60, 150) * 1000), car: true });
+    sc.teamSeenMs = now;
+    sc.check = { tick: state.tick + 3 * TPS, why: 'alight', bonus: 1 };   // (who gets off with you: anyone looks)
+  },
+
   /** Where you're going, for the picture's edge: the bench, until it's done. */
   goal(state) {
     const sc = state.scenario, g = sc.meet;
@@ -292,8 +326,9 @@ export const sdr = {
     // Watchers coming up the lane after us.
     for (const p of sc.pending.filter(p => state.time.ms >= p.at)) {
       sc.pending = sc.pending.filter(q => q !== p);
-      const c = sc.crew[p.crew], a = join(state, c, 0, sc.arrival);
-      a.ai.seenMs = state.time.ms; a.ai.fromLane = true;
+      // (the car's man gets out a way behind you, wherever you've walked to since; the others come up the way you came)
+      const c = sc.crew[p.crew], a = p.car ? join(state, c, -Math.sign(me.vx || 1) * range(state.rng, 18, 30)) : join(state, c, 0, sc.arrival);
+      a.ai.seenMs = state.time.ms; a.ai.fromLane = !p.bus; a.ai.fromBus = !!p.bus;
       sc.teamSeenMs = state.time.ms;
     }
     if (sc.check && state.tick >= sc.check.tick) { look(state, bus, sc.check.why, sc.check.bonus); sc.check = null; }
@@ -387,7 +422,8 @@ export const FLAGS_MAX = 2;
 export const ASSAULT_HEAT = 12;
 export const BACK_COVERED = 0.3;
 export const COAT_MISSED = { overt: 0.5, covert: 0.3 };              // (out the front in a new coat: they look past you)                                    // (a covert team with the back of a shop covered)
-export const NET_FLAGS = 2;                                        // (lost after this many things written down: the wider net)
+export const NET_FLAGS = 2;
+export const BUS_SEEN_M = 30, BUS_BOARD_M = { overt: 25, covert: 12 }, BUS_CAR_KEEPS = 0.5;                                        // (lost after this many things written down: the wider net)
 export const NET_CHANCE = 0.5;                                    // (an FSB officer assaulted: an incident, a note to the embassy)                                        // times a kind of thing is written down, at most
 const list = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 const actorOf = (state, id) => (id ? state.actors.find(a => a.id === id) : null);
@@ -502,9 +538,9 @@ function look(state, bus, why, bonus = 0) {
     if (a === me || a.hidden || a.who === 'solovey' || !inView(state, a.id)) continue;
     const d = Math.hypot(a.x - me.x, a.z - me.z), crowd = near(state, a.x, a.z, 3).filter(o => o !== a && isPasserby(o)).length;
     const light = lightBand(lightHere(state, a.x, a.z));
-    const mods = [bonus && { why: { glance: 'a straight look', cross: 'crossing, looking both ways', window: 'in the glass', stop: 'stood, looking about', passive: 'not looking', kiosk: 'over the top of a paper', cafe: 'from a café window', phone: 'through a phone box\'s glass' }[why], v: bonus },
+    const mods = [bonus && { why: { glance: 'a straight look', cross: 'crossing, looking both ways', window: 'in the glass', stop: 'stood, looking about', passive: 'not looking', kiosk: 'over the top of a paper', cafe: 'from a café window', phone: 'through a phone box\'s glass', shelter: 'waiting for a bus', notices: 'over the notices', alight: 'watching who gets off with you' }[why], v: bonus },
       d > 20 ? { why: 'far off', v: -3 } : d > 12 ? { why: 'a way off', v: -1 } : null, crowd >= 2 && { why: 'among people', v: -2 },
-      light === 'dark' && { why: 'in the dark', v: -2 }, a.ai?.fromLane && state.time.ms - sc.sinceMap < 30000 && { why: 'up the lane after you', v: 4 }, ...faces].filter(Boolean);
+      light === 'dark' && { why: 'in the dark', v: -2 }, a.ai?.fromLane && state.time.ms - sc.sinceMap < 30000 && { why: 'up the lane after you', v: 4 }, a.ai?.fromBus && state.time.ms - sc.sinceMap < 30000 && { why: 'off the bus after you', v: 4 }, ...faces].filter(Boolean);
     const theirs = a.who ? skill(state.people[a.who], 'deception') : 2;
     const r = opposed(state.rng, { skill: 'pathfinding', value: ours, mods, body: state.people[state.player] }, { skill: 'deception', value: theirs });
     sc.rolls++;
@@ -665,7 +701,7 @@ function second(state, bus, me) {
   else if (sc.glassS && sc.glassS % 6 === 0) look(state, bus, 'window', 0);
   else if (!me.glass && sc.stillS >= 3 && sc.stillS % 6 === 3) look(state, bus, 'stop', -1);
   else if (me.inside?.way === 'sit' && (sc.spotS = (sc.spotS ?? 0) + 1) % 6 === 1) look(state, bus, 'cafe', 2);   // (a café's window: sim/shops.js)
-  else if (['kiosk', 'phone'].includes(me.busy?.what) && me.busy.steps?.[0]?.[0] === 'wait' && (sc.spotS = (sc.spotS ?? 0) + 1) % 6 === 1) look(state, bus, me.busy.what, me.busy.what === 'phone' ? 2 : 1);   // (a kiosk's paper, a phone box's glass: a natural stop, a look at the street: sim/acts.js)
+  else if (['kiosk', 'phone', 'shelter', 'notices'].includes(me.busy?.what) && me.busy.steps?.[0]?.[0] === 'wait' && (sc.spotS = (sc.spotS ?? 0) + 1) % 6 === 1) look(state, bus, me.busy.what, me.busy.what === 'phone' || me.busy.what === 'shelter' ? 2 : 1);   // (a kiosk's paper, a phone box's glass: a natural stop, a look at the street: sim/acts.js)
   else if (state.tick % (8 * TPS) === 0) look(state, bus, 'passive', -3);
   for (const id in sc.suspects) if (!actorOf(state, id)) delete sc.suspects[id];
   // SOLOVEY, on his bench from meet.from to meet.to, if we're on his street.
