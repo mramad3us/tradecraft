@@ -829,7 +829,7 @@ function dropSeen(state, bus, me, doing) {
         e.m > 25 ? { why: 'far off', v: -3 } : e.m > 12 ? { why: 'a way off', v: -1 } : null].filter(Boolean) },
     { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] });
     const them = cap(describe(state.people[who].look, state.people[who].sex));
-    if (r.ok) say(state, bus, { kind: 'roll', roll: r, hidden: true, text: doing.what === 'load' ? `${them} saw someone retie a shoe on a bench, and looked away.` : `${them} saw someone lean on a lamppost.` });
+    if (!r.ok) say(state, bus, { kind: 'roll', roll: r, hidden: true, text: doing.what === 'load' ? `${them} saw someone retie a shoe on a bench, and looked away.` : `${them} saw someone lean on a lamppost.` });   // (his roll first: ok, he won)
     else if (doing.what === 'load') { sc.burned = true; say(state, bus, { kind: 'roll', roll: r, hidden: true, text: `${them} saw your hand go behind the bench's leg, and noted the place.` }); }
     else { if (sc.flags.filter(f => f.kind === 'marked').length < FLAGS_MAX) sc.flags.push({ kind: 'marked', ms: now, who }); say(state, bus, { kind: 'roll', roll: r, hidden: true, text: `${them} saw the chalk go on the post.` }); }
   }
@@ -953,8 +953,8 @@ function brushPass(state, bus, me) {
       mods: [c.role === 'eye' && sc.team === 'covert' && { why: 'the eye, watching for exactly this', v: 5 }, stopped && { why: 'you stopped to do it', v: 3 }, !stopped && { why: 'both of you walking on', v: -1 }, crowd && { why: 'people round you', v: -Math.min(3, crowd) },
         light === 'dark' && { why: 'the dark', v: -3 }, (() => { const dw = Math.hypot(w.x - me.x, w.z - me.z); return dw > 25 ? { why: 'far off', v: -4 } : dw > 12 ? { why: 'a way off', v: -2 } : null; })()].filter(Boolean) },
     { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] });
-    say(state, bus, { kind: 'roll', roll: r, hidden: true, text: r.ok ? `${cap(describe(state.people[w.who].look, state.people[w.who].sex))} was looking, and saw two people pass.` : `${cap(describe(state.people[w.who].look, state.people[w.who].sex))} saw the paper change hands.` });
-    if (!r.ok) { sc.burned = true; break; }
+    say(state, bus, { kind: 'roll', roll: r, hidden: true, text: !r.ok ? `${cap(describe(state.people[w.who].look, state.people[w.who].sex))} was looking, and saw two people pass.` : `${cap(describe(state.people[w.who].look, state.people[w.who].sex))} saw the paper change hands.` });
+    if (r.ok) { sc.burned = true; break; }                          // (his roll first: ok, he won)
   }
   const evasive = sc.flags.reduce((n, f) => n + (f.kind === 'ran' || f.kind === 'assaulted' ? 2 : 1), 0);
   if (!sc.burned && sc.teamLost && sc.team !== 'none' && evasive >= NET_FLAGS && chance(stream('net', state.map.seed, sc.flags.length), NET_CHANCE)) { sc.burned = true; sc.net = true; }

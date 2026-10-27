@@ -45,20 +45,22 @@
 // state.scenario, read by the UI (the marker, the instinct, the brief and the result).
 import { townOf } from '../cities/index.js';
 import { at, TICK_MS, calendar, dateText } from '../clock.js';
-import { handler, sheet, seedFrom } from '../people.js';
+import { handler, sheet, seedFrom, streetLook, describe } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
-import { say } from '../log.js';
+import { say, speak } from '../log.js';
 import { skill } from '../skills.js';
 import { opposed, check } from '../checks.js';
 import { range, int, chance, pick, weighted, hash } from '../rng.js';
 import { act, offer, paneNear, seatTaken, crossingAt, crossingNear, say1 } from '../acts.js';
 import { settle, place, onStreet } from '../instinct.js';
-import { Z, SECTION_M, inLane } from '../map/street.js';
+import { Z, SECTION_M, inLane, streetName } from '../map/street.js';
 import { near, sectionAt } from '../world.js';
-import { planRoute, routeFrom, sectionOf, pointAt, LINE } from '../city.js';
+import { planRoute, routeFrom, sectionOf, pointAt, finish, LINE } from '../city.js';
 import { withHabits, withEnd } from '../habits.js';
 import { mods as showsMods } from '../notice.js';
-import { weatherMods } from '../weather.js';
+import { weatherMods, weatherAt } from '../weather.js';
+import { sendBus, busLeadMs, pulledIn, release } from '../traffic.js';
+import { begin as beginFight } from '../fight.js';
 import { strain } from '../needs.js';
 import { makeAgent, setRoute, follow as followTarget, rowOf, onMap } from '../agents.js';
 import { isPasserby } from '../crowd.js';
@@ -328,6 +330,7 @@ function orlovStop(state, t, stop, phase, bus) {
     if (SCANS[stop.kind]) { sc.scan = { kind: SCANS[stop.kind], rolled: false, ms: state.time.ms }; sc.tell = null; }
     if (stop.kind === 'shop') sc.shop = stop.shop;
     if (stop.kind === 'meet') { sc.phase = 'meet'; sc.contact = spawnContact(state, t); }
+    if (stop.kind === 'bus' && sc.hit && !sc.hit.waiting) { sc.hit.waiting = true; sc.hit.busAt = state.time.ms + Math.round(range(state.rng, ...BUS_WAIT_S) * 1000); }   // (at his stop: the umbrella)
     return;
   }
   if (SCANS[stop.kind]) endScan(state, t);
@@ -356,7 +359,7 @@ function dryClean(state, t) {
   const here = { row: rowOf(state, t), x: t.x, z: t.z };
   const leg1 = routeFrom(seed, here, { row: back.row, x: back.x, z: back.z });
   const leg2 = planRoute(seed, { row: back.row, x: back.x, z: back.z }, sc.meet, { walker: hash(seed, 'orlov', state.time.ms), evasive: 2, rng: r });
-  const route = withEnd(withHabits(seed, { ...leg2, pts: [...leg1.pts, ...leg2.pts.slice(1)] }, r, 'wary'), { kind: 'meet', ticks: 75 * TPS, face: 'down', gait: 'sit' });
+  const route = withEnd(withHabits(seed, { ...leg2, pts: [...leg1.pts, ...leg2.pts.slice(1)] }, r, 'wary'), sc.hit ? { kind: 'bus', ticks: 45 * 60 * TPS, face: 'down', gait: 'idle' } : { kind: 'meet', ticks: 75 * TPS, face: 'down', gait: 'sit' });
   setRoute(state, t, route);
   sc.scan = { kind: 'double', rolled: false, ms: state.time.ms, untilS: leg1.length };
 }
@@ -557,6 +560,7 @@ function coverNow(state, me) {
   if (b?.what === 'shelter' && s?.[0] === 'wait') return { why: 'waiting for a bus', v: -3 };
   if (b?.what === 'notices' && s?.[0] === 'wait') return { why: 'reading a notice board', v: -2 };
   if (!b && crossingAt(state, me) && me.gait === 'idle' && (Math.abs(me.z - Z.kerbN) < 1.6 || Math.abs(me.z - Z.kerbS) < 1.6)) return { why: 'waiting to cross', v: -1 };
+  if (!b && state.scenario.hit && atStop(state, me)) return { why: 'waiting at a bus stop', v: -2 };   // (the umbrella: his own stop)
   return null;
 }
 
@@ -662,9 +666,13 @@ function second(state, bus, me, t, d) {
     sc.markGone = true;
     say(state, bus, { kind: 'instinct', text: 'That\'s him, and from here on it\'s your eyes: the grey fedora, the briefcase. Plenty of grey coats in Moscow. Hold {watch} on one for a close look.' });
   }
-  if (sc.unseenS >= LOST_S) return end(state, bus, 'lost', GONE);
+  if (sc.unseenS >= LOST_S) {
+    if (!sc.hit) return end(state, bus, 'lost', GONE);
+    if (sc.marked === t.id) { sc.marked = null; sc.findS = 0; }      // (the umbrella: he'll come to his stop; pick him out when he does)
+  }
   if (sc.marked === t.id && same) sc.farthest = Math.max(sc.farthest, d);
-  if (sc.phase === 'meet') meeting(state, bus, me, t, d);
+  if (sc.hit) hitSecond(state, bus, me, t, d);
+  else if (sc.phase === 'meet') meeting(state, bus, me, t, d);
   if (sc.outcome) return;
   // (every rule that fires, and the engine's choice: the line up stays while it still applies: sim/instinct.js)
   const was = sc.prompt?.id;
@@ -772,7 +780,7 @@ function meeting(state, bus, me, t, d) {
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 /** What shows on you (sim/notice.js: blood, a weapon in your hand): the eye goes to it, and to you. */
-const inHand = (state) => showsMods(state.people[state.player]);
+const inHand = (state) => (state.scenario?.hit ? umbrellaMods(state) : showsMods(state.people[state.player]));
 const clockOf = (state) => { const m = Math.floor(state.time.ms / 60000) % 1440; return hhmm(Math.floor(m / 60), m % 60); };
 
 // ---------- the instinct ----------
@@ -789,6 +797,8 @@ function* instinct(state, me, t, d, still) {
   const L = (id, tone, text, extra = {}) => ({ id, tone, text: Array.isArray(text) ? say1(state, id, text) : text, act: null, ...extra });
   const busy = me.busy?.what ?? me.ai?.cover?.what ?? (me.glass ? 'window' : null);
   const here = place(state, me), there = place(state, t);
+  // (the umbrella's own lines first; in reach, or closing in on him at his stop, the tail's advice to keep back is beside the point)
+  if (sc.hit) { const own = [...hitInstinct(state, me, t, d)]; yield* own; if (own.some(l => l.act === 'jab' || l.id === 'wait-stop') || (sc.hit.waiting && d < 12)) return; }
   // The meeting.
   if (sc.phase === 'meet' && sc.contact && seen) {
     const c = actorOf(state, sc.contact), both = c && inView(state, c.id);
@@ -903,4 +913,362 @@ function end(state, bus, outcome, text) {
   sc.endText = sub(state, text);
   sc.ended = state.time.ms;
   bus?.emit('scenario-end', outcome);
+}
+
+// ---------- the umbrella (mechanic test 6: umbrellaTest) ----------
+
+/**
+ * An assassination (the user, 2026-10-27: "full creative license on assassination mission"; numbers
+ * my calls), on the tail's evening with another man at the end of it. Colonel Pavel Kostin of the
+ * GRU, who has poisoned two defectors abroad and flies out on Friday for a third, walks from his office
+ * to his bus stop three to five streets away (STOP_ROWS), his minder a few paces behind
+ * (MINDER_KEEP_M), the tail's grey coats about. Nobody signs for it: an umbrella with a pellet in its
+ * tip came in a pouch addressed to no one (Markov, Waterloo Bridge, 1978).
+ *   - **The approach** is the tail's, all of it: his checks, seen twice and he's made you, keeping
+ *     him among the grey coats. His minder weighs whoever comes within CLOSE_M of him, every
+ *     EYES_EVERY_S: his Awareness against your Deception (people round you, umbrellas in the rain, the
+ *     dark, against him; right by his man, for him). Won, his eyes are on you, which your own
+ *     Awareness may catch, until you've kept away a while (EYES_FORGET_S). An umbrella in the hand
+ *     counts as nothing in the rain, and for a little on a dry evening (umbrellaMods()).
+ *   - **The stop.** He waits at its shelter among those waiting with him (COMMUTERS) for the bus
+ *     (BUS_WAIT_S; the one you see, sim/traffic.js), and boards at its doors with them: the crowd you
+ *     want, and the minutes you have.
+ *   - **The jab** (T, the umbrella in your hand, whom you take for him within JAB_M): a sting at the
+ *     back of his thigh, and he turns. His Awareness against your Deception (to you: people round you
+ *     +1 each, up to 4; umbrellas everywhere in the rain +3, the only one on a dry evening −2; the dark
+ *     +1; the crush at the doors +2; stopped to do it −2): his, he's seen your face. His minder, if he
+ *     can see you within MINDER_SEE_M: his Awareness (his eyes already on you +5; the crowd, the rain,
+ *     the dark, the distance, against him): his, he saw it, and comes for you, a grab at GRAB_M: a
+ *     fight. Anyone else near enough to see (WITNESS_NEAR_M), now and then (WITNESS_CHANCE), remembers.
+ *   - **Away.** Walk. Clear when you're CLEAR_M from him (or he's gone) and CLEAR_S have passed with
+ *     nobody on you.
+ *   - **Outcomes:** done (how cleanly is in the notes: his look, the minder, witnesses: heat), wrong
+ *     (a grey coat that wasn't him: a stranger dies), taken (his minder had you), missed (he got on
+ *     his bus), made and lost (the tail's), off (called off).
+ */
+export const JAB_M = 1.3, CLOSE_M = 7, MINDER_KEEP_M = 4, MINDER_SEE_M = 14, EYES_EVERY_S = 5, EYES_STILL_S = 20, EYES_FORGET_S = 40, GRAB_M = 1.6;
+export const CHASE_M = 20, RUN_MS = 3.0;                           // (his minder, after you: in sight within CHASE_M, straight at you at a run)
+export const STOP_ROWS = [3, 5], BUS_WAIT_S = [80, 170], COMMUTERS = [3, 5], CLEAR_M = 40, CLEAR_S = 30;
+export const WITNESS_NEAR_M = 3.5, WITNESS_CHANCE = 0.2, FACE_HEAT = 15, MINDER_HEAT = 10, WITNESS_HEAT = 3;
+const UMBRELLA_EVENINGS = [
+  { id: 'rush', h: 18, m: 5, wary: false, w: 3, light: 'Dark, and the evening rush.' },
+  { id: 'late', h: 19, m: 25, wary: false, w: 1.5, light: 'Dark, and the streets thinning out.' },
+  { id: 'jumpy', h: 17, m: 50, wary: true, w: 1.5, light: 'Dark already, and he\'s been careful all week.' },
+];
+const DOOR_Z = -0.62;                                              // (at the bus's doors, the kerb by the shelter)
+const rowsText = (row) => (row === 0 ? 'on this street' : `${Math.abs(row) === 1 ? 'a street' : `${Math.abs(row)} streets`} ${row < 0 ? 'north' : 'south'}`);
+const rainy = (state) => ['rain', 'sleet'].includes(weatherAt(state).kind);
+/** What shows on you for his eyes and his minder's: the scene's own word on an umbrella in the hand. */
+function umbrellaMods(state) {
+  const p = state.people[state.player], out = showsMods(p).filter(m => !(m.why === 'something in your hand' && p.hand === 'umbrella'));
+  if (p.hand === 'umbrella' && !rainy(state)) out.push({ why: 'an umbrella on a dry evening', v: 1 });
+  return out;
+}
+
+/** The shelter on that street nearest x. */
+function stopNear(seed, row, x) {
+  const i0 = Math.floor(x / SECTION_M);
+  for (let k = 0; k < 14; k++) for (const i of [i0 + k, i0 - k]) {
+    const s = sectionOf(seed, row, i).props.find(p => p.kind === 'stop');
+    if (s) return s;
+  }
+  throw new Error('no stop');
+}
+
+/** Someone stood here a long while (waiting for the bus), facing the road. */
+function standing(state, r, row, x, z) {
+  const a = makeAgent(state, { seed: int(r, 1e6), row, x, z, speed: 1.2, face: 'down' });
+  const route = finish([{ row, x, z, w: 0 }, { row, x: x + 0.01, z, w: 0 }]);
+  route.stops = [{ kind: 'wait', s: route.length, ticks: 45 * 60 * TPS, face: 'down', gait: 'idle' }];
+  setRoute(state, a, route);
+  return a.id;
+}
+
+export const umbrellaTest = {
+  ...tail,
+  name: '6. The umbrella',
+  about: 'A GRU colonel who poisons defectors, his bus stop, an umbrella with a pellet in its tip. Be sure it\'s him; never run.',
+  brief(state) {
+    const sc = state.scenario, ev = eveningOf(state);
+    return {
+      title: 'THE UMBRELLA',
+      body: [
+        'Colonel Pavel Kostin, 51, GRU. In March a defector in Vienna died of what the coroner called heart failure; in July, one in Lisbon. Kostin was in both cities that week. On Friday he flies to Helsinki, and the name on his list this time is one of ours.',
+        'Nobody signs for this. Executive Order 12333 says the United States does not do it, and officially it doesn\'t. The umbrella came in a pouch addressed to no one. Its tip carries a pellet the size of a pinhead: a press against his leg, a sting like a wasp\'s, and in three days a fever no hospital in Moscow will understand.',
+        `He leaves his office at the end of the day and takes the bus home from the stop on ${streetName(townOf(state.map), sc.hit.stop.row)}, ${rowsText(sc.hit.stop.row)}. He has a minder a few paces behind him, and he was trained to look. Follow him from his door, or be at his stop before him, waiting like everyone else; and pick your moment where people crowd round him: the stop, the doors. Then walk away. Never run.`,
+        `Be sure it's him: grey coat, grey fedora, a briefcase, like a lot of men in Moscow. ${ev.light}${rainy(state) ? ' It\'s raining: everyone has an umbrella.' : ' It\'s dry: an umbrella will be noticed, a little.'}`,
+      ],
+      footer: `Station Moscow · Wednesday 4 November 2026 · ${hhmm(ev.h, ev.m)}`,
+      keys: [['instinct', 'what your instinct offers; at arm\'s length, the umbrella; calling it off'], ['watch', 'held: stop and look; on a grey coat, a close look'], ['slow', 'held: stroll'], ['log', 'the log']],
+    };
+  },
+
+  setup(state, { city = null } = {}) {
+    const r = state.rng, ev = weighted(r, UMBRELLA_EVENINGS.map(e => [e, e.w]));
+    state.time.ms = at(2026, 11, 4, ev.h, ev.m);
+    if (!state.weather) state.weather = weighted(r, [['rain', 3], ['rain-heavy', 1.5], ['', 2]]) || null;   // (rain more often than not: the umbrella's cover)
+    state.legend = { id: 'embassy', name: 'Second Secretary, US Embassy', cover: 'official', floor: 20 };
+    state.country = 'ru';
+    state.heat[heatKey('embassy', state.country)] = 20;
+    const me = handler(r);
+    me.hand = 'umbrella';
+    state.people[me.id] = me;
+    state.player = me.id;
+    state.people.orlov = sheet({ id: 'orlov', name: 'Colonel Pavel Kostin', sex: 'm', cls: 'spook', os: 25,
+      skills: { pathfinding: [11, 1], awareness: [10, 1], deception: [9, 1], social: [5, 1], cqc: [12, 1] }, langs: { ru: 'native', de: 'good', en: 'good' }, look: ORLOV_LOOK, persistent: true });
+    const looks = TWIN_LOOKS.slice();
+    for (let i = 0; i < TWINS; i++) {
+      const [look, tell] = looks.splice(int(r, looks.length), 1)[0];
+      state.people[`twin${i}`] = { ...sheet({ id: `twin${i}`, name: 'a man in a grey coat', sex: 'm', look, skills: { awareness: [2, 0] } }), tell };
+    }
+    const minderLook = streetLook(r, 'm', 34);
+    delete minderLook.carry;
+    state.people.minder = sheet({ id: 'minder', name: 'his minder', sex: 'm', cls: 'spook', os: 30, look: minderLook,
+      skills: { awareness: [11, 1], tracking: [10, 1], deception: [8, 0], cqc: [15, 1] }, langs: { ru: 'native' } });
+    state.people.minder.seen = describe(minderLook, 'm');
+    state.map = { kind: 'street', seed: seedFrom(r), row: 0, i0: null, i1: null, crowd: 1, city: city ?? undefined };
+    const seed = townOf(state.map);
+    const door = [0, 1].flatMap(i => sectionOf(seed, 0, i).doors).find(d => d.x > 14 && d.x < 26 && d.kind !== 'arch' && d.z === Z.front) ?? { x: 20 };
+    // His stop: three to five streets away, a little way along; he waits at its end, on the pavement.
+    const row = (chance(r, 0.5) ? -1 : 1) * (STOP_ROWS[0] + int(r, STOP_ROWS[1] - STOP_ROWS[0] + 1));
+    const stop = stopNear(seed, row, door.x + range(r, -150, 150)), side = chance(r, 0.5) ? -1 : 1;
+    const stand = { row, x: stop.x + side * (stop.w / 2 + 0.7), z: -1.75 };
+    const route = withEnd(withHabits(seed, planRoute(seed, { row: 0, x: door.x, z: Z.front + 0.3 }, stand, { walker: hash(seed, 'kostin'), evasive: ev.wary ? 3 : 1, rng: r }), r, ev.wary ? 'wary' : 'calm'),
+      { kind: 'bus', ticks: 45 * 60 * TPS, face: 'down', gait: 'idle' });
+    route.stops.unshift({ kind: 'leave', s: 0, ticks: 2 * TPS, face: 'down' });
+    const t = makeAgent(state, { who: 'orlov', row: 0, x: door.x, z: Z.front + 0.3, speed: range(r, 1.2, 1.35), f: range(r, -0.5, 0.5), face: 'down' });
+    setRoute(state, t, route);
+    const m = makeAgent(state, { who: 'minder', row: 0, x: door.x + 1.2, z: Z.front + 0.6, speed: 1.45, face: 'down' });
+    followTarget(state, m, t, MINDER_KEEP_M);
+    // Those waiting at his stop, about the shelter's end and in front of it.
+    const commuters = [];
+    for (let k = 0, n = COMMUTERS[0] + int(r, COMMUTERS[1] - COMMUTERS[0] + 1); k < n; k++) {
+      commuters.push(standing(state, r, row, stand.x + side * range(r, -2.6, 1.6), range(r, -2.5, -1.6)));
+    }
+    const first = route.pts.find(p => Math.abs(p.x - door.x) > 3), dirX = first ? Math.sign(first.x - door.x) : 1;
+    state.actors.unshift({ id: 'a0', who: me.id, seed: null, row: 0, x: door.x - dirX * range(r, 17, 22), z: LINE.F, vx: 0, vz: 0, face: dirX > 0 ? 'right' : 'left', head: dirX > 0 ? 0 : Math.PI, gait: 'idle', stride: 0, stuck: 0, ai: null });
+    state.scenario = {
+      kind: 'umbrella', evening: ev.id, ev, campaign: false, wary: ev.wary, phase: 'tail', target: t.id, contact: null, twins: [], meet: stand, seats: [],
+      marked: t.id, lastSeen: { row: 0, x: t.x, z: t.z, ms: state.time.ms }, lastSeenT: state.time.ms, unseenS: 0, keepS: 0, findS: 0, startX: door.x,
+      alert: ev.wary ? 25 : 0, sightings: [], scan: null, lastScanMs: null, tell: null, shop: null, warned: 0, mixups: 0, stillS: 0, mirrorMs: -1e12, gap: [],
+      witnessS: 0, meetS: 0, closest: 1e9, farthest: 0, prompt: null, outcome: null, lead: null, rolls: 0, began: state.time.ms, turn: null,
+      streets: route.rows, routeM: Math.round(route.length), markUntil: state.time.ms + MARKER_S * 1000, lookAt: null, looked: {},
+      hit: { stop: { row, x: stop.x, w: stop.w }, stand, minder: m.id, commuters, eyes: 0, eyesAt: 0, eyesSeen: false, away: 0, waiting: false, busAt: null, busId: undefined,
+        boarding: 0, gone: 0, releaseAt: null, done: null, chased: false, loud: false, witnesses: 0, clearS: 0 },
+    };
+    // (autoplay: the player's character is the game's own follower, as in the tail)
+    if (state.autoplay) {
+      const mePlace = state.actors[0];
+      Object.assign(mePlace, { ai: { kind: 'agent', route: null, s: 0, stop: 0, wait: 0, speed: 1.45, f: 0, f0: 0 } });
+      followTarget(state, mePlace, t, state.autoplay.keep ?? 20);
+    }
+    say(state, null, { kind: 'note', text: `${me.name}. ${hhmm(ev.h, ev.m)}, on the pavement down from Kostin's office, an umbrella in your hand. ${ev.light}` });
+  },
+
+  act(state, bus, action) {
+    const sc = state.scenario, me = playerOf(state);
+    if (!me || sc.outcome) return;
+    if (action === 'instinct' && sc.prompt?.act === 'jab') return jab(state, bus, me);
+    if (action === 'instinct' && sc.prompt?.act === 'abort') return end(state, bus, 'off', 'You walk past him, and keep walking. There may be another evening. There may never have been one.');
+    if (sc.hit.done && action === 'instinct' && !sc.prompt?.act) return say(state, bus, { kind: 'instinct', text: 'Nothing to do now but walk.' });
+    return tail.act(state, bus, action);
+  },
+
+  tick(state, bus) {
+    const sc = state.scenario, h = sc.hit;
+    if (sc.outcome) return;
+    if (sc.after) return tail.tick(state, bus);
+    // (once it's done, his checks and keeping him are behind you: there's only getting away)
+    if (h.done) { busTick(state, bus); if (state.tick % TPS === 0) away(state, bus); return; }
+    if (!actorOf(state, sc.target)) return end(state, bus, 'missed', 'The bus pulls away with him on it, his umbrella dripping on its floor. Friday he flies to Helsinki.');
+    tail.tick(state, bus);
+  },
+
+  /** Where you're going, for the picture's edge: his stop, until it's done. */
+  goal(state) {
+    const sc = state.scenario, h = sc.hit, me = playerOf(state);
+    if (h.done || !me) return null;
+    const dr = h.stop.row - state.map.row;
+    return { row: h.stop.row, x: h.stand.x, z: h.stand.z, label: `his stop · ${dr ? rowsText(dr) : `${Math.round(Math.abs(h.stand.x - me.x))} m`}` };
+  },
+
+  /** His minder's grab, and how it ends: down, you walk on (loudly); you down, taken. */
+  onFightEnd(state, bus, f) {
+    const sc = state.scenario, m = actorOf(state, sc.hit.minder);
+    if (f.ended.by === 'a') {
+      if (m) { delete m.ai.follow; m.ai.downUntil = state.time.ms + 10 * 60000; }
+      sc.hit.chased = false; sc.hit.loud = true;
+      say(state, bus, { kind: 'note', text: 'He\'s down, and people are looking. Walk. Now.' });
+    } else end(state, bus, state.people[state.player].dead ? 'dead' : 'taken', 'An arm round your throat, your face on the wet pavement, his knee in your back, and a car with no markings already at the kerb. Whatever becomes of Kostin now, you go nowhere for a long time.');
+  },
+
+  result(state) {
+    const sc = state.scenario, h = sc.hit, d = h.done;
+    const stamp = { done: 'DONE', wrong: 'WRONG MAN', taken: 'TAKEN', missed: 'MISSED', made: 'MADE', lost: 'LOST', off: 'CALLED OFF', dead: 'DEAD' }[sc.outcome] ?? sc.outcome;
+    const notes = [];
+    if (d && !d.wrong) {
+      notes.push('By midnight he has a fever of forty. On Saturday the doctors at the Burdenko call it sepsis of unknown origin; on Sunday he dies. Nobody flies to Helsinki.');
+      if (d.face) notes.push('He saw your face when he turned. Before the fever took his words he described it, carefully, to a man from his own service.');
+      if (d.minder) notes.push(h.loud ? 'His minder saw it, and you put him on the pavement in front of half the street.' : 'His minder saw it. A description of you is on every desk at the Aquarium by morning.');
+      if (h.witnesses) notes.push(`${h.witnesses === 1 ? 'Someone' : `${h.witnesses} people`} at the stop remembered a stranger with an umbrella.`);
+      if (!d.face && !d.minder && !h.witnesses) notes.push('Nobody connected the wasp in November with the stranger who said sorry.');
+    }
+    if (d?.wrong) notes.push(`It wasn't him: ${d.tell}. On Sunday a retired engineer dies of a fever the doctors can't name. Colonel Kostin flies to Helsinki on Friday.`);
+    notes.push(`The way to his stop: ${sc.streets} streets, ${sc.routeM} m. ${sc.sightings.length ? `He saw your face ${sc.sightings.length === 1 ? 'once' : 'twice'} on the way.` : 'He never saw your face on the way.'}${h.eyesSeen ? ' His minder had his eyes on you, and you knew it.' : h.eyes ? ' His minder had his eyes on you.' : ''}`);
+    return {
+      stamp, good: sc.outcome === 'done', title: 'THE UMBRELLA', text: sc.endText, notes,
+      stats: `${Math.round(((sc.ended ?? state.time.ms) - sc.began) / 60000)} min · ${sc.rolls} rolls (in the log, J)`,
+    };
+  },
+};
+
+/** The bus: sent for when he's waited his while; he and the others crowd to its doors and are gone. */
+function busTick(state, bus) {
+  const sc = state.scenario, h = sc.hit, now = state.time.ms;
+  if (!h.waiting || h.gone) return;
+  const here = state.map.row === h.stop.row;
+  if (here && h.busId === undefined && now >= h.busAt - busLeadMs(state, h.stop)) { const id = sendBus(state, h.stop, h.busAt); if (id || now >= h.busAt) h.busId = id; }
+  const come = h.busId ? pulledIn(state, h.busId) : now >= h.busAt;
+  const riders = [sc.target, h.chased ? null : h.minder, ...h.commuters].filter(Boolean);
+  if (come && !h.boarding) {
+    h.boarding = now;
+    for (const id of riders) {
+      const a = actorOf(state, id);
+      if (!a) continue;
+      delete a.ai.follow;
+      const x = h.stop.x + range(state.rng, -0.4, 0.4);
+      const route = finish([{ row: h.stop.row, x: a.x, z: a.z, w: 0 }, { row: h.stop.row, x: a.x, z: DOOR_Z, w: 0 }, { row: h.stop.row, x, z: DOOR_Z, w: 0 }]);
+      route.stops = [];
+      setRoute(state, a, route);
+    }
+    if (here) say(state, bus, { kind: 'note', text: 'The bus pulls in and the doors fold open. They crowd to them.' });
+  }
+  if (!h.boarding) return;
+  for (const id of riders) {
+    const a = actorOf(state, id);
+    if (a && (Math.hypot(a.x - h.stop.x, a.z - DOOR_Z) < 0.7 || (!here && now - h.boarding > 20000))) state.actors = state.actors.filter(o => o !== a);
+  }
+  if (!actorOf(state, sc.target) && !h.gone) { h.gone = now; h.releaseAt = now + 3000; }
+  if (h.releaseAt && now >= h.releaseAt) { if (h.busId) release(state, h.busId); h.releaseAt = null; }
+}
+
+/** Once a second, before it's done: the bus, and his minder's eyes on whoever comes close. */
+function hitSecond(state, bus, me, t, d) {
+  const sc = state.scenario, h = sc.hit, now = state.time.ms, m = actorOf(state, h.minder);
+  busTick(state, bus);
+  // (someone waiting at the stop like the others is weighed now and then; someone coming close, often)
+  if (m && rowOf(state, m) === rowOf(state, me) && d < CLOSE_M && seesActor(state, m, me) && now - h.eyesAt >= (atStop(state, me) ? EYES_STILL_S : EYES_EVERY_S) * 1000) {
+    h.eyesAt = now;
+    const dm = Math.hypot(m.x - me.x, m.z - me.z), crowd = crowdAround(state, me, 2.5);
+    const r = opposed(state.rng, { skill: 'awareness', value: skill(state.people.minder, 'awareness'), body: state.people.minder,
+      mods: [h.eyes && { why: 'his eyes already on you', v: 3 }, d < 3 && { why: 'right by his man', v: 2 }, crowd ? { why: 'people round you', v: -Math.min(4, crowd) } : !atStop(state, me) && Math.hypot(me.vx, me.vz) > 0.3 && { why: 'walking up behind his man on an empty pavement', v: 2 },
+        rainy(state) && { why: 'umbrellas everywhere', v: -2 }, lightBand(lightHere(state, me.x, me.z)) === 'dark' && { why: 'the dark', v: -2 }, dm > 8 && { why: 'a way off', v: -1 },
+        atStop(state, me) && { why: 'waiting at the stop like the others', v: -2 }, ...umbrellaMods(state)].filter(Boolean) },
+    { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] });
+    sc.rolls++;
+    say(state, bus, { kind: 'roll', roll: r, hidden: true, text: r.ok ? 'His minder\'s eyes settle on you, and stay.' : 'His minder\'s eyes pass over you.' });   // (his roll first: ok, he won)
+    if (r.ok) {
+      const fresh = !h.eyes;
+      h.eyes = now;
+      if (fresh) {
+        const c = check(state.rng, { skill: 'awareness', value: skill(state.people[state.player], 'awareness'), body: state.people[state.player], dc: 12 });
+        sc.rolls++;
+        h.eyesSeen = c.ok;
+        if (c.ok) say(state, bus, { kind: 'roll', roll: c, text: `${cap(state.people.minder.seen)}, a pace behind him, is watching you. Not the street: you.` });
+        strain(state, bus, 6);
+      }
+    }
+  }
+  // (kept away a while, out of mind)
+  if (h.eyes && (d > 15 || rowOf(state, t) !== rowOf(state, me))) { if (++h.away >= EYES_FORGET_S) { h.eyes = 0; h.eyesSeen = false; h.away = 0; } } else h.away = 0;
+}
+
+/** T at arm's length: the umbrella. */
+function jab(state, bus, me) {
+  const sc = state.scenario, h = sc.hit, p = state.people[state.player], v = actorOf(state, sc.marked), now = state.time.ms;
+  if (!v || p.hand !== 'umbrella' || state.fight || h.done || Math.hypot(v.x - me.x, v.z - me.z) > JAB_M) return;
+  const him = state.people[v.who] ?? state.people.orlov, wrong = v.id !== sc.target, m = actorOf(state, h.minder);
+  const crowd = near(state, me.x, me.z, 2.5).filter(o => o !== me && o !== v && !o.hidden).length;
+  const doors = h.boarding && Math.hypot(me.x - h.stop.x, me.z - DOOR_Z) < 4, stopped = Math.hypot(me.vx, me.vz) < 0.2, dark = lightBand(lightHere(state, me.x, me.z)) === 'dark';
+  const yours = [crowd ? { why: 'people round you', v: Math.min(4, crowd) } : { why: 'nobody round you but him', v: -3 }, rainy(state) ? { why: 'umbrellas everywhere', v: 3 } : { why: 'the only umbrella on a dry evening', v: -2 },
+    dark && { why: 'the dark', v: 1 }, doors && { why: 'the crush at the doors', v: 2 }, stopped && { why: 'you stopped to do it', v: -2 }].filter(Boolean);
+  // He feels it, and turns: does he see who?
+  const felt = opposed(state.rng, { skill: 'deception', value: skill(p, 'deception'), body: p, mods: yours }, { skill: 'awareness', value: skill(him, 'awareness'), body: him });
+  sc.rolls++;
+  const face = !felt.ok;
+  say(state, bus, { kind: 'roll', roll: felt, text: face ? 'A press of the tip against the back of his thigh. He flinches and turns, and his eyes find your face. "Izvinite," you say, and he looks a second too long.'
+    : 'A press of the tip against the back of his thigh, the crowd shifting round you both. He flinches, rubs his leg, looks for the wasp in November. You\'re already moving on.' });
+  // His minder: did he see it?
+  let minder = false;
+  if (!wrong && m && rowOf(state, m) === rowOf(state, me) && Math.hypot(m.x - me.x, m.z - me.z) < MINDER_SEE_M && seesActor(state, m, me)) {
+    const dm = Math.hypot(m.x - me.x, m.z - me.z);
+    const r = opposed(state.rng, { skill: 'awareness', value: skill(state.people.minder, 'awareness'), body: state.people.minder,
+      mods: [h.eyes && { why: 'his eyes already on you', v: 5 }, crowd ? { why: 'people between', v: -Math.min(4, crowd) } : { why: 'an empty pavement', v: 3 }, dm < 3 && { why: 'right by him', v: 2 }, rainy(state) && { why: 'umbrellas everywhere', v: -2 },
+        dark && { why: 'the dark', v: -2 }, dm > 6 && { why: 'a way off', v: -Math.round((dm - 6) / 3) }].filter(Boolean) },
+    { skill: 'deception', value: skill(p, 'deception'), body: p, mods: yours.filter(y => y.why !== 'people round you' && y.why !== 'nobody round you but him') });
+    sc.rolls++;
+    minder = r.ok;                                                    // (his roll first: ok, he won)
+    say(state, bus, { kind: 'roll', roll: r, hidden: !minder, text: minder ? `His minder saw your hand, and the umbrella's tip. He's coming.` : 'His minder\'s looking at the bus.' });
+  }
+  // Anyone else near enough to have seen.
+  for (const o of near(state, me.x, me.z, WITNESS_NEAR_M)) if (o !== me && o !== v && o !== m && !o.hidden && seesActor(state, o, me) && chance(state.rng, WITNESS_CHANCE)) h.witnesses++;
+  h.done = { ms: now, who: v.id, wrong, tell: wrong ? state.people[v.who]?.tell : null, face, minder };
+  strain(state, bus, 12);
+  if (face) addHeat(state, FACE_HEAT);
+  if (h.witnesses) addHeat(state, WITNESS_HEAT * h.witnesses);
+  if (minder) {
+    h.chased = true; addHeat(state, MINDER_HEAT);
+    m.ai.speed = 2.2;
+    followTarget(state, m, me, 0);
+  }
+}
+
+/** After it: walk away. Clear far enough from him with nobody on you a while; his minder, if he saw, comes for you. */
+function away(state, bus) {
+  const sc = state.scenario, h = sc.hit, me = playerOf(state), t = actorOf(state, sc.target), m = actorOf(state, h.minder);
+  if (!me || state.fight) return;
+  const sameRow = m && rowOf(state, m) === rowOf(state, me), dm = m ? Math.hypot(m.x - me.x, m.z - me.z) : 99;
+  if (h.chased && m && (sameRow ? !m.ai.follow?.lost || dm < CHASE_M : false)) {
+    if (dm <= GRAB_M && !me.hidden) {
+      speak(state, bus, m.id, 'A hand like a vice on your arm. "Stoi."', 'A hand like a vice on your arm.');
+      beginFight(state, bus, m, { style: 'wrestler', owner: 'umbrella' });
+      return;
+    }
+    // (in sight and near: straight at you, running; out of sight, after your trail, which can lose you)
+    if (dm < CHASE_M && !me.hidden && seesActor(state, m, me)) {
+      delete m.ai.follow;
+      m.ai.speed = RUN_MS;
+      setRoute(state, m, finish([{ row: rowOf(state, m), x: m.x, z: m.z, w: 0 }, { row: rowOf(state, m), x: me.x, z: me.z, w: 0 }]));
+    } else if (!m.ai.follow) { m.ai.speed = 2.2; followTarget(state, m, me, 0); }
+    h.clearS = 0;
+  } else {
+    if (h.chased && (!m || m.ai.follow?.lost || rowOf(state, m) !== rowOf(state, me))) h.chased = false;
+    const far = !t || rowOf(state, t) !== rowOf(state, me) || Math.hypot(t.x - me.x, t.z - me.z) > CLEAR_M;
+    h.clearS = far || state.time.ms - h.done.ms > 90000 ? h.clearS + 1 : 0;
+  }
+  sc.prompt = settle(sc.prompt, [h.chased && m ? { id: 'chased', tone: 'urgent', text: `His minder's after you, ${Math.round(Math.hypot(m.x - me.x, m.z - me.z))} m back. Lose him: people, a lane, a shop's back door, a bus. Or turn and fight.`, act: null, at: m.id }
+    : me.gait === 'run' ? { id: 'run', tone: 'urgent', text: 'Don\'t run. A running man is a man who did something.', act: null }
+    : { id: 'walk', tone: 'warn', text: 'Walk. Don\'t look back, don\'t hurry. Away from him.', act: null }], state.time.ms);
+  if (h.clearS >= CLEAR_S) end(state, bus, h.done.wrong ? 'wrong' : 'done', h.done.wrong ? 'You walk away into the evening with an umbrella and a clear conscience you haven\'t earned.' : h.loud ? 'You walk away fast, your coat torn, half the street looking after you.' : 'You walk away into the evening, an umbrella over your head like everyone else\'s.');
+}
+
+/** Whether actor a is waiting at his stop (in its shelter, or stood by it). */
+const atStop = (state, a) => { const h = state.scenario.hit; return state.map.row === h.stop.row && Math.abs(a.x - h.stop.x) < h.stop.w / 2 + 4 && a.z > -3.2 && a.z < -0.3 && Math.hypot(a.vx, a.vz) < 0.3; };
+
+/** The instinct's own lines for the umbrella, ahead of the tail's (yielded first: the most pressing win). */
+function* hitInstinct(state, me, t, d) {
+  const sc = state.scenario, h = sc.hit, p = state.people[state.player], v = sc.marked && actorOf(state, sc.marked);
+  const L = (id, tone, text, act = null, extra = {}) => ({ id, tone, text, act, ...extra });
+  if (p.hand !== 'umbrella') { yield L('no-umbrella', 'warn', 'The umbrella isn\'t in your hand. Without it there\'s nothing to do here but follow.'); return; }
+  const dv = v ? Math.hypot(v.x - me.x, v.z - me.z) : 99, around = v ? crowdAround(state, v, 3) : 0;
+  if (v && dv <= JAB_M && !v.hidden) {
+    yield L('jab', 'urgent', h.eyes && h.eyesSeen ? 'Arm\'s length, and his minder\'s watching you. {instinct} the umbrella now and he\'ll see it.' : around >= 2 || h.boarding ? 'Arm\'s length, people round you both. {instinct} the umbrella: a press, and walk on.' : 'Arm\'s length, and nobody round you. {instinct} the umbrella, if it has to be here.', 'jab', { at: v.id });
+  }
+  if (h.eyesSeen && d < 15) yield L('eyes', 'warn', 'His minder\'s eyes are on you. Drop back and let him forget you, or {instinct} call it off.', 'abort');
+  if (h.boarding && actorOf(state, sc.target)) yield L('doors', 'urgent', 'The doors are open and they\'re crowding to them. Now or never: close in behind him.');
+  if (h.waiting && !h.boarding && d < 25 && rowOf(state, t) === rowOf(state, me)) yield L('stop', 'warn', around >= 2 ? 'He\'s waiting for his bus, people round him. Close in among them, behind him.' : 'He\'s at his stop. Wait for others to gather, or the doors.');
+  // (at his stop, not seeing him: he'll come; nothing of the tail's about having lost him)
+  if (!sc.marked && atStop(state, me) && !h.boarding) yield L('wait-stop', 'warn', h.waiting ? 'He should be here. Grey coat, fedora, briefcase: which one is he? Hold {watch} on a grey coat for a close look.' : 'His stop. Wait like everyone else: he\'ll come. Pick him out when he does: grey coat, fedora, the briefcase.');
+  if (sc.sightings.length && d < 30) yield L('seen-once', 'warn', 'He\'s seen your face once. Again and he\'s gone. Or {instinct} call it off.', 'abort');
+  if (v && dv < 9 && !h.waiting) yield L('close-street', 'warn', around >= 2 ? 'Close, with people round him. Ease in behind, if you mean it here.' : 'Close, and the pavement\'s thin. Not here: his stop, the crowd at the doors.');
 }

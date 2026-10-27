@@ -18,11 +18,11 @@
 // is an assignment's context when it's run from a campaign (sim/campaign.js context()): the character,
 // the city, the time, its people; state.campaign is the campaign itself, riding along.
 import { walk } from './walk.js';
-import { tail } from './tail.js';
+import { tail, umbrellaTest } from './tail.js';
 import { sdr, brushTest, dropTest } from './sdr.js';
 import { dojoScenario } from './dojo.js';
 import { campaignHub } from './campaign.js';
 import { hunted } from './hunted.js';
 import { watchTest } from './watch.js';
 
-export const SCENARIOS = { walk, dojo: dojoScenario, tail, sdr, watch: watchTest, hunted, brush: brushTest, drop: dropTest, campaign: campaignHub };
+export const SCENARIOS = { walk, dojo: dojoScenario, tail, sdr, watch: watchTest, hunted, brush: brushTest, drop: dropTest, umbrella: umbrellaTest, campaign: campaignHub };

@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc19 (2026-10-27)
+
+- **Mechanic test 6: the umbrella.** An assassination, Cold War style. Colonel Pavel Kostin of the GRU has poisoned two defectors abroad and flies out on Friday for a third. Nobody signs for it; an umbrella with a pellet in its tip came in a pouch addressed to no one. He walks from his office to his bus stop, his minder a few paces behind. Tail him from his door, or be at his stop first, waiting like everyone else, and pick him out from the grey coats when he comes. At arm's length, T: a press of the tip against his leg, a sting like a wasp's. Where you do it is everything: alone with him on an empty pavement, he turns and sees your face and his minder sees your hand two times in three; among the people at his stop in the rain, rarely. Then walk away, and never run. If his minder saw, he comes for you. Be sure it's him: a grey coat that isn't him is a stranger who dies on Sunday.
+- **Fixed: some watchers' rolls were read the wrong way round.** In the watch test, the minder made you when he *failed* to notice you; in the brush pass and the dead drop, a watcher who saw it was told he hadn't. Now they read right. The watch test's results barely moved; the brush pass is now safer against a covert team than the dead drop, as it should be.
+
 ## v0.1.0-rc18 (2026-10-27)
 
 - **Pockets by volume.** Everything you carry has a length and a bulk, and goes where it fits: the trousers' pockets (a penknife, a box cutter), a coat's or a jacket's two pockets and its inside one (a bottle, a finka, half a brick), the beltline (a kitchen knife, a hammer: one thin thing in each of two places). A pipe, a crowbar, a shovel: the hand or the ground. No coat, no coat pockets. I shows where each thing is and the room left.

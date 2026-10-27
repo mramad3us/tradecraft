@@ -136,7 +136,7 @@ export const watchTest = {
         sc.rolls++;
         const roll = opposed(state.rng, { skill: 'awareness', value: skill(state.people.minder, 'awareness'), body: state.people.minder, mods: [{ why: 'a face at the window of the very café', v: 4 }] },
           { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] });
-        if (!roll.ok) made(state, bus, roll, 'at the café\'s own window');
+        if (roll.ok) made(state, bus, roll, 'at the café\'s own window');   // (his roll first: ok, he won)
       }
     }
     if (phase === 'end' && sc.phase === 'meet') { sc.phase = 'after'; sc.meetEnd = state.time.ms; }
@@ -224,7 +224,7 @@ function minderLooks(state, bus, me, m) {
   const roll = opposed(state.rng, { skill: 'awareness', value: skill(state.people.minder, 'awareness'), body: state.people.minder,
     mods: [...reasons, crowd && { why: 'people round you', v: -Math.min(3, crowd) }, light === 'dark' && { why: 'the dark', v: -3 }, d > 20 && { why: 'at a distance', v: -2 }, ...showsMods(state.people[state.player]), ...weatherMods(state)].filter(Boolean) },
   { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] });
-  if (!roll.ok) return made(state, bus, roll, reasons[0].why);
+  if (roll.ok) return made(state, bus, roll, reasons[0].why);   // (his roll first: ok, he won)
   tell(state, bus, { kind: 'roll', roll, hidden: true, text: `The man across the road looks you over, and moves on.` });
 }
 
@@ -267,7 +267,7 @@ function photograph(state, bus, me) {
     sc.rolls++;
     const r2 = opposed(state.rng, { skill: 'awareness', value: skill(state.people.minder, 'awareness'), body: state.people.minder, mods: [{ why: 'a camera raised', v: 6 }] },
       { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] });
-    if (!r2.ok) made(state, bus, r2, 'a camera raised');
+    if (r2.ok) made(state, bus, r2, 'a camera raised');
   }
 }
 
