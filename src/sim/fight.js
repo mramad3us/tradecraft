@@ -10,6 +10,9 @@
 // hears of each exchange and of the end (scenario.onExchange(state, bus, out), onFightEnd(state, bus,
 // f)); without one (a brawl), the end is the engine's (sim/interact.js afterFight()).
 // While a fight is on, the player's feet are the fight's: the move keys do nothing.
+// A fight reads them as it goes (the user, 2026-10-26: "during combat it should automatically do READ
+// against our opponent"; sim/know.js read()): as you square up, and every READ_EVERY exchanges after;
+// F shows the read (src/main.js). A drill (a script) reads nobody.
 // At the end, whoever is out cold or down lies there (OUT_S; the dead for good, sim/game.js), and a
 // player dead is the scene's end, if the scene hasn't ended it its own way ('dead': the engine's paper,
 // sim/game.js deathPaper()).
@@ -19,8 +22,10 @@ import { animate, length } from './cqcshow.js';
 import { say } from './log.js';
 import { headOf } from './perception.js';
 import { canStand } from './health.js';
+import { read } from './know.js';
 
 export const FIGHT_GAP_M = 1.5;
+export const READ_EVERY = 4;
 
 /**
  * The instinct on how things stand (the user, 2026-10-26: "instinct reminders about dazed (us or
@@ -75,6 +80,7 @@ export function begin(state, bus, them, opts = {}) {
   f.phase = 'choose';
   me.busy = null; me.glass = false;
   if (them.ai) them.ai.fighting = true;
+  if (!f.script) readThem(state, bus, them, 'as you square up');
   return f;
 }
 
@@ -96,6 +102,8 @@ export function exchange(state, bus, ours, scene) {
   f.shown = state.tick;
   f.until = state.tick + length(state, f, out);
   hooksOf(f, scene)?.onExchange?.(state, bus, out);
+  const them = actorOfWho(state, f.b);
+  if (!f.script && !f.ended && f.round % READ_EVERY === 0 && them) readThem(state, bus, them, 'between blows');
   return out;
 }
 
@@ -112,6 +120,15 @@ export function tick(state, bus, scene) {
   animate(state, f, sides);
   if (f.flip) for (const s of ['a', 'b']) if (sides[s]) { sides[s].face = sides[s].face === 'right' ? 'left' : 'right'; sides[s].head = headOf(sides[s].face); sides[s].x = 2 * f.marks[s].x - sides[s].x; }
 }
+
+/** The fight's read of them (an Analysis check, kept: sim/know.js), a line in the log. */
+function readThem(state, bus, them, when) {
+  const me = playerOf(state);
+  if (!me || !them.who || them.who === state.player) return;
+  const { roll } = read(state, me, them), n = shortName(state, them.who);
+  say(state, bus, { kind: 'roll', roll, text: roll.ok ? `You read ${n} ${when}: how ${pronoun(state, them.who)} stands, the hands, the eyes. (F: your read)` : `You try to read ${n} ${when}, and get little.` });
+}
+const pronoun = (state, who) => (state.people[who]?.sex === 'f' ? 'she' : 'he');
 
 function end(state, bus, scene) {
   const f = state.fight;

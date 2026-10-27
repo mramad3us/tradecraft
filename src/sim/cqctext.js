@@ -29,7 +29,7 @@ const DOES = {
   sweep: [['you reach for {his} sleeve and sweep the leg', 'you hook a foot behind {his} heel', 'you go for the sweep'], ['{n} reaches for your sleeve and sweeps', '{n} hooks a foot behind your heel', '{n} goes for the sweep']],
   armlock: [['you trap an arm and turn it', 'you go for the arm', 'you catch {his} wrist and wind it up'], ['{n} traps your arm and turns it', '{n} goes for the arm', '{n} catches your wrist and winds it up']],
   choke: [['you slip behind and go for the neck', 'you get a forearm across {his} throat', 'you go for the choke'], ['{n} slips behind you for the neck', '{n} gets a forearm across your throat', '{n} goes for the choke']],
-  block: [['you cover', 'you put your forearms up', 'you tuck in behind your hands'], ['{n} covers', '{n} gets the forearms up', '{n} tucks in behind both hands']],
+  block: [['you cover', 'you bring both hands up', 'you tuck in behind your hands'], ['{n} covers', '{n} brings both hands up', '{n} tucks in behind both hands']],
   parry: [['you wait for it, hands loose', 'you set to parry', 'you keep your hands soft, ready'], ['{n} waits, hands loose', '{n} sets to parry', '{n} keeps the hands soft']],
   slip: [['you stay loose, chin down', 'you weave, ready to slip it', 'you sit back on your heels'], ['{n} stays loose, chin down', '{n} weaves', '{n} sits back on the heels, light']],
   open: [['you can\'t make your hands do anything', 'you stand there, dazed', 'your arms don\'t answer'], ['{n} stands there, dazed', '{n}\'s hands hang', '{n} isn\'t there behind the eyes']],
@@ -42,6 +42,8 @@ const COVERED = {
   slip: [['and it hisses past your ear', 'and slip it by an inch', 'and it finds air where your head was'], ['and slips it by an inch', 'and it hisses past {his} ear', 'and it finds air where {his} head was']],
 };
 const EDGE = [' An edge to you.', ' That\'s an opening earned.', ' You bank the opening.'];
+const TAKEN = [[' That takes {n}\'s edge away.', ' {n}\'s edge is gone.', ' That evens it: {n}\'s edge, spent for nothing.'],
+  [' That takes your edge away.', ' Your edge is gone.', ' Your edge, gone for nothing.']];
 const EDGE_THEM = [' An edge to {n}.', ' {n} banks the opening.', ' {n} has one on you now.'];
 
 // What a blow does, as it looks on them (by part and severity) and as it feels on you.
@@ -130,14 +132,16 @@ export function exchangeText(out, name, p, salt = 0) {
     case 'circle': text = `${does('b')}; ${does('a')}. ${pick(CIRCLE, 3)}`; break;
     case 'blocked': {
       const cover = us ? out.tech.a : out.tech.b;
-      text = us ? `${does('b')}; ${does('a')}, ${pick((COVERED[cover] ?? COVERED.block)[0], 4)}.${out.gained === 'a' ? pick(EDGE, 5) : ''}`
-        : `${does('a')}; ${does('b')}, ${pick((COVERED[cover] ?? COVERED.block)[1], 4)}.${out.gained === 'b' ? pick(EDGE_THEM, 5) : ''}`;
+      text = us ? `${does('b')}; ${does('a')}, ${pick((COVERED[cover] ?? COVERED.block)[0], 4)}.${out.gained === 'a' ? pick(EDGE, 5) : out.taken === 'b' ? pick(TAKEN[0], 5) : ''}`
+        : `${does('a')}; ${does('b')}, ${pick((COVERED[cover] ?? COVERED.block)[1], 4)}.${out.gained === 'b' ? pick(EDGE_THEM, 5) : out.taken === 'a' ? pick(TAKEN[1], 5) : ''}`;
       break;
     }
     case 'landed': {
       const part = PART[out.part], s = sev(out.force);
-      text = us ? `${does('b')}; ${does('a')}, and ${pick(LOOKS[part][s], 6)}.${out.spent.a ? ' Your edge spent: it lands double.' : ''}`
-        : `${does('b')}; ${does('a')}, and it lands. ${pick(FEELS[part][s], 6)}${out.spent.b ? ' {n} spent an edge on that one.' : ''}`;
+      // (the winner's move last, so 'it lands' is theirs; two hits, whose was first)
+      const both = out.ours === 'hit' && out.theirs === 'hit';
+      text = us ? `${does('b')}; ${does('a')}, and ${both ? 'yours lands first: ' : ''}${pick(LOOKS[part][s], 6)}.${out.spent.a ? ' Your edge spent: it lands double.' : ''}`
+        : `${does('a')}; ${does('b')}, and ${both ? `{his} lands first` : 'it lands'}. ${pick(FEELS[part][s], 6)}${out.spent.b ? ' {n} spent an edge on that one.' : ''}`;
       break;
     }
     case 'riposte': {

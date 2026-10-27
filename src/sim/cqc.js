@@ -11,7 +11,9 @@
 // A hit lands on a part (HIT_AT) for HIT_PTS, and EDGE_PER_PT more for each point of CQC the hitter
 // has over the other; damage goes on the body (sim/health.js), and what it hurts costs that fighter's
 // CQC from the next exchange on, shown in the rolls.
-// **Advantage points** (the design's): one for each hit guarded, held up to one per 10 CQC (at least
+// **Advantage points** (the design's; zero-sum, the user: "when gaining advantage if the opponent has
+// points, it should remove their points before adding some to us"): a hit guarded takes one of
+// theirs away if they hold any, and only then earns one; held up to one per 10 CQC (at least
 // one). One is spent with a move (Shift held), and only if it does something: with a hit, the hit
 // does double if it lands; with a grapple, a hit taken does nothing; with a guard, a grapple is
 // fended off (no throw).
@@ -258,7 +260,8 @@ export function resolve(state, f, ours) {
       out.status[l] = 'dazed';
     } else if (win === 'guard') {                                   // a hit, guarded (parried, slipped: off balance, perhaps)
       out.kind = 'blocked';
-      if (f.adv[w] < advMax(state, W)) { f.adv[w]++; out.gained = w; }
+      if (f.adv[l] > 0) { f.adv[l]--; out.taken = l; }                // (zero-sum: theirs goes first)
+      else if (f.adv[w] < advMax(state, W)) { f.adv[w]++; out.gained = w; }
       if (T?.stagger && chance(r, T.stagger)) out.status[l] = 'staggered';
     } else if (win === 'grapple') {                                 // a throw, a shove, a lock, a choke
       if (lose === 'guard' && wants[l]) { f.adv[l]--; out.spent[l] = true; out.kind = 'fended'; }

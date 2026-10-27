@@ -4,6 +4,17 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.44 (2026-10-26)
+
+- **Women and men no longer share a haircut** (your report: him against her looked like him against him): women's hair is long or up in a bun, men's short (or gone); a woman's short cut was a man's. More cuts each side come next.
+- **F reads "Interact"** in the keys bar (your ask).
+- **Edges are zero-sum** (your ask): a block takes one of their edges away first, if they hold any; only then does it earn you one. The line says so ("That takes Price's edge away").
+- **The log's lines at the top left linger twice as long** (your ask): 16 s, then they fade.
+- **A fight reads them for you** (your ask): an Analysis check as you square up, and another every four exchanges, each narrowing what you know of them (it's in the log, with the roll). F in a fight opens your read of them, their sheet as you guess it; F again closes it. Drills read nobody.
+
+- **Fixed: who landed what** (your report). When they won an exchange, the line read "Price fires a cross; you throw a straight right, and it lands", as if yours had. Now the winner's move comes last ("You throw a straight right; Price fires a cross, and it lands"), and two hits say whose landed first. A cover no longer says forearms twice ("gets the forearms up, and takes it on the forearms").
+- **The illegal speaks Russian like a native** (your note): in Moscow, years on, your Russian is native, no accent, nothing. DESIGN.md has it as a rule for illegals.
+
 ## v0.0.43 (2026-10-26)
 
 - **Fight enders** (your design). When they're stunned and you hold an edge, Shift with a move tries to end it: a CQC check against their CQC and Fitness (about 3 in 4 between equals). A hit knocks them out. A grab breaks an arm or a leg if you're good enough (CQC 21), or else it's a wild charge that slams them into the floor. Failed, it still hits twice as hard and nearly always breaks something: a crack, or a new, worse injury, a fracture (a broken jaw, an eye socket, ribs, a forearm, a shin: six weeks). A knockout or a slam can kill: rarely someone fresh (2%), far more often someone already beaten up (about 1 in 7 at 60%). The move panel shows it in red when it's there to take. They'll do it to you, too, in a real fight.

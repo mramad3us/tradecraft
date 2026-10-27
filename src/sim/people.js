@@ -77,7 +77,8 @@ const SHOES = [0x14151c, 0x2a1c18, 0x47302a, 0x23252f];
 export function streetLook(r, sex, age = 40) {
   const grey = age > 55 && chance(r, 0.7);
   const hairColor = grey ? pick(r, [0x8f96a6, 0xdfe2e8, 0xb8bdc8]) : pick(r, HAIR.slice(0, 6));
-  const style = sex === 'f' ? weighted(r, [['long', 4], ['bun', 3], ['short', 1]]) : weighted(r, [['short', 8], ['bald', age > 45 ? 2 : 0.3]]);
+  // (women's hair and men's never the same cut, so who's who reads at a glance: the user, 2026-10-26)
+  const style = sex === 'f' ? weighted(r, [['long', 4], ['bun', 3]]) : weighted(r, [['short', 8], ['bald', age > 45 ? 2 : 0.3]]);
   const look = { skin: weighted(r, SKINS), hair: { style, color: hairColor } };
   const top = sex === 'f' ? weighted(r, [['coat', 6], ['sweater', 2], ['dress', 1.2], ['suit', 0.6]]) : weighted(r, [['coat', 6], ['sweater', 2], ['suit', 1.5], ['tee', 0.3]]);
   const color = top === 'coat' || top === 'suit' ? pick(r, COATS) : chance(r, 0.5) ? pick(r, BRIGHT) : pick(r, COATS);
@@ -179,7 +180,7 @@ export function recruit(r, { id, cqc = [5, 1], os = 15, age = 24 + int(r, 6), in
     persistent: true,
   });
   p.age = age;
-  p.look = { skin: pick(r, ['light', 'light', 'tan', 'brown', 'dark']), hair: { style: sex === 'f' ? pick(r, ['bun', 'short']) : age > 40 && chance(r, 0.3) ? 'bald' : 'short', color: pick(r, [0x14151c, 0x2a1c18, 0x47302a, 0x6b4636, 0xb9862e]) },
+  p.look = { skin: pick(r, ['light', 'light', 'tan', 'brown', 'dark']), hair: { style: sex === 'f' ? pick(r, ['bun', 'long']) : age > 40 && chance(r, 0.3) ? 'bald' : 'short', color: pick(r, [0x14151c, 0x2a1c18, 0x47302a, 0x6b4636, 0xb9862e]) },
     top: { kind: 'sweater', color: instructor ? 0x23252f : pick(r, [0x6a7182, 0x4c5262, 0x283f6b]), trim: instructor ? 0x9e3c36 : 0x8f96a6 }, legs: 0x23252f, shoes: 0xf6f4ee };
   return p;
 }

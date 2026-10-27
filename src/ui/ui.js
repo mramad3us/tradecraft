@@ -40,7 +40,7 @@ const el = (tag, props = {}, ...kids) => {
 export const RES = [640, 360];                                     // (live: fit() sets it)
 export const RES_BASE = [640, 360];
 export const RES_MAX = [2 * SCREEN_HALF_M[0] * 16, 430];
-const TOAST_S = 8;
+const TOAST_S = 16;                                                // (a log line at the top left lingers: the user, 2026-10-26, twice the 8 s it was)
 
 export function createUI({ input, cb }) {
   const frame = el('div', { id: 'frame' });
@@ -84,7 +84,7 @@ export function createUI({ input, cb }) {
 
   const keyHints = () => {
     const k = (a) => `<kbd>${input.label(a)}</kbd>`;
-    keys.innerHTML = `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look · ${k('interact')} someone · ${k('sheet')} sheet · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
+    keys.innerHTML = `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look · ${k('interact')} interact · ${k('sheet')} sheet · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
   };
   keyHints();
   setTimeout(keyHints, 300);                                       // once the keyboard's layout is known
@@ -442,7 +442,7 @@ export function createUI({ input, cb }) {
         el('div', { className: 'body' },
           el('ul', {}, seen.length ? seen.map(part => el('li', { className: stateOf(p, part) }, el('span', { textContent: PARTS[part].name }),
             el('span', { textContent: part === 'head' && bloodied && stateOf(p, part) === 'unhurt' ? 'bloodied' : stateText(p, part) }))) : [el('li', {}, el('span', { textContent: 'Nothing shows on them' }))]))),
-      el('p', { className: 'note', textContent: `${input.label('sheet')} or ${input.label('menu')} to close.` }),
+      el('p', { className: 'note', textContent: `${state.fight ? `${input.label('interact')}, ` : ''}${input.label('sheet')} or ${input.label('menu')} to close.` }),
     ));
     card.hidden = false;
     menu.hidden = log.hidden = true;

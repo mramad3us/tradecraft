@@ -313,6 +313,7 @@ function present(state, bus) {
   // An illegal now: the same face, years on; the trade, and Hale's own training: CQC as Hale's was then.
   Object.assign(me, { cls: 'spook', os: hale.os, skills: { ...structuredClone(ILLEGAL), cqc: [...hale.skills.cqc] }, body: { head: 3 }, injuries: [], bloody: undefined });
   me.age = (me.age ?? 26) + 19;
+  me.langs = { ...me.langs, ru: 'native' };                           // (an illegal speaks the country's language as a native: no accent, nothing)
   me.look = { ...me.look, top: { kind: 'coat', color: 0x23252f, trim: 0x14151c }, legs: 0x23252f, shoes: 0x14151c };
   state.legend = { id: 'illegal', name: 'Illegal, Moscow', cover: 'non-official', floor: 30 };
   state.country = 'ru';

@@ -125,6 +125,7 @@ input.onAction((action) => {
   if (action === 'sheet') { if (open === 'sheet') { ui.closeOverlays(); } else if (!open) ui.openSheet(state); return; }
   if (action === 'interact') {                                    // (F: what to do with whoever's within reach; the sim does it: sim/interact.js)
     if (open === 'interact') { ui.closeOverlays(); return; }
+    if (state.fight) { if (open === 'sheet') ui.closeOverlays(); else if (!open) ui.openRead(state, state.fight.b); return; }   // (in a fight: your read of them, the fight's own: sim/fight.js)
     if (!open && !paused && !ui.openInteract(state, (id, them) => acts.push(`interact:${id}:${them.id}`))) ui.toast({ kind: 'instinct', text: 'Nobody within reach.' });
     return;
   }

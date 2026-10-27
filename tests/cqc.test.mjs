@@ -294,9 +294,9 @@ export default [
         return g;
       };
       const runs = Array.from({ length: 6 }, (_, i) => play(20 + i));
-      console.log(`      ${runs.map(g => `${g.scenario.outcome}: ${g.scenario.bouts.map(b => `${b.name} ${b.won ? 'won' : 'lost'} ${b.score.a}–${b.score.b}`).join(', ')}`).join('; ')}`);
+      console.log(`      ${runs.map(g => `${g.scenario.outcome}: ${g.scenario.bouts.map(b => `${b.name} ${b.won ? 'won' : 'lost'} ${b.score.a}–${b.score.b} (${b.why})`).join(', ')}`).join('; ')}`);
       assert(runs.every(g => g.scenario.outcome), 'every lesson ends');
-      assert(runs.every(g => g.scenario.bouts.length === 4 || g.scenario.bouts.some(b => b.why === 'stopped')), 'four bouts, unless someone was sent to the bench');
+      assert(runs.every(g => g.scenario.bouts.length === 4 || g.scenario.bouts.some(b => ['stopped', 'out cold', 'down', 'can\'t stand'].includes(b.why))), 'four bouts, unless someone was sent to the bench (a bout stopped, or someone knocked out)');
       assert(runs.filter(g => g.scenario.bouts[0].won).length >= 4, 'the weaker classmate is beaten, mostly (the bot guesses when it can\'t read)');
       assert(runs.every(g => g.scenario.bouts.length < 4 || !g.scenario.bouts[3].won), 'Hale is not');
       const a = toJSON(play(31)), b = toJSON(play(31, 700));
