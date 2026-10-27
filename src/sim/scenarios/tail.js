@@ -75,6 +75,8 @@ export const MEET_ROWS = [10, 12];                                  // how many 
 export const MEET_EAST_M = [150, 550];                             // and how far along, east or west
 export const TELL_S = { calm: [1.6, 2.6], wary: [1.0, 1.8] };
 export const SCAN_M = { look: 45, window: 25, exit: 30, cross: 32, double: 22 };
+export const DOUBLE_GRACE_S = 2.5;                                 // (his turn on his heel takes a moment: time to look away, walk on)
+export const MIRROR_GRACE_S = 8;                                   // (the evening's first seconds: you've only just got your feet)
 export const TWINS = 3;
 export const TWIN_CHANCE = 0.02;                                 // a second, for each twin not about
 const TPS = 1000 / TICK_MS;
@@ -427,6 +429,7 @@ function tell(state, bus, t, kind) {
 function scanning(state, bus, me, t, d) {
   const sc = state.scenario;
   if (!sc.scan || sc.scan.rolled) return;
+  if (sc.scan.kind === 'double' && state.time.ms - sc.scan.ms < DOUBLE_GRACE_S * 1000) return;
   if (d > SCAN_M[sc.scan.kind] || !seesActor(state, t, me)) return;
   sc.scan.rolled = true;
   moment(state, bus, me, t, d, sc.scan.kind);
@@ -587,7 +590,7 @@ function second(state, bus, me, t, d) {
   sc.stillS = still ? sc.stillS + 1 : 0;
   // Mirroring: he's stopped (a pause, a window, a look) and so have we, in the open, near him.
   const stopped = !t.hidden && Math.hypot(t.vx, t.vz) < 0.05;
-  if (stopped && still && d < 30 && !coverNow(state, me) && sc.stillS >= 2) sc.mirrorMs = state.time.ms;
+  if (stopped && still && d < 30 && !coverNow(state, me) && sc.stillS >= 2 && state.time.ms - sc.began > MIRROR_GRACE_S * 1000) sc.mirrorMs = state.time.ms;
   sc.alert = Math.max(sc.wary ? 15 : 0, sc.alert - 0.15);
   if (same) { sc.gap.push(Math.round(d * 10) / 10); if (sc.gap.length > 6) sc.gap.shift(); } else sc.gap = [];
   if (same && onMap(state, t)) twins(state, t);
@@ -828,7 +831,7 @@ function* instinct(state, me, t, d, still) {
   if (d < 5) { const o = offer(state, me); yield L('far-too-close', 'urgent', `Far too close: ${Math.round(d)} m. Peel off.${o.text}`, { act: o.act }); }
   if (d < 9 && !busy) yield L('too-close', 'warn', [`Too close: ${Math.round(d)} m. Let him get ahead.`, 'You\'re on his heels. Drop back.', 'Any closer and you\'ll be carrying his briefcase. Drop back.']);
   const stopped = Math.hypot(t.vx, t.vz) < 0.05;
-  if (stopped && still && d < 30 && !me.glass) { const o = offer(state, me); yield L('mirror', 'warn', `He's stopped. Don't stop with him: walk on, or find a reason.${o.text}`, { act: o.act }); }
+  if (stopped && still && d < 30 && !me.glass && state.time.ms - sc.began > MIRROR_GRACE_S * 1000) { const o = offer(state, me); yield L('mirror', 'warn', `He's stopped. Don't stop with him: walk on, or find a reason.${o.text}`, { act: o.act }); }
   if (still && sc.stillS >= 3 && d < 35 && !coverNow(state, me)) { const o = offer(state, me); yield L('loiter', 'warn', [`Standing about draws the eye. Give yourself a reason.${o.text}`, `Standing in the middle of the pavement. Very natural. Give yourself a reason.${o.text}`], { act: o.act }); }
   const toHim = Math.abs(wrap(Math.atan2(t.z - me.z, t.x - me.x) - (me.head ?? 0)));
   if (toHim < 0.5 && still && d < 18 && !busy) yield L('stare', 'warn', ['You\'re staring at him. Look at something else.', 'You\'re staring at him. Moscow has other things to look at. Try a lamp post.']);

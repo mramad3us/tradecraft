@@ -4,6 +4,13 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc5 (2026-10-27)
+
+- **Speech balloons** (your ask). What's said aloud shows in a balloon over whoever said it (Hale on the mat, the hunter who takes your arm, you on SOLOVEY's bench), for as long as a line at the top left lingers (16 s, waiting while a brief, a sheet or the pause is up). Several lines from one person stack in the one balloon; the rest of the line (the score, "a hand on your arm") stays top left. Someone off the picture still speaks top left; the log (J) keeps it all.
+- **Being tailed:** going up a lane and straight back no longer made the team vanish (the reviewer's bot met its source clean 23 times in 24 that way). The watchers coming up after you meet you in the lane, turn, and come back with you; and they've seen you double back.
+- **Tailing:** his double-back gives you a moment (2.5 s) before he looks, so a second sighting can't land in the same breath as the first (it did in nearly half of the evenings); and standing still in the evening's first seconds no longer counts as stopping when he did.
+- **The Farm:** a riposte counts as a cover in Hale's first drill (it didn't, and knocked him cold by his bout); Hale is fresh at each step; the riposte is taught in the edge drill. Hurt but on your feet, you spar on (out cold or broken, you're done for the day): benched before Hale 5 times in 60 for a beginner, from half. A bout stops only for a wound taken in it, and in the memory "shake it off" leaves you a third hurt, not two thirds: Hale's bout runs a median 3 exchanges, half to points.
+
 ## v0.1.0-rc4 (2026-10-27)
 
 The first polish pass, from three outside reviews of rc1 (gameplay, screens, performance):

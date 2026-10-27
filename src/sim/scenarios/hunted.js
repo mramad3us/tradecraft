@@ -19,7 +19,7 @@
 import { at, TICK_MS, MIN, clockText, dateText } from '../clock.js';
 import { handler, sheet, streetLook, describe } from '../people.js';
 import { heatKey } from '../heat.js';
-import { say } from '../log.js';
+import { say, speak } from '../log.js';
 import { settle } from '../instinct.js';
 import { skill } from '../skills.js';
 import { opposed } from '../checks.js';
@@ -238,7 +238,7 @@ function leg(state, a, to = null) {
 /** One of them has hold of you: a fight. */
 function grab(state, bus, a) {
   const me = playerOf(state);
-  say(state, bus, { kind: 'note', text: `A hand on your arm: ${state.people[a.who].seen}. "Come with us, quietly."` });
+  speak(state, bus, a.id, `A hand on your arm: ${state.people[a.who].seen}. "Come with us, quietly."`, `A hand on your arm: ${state.people[a.who].seen}.`);
   beginFight(state, bus, a, { style: 'wrestler', owner: 'hunted' });
 }
 

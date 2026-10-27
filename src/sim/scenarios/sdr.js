@@ -36,7 +36,7 @@
 import { at, TICK_MS, clockText, dateText } from '../clock.js';
 import { handler, sheet, streetLook, describe, passerby } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
-import { say } from '../log.js';
+import { say, speak } from '../log.js';
 import { settle } from '../instinct.js';
 import { skill } from '../skills.js';
 import { opposed, check } from '../checks.js';
@@ -180,18 +180,33 @@ export const sdr = {
     return { row: g.row, x: g.x, z: g.z, label: sub(state, `SOLOVEY · ${far}`) };
   },
 
-  /** Through a lane: the watchers who saw you go in follow you through it, a little behind. */
+  /**
+   * Through a lane: the watchers who saw you go in follow you through it, a little behind. Back down
+   * the same lane before they're through, and you meet them in it: they turn and come back with you,
+   * and they've seen you double back. Through another way, whoever was still in the lane has lost you.
+   */
   carry(state, way) {
-    const sc = state.scenario, me = playerOf(state);
+    const sc = state.scenario, me = playerOf(state), was = sc.pending, now = state.time.ms;
+    const back = !!sc.lastWay && way.dir !== sc.lastWay.dir && way.x1 > sc.lastWay.x0 && way.x0 < sc.lastWay.x1 && (state.map.row ?? 0) === sc.lastWay.to;
+    sc.lastWay = { x0: way.x0, x1: way.x1, dir: way.dir, to: (state.map.row ?? 0) + (way.dir === 'n' ? -1 : 1) };
     sc.pending = [];
     if (sc.teamLost) return [];
+    if (back && was.length) {
+      for (const p of was) sc.pending.push({ crew: p.crew, at: now + 1500 + Math.round(range(state.rng, 0, 1500)) });
+      const who = sc.crew[was[0].crew].who;
+      if (sc.flags.filter(f => f.kind === 'doubled').length < FLAGS_MAX) {
+        sc.flags.push({ kind: 'doubled', ms: now, who });
+        sc.flagged.doubled = now;
+        say(state, null, { kind: 'note', hidden: true, text: `${cap(describe(state.people[who].look, state.people[who].sex))} met you in the lane, coming back, and made a note of it.` });
+      }
+    }
     for (const c of sc.crew) {
       const a = c.id && actorOf(state, c.id);
       if (!a || a.ai.steps?.length) continue;
       const d = Math.hypot(a.x - me.x, a.z - me.z);
-      if (state.time.ms - (a.ai.seenMs ?? -1e12) < 4000 && d < 45) sc.pending.push({ crew: sc.crew.indexOf(c), at: state.time.ms + Math.round(d / 1.7 * 1000) + 1500 });
+      if (now - (a.ai.seenMs ?? -1e12) < 4000 && d < 45) sc.pending.push({ crew: sc.crew.indexOf(c), at: now + Math.round(d / 1.7 * 1000) + 1500 });
     }
-    if (!sc.pending.length && sc.crew.some(c => c.id)) { sc.teamLost = true; sc.lostHow = `up ${way.name}`; }
+    if (!sc.pending.length && (sc.crew.some(c => c.id) || was.length)) { sc.teamLost = true; sc.lostHow = `up ${way.name}`; }
     for (const c of sc.crew) c.id = null;                         // (they're left on the old street; the pending come through)
     return [];
   },
@@ -627,7 +642,7 @@ function sitDown(state, bus, me) {
   const sc = state.scenario, g = sc.meet;
   sc.phase = 'meet'; sc.meetMs = state.time.ms; sc.burned = false;
   me.busy = { what: 'meet', steps: [['go', g.seat2, 13.3], ['go', g.seat2, 12.96], ['wait', 3600 * TPS, 'down', 'sit']], wait: 0, since: state.time.ms };
-  say(state, bus, { kind: 'note', text: 'You sit down at the other end of his bench. "Cold, for November." He agrees it is.' });
+  speak(state, bus, me.id, 'You sit down at the other end of his bench. "Cold, for November." He agrees it is.', 'You sit down at the other end of his bench. He agrees it is cold.');
 }
 
 function callOff(state, bus) {

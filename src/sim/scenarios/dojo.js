@@ -27,7 +27,7 @@
 // that. A classmate killed by one ends the lesson ('dismissed').
 import { at, TICK_MS, dateText } from '../clock.js';
 import { recruit } from '../people.js';
-import { say } from '../log.js';
+import { say, speak } from '../log.js';
 import { pick, int } from '../rng.js';
 import { follow } from '../crowd.js';
 import { headOf } from '../perception.js';
@@ -43,7 +43,7 @@ export const HALE_PULL = 0.25;                                     // Hale's blo
 
 // The lesson, step by step. need(out, f): whether an exchange counts toward n; or a bout (to: points).
 const STEPS = [
-  { id: 'guard', with: 'hale', fight: { script: ['hit'], tell: true, pull: 0.2 }, n: 2, need: (o) => o.kind === 'blocked' && o.by === 'a',
+  { id: 'guard', with: 'hale', fight: { script: ['hit'], tell: true, pull: 0.2 }, n: 2, need: (o) => (o.kind === 'blocked' || o.kind === 'riposte') && o.by === 'a',
     lines: ['“Three things you can do with your hands. Hit, grab, cover. Everything else is decoration.”', '“I\'m going to hit you. Cover up.”'],
     hint: 'Hale\'s going to hit. {guard} cover.', miss: ['“Cover means cover.”', '“That would have been your nose.”'],
     done: '“Good. A punch you cover is an opening you\'ve earned: that\'s an edge. Remember it.”' },
@@ -60,7 +60,7 @@ const STEPS = [
     hint: 'Hale calls it: answer it. {guard} covers a hit, {grapple} grabs a cover, {hit} hits a grab.', miss: ['“Again.”', '“The triangle. Think, then move.”'],
     done: '“Good. Out there nobody calls it for you.”' },
   { id: 'edge', with: 'hale', fight: { script: ['hit', 'grapple', 'hit', 'grapple'], tell: true, pull: 0.2, adv: 1 }, n: 1, need: (o) => o.spent.a,
-    lines: ['“The edges you earn covering: spend them. Hold {run} with a key. With a hit, it lands double. With a grab, you shrug off the punch you walk into. With a cover, you stop a throw.”', '“You\'ve one now. Use it right.”'],
+    lines: ['“The edges you earn covering: spend them. Hold {run} with a key. With a hit, it lands double. With a grab, you shrug off the punch you walk into. With a cover, you stop a throw; and against a punch, you hit back through it and keep the edge: a riposte.”', '“You\'ve one now. Use it right.”'],
     hint: 'Spend your edge: hold {run} with the key. On my grab, a {guard} cover with it stops the throw; on my hit, a {grapple} grab with it shrugs it off.', miss: ['“Hold {run} with it, and pick the move it helps.”'],
     done: '“That\'s an edge, spent. One for every ten points of CQC you have, at most, held at once.”' },
   { id: 'read', with: 'weak', bout: 3,
@@ -192,7 +192,7 @@ export const dojoScenario = {
       if (++sc.count >= step.n) f.ended = { by: 'a', why: 'drill' };
     } else if (out.by !== 'a' || out.kind === 'circle') {
       sc.misses++;
-      say(state, bus, { kind: 'note', text: `Hale: ${step.miss[(sc.misses - 1) % step.miss.length]}` });
+      hale(state, bus, `Hale: ${step.miss[(sc.misses - 1) % step.miss.length]}`);
     }
   },
 
@@ -247,15 +247,17 @@ function next(state, bus) {
   sc.step++;
   const step = STEPS[sc.step];
   if (!step) return sc.chapter === 'remembered' ? present(state, bus) : over(state, bus);
-  // (hurt that badly, nobody spars again today; in the memory, Hale sends you back in, the worst of it shaken off)
-  const me0 = state.people[state.player];
+  // (Hale is padded and pulls his drills: each step he's fresh. Out cold or broken, nobody spars again today, but
+  // in the memory Hale sends you back in; hurt, the worst of it is shaken off: a bout stops only for a wound taken in it)
+  const me0 = state.people[state.player], halesBody = state.people.hale;
+  if (halesBody && !halesBody.dead) for (const k in halesBody.body) halesBody.body[k] = 0;
   if (step.bout && ['head', 'torso'].some(k => ['wounded', 'out'].includes(stateOf(me0, k)))) {
-    if (sc.chapter !== 'remembered') {
-      say(state, bus, { kind: 'note', text: 'Hale: “You\'re done for today. Sit down, and get some ice on that.”' });
+    if (sc.chapter !== 'remembered' && ['head', 'torso'].some(k => stateOf(me0, k) === 'out')) {
+      hale(state, bus, 'Hale: “You\'re done for today. Sit down, and get some ice on that.”');
       return over(state, bus);
     }
-    for (const k in me0.body) me0.body[k] = Math.min(me0.body[k], Math.floor(takes(me0, k) * 0.6 * 10) / 10);
-    say(state, bus, { kind: 'note', text: 'Hale: “Shake it off. Out there nobody lets you sit down.”' });
+    for (const k in me0.body) me0.body[k] = Math.min(me0.body[k], Math.floor(takes(me0, k) * 0.3 * 10) / 10);
+    hale(state, bus, sc.chapter === 'remembered' ? 'Hale: “Shake it off. Out there nobody lets you sit down.”' : 'Hale: “Breathe. Some ice at the break. You can go on: you\'ll know when you can\'t.”');
   }
   const who = whoOf(sc, step), me = playerOf(state);
   // The one before back to their place; this one to the mark facing us; us to ours.
@@ -267,8 +269,11 @@ function next(state, bus) {
   actorOfWho(state, who).ai.steps = [['go', FIGHT.x + FIGHT.gap / 2, FIGHT.z], ['wait', 1, 'left', 'idle']];
   me.busy = { what: 'mat', steps: [['go', FIGHT.x - FIGHT.gap / 2, FIGHT.z], ['wait', 1, 'right', 'idle']], wait: 0, since: state.time.ms };
   Object.assign(sc, { phase: 'walk', with: who, count: 0, misses: 0 });
-  for (const line of step.lines) say(state, bus, { kind: 'note', text: `Hale: ${fill(state, who, line)}` });
+  for (const line of step.lines) hale(state, bus, `Hale: ${fill(state, who, line)}`);
 }
+
+/** Hale says it aloud: the log's line, and a balloon over him (sim/log.js speak()). */
+const hale = (state, bus, text, aside = null) => speak(state, bus, actorOfWho(state, 'hale')?.id, text, aside);
 
 /** On the marks: the fight starts. */
 function begin(state, bus) {
@@ -292,16 +297,17 @@ function finishBout(state, bus, f) {
       say(state, bus, { kind: 'note', text: `Hale is on the mat before anyone else, two fingers on ${short(state, who)}'s neck, for a long time. Nobody says anything. Nobody looks at you.` });
       return dismissed(state, bus, who);
     }
-    say(state, bus, { kind: 'note', text: `Hale: “STOP. Off my mat.” A long look. “Someone who can't defend themselves, you let go. Here, and anywhere I'd want you. That bout's lost, and so is my good opinion.”` });
+    hale(state, bus, `Hale: “STOP. Off my mat.” A long look. “Someone who can't defend themselves, you let go. Here, and anywhere I'd want you. That bout's lost, and so is my good opinion.”`, 'A long look from Hale.');
     return;
   }
   if (step.bout) {
     const won = f.ended.by === 'a';
     sc.bouts.push({ id: step.id, name: short(state, who), won, score: { ...f.score }, why: f.ended.why });
     const line = f.ended.why === 'stopped' ? (won ? `“Stop. That's enough, ${short(state, who)}'s hurt.”` : '“Stop. You\'re hurt: that\'s the bout.”') : won ? '“That\'s the bout. Good.”' : '“That\'s the bout.”';
-    say(state, bus, { kind: 'note', text: `Hale: ${line} ${won ? `You win it, ${f.score.a}–${f.score.b}` : `${short(state, who)} takes it, ${f.score.b}–${f.score.a}`}.` });   // (the winner's score first)
+    const score = `${won ? `You win it, ${f.score.a}–${f.score.b}` : `${short(state, who)} takes it, ${f.score.b}–${f.score.a}`}.`;   // (the winner's score first)
+    hale(state, bus, `Hale: ${line} ${score}`, score);
     if (sc.chapter === 'remembered' && step.id === 'hale') Object.assign(sc, { phase: 'cut', cutAt: state.tick + CUT_S * TPS });   // (and then the floor)
-  } else say(state, bus, { kind: 'note', text: `Hale: ${step.done}` });
+  } else hale(state, bus, `Hale: ${step.done}`);
 }
 
 // ---------- years on: the fight that sent you back there ----------

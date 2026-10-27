@@ -61,6 +61,7 @@ export function createUI({ input, cb }) {
   const banner = el('div', { className: 'banner', textContent: 'PAUSED' });
   const marker = el('div', { className: 'marker', hidden: true });
   const bubble = el('div', { className: 'bubble', hidden: true });   // what a character's just become aware of: ? or !
+  const speech = el('div', { className: 'speech' });                // what's said aloud, in balloons over whoever said it
   const intent = el('div', { className: 'intent', hidden: true });   // in a fight: what they're about to do, if we read it
   const bout = el('div', { className: 'bout', hidden: true });       // in a fight: the two of them, the score, the edges
   const moves = el('div', { className: 'moves', hidden: true });    // in a fight: the three moves and their keys, while we choose
@@ -72,7 +73,7 @@ export function createUI({ input, cb }) {
   const goal = el('div', { className: 'goal', hidden: true });      // where you're going, when it's off the picture
   const prompt = el('div', { className: 'prompt', hidden: true });
   const veil = el('div', { className: 'bloodveil' });                 // (the blood lost: the world dims and reddens at the edges)
-  const hud = el('div', { id: 'hud' }, veil, tags, marker, bubble, intent, ...states, reach, ask, talkbox, bout, moves, goal, prompt, watch, toasts, keys, banner);
+  const hud = el('div', { id: 'hud' }, veil, tags, marker, bubble, intent, ...states, speech, reach, ask, talkbox, bout, moves, goal, prompt, watch, toasts, keys, banner);
   const menu = el('div', { className: 'overlay', hidden: true });
   const log = el('div', { className: 'overlay', hidden: true });
   const paper = el('div', { className: 'overlay', hidden: true });     // a brief, a result
@@ -313,6 +314,8 @@ export function createUI({ input, cb }) {
       if (now - t.born > TOAST_S * 1000 && !t.classList.contains('gone')) t.classList.add('gone');
       if (now - t.born > (TOAST_S + 1.5) * 1000) t.remove();
     }
+    seenView = view;
+    placeBalloons(view, now);
   }
   // A line with {key} placeholders, the keys as this player has them (a prompt, a toast, the log).
   // Pixel icons for the three moves: a fist, an open hand, a cover (12 × 12, '#' ink, 'o' the fill).
@@ -339,12 +342,47 @@ export function createUI({ input, cb }) {
 
   function toast(e) {
     if (e.hidden) return;                                          // (what the character didn't see)
+    if (e.says && speakOver(e)) { if (e.aside) toast({ kind: e.kind, text: e.aside }); return; }   // (said aloud: a balloon; the rest top left)
     const t = el('div', { className: `toast ${e.kind}${e.roll && !e.roll.ok ? ' fail' : ''}` }, ...keyed(e.text ?? ''), e.roll ? el('span', { className: 'num', textContent: checkText(e.roll) }) : null);
     t.born = hudMs;
     toasts.append(t);
     while (toasts.children.length > 3) toasts.firstChild.remove();
   }
-  const clearToasts = () => toasts.replaceChildren();
+  const clearToasts = () => { toasts.replaceChildren(); speech.replaceChildren(); balloons.clear(); };
+
+  // ---------- speech: a balloon over whoever said it (a log line's says: { id, words }: sim/log.js) ----------
+  const balloons = new Map();                                      // actor id → the balloon (its lines, each with when it was said)
+  let seenView = null;                                             // (the view as update() last had it: where people are drawn)
+  /** Over them, if they're in the picture; else false (the top left has it). */
+  function speakOver(e) {
+    const at = seenView?.posOf(e.says.id), cam = seenView?.camera;
+    if (!at || !cam || Math.abs(at[0] - cam.x) * 16 > RES[0] / 2 + 8 || !e.says.words) return false;
+    let b = balloons.get(e.says.id);
+    if (!b) { b = el('div', { className: 'balloon' }); balloons.set(e.says.id, b); speech.append(b); }
+    const line = el('p', {}, ...keyed(e.says.words));
+    line.born = hudMs;
+    b.append(line);
+    while (b.children.length > 3) b.firstChild.remove();
+    return true;
+  }
+  /** Each line its TOAST_S, as a line at the top left (the same clock); over the speaker's head, kept inside the picture. */
+  function placeBalloons(view, now) {
+    const k = frame.clientWidth / RES[0], W = frame.clientWidth, cam = view?.camera;
+    for (const [id, b] of balloons) {
+      for (const p of [...b.children]) {
+        if (now - p.born > TOAST_S * 1000 && !p.classList.contains('gone')) p.classList.add('gone');
+        if (now - p.born > (TOAST_S + 1.5) * 1000) p.remove();
+      }
+      if (!b.children.length) { b.remove(); balloons.delete(id); continue; }
+      const at = view?.posOf(id);
+      b.hidden = !at || !cam;
+      if (b.hidden) continue;
+      const w = b.offsetWidth, cx = (RES[0] / 2 + (at[0] - cam.x) * 16) * k;
+      const x = Math.max(8, Math.min(W - w - 8, cx - w / 2)), y = Math.max(b.offsetHeight + 8, (RES[1] / 2 + (at[1] - cam.z) * 16 - 2.6 * 16) * k);
+      b.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+      b.style.setProperty('--tail', `${Math.round(Math.max(10, Math.min(w - 10, cx - x)))}px`);   // (the tail points at them, wherever the balloon's pushed)
+    }
+  }
 
   // ---------- the menu (Esc) ----------
   function openMenu({ debug }) {

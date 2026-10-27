@@ -81,7 +81,7 @@
 // the picture flings it, sim/cqcshow.js, onto the floor, sim/blood.js).
 // **The end.** A bout (sparring: f.bout) pulls its blows (BOUT_K the damage; a drill's f.pull, less)
 // and is scored, a hit or a shove a point and a throw, a lock or a choke two, first to f.to; it's
-// stopped sooner if a head or a torso is wounded (f.stop). A real fight ends when someone can't go on:
+// stopped sooner if a head or a torso is wounded in it (f.stop; a wound brought into the bout doesn't stop it). A real fight ends when someone can't go on:
 // out cold, down, or unable to stand (sim/health.js).
 import { skill } from './skills.js';
 import { opposed } from './checks.js';
@@ -194,7 +194,8 @@ export const advMax = (state, who) => Math.max(1, Math.floor(cqcOf(state, who) /
  * Returns the fight (state.fight), its first exchange prepared.
  */
 export function startFight(state, a, b, { bout = false, to = 3, style = 'even', script = null, tell = false, pull = bout ? BOUT_K : 1, stop = bout } = {}) {
-  const f = state.fight = { a, b, bout, to, style, script, tell, pull, stop, round: 0, adv: { a: 0, b: 0 }, score: { a: 0, b: 0 }, status: { a: null, b: null }, seen: [], theirs: null, read: false, last: null, ended: null, phase: 'choose' };
+  const hurtNow = (who) => ['head', 'torso'].filter(k => stateOf(state.people[who], k) === 'wounded');
+  const f = state.fight = { a, b, bout, to, style, script, tell, pull, stop, was: stop ? { a: hurtNow(a), b: hurtNow(b) } : null, round: 0, adv: { a: 0, b: 0 }, score: { a: 0, b: 0 }, status: { a: null, b: null }, seen: [], theirs: null, read: false, last: null, ended: null, phase: 'choose' };
   prepare(state, f);
   return f;
 }
@@ -445,7 +446,7 @@ export function ended(state, f) {
     if (p.dead) return { by: other(s), why: 'dead' };
     const why = stateOf(p, 'head') === 'out' ? 'out cold' : stateOf(p, 'torso') === 'out' ? 'down' : !canStand(p) ? 'can\'t stand' : null;
     if (why) return { by: other(s), why };
-    if (f.stop && ['head', 'torso'].some(k => stateOf(p, k) === 'wounded')) return { by: other(s), why: 'stopped' };
+    if (f.stop && ['head', 'torso'].some(k => stateOf(p, k) === 'wounded' && !f.was?.[s]?.includes(k))) return { by: other(s), why: 'stopped' };
   }
   if (f.bout) for (const s of ['a', 'b']) if (f.score[s] >= f.to) return { by: s, why: 'points' };
   return null;
