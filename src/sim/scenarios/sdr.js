@@ -147,6 +147,8 @@ export const sdr = {
     const p = sc.prompt;
     if (sc.phase === 'meet') return;                               // (sitting with him: nothing to do but talk)
     if (p?.act === 'meet') return sitDown(state, bus, me);
+    if (p?.act === 'pass') return brushPass(state, bus, me);
+    if (p?.act === 'load' || p?.act === 'mark') return dropAct(state, bus, me, p.act);
     if (p?.act === 'abort') return callOff(state, bus);
     if (p?.act) act(state, bus, me, p.act, { toward: -sc.heading.dir });   // (a window: its glass running back the way you came)
     else say(state, bus, { kind: 'instinct', text: me.busy || me.glass ? 'You\'re at it. Moving stops it.' : 'Nothing to do here but walk, and look.' });
@@ -379,8 +381,8 @@ const CAUGHT_LINE = {
   doubled: (who) => `When you turn round, ${who[0].toLowerCase() + who.slice(1)} stops too, and finds a shop window very interesting.`,
 };
 const CAUGHT = { bloody: 'walk about bloody', armed: 'carry a weapon in your hand', ran: 'run', checked: 'look back', glassed: 'check behind you in a shop window', jaywalked: 'cross away from the zebra', doubled: 'double back' };
-const FLAGS = { changed: 'you went into a shop in one coat and came out in another', bloody: 'you walked about with blood on you', backway: 'you went into a shop and out the back', armed: 'you walked the street with a weapon in your hand', assaulted: 'you went for one of them', spoke: 'you spoke to one of them', ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back', taxi: 'you jumped into a taxi' };
-const SAW = { changed: 'saw you come out in another coat', bloody: 'saw the blood on you', backway: 'waited on a shop door for nothing', armed: 'saw what was in your hand', assaulted: 'took it from you', spoke: 'had a word from you', ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back', taxi: 'saw you jump into a taxi' };
+const FLAGS = { changed: 'you went into a shop in one coat and came out in another', bloody: 'you walked about with blood on you', backway: 'you went into a shop and out the back', armed: 'you walked the street with a weapon in your hand', assaulted: 'you went for one of them', spoke: 'you spoke to one of them', ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back', taxi: 'you jumped into a taxi', marked: 'you chalked a mark on a lamppost' };
+const SAW = { changed: 'saw you come out in another coat', bloody: 'saw the blood on you', backway: 'waited on a shop door for nothing', armed: 'saw what was in your hand', assaulted: 'took it from you', spoke: 'had a word from you', ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back', taxi: 'saw you jump into a taxi', marked: 'saw you chalk a lamppost' };
 export const FLAGS_MAX = 2;
 export const ASSAULT_HEAT = 12;
 export const BACK_COVERED = 0.3;
@@ -675,6 +677,8 @@ function second(state, bus, me) {
 
 function meeting(state, bus, me) {
   const sc = state.scenario, g = sc.meet, now = state.time.ms;
+  if (sc.brush) return brushMeeting(state, bus, me);
+  if (sc.drop) return dropMeeting(state, bus, me);
   const here = state.map.row === g.row;
   let s = actorOf(state, sc.asset);
   if (here && !s && !sc.met && now >= g.from && now < g.to) {
@@ -718,6 +722,208 @@ function meeting(state, bus, me) {
   if (now > g.to + 20000) {
     end(state, bus, 'missed', 'The time came and went, and you never sat down with him. SOLOVEY waited his eight minutes, and went home wondering.');
   }
+}
+
+/**
+ * The brush pass, the design's test 5 ("two seconds on the platform"; numbers my calls): being tailed's
+ * evening (the team or none, what they write down, the epilogue), but SOLOVEY doesn't sit. At the
+ * minute he comes along the park's path from the east, a folded newspaper under his arm, and walks on.
+ * You're on the path, walking his way; at arm's length (PASS_M), T: the paper changes hands, neither of
+ * you breaking step. Any of them who can see it within PASS_SEEN_M rolls his Tracking (watching hands
+ * is their trade; a covert team's eye +5) against your Deception (both walking −1, people round you,
+ * the dark, a way off (−2 past 12 m, −4 past 25): harder for him; stopped to do it, +3): seen, burned. Past the place with the paper still under his arm: missed. Call it off as ever.
+ */
+export const brushTest = {
+  ...sdr,
+  name: '5a. A brush pass',
+  about: 'A second on a park path: a newspaper from his arm to your hand, neither of you stopping. Find out first whether the FSB is behind you.',
+  brief(state) {
+    const sc = state.scenario, g = sc.meet;
+    return subAll(state, {
+      title: 'A BRUSH PASS: SOLOVEY',
+      body: [
+        `SOLOVEY has something for us that won't wait for a bench. At ${clockText(g.from)} he'll come along the path through ${g.place}, ${rowsText(g.row)}, from the east, a newspaper folded under his arm. He won't stop, and nor should you.`,
+        'Be on the path, walking his way. As you pass, at arm\'s length, take the paper. A second, and you\'re both walking on.',
+        'The FSB may be on you, as on any evening: nobody, an overt pair, a covert team. Check your back on the way. If they\'re on you, don\'t go near him: a pass they see ends him.',
+      ],
+      footer: `Station Moscow · Thursday 5 November 2026 · ${clockText(sc.began)}`,
+      keys: [['watch', 'tapped: glance back; held: stop and look'], ['instinct', 'does what your instinct offers (a window, cross, the pass, call it off)'], ['slow', 'held: stroll'], ['log', 'the log']],
+    });
+  },
+  setup(state, opts) {
+    sdr.setup(state, opts);
+    Object.assign(state.scenario, { kind: 'brush', brush: true, seats: [] });   // (no bench kept: he walks)
+  },
+  result(state, o) {
+    const sc = state.scenario, r = sdr.result(state, o);
+    return { ...r, title: sc.campaign ? r.title : brushTest.name.toUpperCase(), stamp: sc.outcome === 'clean' || sc.outcome === 'burned' ? 'PASSED' : r.stamp,
+      lead: sc.met ? `${clockText(sc.ended)}: a newspaper from SOLOVEY's arm to your hand. Inside, next month's procurement schedule for the Western Military District.` : null };
+  },
+};
+
+// ---------- the dead drop (the design's test 5's other half: dropTest, below) ----------
+
+export const DROP_S = 6, MARK_S = 2;
+export const DROP_SEEN_M = 35;
+export const DROP_REACH_M = 1.8;
+export const DROP_LATE_MIN = 10;                                    // (after the meeting's window: the time the drop's good till)
+export const MARK_M = [25, 90];                                     // (the post: this far from the bench)
+
+/** T at the site (load) or the lamppost (mark): stooped, or at the post, a few seconds. */
+function dropAct(state, bus, me, what) {
+  const sc = state.scenario, d = sc.drop, at = what === 'load' ? d.site : d.mark;
+  if (Math.hypot(me.x - at.x, me.z - at.z) > DROP_REACH_M) return;
+  me.busy = { what, wait: 0, since: state.time.ms, steps: what === 'load'
+    ? [['go', at.x, at.z + 0.34], ['go', at.x, at.z], ['wait', DROP_S * TPS, 'down', 'sit']]          // (the bench's end, a shoelace: the tin behind its leg)
+    : [['go', at.x, at.z], ['wait', MARK_S * TPS, at.face, 'idle']] };
+  d.doing = { what, since: state.time.ms, seen: {} };
+  say(state, bus, { kind: 'instinct', text: what === 'load' ? 'On the end of the bench, a shoelace to retie, and the tin goes in behind its leg.' : 'A stub of chalk from your pocket, a short line on the post at waist height, and on.' });
+}
+
+/** Done: each of them who saw any of it rolls once, from as close as they came (a load seen, burned; the chalk, written down). */
+function dropSeen(state, bus, me, doing) {
+  const sc = state.scenario, now = state.time.ms;
+  for (const [who, e] of Object.entries(doing.seen)) {
+    sc.rolls++;
+    const crowd = state.actors.filter(o => o !== me && !o.hidden && Math.hypot(o.x - me.x, o.z - me.z) < 4).length;
+    const r = opposed(state.rng, { skill: 'tracking', value: skill(state.people[who], 'tracking'), body: state.people[who],
+      mods: [e.role === 'eye' && sc.team === 'covert' && { why: 'the eye, watching for exactly this', v: 5 }, doing.what === 'load' && e.s >= DROP_S - 1 && { why: 'all of it, at a bench', v: 2 },
+        crowd && { why: 'people round you', v: -Math.min(3, crowd) }, lightBand(lightHere(state, me.x, me.z)) === 'dark' && { why: 'the dark', v: -3 },
+        e.m > 25 ? { why: 'far off', v: -3 } : e.m > 12 ? { why: 'a way off', v: -1 } : null].filter(Boolean) },
+    { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] });
+    const them = cap(describe(state.people[who].look, state.people[who].sex));
+    if (r.ok) say(state, bus, { kind: 'roll', roll: r, hidden: true, text: doing.what === 'load' ? `${them} saw someone retie a shoe on a bench, and looked away.` : `${them} saw someone lean on a lamppost.` });
+    else if (doing.what === 'load') { sc.burned = true; say(state, bus, { kind: 'roll', roll: r, hidden: true, text: `${them} saw your hand go behind the bench's leg, and noted the place.` }); }
+    else { if (sc.flags.filter(f => f.kind === 'marked').length < FLAGS_MAX) sc.flags.push({ kind: 'marked', ms: now, who }); say(state, bus, { kind: 'roll', roll: r, hidden: true, text: `${them} saw the chalk go on the post.` }); }
+  }
+}
+
+/** Each second of the drop: loading or marking, watched or not; done when the time's done; missed when it's long gone. */
+function dropMeeting(state, bus, me) {
+  const sc = state.scenario, d = sc.drop, g = sc.meet, now = state.time.ms;
+  if (d.doing) {
+    const doing = d.doing, held = me.busy?.what === doing.what;
+    // (whoever of them sees you at it, any second of it: how close they came, and for how long)
+    if (held && state.tick % TPS === 0) for (const c of sc.teamLost ? [] : sc.crew) {
+      const w = actorOf(state, c.id);
+      if (!w || Math.hypot(w.x - me.x, w.z - me.z) > DROP_SEEN_M || !seesActor(state, w, me)) continue;
+      const e = (doing.seen[c.who] ??= { s: 0, m: Infinity, role: c.role });
+      e.s++; e.m = Math.min(e.m, Math.hypot(w.x - me.x, w.z - me.z));
+    }
+    if (!held) {
+      const done = now - doing.since >= ((doing.what === 'load' ? DROP_S : MARK_S) * 1000) - 120;
+      d.doing = null;
+      if (done) dropSeen(state, bus, me, doing);
+      if (!done) say(state, bus, { kind: 'instinct', text: doing.what === 'load' ? 'You stood up too soon: the tin\'s still in your pocket.' : 'No mark: you moved on before it was made.' });
+      else if (doing.what === 'load') { d.loaded = true; say(state, bus, { kind: 'note', text: 'Loaded. Now the signal, or he\'ll never know.' }); }
+      else {
+        d.marked = true; sc.met = true;
+        if (sc.burned) addHeat(state, 10);
+        return end(state, bus, sc.burned ? 'burned' : 'clean', sc.burned ? 'The tin behind the bench, the chalk on the post. Tomorrow SOLOVEY will stoop by the bench for his shoelace, and someone will be watching him do it.' : 'The tin behind the bench, the chalk on the post. Tomorrow SOLOVEY will pass, see the mark, and stoop for his shoelace. You saw nobody watching.');
+      }
+    }
+  }
+  if (!sc.outcome && now > d.by) end(state, bus, 'missed', d.loaded ? 'The tin\'s behind the bench, but there\'s no mark on the post: SOLOVEY walks past both, and never knows.' : 'The evening goes, and the tin\'s still in your pocket.');
+}
+
+/**
+ * The dead drop, test 5's other half (numbers my calls): being tailed's evening, but nobody to meet. A
+ * tin for SOLOVEY goes behind a bench's leg in the park, and a chalk mark on a lamppost a way along the
+ * path tells him it's there (he'll walk past it tomorrow). At the bench, T: DROP_S on its end retying a
+ * shoelace; then at the post, T: MARK_S with the chalk. Any of them who saw any second of it, within
+ * DROP_SEEN_M, rolls his Tracking against your Deception once it's done, from as close as he came (the
+ * covert eye +5; all of a load +2; people round you, the dark −3, a way off −1 past 12 m, −3 past 25):
+ * the drop seen is burned (SOLOVEY taken when he empties it); the chalk seen is a thing written down. Loaded and marked by DROP_LATE_MIN after the
+ * meeting's window, or it's missed. Stand up too soon, or walk off the post, and it isn't done.
+ */
+export const dropTest = {
+  ...sdr,
+  name: '5b. A dead drop',
+  about: 'A tin behind a bench\'s leg, a chalk mark on a lamppost to say it\'s there. Nobody to meet; just nobody watching.',
+  brief(state) {
+    const sc = state.scenario, g = sc.meet;
+    return subAll(state, {
+      title: 'A DEAD DROP FOR SOLOVEY',
+      body: [
+        `SOLOVEY's money and his next instructions are in a tin in your pocket. It goes behind the leg of a bench in ${g.place}, ${rowsText(g.row)}, by ${clockText(sc.drop.by)}. Then a chalk mark on a lamppost along the path, so that tomorrow, walking past, he knows to look.`,
+        'Six seconds on the end of the bench, a shoelace; two at the post. Nobody to meet, nobody to wait for: the risk is only who sees you stoop.',
+        'The FSB may be on you, as on any evening. Check your back on the way. A drop they see is a trap they sit on, and he walks into it. If they\'re on you, call it off.',
+      ],
+      footer: `Station Moscow · Thursday 5 November 2026 · ${clockText(sc.began)}`,
+      keys: [['watch', 'tapped: glance back; held: stop and look'], ['instinct', 'does what your instinct offers (a window, cross, load the drop, the chalk, call it off)'], ['slow', 'held: stroll'], ['log', 'the log']],
+    });
+  },
+  setup(state, opts) {
+    sdr.setup(state, opts);
+    const sc = state.scenario, g = sc.meet, seed = townOf(state.map), r = stream('drop', state.map.seed);
+    // (the post: a lamp on the bench's street, MARK_M along, stood at on the side its light falls)
+    const posts = [];
+    for (let i = g.i - 3; i <= g.i + 3; i++) {
+      if (i < 0) continue;
+      const S = section(seed, i, g.row);
+      for (const p of S.props) if (p.kind === 'lamp' && Math.abs(p.x - g.seat) >= MARK_M[0] && Math.abs(p.x - g.seat) <= MARK_M[1]) {
+        const l = S.lamps.find(l => l.x === p.x && Math.abs(l.z - p.z) < 0.8), side = Math.sign((l?.z ?? p.z + 1) - p.z) || 1;   // (its own light: two posts can share an x across the road)
+        posts.push({ row: g.row, x: p.x, z: p.z + side * 0.55, face: side > 0 ? 'up' : 'down' });
+      }
+    }
+    const along = posts.filter(p => Math.abs(p.z - g.z) < 4);            // (along the path, as the brief says, where there are)
+    const mark = pick(r, along.length ? along : posts) ?? { row: g.row, x: g.seat + 40, z: laneMid('path'), face: 'up' };
+    Object.assign(sc, { kind: 'drop', seats: [], drop: { site: { row: g.row, x: g.seat, z: g.z }, mark, by: g.to + DROP_LATE_MIN * 60000, loaded: false, marked: false, doing: null } });
+  },
+  result(state, o) {
+    const sc = state.scenario, r = sdr.result(state, o);
+    return { ...r, title: sc.campaign ? r.title : dropTest.name.toUpperCase(), stamp: sc.outcome === 'clean' || sc.outcome === 'burned' ? 'LOADED' : r.stamp,
+      lead: sc.met ? `${clockText(sc.ended)}: the tin behind the bench, the chalk on the post. Tomorrow SOLOVEY collects his money and his instructions.` : null };
+  },
+};
+
+// ---------- the brush pass (the design's test 5: brushTest, below) ----------
+
+export const PASS_M = 1.5;                                          // (arm's length, passing)
+export const PASS_SEEN_M = 35;
+const PATH_Z = () => laneMid('path');
+
+/** He comes along the path from the east at the minute, the paper under his arm, and walks on. */
+function brushMeeting(state, bus, me) {
+  const sc = state.scenario, g = sc.meet, now = state.time.ms, here = state.map.row === g.row;
+  let s = actorOf(state, sc.asset);
+  if (here && !s && !sc.met && now >= g.from - 40000 && now < g.to) {
+    const a = { id: `a${state.nextActor++}`, who: 'solovey', seed: null, x: g.seat + 48, z: PATH_Z(), vx: 0, vz: 0, face: 'left', head: Math.PI, gait: 'walk', stride: 0, stuck: 0,
+      ai: { kind: 'subject', speed: 1.15, steps: [['go', g.seat - 90, PATH_Z()], ['gone']], wait: 0 } };
+    state.actors.push(a);
+    sc.asset = a.id;
+    s = a;
+  }
+  if (sc.met) return;
+  // (he's by: well past the place, no paper's changed hands)
+  if (s && s.x < g.seat - 40) return end(state, bus, 'missed', 'SOLOVEY walks on along the path, the paper still under his arm, and out of the park. Whatever was in it goes home with him.');
+  if (!s && now > g.to + 20000) end(state, bus, 'missed', 'The minute came and went, and you weren\'t on his path. SOLOVEY walked through the park with his newspaper, and home.');
+}
+
+/** T at arm's length, passing: the paper changes hands; whoever of them could see it rolls to have seen it. */
+function brushPass(state, bus, me) {
+  const sc = state.scenario, s = actorOf(state, sc.asset);
+  if (!s || sc.met || Math.hypot(s.x - me.x, s.z - me.z) > PASS_M) return say(state, bus, { kind: 'instinct', text: 'Not yet: arm\'s length, as he passes.' });
+  sc.met = true; sc.burned = false;
+  const stopped = Math.hypot(me.vx, me.vz) < 0.3, crowd = state.actors.filter(o => o !== me && o !== s && !o.hidden && Math.hypot(o.x - me.x, o.z - me.z) < 4).length;
+  const light = lightBand(lightHere(state, me.x, me.z));
+  for (const c of sc.teamLost ? [] : sc.crew) {
+    const w = actorOf(state, c.id);
+    if (!w || Math.hypot(w.x - me.x, w.z - me.z) > PASS_SEEN_M || !seesActor(state, w, me)) continue;
+    sc.rolls++;
+    // (their trade: watching a man's hands, Tracking; a covert team's eye is on nothing else)
+    const r = opposed(state.rng, { skill: 'tracking', value: skill(state.people[w.who], 'tracking'), body: state.people[w.who],
+      mods: [c.role === 'eye' && sc.team === 'covert' && { why: 'the eye, watching for exactly this', v: 5 }, stopped && { why: 'you stopped to do it', v: 3 }, !stopped && { why: 'both of you walking on', v: -1 }, crowd && { why: 'people round you', v: -Math.min(3, crowd) },
+        light === 'dark' && { why: 'the dark', v: -3 }, (() => { const dw = Math.hypot(w.x - me.x, w.z - me.z); return dw > 25 ? { why: 'far off', v: -4 } : dw > 12 ? { why: 'a way off', v: -2 } : null; })()].filter(Boolean) },
+    { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] });
+    say(state, bus, { kind: 'roll', roll: r, hidden: true, text: r.ok ? `${cap(describe(state.people[w.who].look, state.people[w.who].sex))} was looking, and saw two people pass.` : `${cap(describe(state.people[w.who].look, state.people[w.who].sex))} saw the paper change hands.` });
+    if (!r.ok) { sc.burned = true; break; }
+  }
+  const evasive = sc.flags.reduce((n, f) => n + (f.kind === 'ran' || f.kind === 'assaulted' ? 2 : 1), 0);
+  if (!sc.burned && sc.teamLost && sc.team !== 'none' && evasive >= NET_FLAGS && chance(stream('net', state.map.seed, sc.flags.length), NET_CHANCE)) { sc.burned = true; sc.net = true; }
+  if (sc.burned) addHeat(state, 10);
+  end(state, bus, sc.burned ? 'burned' : 'clean', stopped ? 'You stop, he stops, a newspaper goes from one hand to another. It took a second, and it looked like what it was.'
+    : 'Two strangers on a path; a newspaper goes from his arm to your hand without either of you breaking step. A second, and you\'re both walking on.');
 }
 
 function sitDown(state, bus, me) {
@@ -768,9 +974,23 @@ function instinct(state, me, still) {
   const s = actorOf(state, sc.asset);
   const sure = Object.values(sc.faces).some(f => f.sure), familiar = Object.values(sc.faces).filter(f => f.n >= 2 && !f.sure);
   if (sc.phase === 'meet') return L('meet', 'note', ['The weather, the traffic, his wife\'s sister. Twenty seconds. Don\'t look round.', 'Talk about nothing. The paper goes under his arm, then under yours.']);
+  // (the dead drop: the site, then the post)
+  if (sc.drop) {
+    const d = sc.drop, site = d.site, post = d.mark, on = (p) => state.map.row === p.row && Math.hypot(me.x - p.x, me.z - p.z) <= DROP_REACH_M;
+    if (d.doing) return L('drop-doing', 'note', d.doing.what === 'load' ? 'Stooped at the bench. Don\'t look round; don\'t hurry.' : 'The chalk, and on.');
+    if (!d.loaded && on(site)) return L('load', 'warn', 'The bench\'s leg: the drop. {instinct} load it: six seconds on its end, a shoelace. Nobody watching?', 'load');
+    if (d.loaded && on(post)) return L('mark', 'warn', 'The lamppost: the signal. {instinct} a chalk mark, and walk on.', 'mark');
+    if (d.loaded) return L('to-post', 'note', `Loaded. The signal: a chalk mark on the lamppost ${post.row === state.map.row ? `${Math.round(Math.abs(post.x - me.x))} m ${post.x > me.x ? 'east' : 'west'}` : rowsText(post.row - state.map.row)}.`);
+  }
+  // (the brush pass: on his path, coming his way; at arm's length, the pass)
+  if (sc.brush && s) {
+    const d = Math.hypot(s.x - me.x, s.z - me.z);
+    if (d <= PASS_M) return L('pass', 'urgent', 'Now, as he passes: {instinct} the pass. Don\'t stop.', 'pass');
+    if (d < 25 && inView(state, s.id)) return { ...L('coming', 'warn', `SOLOVEY, coming along the path, the paper under his arm, ${Math.round(d)} m. Walk to meet him, and pass close.`), at: s.id };
+  }
   if (me.gait === 'run') return L('run', 'urgent', ['Don\'t run. If anyone\'s behind you, that goes in the report.', 'Running: the one thing a diplomat buying bread never does.']);
   // At the bench.
-  if (s && Math.hypot(s.x - me.x, s.z - me.z) < 3.2 && me.z > 11) {
+  if (s && !sc.brush && Math.hypot(s.x - me.x, s.z - me.z) < 3.2 && me.z > 11) {
     if (sure) return L('bench-sure', 'urgent', 'You\'ve a tail, and you\'re at his bench. Walk past him. {instinct} call it off.', 'abort');
     return L('bench', 'warn', 'There he is: bald, glasses, the paper. If you\'re sure you\'re clean, {instinct} sit down beside him.', 'meet');
   }
@@ -787,13 +1007,14 @@ function instinct(state, me, still) {
   if (me.glass && now < g.to) return L(sc.glassS < 7 ? 'glass' : 'glass-stay', 'calm', sc.glassS < 7
     ? ['In the glass, the street behind you, all but the middle of it: that\'s your own back. Who stops when you stop?', 'The glass shows the road behind you. Hold {watch} and slant your eyes along it for the pavement.']
     : ['Long enough at one window and it\'s not the goods you\'re looking at. Walk on when you\'ve seen what you need.', 'Slant your eyes along the glass ({watch} held) for the pavement behind you; straight in, it\'s the road.']);
-  if (now < g.from - 30000) {
+  const due = sc.drop ? sc.drop.by : g.to;
+  if (now < g.from - 30000 && !sc.drop) {
     if (paneNear(state, me)) return L('early', 'calm', 'A shop window: the glass shows who\'s behind you.');
     return L('early', 'calm', `SOLOVEY from ${clockText(g.from)}: ${wayText(state, me)} Time to check your back on the way.`);
   }
-  if (now < g.to) {
-    if (state.map.row === g.row && Math.abs(g.x - me.x) < 30) return A(L('near', 'warn', `He's there, on the bench${s && inView(state, s.id) ? '' : ' somewhere ahead'}. Last chance to check your back before you sit down with him.`));
-    return A(L('due', 'warn', `SOLOVEY is on his bench until ${clockText(g.to)}: ${wayText(state, me)}`));
+  if (now < due) {
+    if (state.map.row === g.row && Math.abs(g.x - me.x) < 30) return A(L('near', 'warn', sc.drop ? 'The bench with the drop behind its leg is here. Last chance to check your back before you stoop.' : sc.brush ? `This is his path: he comes along it from the east, the paper under his arm. Be on it, walking his way. Last chance to check your back.` : `He's there, on the bench${s && inView(state, s.id) ? '' : ' somewhere ahead'}. Last chance to check your back before you sit down with him.`));
+    return A(L('due', 'warn', sc.drop ? `The drop, behind a bench's leg in ${g.place}, by ${clockText(sc.drop.by)}: ${wayText(state, me)}` : sc.brush ? `SOLOVEY comes along the path at ${clockText(g.from)}: ${wayText(state, me)}` : `SOLOVEY is on his bench until ${clockText(g.to)}: ${wayText(state, me)}`));
   }
-  return L('late', 'warn', 'He\'s leaving. You\'re too late.');
+  return L('late', 'warn', sc.drop ? 'The drop\'s time is gone.' : 'He\'s leaving. You\'re too late.');
 }

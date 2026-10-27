@@ -4,6 +4,13 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc15 (2026-10-27)
+
+- **Mechanic test 5: a brush pass and a dead drop** (5a and 5b on the title), both on being tailed's evening, the team or none.
+  - **The brush pass:** SOLOVEY doesn't sit. At the minute he comes along the park's path with a newspaper under his arm and walks on. Be on his path, walking his way, and as you pass at arm's length, T: the paper's yours, neither of you breaking step. A watcher who can see it may see it (the closer, the likelier; a covert team's eye best of all; stopping to do it gives it away).
+  - **The dead drop:** nobody to meet. A tin behind a bench's leg (T at the bench: six seconds on its end, retying a shoelace), then a chalk mark on a lamppost along the path (T at the post) to tell him it's there. Whoever of them saw you at it rolls once you're done: the load seen is burned, the chalk seen written down.
+  - Check your back first: walking straight there with a team on you, they see it about half the time.
+
 ## v0.1.0-rc14 (2026-10-27)
 
 - **Hoods up, umbrellas open.** In rain and sleet a share of the street opens an umbrella (a fifth in light rain, more the harder it comes), others put a hood up; in snow it's mostly hoods. Nobody holds an umbrella in a gale, or with something else in their hand. The same people, the same way, every time: who they are decides it.
