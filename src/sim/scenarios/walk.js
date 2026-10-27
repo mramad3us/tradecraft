@@ -20,6 +20,7 @@ const TPS = 1000 / TICK_MS;
 
 export const walk = {
   name: 'Free walk',
+  again: { another: ['Another walk', 'A new street, new people, new dice.'], same: ['The same walk again', 'The same streets and the same people; the dice fall as you play.'] },
   about: 'A boulevard in central Moscow, a November afternoon. Walk, look, get the feel of it; the lanes lead on north and south. The sun sets at ten to five.',
   setup(state) {
     const r = state.rng;
@@ -32,6 +33,7 @@ export const walk = {
     state.map = { kind: 'street', seed: seedFrom(r), row: 0, i0: null, i1: null, crowd: 1 };
     state.actors.push({ id: 'a0', who: me.id, seed: null, x: 1.5, z: -2.6, vx: 0, vz: 0, face: 'down', head: Math.PI / 2, gait: 'idle', stride: 0, stuck: 0, ai: null });
     state.scenario.prompt = null;
+    state.scenario.rest = true;                                    // (the time's yours: H can rest the hours away, sim/aid.js)
     say(state, null, { kind: 'note', text: `${me.name}, ${state.legend.name}. An afternoon off, in theory. Moscow in November: the light is already going.` });
   },
 

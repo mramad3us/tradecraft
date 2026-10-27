@@ -29,12 +29,13 @@ button { font: inherit; color: inherit; }
 .watch .place { font-size: 11px; color: #dfe2e8; font-family: var(--type); margin-top: 2px; max-width: 190px; }
 
 /* Lines of the log as they come, bottom left. */
-.toasts { position: absolute; left: 14px; top: 14px; width: min(520px, 55%); display: flex; flex-direction: column; gap: 4px; }
+.toasts { position: absolute; left: 14px; top: 14px; width: min(520px, calc(50% - 150px));   /* (short of the middle: a fight's score sits there) */ display: flex; flex-direction: column; gap: 4px; }
 .toast { background: var(--hud); border-left: 3px solid var(--muted); padding: 4px 9px; font-size: 12.5px; transition: opacity 1.2s; }
 .toast.roll { border-color: var(--brass); }
 .toast.roll.fail { border-color: var(--red); }
 .toast.instinct { border-color: #95c1e3; font-style: italic; }
 .toast.gone { opacity: 0; }
+.covered .toasts, .covered .keys, .covered .prompt { visibility: hidden; }   /* (a sheet or a paper over the picture: the HUD keeps out from under it) */
 .toast .num { color: var(--muted); font-size: 11px; display: block; }
 
 /* Keys, bottom right. */
@@ -59,9 +60,14 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .overlay[hidden] { display: none; }
 .overlay .sheet { width: min(460px, 92%); max-height: 92%; overflow: auto; padding: 22px 26px; }
 
-#title { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, #23252f 0%, var(--ink) 70%); }
+#title { position: fixed; inset: 0; display: flex; align-items: safe center; justify-content: center; overflow-y: auto; padding: 16px 0; background: radial-gradient(ellipse at center, #23252f 0%, var(--ink) 70%); }
 #title[hidden] { display: none; }
 #title .sheet { width: min(520px, 92%); padding: 28px 32px; }
+#title .cols { display: flex; gap: 28px; }
+#title .col { flex: 1; min-width: 0; }
+#title .col .section:first-child { margin-top: 4px; }
+@media (min-width: 980px) { #title .sheet { width: min(940px, 94%); } }
+@media (max-width: 979px) { #title .cols { display: block; } }
 #title h1 { font-size: 30px; }
 #title .sub { color: #6a7182; margin: 4px 0 0; font-size: 13px; }
 
@@ -114,8 +120,8 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 
 /* Faces you've marked, over them: typed slips. */
 .tags { position: absolute; inset: 0; pointer-events: none; }
-.tag { position: absolute; left: 0; top: 0; transform-origin: 0 0; margin: -10px 0 0 -30px; width: 60px; text-align: center; font: 10px var(--type);
-  color: var(--ink); background: var(--paper-2); border: 1px solid #6a7182; padding: 0 2px; white-space: nowrap; }
+.tag { position: absolute; left: 0; top: 0; transform-origin: 0 0; margin: -10px 0 0 0; translate: -50% 0; text-align: center; font: 10px var(--type);
+  color: var(--ink); background: var(--paper-2); border: 1px solid #6a7182; padding: 0 4px; white-space: nowrap; }   /* (as wide as its words, centred over them) */
 .tag[hidden] { display: none; }
 .tag.sure { background: var(--red); color: var(--paper); border-color: var(--ink); font-weight: bold; }
 /* Where you're going, at the picture's edge. */

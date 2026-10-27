@@ -34,7 +34,7 @@ import { populate, think, walk, facing, isPasserby, noticeAgent } from './crowd.
 import { look, headOf, faceOf } from './perception.js';
 import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } from './agents.js';
 import { drift } from './people.js';
-import { heal, bleeding, bloodTick, bandOf, canStand, kill } from './health.js';
+import { heal, bleeding, bloodTick, bandOf, canStand, kill, BLOOD, COME_ROUND_S } from './health.js';
 import { PRESSURE_K, treat } from './aid.js';
 import { atKerb, destinations, ride } from './taxi.js';
 import { shortName } from './fight.js';
@@ -112,7 +112,8 @@ export function step(state, input = {}, bus) {
     }
     if (String(act).startsWith('aid:')) {                          // (first aid, H or F: 'aid:<actor>:<method>:<arg>', sim/aid.js)
       const [, aid, ...key] = act.split(':'), them = state.actors.find(a => a.id === aid);
-      if (me && them && !state.fight && Math.hypot(them.x - me.x, them.z - me.z) < 2.5) treat(state, bus, me, them, key.join(':'));
+      const done = me && them && !state.fight && Math.hypot(them.x - me.x, them.z - me.z) < 2.5 && treat(state, bus, me, them, key.join(':'));
+      if (done?.rest) skip(state, bus, done.rest);                  // (a rest: the hours go by: sim/aid.js)
       continue;
     }
     if (String(act).startsWith('taxi:')) {                         // (a taxi, where to chosen: sim/taxi.js)
@@ -274,7 +275,13 @@ export function changeMap(state, bus, way) {
 export function bloodBeat(state, bus, a, s) {
   const p = state.people[a.who];
   if (!p || p.dead || (p.blood === undefined && !bleeding(p, state.time.ms))) return;
-  const band = bloodTick(p, s, state.time.ms, a.busy?.what === 'pressure' ? PRESSURE_K : 1);
+  const pressed = state.actors.some(o => o.busy?.what === 'pressure' && (o.busy.on ?? o.id) === a.id);   // (their own hand, or someone's on it: sim/aid.js)
+  let band = bloodTick(p, s, state.time.ms, pressed ? PRESSURE_K : 1);
+  if (band === 'collapsed' && p.collapsedAt && !bleeding(p, state.time.ms) && state.time.ms - p.collapsedAt >= COME_ROUND_S * 1000) {
+    p.blood = BLOOD.collapse + 0.5; band = bandOf(p);             // (lying flat, nothing bleeding: the blood to the head again)
+    if (a.ai) a.ai.downUntil = state.time.ms;
+    say(state, bus, { kind: 'note', text: a.who === state.player ? 'You come round on the cold ground, sick and slow. You can stand, carefully; you can\'t run.' : `${shortName(state, a.who)} comes round, and sits up slowly.` });
+  }
   if (band === 'dead') {
     kill(p, state.time.ms, 'blood loss');
     a.gait = 'down'; a.vx = a.vz = 0; a.busy = null;

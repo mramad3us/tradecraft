@@ -165,7 +165,7 @@ export default [
       assert(line(null, null, 0) === null, 'nothing to say, nothing said');
       for (const [us, them, adv, bout, want, tone] of [
         ['stunned', null, 0, false, /You're stunned/, 'urgent'], ['dazed', null, 0, false, /no \{guard\} cover/, 'warn'], ['staggered', null, 0, false, /no \{grapple\} grab/, 'warn'],
-        [null, 'stunned', 1, false, /\{run\} with \{hit\} or \{grapple\} finishes it/, 'note'], [null, 'stunned', 1, true, /a foul/, 'urgent'], [null, 'stunned', 0, false, /whatever you do lands/, 'note'],
+        [null, 'stunned', 1, false, /\{run\} with a \{hit\} hit or a \{grapple\} grab finishes it/, 'note'], [null, 'stunned', 1, true, /a foul/, 'urgent'], [null, 'stunned', 0, false, /whatever you do lands/, 'note'],
         [null, 'dazed', 0, false, /B is dazed/, 'note'], [null, 'staggered', 0, false, /B is off balance/, 'note'], ['dazed', 'staggered', 0, false, /You're dazed.*B is off balance/, 'warn'],
       ]) {
         const l = line(us, them, adv, bout);

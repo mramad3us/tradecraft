@@ -4,6 +4,19 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc4 (2026-10-27)
+
+The first polish pass, from three outside reviews of rc1 (gameplay, screens, performance):
+
+- **A crash fixed:** a fight ender that went wrong and broke a bone froze the game (no words for a fracture). Now it has them; and any error in the game costs one tick and says so (Esc → Save to a file, to send it), rather than freezing.
+- **Blood comes back.** It was rounded away a second at a time, so a collapse was for good. Now it returns 2% an hour once nothing bleeds; collapsed with nothing bleeding any more, you come round after 90 s, in shock; in the free walk, H offers a rest (up to 8 hours somewhere warm, the clock skipped).
+- **First aid:** pressing on someone else's wound now works (it didn't); a missed dressing changes nothing (it used to slow it anyway, so retrying always won), and each try after is −2 harder. Press says to hold still a minute.
+- **AZERTY:** the number keys in F's menu and a conversation didn't work without Shift (the top row types & é " '). Keys are read by their place now, and the first-aid, carry and taxi cards take 1–9 too.
+- **Fights:** on the street they no longer talk about the mat and the hall; an FSB man is "the man in the red beanie", not "beanie)"; the instinct writes keys with their words ("a K hit can't be blocked").
+- **Talk:** one reply in four read "undefined"; fixed.
+- **Screens:** the title fits at 1280×720 (two columns on wide screens; it scrolls on small ones); the log's lines stop short of the fight's score; they wait while a sheet, a brief or the pause is up, and keep out from under them; PAUSED says Space; Esc out of J or C keeps a pause; the "seen before" slips fit their words; G on a bottle says you put it down (it won't go in a pocket); the result papers say "another lesson" or "another walk" where that's what it is, and ask for a score only in the mechanic tests.
+- F does nothing in a conversation (it opened a hidden menu that took the number keys).
+
 ## v0.1.0-rc3 (2026-10-27)
 
 - **Taxis** (your ask: transport for fast travel; and the design's taxi that shakes a tail). At the kerb, T hails one; say where: two or four streets north or south, or in the campaign your flat, the embassy, a safe house, and in Blown somewhere near the car. The ride takes its minutes, and you're out at the kerb there. On foot, nobody can follow you: being tailed's team loses you, but if one of them saw you jump in, it's written down, and they know what that means. In Blown, some drivers have heard the radio.

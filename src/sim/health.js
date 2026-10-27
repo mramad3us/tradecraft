@@ -33,9 +33,12 @@
 // that lands clean several (1 + 8 × force, × the weapon's bleed), and a cut artery (ARTERY_CHANCE of
 // a deep cut to a limb or the neck) 10–15. A shallow cut stops on its own (bleed: until when); a deep
 // one or an artery doesn't, short of care (sim/aid.js). bloodTick() takes it out, a second at a time;
-// with nothing bleeding it comes back, REGEN_PER_H. What the loss costs (BLOOD, the pressure falling):
-// pale (−1 to everything), in shock (−3, and no running), collapsed (down, out: can't stand), dead
-// (bled out). The figures are the textbook's classes of haemorrhage, roughly.
+// with nothing bleeding it comes back, REGEN_PER_H (the body drawing fluid back into the vessels: a
+// litre in half a day, roughly; resting, sim/aid.js rest(), passes the hours). What the loss costs
+// (BLOOD, the pressure falling): pale (−1 to everything), in shock (−3, and no running), collapsed
+// (down, out: can't stand), dead (bled out). Collapsed with nothing bleeding any more, lying flat,
+// you come round after COME_ROUND_S (the blood to the head again), in shock (sim/game.js bloodBeat()).
+// The figures are the textbook's classes of haemorrhage, roughly.
 //
 // **Death** (p.dead: { ms, why }; kill()): someone dead is out of everything: they can't stand, a fight
 // with them is over, they lie where they fell (sim/game.js). A blow can kill (sim/cqc.js deathChance():
@@ -117,7 +120,8 @@ export const SPLIT_AT = 0.3;
 export const NOSE_AT = 0.2;
 export const CRACK_MOD = -2;
 export const BLOOD = { pale: 85, shock: 70, collapse: 55, dead: 45 };
-export const REGEN_PER_H = 0.5;
+export const REGEN_PER_H = 2;
+export const COME_ROUND_S = 90;
 export const ARTERY_CHANCE = 0.15;
 export const DEEP_H = 6;                                          // (a deep cut bleeds this long, untended: as good as forever)
 export const FRACTURE_MOD = -3;
@@ -178,7 +182,7 @@ export function bloodTick(p, s, ms, k = 1) {
   const rate = bleedRate(p, ms, k);
   const b = rate > 0 ? bloodOf(p) - rate * s / 60 : Math.min(100, bloodOf(p) + REGEN_PER_H * s / 3600);
   if (b >= 100 && p.blood === undefined) return 'steady';
-  p.blood = Math.round(Math.max(0, b) * 1000) / 1000;
+  p.blood = Math.max(0, b);                                       // (unrounded: a second's regen is a ten-thousandth of a point)
   if (p.blood >= 100) delete p.blood;
   return bandOf(p);
 }

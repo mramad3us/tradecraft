@@ -52,9 +52,9 @@ export function statusLine(state) {
   else if (us === 'staggered') { parts.push('You\'re off balance: no {grapple} grab this time.'); tone = 'warn'; }
   if (them === 'stunned') {
     if (f.adv.a > 0 && f.bout) { parts.push(`${n} is stunned. It's a bout: finishing them ({run}) is a foul.`); tone = 'urgent'; }
-    else if (f.adv.a > 0) parts.push(`${n} is stunned: {run} with {hit} or {grapple} finishes it.`);
+    else if (f.adv.a > 0) parts.push(`${n} is stunned: {run} with a {hit} hit or a {grapple} grab finishes it.`);
     else parts.push(`${n} is stunned: whatever you do lands.`);
-  } else if (them === 'dazed') parts.push(`${n} is dazed: no cover coming, so a {hit} can't be blocked.`);
+  } else if (them === 'dazed') parts.push(`${n} is dazed: no cover coming, so a {hit} hit can't be blocked.`);
   else if (them === 'staggered') parts.push(`${n} is off balance: no grab coming from them.`);
   return parts.length ? { id: `status-${f.round}`, tone, text: parts.join(' ') } : null;
 }
@@ -70,7 +70,10 @@ const actorOfWho = (state, who) => state.actors.find(a => a.who === who);
 export const shortName = (state, who) => {
   const p = state.people[who];
   if (who === 'hale') return 'Hale';
-  return p?.known === false ? p.seen ?? 'they' : p?.name?.split(' ').slice(-1)[0] ?? 'they';
+  if (p?.known === false) return p.seen ?? 'they';
+  const desc = p?.name?.match(/\(([^)]+)\)/);                   // ('an FSB officer (the man in the red beanie)': the description)
+  if (desc) return desc[1];
+  return /^[a-z]/.test(p?.name ?? '') ? p.name : p?.name?.split(' ').slice(-1)[0] ?? 'they';   // ('the driver' whole; 'Viktor Orlov', Orlov)
 };
 
 /**
@@ -107,7 +110,7 @@ export function act(state, bus, action, scene) {
 export function exchange(state, bus, ours, scene) {
   const f = state.fight;
   const out = resolve(state, f, ours);
-  say(state, bus, { kind: out.roll ? 'roll' : 'note', roll: out.roll ?? undefined, text: `${ours.drew ? `You pull ${weaponOf(ours.drew).name} and cover. ` : ''}${exchangeText(out, shortName(state, f.b), state.people[f.b], state.map.seed)}` });
+  say(state, bus, { kind: out.roll ? 'roll' : 'note', roll: out.roll ?? undefined, text: `${ours.drew ? `You pull ${weaponOf(ours.drew).name} and cover. ` : ''}${exchangeText(out, shortName(state, f.b), state.people[f.b], state.map.seed, state.map.kind === 'dojo' ? 'hall' : 'street')}` });
   if (out.dropped) {                                                // (knocked out of a hand: it lies where it fell)
     const a = out.dropped.side === 'a' ? playerOf(state) : actorOfWho(state, f.b);
     if (a) drop(state, state.people[a.who], a, out.dropped.kind);

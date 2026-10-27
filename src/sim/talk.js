@@ -52,7 +52,7 @@ export function choose(state, bus, id) {
   const p = state.people[t.who], m = mood(p), k = hash(t.round, t.who.length, state.tick);
   const ours = OURS[id]?.[k % OURS[id].length] ?? '';
   const pool = Array.isArray(THEIRS[m]) ? THEIRS[m] : THEIRS[m][id] ?? THEIRS.neutral[id];
-  const theirs = pool[(k >> 4) % pool.length];
+  const theirs = pool[(k >>> 4) % pool.length];
   t.said.push({ ours, theirs });
   t.round++;
   if (p) nudge(p, 'affinity', 0, state.time.ms);                    // (contact: their gauges' drift starts again)

@@ -87,6 +87,7 @@ export const RISE_S = 3;                                            // getting u
 
 export const dojoScenario = {
   name: 'The Farm: hand to hand',
+  again: { another: ['Again, another lesson', 'Another day on the mat: new classmates, new dice.'], same: ['Again, the same lesson', 'The same class; the dice fall as you fight.'] },
   about: 'Camp Peary, Virginia: the agency\'s school. An instructor, a class, a mat. A tutorial for close combat.',
   brief(state) {
     const me = state.people[state.player];

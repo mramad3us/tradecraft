@@ -41,15 +41,17 @@ import { knownOf, classOf, READABLE } from '../sim/know.js';
 import { passerby, describe } from '../sim/people.js';
 import { CHOICES as TALK_CHOICES } from '../sim/talk.js';
 
-const el = (tag, props = {}, ...kids) => {
+const el = (tag, { dataset, ...props } = {}, ...kids) => {
   const e = Object.assign(document.createElement(tag), props);
+  if (dataset) Object.assign(e.dataset, dataset);                  // (dataset is a getter: its entries, one by one)
   for (const k of kids.flat()) if (k !== null && k !== undefined) e.append(k);
   return e;
 };
 export const RES = [640, 360];                                     // (live: fit() sets it)
 export const RES_BASE = [640, 360];
 export const RES_MAX = [2 * SCREEN_HALF_M[0] * 16, 430];
-const TOAST_S = 16;                                                // (a log line at the top left lingers: the user, 2026-10-26, twice the 8 s it was)
+const TOAST_S = 16;
+let hudMs = 0, lastReal = 0;                                      // (the HUD's clock: it runs while the game does)                                                // (a log line at the top left lingers: the user, 2026-10-26, twice the 8 s it was)
 
 export function createUI({ input, cb }) {
   const frame = el('div', { id: 'frame' });
@@ -107,19 +109,24 @@ export function createUI({ input, cb }) {
         el('small', { textContent: farm ? 'The bouts you remember, three of your class and Hale; and what brought them back, years on, in Moscow.' : s.about })),
       el('button', { className: 'item', onclick: () => cb.newGame('dojo', farm ? 'lesson' : 'remembered') }, farm ? 'The Farm: the whole lesson again' : 'The Farm, remembered',
         el('small', { textContent: farm ? s.about : 'Straight to the bouts, and what they bring back, years on. For after the lesson.' }))];
+    // (two columns where there's room: the game on the left, the mechanic tests and the files on the right)
     title.replaceChildren(el('div', { className: 'sheet' },
       el('h1', { textContent: 'TRADECRAFT' }),
-      el('p', { className: 'sub', textContent: `v${version} · in development: the skeleton, and the first look at the street` }),
+      el('p', { className: 'sub', textContent: `v${version} · ${/-rc/.test(version) ? 'release candidate: the first playable' : 'in development'}` }),
       el('hr'),
-      auto ? el('button', { className: 'item', onclick: () => cb.continue() }, 'Continue', el('small', { textContent: auto.about })) : null,
-      el('button', { className: 'item campaign', onclick: () => cb.newCampaign?.() }, 'Campaign: a posting in Moscow', el('small', { textContent: 'A Handler at the US embassy: a network to run, men to watch, the heat to keep down. Days and weeks of it, as long as it lasts.' })),
-      ...Object.entries(SCENARIOS).filter(([, s]) => !s.test && !s.campaign).flatMap(([key, s]) => entry(key, s)),
-      el('h3', { className: 'section', textContent: 'Mechanic tests' }),
-      el('p', { className: 'note', textContent: 'One mechanic each, to play and score before they\'re joined into the game.' }),
-      ...Object.entries(SCENARIOS).filter(([, s]) => s.test).map(([key, s]) => el('button', { className: 'item', onclick: () => cb.newGame(key) }, s.name, el('small', { textContent: s.about }))),
-      el('button', { className: 'item', disabled: true }, '3. Watching and photographing', el('small', { textContent: 'Next: watch someone without being caught at it, and catch a meeting on film.' })),
-      el('hr'),
-      el('button', { className: 'item', onclick: () => cb.importSave() }, 'Load a save file…', el('small', { textContent: 'A .json save exported from the menu.' })),
+      el('div', { className: 'cols' },
+        el('div', { className: 'col' },
+          auto ? el('button', { className: 'item', onclick: () => cb.continue() }, 'Continue', el('small', { textContent: auto.about })) : null,
+          el('button', { className: 'item campaign', onclick: () => cb.newCampaign?.() }, 'Campaign: a posting in Moscow', el('small', { textContent: 'A Handler at the US embassy: a network to run, men to watch, the heat to keep down. Days and weeks of it, as long as it lasts.' })),
+          ...Object.entries(SCENARIOS).filter(([, s]) => !s.test && !s.campaign).flatMap(([key, s]) => entry(key, s))),
+        el('div', { className: 'col' },
+          el('h3', { className: 'section', textContent: 'Mechanic tests' }),
+          el('p', { className: 'note', textContent: 'One mechanic each, to play and score before they\'re joined into the game.' }),
+          ...[...Object.entries(SCENARIOS).filter(([, s]) => s.test), ['watch', { name: '3. Watching and photographing', about: 'Next: watch someone without being caught at it, and catch a meeting on film.', soon: true }]]
+            .sort(([, a], [, b]) => a.name.localeCompare(b.name))
+            .map(([key, s]) => el('button', { className: 'item', disabled: !!s.soon, onclick: () => cb.newGame(key) }, s.name, el('small', { textContent: s.about }))),
+          el('hr'),
+          el('button', { className: 'item', onclick: () => cb.importSave() }, 'Load a save file…', el('small', { textContent: 'A .json save exported from the menu.' })))),
       el('hr'),
       el('p', { className: 'note', textContent: 'Keys are read by where they sit on the keyboard, so they work on any layout.' }),
     ));
@@ -139,6 +146,7 @@ export function createUI({ input, cb }) {
     if (me && state.map?.kind === 'street') watch.querySelector('.place').textContent = placeName(state.map.seed, state.map.row ?? 0, me.x, me.z);
     else watch.querySelector('.place').textContent = SCENARIOS[state.scenario.kind]?.place?.(state) ?? '';
     frame.classList.toggle('paused', paused && menu.hidden && log.hidden && paper.hidden);
+    if (paused && banner.dataset.key !== input.label('pause')) { banner.dataset.key = input.label('pause'); banner.textContent = `PAUSED · ${input.label('pause')}`; }
     // The marker: over whom we take for the target (sc.marked), as we last saw them (live, or their
     // memory in the dimmed street), at the frame's edge when they're off it; hollow when out of view.
     // Only until sc.markUntil, when a scenario says so (the tail: from there on, our eyes).
@@ -295,7 +303,12 @@ export function createUI({ input, cb }) {
     }
     // (the move panel sits above the instinct, however many lines it runs to)
     if (!moves.hidden) moves.style.bottom = `${p ? 58 + prompt.offsetHeight + 8 : 96}px`;
-    const now = performance.now();
+    // (a log line's 16 s run while the game does: not under a brief, a sheet, a paper or the pause)
+    const real = performance.now(), cover = overlay();
+    if (!paused && !cover && lastReal) hudMs += real - lastReal;
+    lastReal = real;
+    frame.classList.toggle('covered', !!cover && cover !== 'interact');
+    const now = hudMs;
     for (const t of [...toasts.children]) {
       if (now - t.born > TOAST_S * 1000 && !t.classList.contains('gone')) t.classList.add('gone');
       if (now - t.born > (TOAST_S + 1.5) * 1000) t.remove();
@@ -327,7 +340,7 @@ export function createUI({ input, cb }) {
   function toast(e) {
     if (e.hidden) return;                                          // (what the character didn't see)
     const t = el('div', { className: `toast ${e.kind}${e.roll && !e.roll.ok ? ' fail' : ''}` }, ...keyed(e.text ?? ''), e.roll ? el('span', { className: 'num', textContent: checkText(e.roll) }) : null);
-    t.born = performance.now();
+    t.born = hudMs;
     toasts.append(t);
     while (toasts.children.length > 3) toasts.firstChild.remove();
   }
@@ -417,22 +430,25 @@ export function createUI({ input, cb }) {
       el('span', { className: 'stamp', textContent: 'FIRST AID' }),
       el('h2', { textContent: name }),
       el('p', { className: 'note', textContent: `Blood ${b}% (${BAND_WORDS[bandOf(p)]})${rate ? `; bleeding ${rate >= 8 ? 'fast, pumping' : rate >= 0.8 ? 'steadily' : 'a trickle'}` : ''}. Medicine ${skill(medic, 'medicine')}: it decides how well it's done${self ? '; on yourself, harder' : ''}.` }), el('hr'),
-      list.length ? el('table', { className: 'skills' }, el('tbody', {}, list.map(o => el('tr', { className: o.ok ? '' : 'none' },
-        el('td', { textContent: o.label }), el('td', { className: 'where', textContent: o.why ?? '' }),
-        el('td', {}, o.ok ? el('button', { className: 'small', onclick: go(o.key) }, 'do it') : null)))))
+      list.length ? el('table', { className: 'skills' }, el('tbody', {}, numbered(list, o => o.ok).map(([o, n]) => el('tr', { className: o.ok ? '' : 'none' },
+        el('td', {}, n ? el('kbd', { textContent: String(n) }) : null), el('td', { textContent: o.label }), el('td', { className: 'where', textContent: o.why ?? '' }),
+        el('td', {}, o.ok ? el('button', { className: 'small', dataset: { n }, onclick: go(o.key) }, 'do it') : null)))))
         : el('p', { textContent: 'Nothing first aid can do: nothing bleeding, nothing broken.' }),
-      el('p', { className: 'note', textContent: `It takes time, stooped over it; moving stops it. ${input.label('aid')} or ${input.label('menu')} to close.` })));
+      el('p', { className: 'note', textContent: `1–9 or a click does it. It takes time, stooped over it; moving stops it. ${input.label('aid')} or ${input.label('menu')} to close.` })));
     card.hidden = false;
     card.dataset.kind = 'aid';
     menu.hidden = log.hidden = true;
+    card.querySelector('button[data-n]')?.focus();
   }
+  /** [item, its number (1…, for the ones that can be chosen), or 0]. */
+  const numbered = (list, ok = () => true) => { let k = 0; return list.map(o => [o, ok(o) ? ++k : 0]); };
 
   /** A few choices on a card ([{ key, label }]), each a button that closes it and does it (a taxi's where to). */
   function openChoices(stamp, title, list, act) {
     card.replaceChildren(el('div', { className: 'sheet charsheet choices' },
       el('span', { className: 'stamp', textContent: stamp }), el('h2', { textContent: title }), el('hr'),
-      ...list.map(o => el('button', { className: 'item', onclick: () => { closeOverlays(); act(o.key); } }, o.label)),
-      el('p', { className: 'note', textContent: `${input.label('menu')} to close.` })));
+      ...list.map((o, i) => el('button', { className: 'item', dataset: { n: i + 1 }, onclick: () => { closeOverlays(); act(o.key); } }, el('kbd', { textContent: String(i + 1) }), ` ${o.label}`)),
+      el('p', { className: 'note', textContent: `1–9 or a click. ${input.label('menu')} to close.` })));
     card.hidden = false;
     card.dataset.kind = 'choices';
     menu.hidden = log.hidden = true;
@@ -442,11 +458,13 @@ export function createUI({ input, cb }) {
   /** I: what you carry, and what's in your hand; each a button (take out, put away, drop) that closes it and does it. */
   function openInventory(state, act) {
     const p = state.people[state.player], go = (cmd) => () => { closeOverlays(); act(cmd); };
+    let n = 0;
     const row = (kind, inHand) => {
-      const w = weaponOf(kind);
-      return el('tr', {}, el('td', { textContent: w?.name ?? kind }), el('td', { className: 'where', textContent: inHand ? 'in hand' : w?.carry ?? '' }),
-        el('td', {}, inHand ? (w?.carry !== 'hand' ? el('button', { className: 'small', onclick: go('stow') }, 'put away') : null) : el('button', { className: 'small', onclick: go(`wield:${kind}`) }, 'take out'),
-          el('button', { className: 'small', onclick: go(`drop:${kind}`) }, 'drop')));
+      const w = weaponOf(kind), first = inHand ? (w?.carry !== 'hand' ? ['stow', 'put away'] : ['drop:' + kind, 'put down']) : [`wield:${kind}`, 'take out'];
+      n++;
+      return el('tr', {}, el('td', {}, el('kbd', { textContent: String(n) })), el('td', { textContent: w?.name ?? kind }), el('td', { className: 'where', textContent: inHand ? 'in hand' : w?.carry ?? '' }),
+        el('td', {}, el('button', { className: 'small', dataset: { n }, onclick: go(first[0]) }, first[1]),
+          first[0].startsWith('drop:') ? null : el('button', { className: 'small', onclick: go(`drop:${kind}`) }, 'drop')));
     };
     const list = [...(p.hand ? [row(p.hand, true)] : []), ...(p.items ?? []).map(k => row(k, false))];
     card.replaceChildren(el('div', { className: 'sheet charsheet inventory' },
@@ -454,10 +472,11 @@ export function createUI({ input, cb }) {
       el('h2', { textContent: 'WHAT YOU CARRY' }),
       el('p', { className: 'note', textContent: 'Little, and only where it fits: a pocket, or tucked in the beltline under your coat. Anything else is held, or put down.' }), el('hr'),
       list.length ? el('table', { className: 'skills' }, el('tbody', {}, list)) : el('p', { textContent: 'Nothing to fight with. Things lie about: T picks one up.' }),
-      el('p', { className: 'note', textContent: `${input.label('gun')} takes out the next one, or puts it away (in a fight, that exchange you only cover). ${input.label('inventory')} or ${input.label('menu')} to close.` })));
+      el('p', { className: 'note', textContent: `1–9: the first button on its row. ${input.label('gun')} takes out the next thing, or puts it away; in a fight, drawing costs you the exchange (you can only cover while you do). ${input.label('inventory')} or ${input.label('menu')} to close.` })));
     card.hidden = false;
     card.dataset.kind = 'inventory';
     menu.hidden = log.hidden = true;
+    card.querySelector('button[data-n]')?.focus();
   }
 
   // ---------- F: what to do with whoever's within reach (sim/interact.js) ----------
@@ -475,7 +494,7 @@ export function createUI({ input, cb }) {
           el('kbd', { textContent: String(i + 1) }), el('span', { textContent: `${o.label}${o.sub ? ' ▸' : ''}` }), o.why ? el('small', { textContent: o.why }) : null)),
         el('div', { className: 'foot', textContent: sub ? `Backspace: back · ${input.label('interact')} or ${input.label('menu')}: close` : `${input.label('interact')} or ${input.label('menu')}: close` }));
       askKeys = (e) => {
-        const n = Number(e.key);
+        const n = digit(e);
         if (n >= 1 && n <= list.length) { e.preventDefault(); pick(list[n - 1]); }
         else if (e.key === 'Backspace' && sub) { e.preventDefault(); show(interactOptions(state, them), false); }
       };
@@ -492,9 +511,12 @@ export function createUI({ input, cb }) {
     return true;
   }
   const closeAsk = () => { ask.hidden = true; askFor = null; askKeys = null; };
+  // (a number by the key's place, not its character: on AZERTY the top row types & é " ' without Shift)
+  const digit = (e) => { const m = /^(?:Digit|Numpad)([1-9])$/.exec(e.code); return m ? Number(m[1]) : 0; };
   addEventListener('keydown', (e) => {
     if (!ask.hidden && askKeys) askKeys(e);
-    else if (!talkbox.hidden) { const n = Number(e.key); if (n >= 1 && n <= TALK_CHOICES.length) { e.preventDefault(); cb.talk?.(TALK_CHOICES[n - 1].id); } }
+    else if (!talkbox.hidden) { const n = digit(e); if (n >= 1 && n <= TALK_CHOICES.length) { e.preventDefault(); cb.talk?.(TALK_CHOICES[n - 1].id); } }
+    else if (!card.hidden && ['aid', 'inventory', 'choices'].includes(card.dataset.kind)) { const n = digit(e); const b = n && card.querySelector(`button[data-n="${n}"]`); if (b) { e.preventDefault(); b.click(); } }
   });
 
   /** Their sheet as you guess it: what you know of them (sim/know.js). */
@@ -617,14 +639,16 @@ export function createUI({ input, cb }) {
   function showResult(state, { again, same, title, back = null }, { debug = false } = {}) {
     const sc = state.scenario, secs = Math.round((sc.ended - sc.began) / 1000);
     const go = (fn) => () => { paper.hidden = true; paper.dataset.kind = ''; fn(); };
+    // (the scene's own words for going again: an evening, a lesson, a walk; the score asked for only in a mechanic test)
+    const S = SCENARIOS[sc.kind], w = S.again ?? { another: ['Again, another evening', 'A new street, a new evening, new dice.'], same: ['Again, the same evening', 'The same streets and the same people; the dice fall as you play.'] };
     // (in a campaign: back to the posting, the outcome folded in; or, the character gone, the title)
     const ways = state.campaign ? [el('hr'),
       back && !state.people[state.player]?.dead ? el('button', { className: 'item', onclick: go(back) }, 'Back to the posting', el('small', { textContent: 'The debrief, and on with it.' })) : null,
       el('button', { className: 'item', onclick: go(title) }, 'Back to the title')] : [
       el('hr'),
-      el('p', { className: 'note', textContent: 'How did it play? A score out of 100, and what felt off, in the chat: that\'s what this test is for.' }),
-      el('button', { className: 'item', onclick: go(again) }, 'Again, another evening', el('small', { textContent: 'A new street, a new evening, new dice.' })),
-      el('button', { className: 'item', onclick: go(same) }, 'Again, the same evening', el('small', { textContent: 'The same streets and the same people; the dice fall as you play.' })),
+      S.test ? el('p', { className: 'note', textContent: 'How did it play? A score out of 100, and what felt off, in the chat: that\'s what this test is for.' }) : null,
+      el('button', { className: 'item', onclick: go(again) }, w.another[0], el('small', { textContent: w.another[1] })),
+      el('button', { className: 'item', onclick: go(same) }, w.same[0], el('small', { textContent: w.same[1] })),
       el('button', { className: 'item', onclick: go(title) }, 'Back to the title'),
     ];
     const own = sc.outcome === 'dead' ? deathPaper(state) : SCENARIOS[sc.kind].result?.(state, { debug });   // (killed: the engine's paper, whatever the scene)
@@ -639,7 +663,7 @@ export function createUI({ input, cb }) {
         ...ways));
     } else paper.replaceChildren(el('div', { className: 'sheet result' },
       el('span', { className: `stamp ${sc.outcome === 'seen' ? 'good' : ''}`, textContent: stampOf(sc) }),
-      el('h2', { textContent: (state.campaign && sc.kind === 'tail' ? `Tailing: ${state.people.orlov?.name ?? ''}` : SCENARIOS[sc.kind].name).toUpperCase() }), el('hr'),
+      el('h2', { textContent: (state.campaign && sc.kind === 'tail' ? `Tailing: ${state.people.orlov?.name ?? ''}` : S.name.replace(/^\d+\.\s*/, '')).toUpperCase() }), el('hr'),
       el('p', { textContent: sc.endText }),
       sc.lead ? el('p', { className: 'lead', textContent: `Lead. ${sc.lead}` }) : null,
       ...(debug ? unseenOf(state) : []),

@@ -139,8 +139,9 @@ export function draw(state, p, a) {
 export function use(state, bus, a, cmd) {
   const p = state.people[a.who], [verb, kind] = cmd.split(':'), was = p.hand;
   if (verb === 'draw') {
-    const now = draw(state, p, a);
-    if (now !== was) say(state, bus, { kind: 'note', text: now ? `You take out ${weaponOf(now).name}.` : `You put ${weaponOf(was).name} away.` });
+    const now = draw(state, p, a), down = was && was !== now && !(p.items ?? []).includes(was);   // (held only: it went on the ground)
+    const put = was && (down ? `You put ${weaponOf(was).name} down: it won't go in a pocket.` : `You put ${weaponOf(was).name} away.`);
+    if (now !== was) say(state, bus, { kind: 'note', text: now ? `${put && down ? `${put} ` : ''}You take out ${weaponOf(now).name}.` : put });
   } else if (verb === 'wield' && (p.items ?? []).includes(kind)) {
     if (was && !stow(p)) drop(state, p, a);
     p.items.splice(p.items.indexOf(kind), 1);

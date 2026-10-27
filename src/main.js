@@ -172,9 +172,10 @@ input.onAction((action) => {
   const open = ui.overlay();
   if (open === 'brief' || open === 'result') return;              // a paper waits for its choice
   if (action === 'menu' && state?.talk && !open) { acts.push('talk:leave'); return; }   // (Esc in a conversation: leave it there)
-  if (action === 'menu') { if (open) { ui.closeOverlays(); paused = false; } else { ui.openMenu(settings); } return; }
+  if (action === 'menu') { if (open) { ui.closeOverlays(); if (open === 'menu') paused = false; } else { ui.openMenu(settings); } return; }   // (Esc out of the menu resumes, as its Resume does; out of J or C, a pause stays one)
   if (action === 'log') { if (open === 'log') { ui.closeOverlays(); } else if (!open) ui.openLog(state, settings); return; }
   if (action === 'sheet') { if (open === 'sheet') { ui.closeOverlays(); } else if (!open) ui.openSheet(state); return; }
+  if (action === 'interact' && state?.talk) return;               // (in a conversation, F is nothing: its menu would open under the talk box)
   if (action === 'interact') {                                    // (F: what to do with whoever's within reach; the sim does it: sim/interact.js)
     if (open === 'interact') { ui.closeOverlays(); return; }
     if (state.fight) { if (open === 'sheet') ui.closeOverlays(); else if (!open) ui.openRead(state, state.fight.b); return; }   // (in a fight: your read of them, the fight's own: sim/fight.js)
@@ -205,6 +206,15 @@ addEventListener('keydown', (e) => {                               // debug mode
 addEventListener('pagehide', () => autosave());
 document.addEventListener('visibilitychange', () => { if (document.hidden && running) { paused = true; autosave(); } });
 
+// A sim error: told once (the console has it all; the save, exported, replays it), and the game goes on.
+const told = new Set();
+function broke(e) {
+  console.error(e);
+  if (told.has(e.message)) return;
+  told.add(e.message);
+  ui.toast({ kind: 'note', text: `Something in the game broke (${e.message}). It carries on; Esc → Save to a file, to report it.` });
+}
+
 function frame(now) {
   const dt = Math.min(0.25, (now - last) / 1000);
   last = now;
@@ -214,7 +224,7 @@ function frame(now) {
       acc += dt;
       while (acc >= TICK_MS / 1000) {
         prev = new Map(state.actors.map(a => [a.id, [a.x, a.z, a.stride]]));
-        step(state, { ...input.poll(), act: acts }, bus);
+        try { step(state, { ...input.poll(), act: acts }, bus); } catch (e) { broke(e); }   // (a bug in a tick costs that tick, not the game)
         acts = [];
         acc -= TICK_MS / 1000;
       }

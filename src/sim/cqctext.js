@@ -34,7 +34,7 @@ const DOES = {
   block: [['you cover', 'you bring both hands up', 'you tuck in behind your hands'], ['{n} covers', '{n} brings both hands up', '{n} tucks in behind both hands']],
   parry: [['you wait for it, hands loose', 'you set to parry', 'you keep your hands soft, ready'], ['{n} waits, hands loose', '{n} sets to parry', '{n} keeps the hands soft']],
   slip: [['you stay loose, chin down', 'you weave, ready to slip it', 'you sit back on your heels'], ['{n} stays loose, chin down', '{n} weaves', '{n} sits back on the heels, light']],
-  open: [['you can\'t make your hands do anything', 'you stand there, dazed', 'your arms don\'t answer'], ['{n} stands there, dazed', '{n}\'s hands hang', '{n} isn\'t there behind the eyes']],
+  open: [['you can\'t make your hands do anything', 'you stand there, dazed', 'your arms don\'t answer'], ['{n} stands there, wide open', '{n}\'s hands hang', '{n} never gets them up']],
 };
 
 // Armed (sim/weapons.js TECHS): [ours, theirs]; {w} the weapon.
@@ -71,7 +71,7 @@ const EDGE_THEM = [' An edge to {n}.', ' {n} banks the opening.', ' {n} has one 
 // What a blow does, as it looks on them (by part and severity) and as it feels on you.
 const LOOKS = {
   head: { light: ['{his} head rocks', 'it clips {him} on the cheek', '{n} blinks it away'], solid: ['{his} head snaps back', 'it lands flush on {his} jaw', '{n}\'s eyes water'],
-    heavy: ['{his} legs dip under {him}', '{n}\'s head bounces off it', 'it lands with a crack that turns heads across the hall'], brutal: ['{n} goes stiff and folds', 'the lights go out in {n}\'s eyes for a second', '{n} drops like a coat off a hook'] },
+    heavy: ['{his} legs dip under {him}', '{n}\'s head bounces off it', 'it lands with a crack that turns heads across {hall}'], brutal: ['{n} goes stiff and folds', 'the lights go out in {n}\'s eyes for a second', '{n} drops like a coat off a hook'] },
   torso: { light: ['it thumps into {his} ribs', '{n} grunts', 'it lands on {his} chest'], solid: ['the breath goes out of {n} in a grunt', '{n} folds round it a little', 'it sinks into {his} side'],
     heavy: ['{n} doubles up', 'it lifts {n} onto {his} toes', '{n} sags, mouth open, no air'], brutal: ['{n} goes down on one knee, arms round {his} middle', 'something in {n}\'s side gives', '{n} can\'t straighten up'] },
   arm: { light: ['it smacks into {his} arm', '{n} takes it on the arm'], solid: ['{his} arm drops a moment', '{n} shakes the arm out'], heavy: ['{his} arm hangs', '{n} cradles the arm'], brutal: ['{his} arm folds the wrong way', '{n} cries out, the arm useless'] },
@@ -79,20 +79,20 @@ const LOOKS = {
 };
 const FEELS = {
   head: { light: ['Your ears ring.', 'A sting across the cheek.', 'Your eyes water.'], solid: ['Lights go off behind your eyes.', 'Your jaw clicks, and the room tilts.', 'You taste copper.'],
-    heavy: ['White, then the mat very close.', 'The hall swings round you.', 'Your teeth meet hard; you\'re not sure where your feet are.'], brutal: ['Nothing, for a moment. Then the ceiling.', 'The world goes out like a light and comes back sideways.', 'Somebody is a long way off, saying your name.'] },
+    heavy: ['White, then {mat} very close.', '{Hall} swings round you.', 'Your teeth meet hard; you\'re not sure where your feet are.'], brutal: ['Nothing, for a moment. Then {ceiling}.', 'The world goes out like a light and comes back sideways.', 'Somebody is a long way off, saying your name.'] },
   torso: { light: ['It knocks some wind out of you.', 'A dull thud under the ribs.', 'You feel it in your back teeth.'], solid: ['Your ribs light up.', 'Something low in your side goes hot.', 'The air leaves you in one go.'],
     heavy: ['You can\'t breathe, and then you can, and it hurts.', 'You fold over it before you can stop yourself.', 'It goes through you to the spine.'], brutal: ['Something in your side cracks, and you hear it.', 'Your legs go: there\'s no air anywhere.', 'You\'re on one knee without deciding to be.'] },
   arm: { light: ['Your forearm stings.', 'A knock on the elbow.'], solid: ['Your arm goes dead to the fingers.', 'Pins and needles from elbow to wrist.'], heavy: ['The arm won\'t lift properly.', 'Your hand won\'t close.'], brutal: ['Your arm gives with a sound you\'ll remember.', 'The arm hangs, and the pain arrives late and all at once.'] },
   leg: { light: ['Your thigh stings.', 'A dead patch on the leg.'], solid: ['Your thigh goes to water.', 'The leg nearly folds.'], heavy: ['You can\'t put weight on it.', 'The leg buckles; you stay up by luck.'], brutal: ['The leg goes, and you with it.', 'Your knee folds under you.'] },
 };
-const THROWN = [['{n} goes over your hip and onto the mat', 'and {n} hits the mat flat on {his} back', 'and {n}\'s feet go up and {his} back comes down'],
-  ['the mat comes up to meet you', 'you go over and land flat, and the air leaves', 'the floor hits you along the whole of your back']];
+const THROWN = [['{n} goes over your hip and onto {mat}', 'and {n} hits {mat} flat on {his} back', 'and {n}\'s feet go up and {his} back comes down'],
+  ['{mat} comes up to meet you', 'you go over and land flat, and the air leaves', '{floor} hits you along the whole of your back']];
 const SHOVED = [['{n} staggers back, off balance', '{n} stumbles a step', '{n} rocks back on {his} heels'], ['you stagger back, off balance', 'you stumble a step', 'you rock back on your heels']];
-const LOCKED = [['{n}\'s arm goes up behind {him}, and {n} slaps the mat', 'you wind {his} arm up until {n} taps', '{n} taps before the elbow does something worse'],
-  ['your arm goes up behind you; you tap', 'your elbow\'s about to bend the wrong way: you slap the mat', 'you tap before the arm decides for you']];
+const LOCKED = [['{n}\'s arm goes up behind {him}, and {n} slaps {mat}', 'you wind {his} arm up until {n} taps', '{n} taps before the elbow does something worse'],
+  ['your arm goes up behind you; you tap', 'your elbow\'s about to bend the wrong way: you slap {mat}', 'you tap before the arm decides for you']];
 const CHOKED = [['your forearm closes on {n}\'s throat; {n} sags', '{n} claws at your arm, then taps', '{n}\'s face darkens; {n} taps'],
   ['an arm closes on your throat; the room goes grey', 'you claw at the arm, then tap', 'the light narrows to a tunnel; you tap']];
-const CIRCLE = ['You circle.', 'Nobody commits.', 'Feet slide on the mat; you circle.', 'You watch each other over your hands.'];
+const CIRCLE = ['You circle.', 'Nobody commits.', 'Feet slide on {mat}; you circle.', 'You watch each other over your hands.'];
 const STATUS = { staggered: [[' {n} staggers: no footing to throw from.', ' {n} is off balance.', ' {n} sways.'], [' You stagger: no footing to grab from.', ' You\'re off balance.', ' You sway.']],
   dazed: [[' {n} blinks, slow: {his} hands are late.', ' {n} is dazed.', ' {n} shakes {his} head.'], [' You\'re dazed: your hands are slow to come up.', ' The hall swims.', ' You blink, and blink again.']],
   stunned: [[' {n} is out on {his} feet.', ' {n}\'s eyes have gone somewhere else.', ' {n} is stunned.'], [' You\'re seeing two of {n}.', ' You\'re stunned.', ' Nothing answers: arms, legs, nothing.']] };
@@ -132,19 +132,24 @@ const INJURED = {
   split: [[' {n}\'s skin splits: {injury}, bleeding freely.', ' Blood: {injury}.'], [' Your skin splits: {injury}. Blood runs warm.', ' Warm wet on your face: {injury}.']],
   nose: [[' Blood from {n}\'s nose.', ' {n}\'s nose runs red.'], [' Your nose runs hot: blood.', ' You taste blood at the back of your throat.']],
   cut: [[' The edge opens {n} up: {injury}.', ' {injury}, and blood.'], [' The edge opens you up: {injury}.', ' You feel it later than you see it: {injury}.']],
+  fracture: [[' Something in {n} breaks, and {he} knows it: {injury}.', ' A sound like a stick snapping: {injury}.'], [' Something breaks, and you know it: {injury}.', ' A white flash of pain, then a wrongness: {injury}.']],
 };
 
 /** Pronouns for someone, from their sheet. */
 export const pronouns = (p) => (p?.sex === 'f' ? { he: 'she', him: 'her', his: 'her' } : { he: 'he', him: 'him', his: 'his' });
 
 /** Fill {n}, {he}, {him}, {his} for them; capitalise the first letter. */
-function fill(text, name, pr) {
-  const t = text.replace(/\{n\}/g, name).replace(/\{he\}/g, pr.he).replace(/\{him\}/g, pr.him).replace(/\{his\}/g, pr.his);
+// Where it happens: the Farm's hall, or anywhere else (the street, a stairwell): the words for it.
+const PLACES = { hall: { mat: 'the mat', hall: 'the hall', ceiling: 'the ceiling', floor: 'the floor' }, street: { mat: 'the pavement', hall: 'the street', ceiling: 'the sky', floor: 'the ground' } };
+function fill(text, name, pr, place = 'hall') {
+  const P = PLACES[place] ?? PLACES.street;
+  const t = text.replace(/\{(mat|hall|ceiling|floor)\}/g, (m, k) => P[k]).replace(/\{(Mat|Hall|Ceiling|Floor)\}/g, (m, k) => P[k.toLowerCase()].replace(/^t/, 'T'))
+    .replace(/\{n\}/g, name).replace(/\{he\}/g, pr.he).replace(/\{him\}/g, pr.him).replace(/\{his\}/g, pr.his);
   return (t.charAt(0).toUpperCase() + t.slice(1)).replace(/([.!?] )([a-z])/g, (m, a, b) => a + b.toUpperCase());   // (a name like 'the FSB man' starting a sentence)
 }
 
 /** The exchange `out` (sim/cqc.js resolve()) in words, from our side. name: theirs; p: their sheet. */
-export function exchangeText(out, name, p, salt = 0) {
+export function exchangeText(out, name, p, salt = 0, place = 'hall') {
   const pick = (list, k = 0) => list[hash(out.round, salt, k) % list.length];
   const pr = pronouns(p);
   const us = out.by === 'a';
@@ -193,7 +198,7 @@ export function exchangeText(out, name, p, salt = 0) {
     case 'absorbed': text = us ? pick(ABSORBED[1], 7) : pick(ABSORBED[0], 7); break;
     default: text = `${does('b')}; ${does('a')}.`;
   }
-  for (const i of out.injuries ?? []) text += pick(INJURED[i.kind][us ? 0 : 1], 10).replace('{injury}', i.name);
+  for (const i of out.injuries ?? []) text += INJURED[i.kind] ? pick(INJURED[i.kind][us ? 0 : 1], 10).replace('{injury}', i.name) : ` ${i.name.charAt(0).toUpperCase()}${i.name.slice(1)}.`;
   // (a blade or a weapon through the guard; a block clean of it; a weapon knocked away; a bottle broken)
   if (out.through) text += out.through.injuries.length ? out.through.injuries.map(i => pick(THROUGH[us ? 0 : 1], 13).replace('{injury}', i.name)).join('') : pick(BRUISED[us ? 0 : 1], 13);
   else if (out.clean === 'block') text += pick(CLEAN[us ? 0 : 1], 13);
@@ -205,5 +210,5 @@ export function exchangeText(out, name, p, salt = 0) {
     const st = out.status[side];
     if (st && !(st === 'staggered' && out.kind === 'shoved')) text += pick(STATUS[st][side === 'a' ? 1 : 0], 9);   // (a shove says so itself)
   }
-  return fill(text, name, pr);
+  return fill(text, name, pr, place);
 }

@@ -102,4 +102,38 @@ export default [
       assert(p.dead && g.scenario.outcome === 'dead', 'bled out, and the scene ends');
     },
   },
+  {
+    name: 'blood comes back: collapsed with nothing bleeding, you come round; it returns second by second; a rest passes the hours; pressure on someone else counts',
+    fn() {
+      const g = newGame({ seed: 6 });
+      g.time.ms = at(2026, 11, 2, 13, 0);
+      start(g, null);
+      const me = playerActor(g), p = g.people[g.player];
+      p.blood = BLOOD.collapse - 3;
+      for (let t = 0; t < 20 * 5; t++) step(g, {}, null);
+      const down = !canStand(p) && me.gait === 'down';
+      for (let t = 0; t < 20 * 100; t++) step(g, {}, null);
+      const round = bloodOf(p), up = canStand(p);
+      for (let t = 0; t < 20 * 60 * 10; t++) step(g, {}, null);
+      const tenMin = bloodOf(p) - round;
+      const rest = options(g, p, p).find(o => o.key === 'rest:0'), t0 = g.time.ms;
+      step(g, { act: [`aid:${me.id}:rest:0`] }, null);
+      console.log(`      collapsed at ${BLOOD.collapse - 3}%: down ${down}; 100 s on ${fmt(round, 1)}%, standing ${up}; ten minutes later +${fmt(tenMin, 2)}%; "${rest?.label}" → ${fmt((g.time.ms - t0) / 3600000, 1)} h, ${fmt(bloodOf(p), 1)}% (${bandOf(p)})`);
+      assert(down && up && round >= BLOOD.collapse, 'down, then round again');
+      assert(tenMin > 0.25 && tenMin < 0.45, 'it comes back, a little at a time');
+      assert(rest?.ok && bandOf(p) !== 'shock', 'a rest takes you out of shock');
+      // (someone else's hands on a wound)
+      g.people.q = person();
+      const them = { id: 'aq', who: 'q', seed: null, row: me.row, x: me.x + 1, z: me.z, vx: 0, vz: 0, face: 'down', head: 0, gait: 'idle', stride: 0, stuck: 0, ai: null };
+      g.actors.push(them);
+      const q = g.people.q;
+      injure(q, 'torso', 0.45, g.rng, g.time.ms, { edge: true, deep: true, bleedK: 1.3 });
+      const rate = bleedRate(q, g.time.ms), b0 = bloodOf(q);
+      step(g, { act: [`aid:${them.id}:pressure:0`] }, null);
+      for (let t = 0; t < 20 * 30; t++) step(g, {}, null);
+      const lost = b0 - bloodOf(q);
+      console.log(`      pressing on someone else's stab (${fmt(rate, 1)}%/min): ${fmt(lost, 2)}% in thirty seconds`);
+      assert(lost < rate / 2 * 0.5, 'pressure on someone else holds it back');
+    },
+  },
 ];
