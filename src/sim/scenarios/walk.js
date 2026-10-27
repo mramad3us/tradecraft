@@ -14,6 +14,7 @@ import { Z, streetName, parkName } from '../map/street.js';
 import { sectionAt } from '../world.js';
 import { act, crossingNear, paneNear, benchNear, say1 } from '../acts.js';
 import { openAir } from '../perception.js';
+import { atKerb } from '../taxi.js';
 
 const TPS = 1000 / TICK_MS;
 
@@ -79,6 +80,7 @@ function instinct(state, me) {
   const gs = me.z > Z.roadS - 0.5 && S.gapsS.find(g => Math.abs((g.x0 + g.x1) / 2 - me.x) < 8);
   if (gs) return L('gap-s', `${gs.name}, ${side(gs)}: down it to ${streetName(seed, row + 1)}.`);
   // Something here: what to make of it (T, what's at hand, is the engine's).
+  if (atKerb(state, me)) return L('kerb', 'The kerb: taxis stop for a raised hand.');
   if (paneNear(state, me)) return L('window', 'A shop window: its glass shows the street behind you.');
   if (benchNear(state, me) !== null) return L('bench', 'A bench: a seat for watching the boulevard go by.');
   const f = S.park?.feature;

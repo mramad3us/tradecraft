@@ -159,6 +159,18 @@ export const sdr = {
   /** A shop window's glass, to run back the way you came. */
   toward(state) { return -state.scenario.heading.dir; },
 
+  /** A taxi (sim/taxi.js): it loses them, and whoever saw you get in writes it down (evasive, and they know what that means). */
+  onTaxi(state, bus) {
+    const sc = state.scenario;
+    flag(state, bus, 'taxi');
+    if (sc.crew.some(c => c.id)) {
+      const ids = sc.crew.map(c => c.id).filter(Boolean);
+      loseUs(state, bus);
+      sc.lostHow = 'in a taxi';
+      state.actors = state.actors.filter(a => !ids.includes(a.id));   // (left on the street behind you)
+    }
+  },
+
   /** Where you're going, for the picture's edge: the bench, until it's done. */
   goal(state) {
     const sc = state.scenario, g = sc.meet;
@@ -286,8 +298,8 @@ const CAUGHT_LINE = {
   doubled: (who) => `When you turn round, ${who[0].toLowerCase() + who.slice(1)} stops too, and finds a shop window very interesting.`,
 };
 const CAUGHT = { ran: 'run', checked: 'look back', glassed: 'check behind you in a shop window', jaywalked: 'cross away from the zebra', doubled: 'double back' };
-const FLAGS = { ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back' };
-const SAW = { ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back' };
+const FLAGS = { ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back', taxi: 'you jumped into a taxi' };
+const SAW = { ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back', taxi: 'saw you jump into a taxi' };
 export const FLAGS_MAX = 2;                                        // times a kind of thing is written down, at most
 const list = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 const actorOf = (state, id) => (id ? state.actors.find(a => a.id === id) : null);

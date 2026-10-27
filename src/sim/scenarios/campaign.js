@@ -96,6 +96,9 @@ export const campaignHub = {
     state.scenario.prompt = instinct(state, c, now);
   },
 
+  /** A taxi (sim/taxi.js) to the posting's places. */
+  destinations(state) { return places(state.campaign).map(pl => ({ id: pl.id, label: pl.label, row: pl.row, x: 12 })); },
+
   /** Where we are, for the watch: the street (the engine names it). */
   place() { return ''; },
 

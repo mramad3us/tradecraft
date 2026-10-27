@@ -427,6 +427,18 @@ export function createUI({ input, cb }) {
     menu.hidden = log.hidden = true;
   }
 
+  /** A few choices on a card ([{ key, label }]), each a button that closes it and does it (a taxi's where to). */
+  function openChoices(stamp, title, list, act) {
+    card.replaceChildren(el('div', { className: 'sheet charsheet choices' },
+      el('span', { className: 'stamp', textContent: stamp }), el('h2', { textContent: title }), el('hr'),
+      ...list.map(o => el('button', { className: 'item', onclick: () => { closeOverlays(); act(o.key); } }, o.label)),
+      el('p', { className: 'note', textContent: `${input.label('menu')} to close.` })));
+    card.hidden = false;
+    card.dataset.kind = 'choices';
+    menu.hidden = log.hidden = true;
+    card.querySelector('.item')?.focus();
+  }
+
   /** I: what you carry, and what's in your hand; each a button (take out, put away, drop) that closes it and does it. */
   function openInventory(state, act) {
     const p = state.people[state.player], go = (cmd) => () => { closeOverlays(); act(cmd); };
@@ -651,5 +663,5 @@ export function createUI({ input, cb }) {
     setTimeout(() => f.remove(), 1600);
   }
 
-  return { frame, fit, flash, openInventory, openAid, openDesk, showCandidates, showPaper, showTitle, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
+  return { frame, fit, flash, openInventory, openAid, openDesk, openChoices, showCandidates, showPaper, showTitle, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
 }

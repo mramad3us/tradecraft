@@ -22,5 +22,6 @@ import { tail } from './tail.js';
 import { sdr } from './sdr.js';
 import { dojoScenario } from './dojo.js';
 import { campaignHub } from './campaign.js';
+import { hunted } from './hunted.js';
 
-export const SCENARIOS = { walk, dojo: dojoScenario, tail, sdr, campaign: campaignHub };
+export const SCENARIOS = { walk, dojo: dojoScenario, tail, sdr, hunted, campaign: campaignHub };

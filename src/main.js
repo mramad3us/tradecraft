@@ -90,6 +90,7 @@ function launch(s, { hour = null } = {}) {
   // (the campaign: an assignment taken at the desk, launched after this tick; papers the days bring, one after another)
   bus.on('assignment', (id) => setTimeout(() => launchAssignment(s, id), 0));
   bus.on('papers', (list) => showPapers(list));
+  bus.on('taxi', (list) => ui.openChoices('TAXI', 'WHERE TO?', list.map(d => ({ key: d.id, label: d.label.charAt(0).toUpperCase() + d.label.slice(1) })), (key) => acts.push(`taxi:${key}`)));   // (sim/taxi.js)
   bus.on('scenario-end', () => {
     if (s.scenario.kind === 'dojo' && s.scenario.chapter !== 'remembered') { try { localStorage.setItem(FARM_KEY, 'done'); } catch {} }   // (the lesson had: next time the Farm is a memory)
     setTimeout(() => { if (state === s) result(); }, 1800);

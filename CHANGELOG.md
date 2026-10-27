@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc3 (2026-10-27)
+
+- **Taxis** (your ask: transport for fast travel; and the design's taxi that shakes a tail). At the kerb, T hails one; say where: two or four streets north or south, or in the campaign your flat, the embassy, a safe house, and in Blown somewhere near the car. The ride takes its minutes, and you're out at the kerb there. On foot, nobody can follow you: being tailed's team loses you, but if one of them saw you jump in, it's written down, and they know what that means. In Blown, some drivers have heard the radio.
+
+- **Blown** (the hunted state you asked for, as a mission: the title's test 4). Your network's rolled up and they have your face; a car waits across the city for 80 minutes. Men in plain clothes with your description search the streets round where you were last seen, and talk to each other: one who knows you follows you right up and takes hold, and it's a fight. Two safe houses on the way: in and out, a different coat (the description stops fitting), a minute out of sight. Keep to people and the dark; don't run where they can see you. Their looks at you show in the log only at the end.
+
 ## v0.1.0-rc2 (2026-10-27)
 
 - **The posting has an arc.** It's done when the station has what it wanted (ten pieces of intelligence: six or seven good operations, two or three weeks done well), and you get the posting's paper. A tail that sees the meeting gives you a lead: the station names the man he met, and he's yours to tail next. An asset who trusts you enough (4) brings twice as much.

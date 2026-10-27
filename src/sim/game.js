@@ -36,6 +36,7 @@ import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } fr
 import { drift } from './people.js';
 import { heal, bleeding, bloodTick, bandOf, canStand, kill } from './health.js';
 import { PRESSURE_K, treat } from './aid.js';
+import { atKerb, destinations, ride } from './taxi.js';
 import { shortName } from './fight.js';
 import { drips } from './blood.js';
 import { glassAhead, affordance, act as doAct } from './acts.js';
@@ -114,12 +115,21 @@ export function step(state, input = {}, bus) {
       if (me && them && !state.fight && Math.hypot(them.x - me.x, them.z - me.z) < 2.5) treat(state, bus, me, them, key.join(':'));
       continue;
     }
+    if (String(act).startsWith('taxi:')) {                         // (a taxi, where to chosen: sim/taxi.js)
+      const to = destinations(state, scenario).find(d => d.id === act.slice(5));
+      if (to && me && !state.fight && atKerb(state, me)) {
+        say(state, bus, { kind: 'note', text: `A taxi pulls in. ${cap(to.label)}, you tell him, and he grunts.` });
+        const m = ride(state, bus, to, { scenario, skip, loadRow });
+        if (m) say(state, bus, { kind: 'note', text: `${Math.round(m)} minutes later, ${placeName(state.map.seed, state.map.row ?? 0, playerActor(state).x, 0)}: you pay, and get out.` });
+      }
+      continue;
+    }
     if (act === 'draw') { if (state.fight) fight.drawMove(state, bus, scenario); else if (me) items.use(state, bus, me, 'draw'); continue; }   // (G: sim/items.js; in a fight, it costs the exchange)
     if (String(act).startsWith('inv:')) { if (me && !state.fight) items.use(state, bus, me, act.slice(4)); continue; }   // (the inventory's buttons)
     if (act === 'glance' && me && !me.glance) me.glance = Math.round(GLANCE_S * TICKS_PER_S);
     // T, when the scene's line offers nothing of its own: what's at hand (sim/acts.js affordance()).
     const here = act === 'instinct' && !state.fight && !scenario.holds?.(state) && !state.scenario.prompt?.act && state.scenario.prompt?.tone !== 'urgent' && affordance(state, me);
-    if (here) { doAct(state, bus, me, here.act, { toward: scenario.toward?.(state, me) }); continue; }
+    if (here) { doAct(state, bus, me, here.act, { toward: scenario.toward?.(state, me), scenario }); continue; }
     scenario.act?.(state, bus, act);
   }
   // A fight waiting for a choice, a conversation: time stands still (sim/fight.js, sim/talk.js).
@@ -314,7 +324,7 @@ export function newMap(state, bus, map, x, keep = []) {
  * whatever street they're on), the memory of who was where goes with the old street, the crowd is
  * the new one's. The scenario hears of it (mapChanged), a line goes to the log, and an autosave.
  */
-export function loadRow(state, bus, row, x, { way = null, from = state.map.row } = {}) {
+export function loadRow(state, bus, row, x, { way = null, from = state.map.row, quiet = false } = {}) {
   const scenario = SCENARIOS[state.scenario.kind], me = playerActor(state);
   bus?.emit('map-', state.map);
   state.map.row = row;
@@ -328,10 +338,12 @@ export function loadRow(state, bus, row, x, { way = null, from = state.map.row }
   scenario.mapChanged?.(state, bus, way, from);
   const f = focusActor(state), north = row < from;
   const lane = way?.name ?? placeName(state.map.seed, north ? from : row, f.x, north ? Z.front - 10 : Z.front - 10);
-  say(state, bus, { kind: 'note', text: north ? `Up ${lane}, and out onto the far side of ${placeName(state.map.seed, row, f.x, Z.fence + 5)}.` : `Down ${lane}, toward ${placeName(state.map.seed, row, f.x, 0)}.` });
+  if (!quiet) say(state, bus, { kind: 'note', text: north ? `Up ${lane}, and out onto the far side of ${placeName(state.map.seed, row, f.x, Z.fence + 5)}.` : `Down ${lane}, toward ${placeName(state.map.seed, row, f.x, 0)}.` });   // (a taxi tells its own arrival)
   bus?.emit('map', state.map);
   bus?.emit('autosave', 'map');
 }
 
 // (a small, stable number from an id, to spread followers' re-routing over the ticks)
 const hashId = (id) => { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0; return Math.abs(h); };
+
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
