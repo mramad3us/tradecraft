@@ -24,6 +24,9 @@ import { SKILLS, CLASSES, TRAINED, skill } from '../sim/skills.js';
 import { PARTS, stateOf, stateText, injuriesOn, FITNESS_K } from '../sim/health.js';
 import { atHand, options as interactOptions } from '../sim/interact.js';
 import { allowed } from '../sim/cqc.js';
+import { shortName } from '../sim/fight.js';
+
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 import { knownOf, classOf, READABLE } from '../sim/know.js';
 import { passerby, describe } from '../sim/people.js';
 import { CHOICES as TALK_CHOICES } from '../sim/talk.js';
@@ -86,13 +89,19 @@ export function createUI({ input, cb }) {
   setTimeout(keyHints, 300);                                       // once the keyboard's layout is known
 
   // ---------- the title ----------
-  function showTitle({ version, auto }) {
+  function showTitle({ version, auto, farm = false }) {
+    // The Farm: the lesson, or, the lesson had, a memory first (sim/scenarios/dojo.js, chapter 'remembered').
+    const entry = (key, s) => key !== 'dojo' ? [el('button', { className: 'item', onclick: () => cb.newGame(key) }, s.name, el('small', { textContent: s.about }))] : [
+      el('button', { className: 'item', onclick: () => cb.newGame('dojo', farm ? 'remembered' : 'lesson') }, farm ? 'The Farm, remembered' : s.name,
+        el('small', { textContent: farm ? 'The bouts you remember, three of your class and Hale; and what brought them back, years on, in Moscow.' : s.about })),
+      el('button', { className: 'item', onclick: () => cb.newGame('dojo', farm ? 'lesson' : 'remembered') }, farm ? 'The Farm: the whole lesson again' : 'The Farm, remembered',
+        el('small', { textContent: farm ? s.about : 'Straight to the bouts, and what they bring back, years on. For after the lesson.' }))];
     title.replaceChildren(el('div', { className: 'sheet' },
       el('h1', { textContent: 'TRADECRAFT' }),
       el('p', { className: 'sub', textContent: `v${version} · in development: the skeleton, and the first look at the street` }),
       el('hr'),
       auto ? el('button', { className: 'item', onclick: () => cb.continue() }, 'Continue', el('small', { textContent: auto.about })) : null,
-      ...Object.entries(SCENARIOS).filter(([, s]) => !s.test).map(([key, s]) => el('button', { className: 'item', onclick: () => cb.newGame(key) }, s.name, el('small', { textContent: s.about }))),
+      ...Object.entries(SCENARIOS).filter(([, s]) => !s.test).flatMap(([key, s]) => entry(key, s)),
       el('h3', { className: 'section', textContent: 'Mechanic tests' }),
       el('p', { className: 'note', textContent: 'One mechanic each, to play and score before they\'re joined into the game.' }),
       ...Object.entries(SCENARIOS).filter(([, s]) => s.test).map(([key, s]) => el('button', { className: 'item', onclick: () => cb.newGame(key) }, s.name, el('small', { textContent: s.about }))),
@@ -233,13 +242,13 @@ export function createUI({ input, cb }) {
     });
     bout.hidden = !fi;
     if (fi) {
-      const name = (who) => (who === state.player ? 'You' : state.people[who]?.name.split(' ').slice(-1)[0] ?? '?');
+      const name = (who) => (who === state.player ? 'You' : cap(shortName(state, who)));
       const key = `${name(fi.a)}|${fi.adv.a}|${fi.bout ? `${fi.score.a}:${fi.score.b}` : '-'}|${fi.adv.b}|${name(fi.b)}`;
       if (bout.dataset.key !== key) {
         bout.dataset.key = key;
         const pips = (n, s) => el('span', { className: `pips ${s}`, title: 'edges' }, ...Array.from({ length: Math.max(n, 0) }, () => el('i')));
         bout.replaceChildren(el('b', { textContent: name(fi.a) }), pips(fi.adv.a, 'a'),
-          el('span', { className: 'score', textContent: fi.bout ? `${fi.score.a} – ${fi.score.b}` : 'drill' }), pips(fi.adv.b, 'b'), el('b', { textContent: name(fi.b) }));
+          el('span', { className: 'score', textContent: fi.bout ? `${fi.score.a} – ${fi.score.b}` : fi.tell ? 'drill' : 'vs' }), pips(fi.adv.b, 'b'), el('b', { textContent: name(fi.b) }));
       }
     }
     moves.hidden = !choosing;
@@ -248,7 +257,8 @@ export function createUI({ input, cb }) {
       const why = { staggered: 'off balance', dazed: 'too slow' }[fi.status?.a];
       moves.replaceChildren(...['hit', 'grapple', 'guard'].map(m => el('div', { className: `move${allowed(fi.status?.a, m) ? '' : ' off'}`, title: allowed(fi.status?.a, m) ? '' : why },
         el('kbd', { textContent: input.label(m) }), el('img', { src: icon(m), alt: '' }), el('span', { textContent: allowed(fi.status?.a, m) ? MOVE_WORD[m].toLowerCase() : `${MOVE_WORD[m].toLowerCase()}: ${why}` }))),
-        ...(fi.adv.a ? [el('div', { className: 'move spend' }, el('kbd', { textContent: input.label('run') }), el('span', { textContent: `+ a key: an edge (${fi.adv.a}): a hit lands double, a grab shrugs off a punch; a cover hits back, and keeps it` }))] : []));
+        ...(fi.adv.a ? [el('div', { className: 'move spend', title: 'Held with a move, an edge: a hit lands double; a grab shrugs off a punch; a cover hits back, and keeps the edge' },
+          el('kbd', { textContent: input.label('run') }), el('span', { textContent: `+ a key: an edge (${fi.adv.a}); with a cover, hit back` }))] : []));
     }
     // The instinct: always a line, its tone in its border; {key} in the text shows as that key.
     // What's at hand (the engine's: sim/acts.js affordance()) ends a line that offers nothing itself.
@@ -496,5 +506,12 @@ export function createUI({ input, cb }) {
   const closeAll = () => { menu.hidden = log.hidden = card.hidden = paper.hidden = true; paper.dataset.kind = ''; closeAsk(); };
   const overlay = () => (!menu.hidden ? 'menu' : !log.hidden ? 'log' : !card.hidden ? 'sheet' : !ask.hidden ? 'interact' : !paper.hidden ? paper.dataset.kind : null);
 
-  return { frame, fit, showTitle, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
+  /** A white flash over the picture, fading: a blow, and another time. */
+  function flash() {
+    const f = el('div', { className: 'flash' });
+    frame.append(f);
+    setTimeout(() => f.remove(), 1600);
+  }
+
+  return { frame, fit, flash, showTitle, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
 }

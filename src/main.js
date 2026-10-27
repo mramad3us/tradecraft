@@ -27,12 +27,13 @@ const q = new URLSearchParams(location.search);
 const settings = { debug: (() => { try { return localStorage.getItem('tradecraft.debug') === '1'; } catch { return false; } })() };
 
 const input = createInput();
+const FARM_KEY = 'tradecraft.farm';                                // (the Farm's lesson had, in this browser: the title offers it as a memory)
 let state = null, bus = null, view = null;
 let paused = false, running = false, acts = [];
 let prev = new Map(), acc = 0, last = performance.now(), frames = 0;
 
 const ui = createUI({ input, cb: {
-  newGame: (kind) => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION })),
+  newGame: (kind, chapter = null) => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter })),
   continue: async () => { const s = await getSave('auto'); if (s) launch(fromJSON(s.json)); },
   importSave: async () => {
     const text = await importFile();
@@ -75,7 +76,12 @@ function launch(s, { hour = null } = {}) {
   bus.on('log', (e) => ui.toast(e));
   bus.on('read', (who) => ui.openRead(state, who));
   bus.on('autosave', () => autosave());
-  bus.on('scenario-end', () => setTimeout(() => { if (state === s) result(); }, 1800));
+  bus.on('scenario-end', () => {
+    if (s.scenario.kind === 'dojo' && s.scenario.chapter !== 'remembered') { try { localStorage.setItem(FARM_KEY, 'done'); } catch {} }   // (the lesson had: next time the Farm is a memory)
+    setTimeout(() => { if (state === s) result(); }, 1800);
+  });
+  bus.on('cut', () => ui.flash());                                 // (a scene's cut to another time: sim/scenarios/dojo.js)
+  bus.on('brief', (b) => ui.showBrief(b, () => {}));
   bus.on('map', () => { prev = new Map(); view.flush(); });         // the next street: no gliding there from the last
   start(state, bus);
   view.flush();                                                    // the street around you, before the first frame
@@ -92,10 +98,10 @@ function launch(s, { hour = null } = {}) {
 
 /** A test's result paper, with the ways on. */
 function result() {
-  const kind = state.scenario.kind, seed = state.seed;
+  const kind = state.scenario.kind, seed = state.seed, chapter = state.scenario.chapter ?? null;
   ui.showResult(state, {
-    again: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION })),
-    same: () => launch(newGame({ seed, scenario: kind, version: VERSION })),
+    again: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter })),
+    same: () => launch(newGame({ seed, scenario: kind, version: VERSION, chapter })),
     title: async () => { await autosave(); stop(); showTitle(); },
   }, settings);
 }
@@ -103,7 +109,9 @@ function result() {
 async function showTitle() {
   let auto = null;
   try { auto = await getSave('auto'); } catch {}
-  ui.showTitle({ version: VERSION, auto });
+  let farm = false;
+  try { farm = localStorage.getItem(FARM_KEY) === 'done'; } catch {}
+  ui.showTitle({ version: VERSION, auto, farm });
 }
 
 // Keys: the actions the UI owns. Movement is polled each tick.
@@ -167,7 +175,7 @@ window.__tradecraft = {
 
 if (q.has('play') && SCENARIOS[q.get('play')]) {
   const autoplay = q.has('autoplay') ? { keep: Number(q.get('autoplay')) || 20 } : null;
-  launch(newGame({ seed: Number(q.get('seed') ?? 1), scenario: q.get('play'), version: VERSION, autoplay }), { hour: q.has('hour') ? Number(q.get('hour')) : null });
+  launch(newGame({ seed: Number(q.get('seed') ?? 1), scenario: q.get('play'), version: VERSION, autoplay, chapter: q.get('chapter') }), { hour: q.has('hour') ? Number(q.get('hour')) : null });
 }
 else showTitle();
 requestAnimationFrame(frame);

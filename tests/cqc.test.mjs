@@ -8,7 +8,16 @@ import { stateOf, injure, bleeding, heal } from '../src/sim/health.js';
 import { spatter } from '../src/sim/blood.js';
 import { newGame, start, step } from '../src/sim/game.js';
 import { toJSON, fromJSON } from '../src/sim/state.js';
+import { skill } from '../src/sim/skills.js';
 import { assert, fmt } from './helpers.mjs';
+
+/** A bot: what it reads, it answers (an edge spent on a hit); what it can't, a guess. drill: the edge drill's answer, with an edge. */
+const COUNT = { hit: 'guard', grapple: 'hit', guard: 'grapple', open: 'hit' };
+function bot(f, rnd, drill = false) {
+  let m = f.read ? COUNT[f.theirs.move] : MOVES[Math.floor(rnd() * 3)], spend = f.adv.a > 0 && f.read && m === 'hit';
+  if (drill && f.read) { m = f.theirs.move === 'hit' ? 'grapple' : 'guard'; spend = true; }
+  return spend ? `${m}+` : m;
+}
 
 /** Two fighters, CQC bases a and b (trained, no over-skill: their CQC is the base). */
 function ring(a, b, seed = 1) {
@@ -174,9 +183,35 @@ export default [
     },
   },
   {
+    name: 'dojo, remembered: straight to the bouts, three of the class and Hale; then the cobbles, years on, an illegal as good as Hale was against an FSB man, to the end',
+    fn() {
+      const play = (seed) => {
+        const g = newGame({ seed, scenario: 'dojo', chapter: 'remembered' });
+        start(g, null);
+        let k = seed, street = false, rounds = 0;
+        const rnd = () => ((k = (k * 1664525 + 1013904223) >>> 0) / 4294967296);
+        for (let t = 0; t < 20 * 60 * 10 && !g.scenario.outcome; t++) {
+          const f = g.fight, act = [];
+          if (g.scenario.phase === 'ready' && t % 20 === 0) act.push('instinct');
+          if (f?.phase === 'choose') { act.push(bot(f, rnd)); if (g.scenario.with === 'fsb') rounds++; }
+          step(g, { act }, null);
+          street ||= g.map.kind === 'street';
+        }
+        return { g, street, rounds };
+      };
+      const runs = Array.from({ length: 16 }, (_, i) => play(40 + i)), won = runs.filter(r => r.g.scenario.outcome === 'won').length;
+      const { g } = runs[0], cqc = (w) => skill(g.people[w], 'cqc');
+      console.log(`      CQC now ${cqc('me')} (Hale's then ${cqc('hale')}), the FSB man ${cqc('fsb')}; the bouts: ${g.scenario.bouts.map(b => b.name).join(', ')}`);
+      console.log(`      16 nights: won ${won}, ${fmt(runs.reduce((a, r) => a + r.rounds, 0) / 16, 1)} exchanges a fight; ${runs.map(r => `${r.g.scenario.bouts.map(b => (b.won ? 'W' : 'L')).join('')}→${r.g.scenario.outcome}`).join(' ')}`);
+      assert(runs.every(r => r.g.scenario.outcome && r.street), 'every memory ends on the cobbles');
+      assert(runs.every(r => r.g.scenario.bouts[0]?.id === 'read' && r.g.scenario.bouts.length === 4), 'no drills, and no bench: the four bouts');
+      assert(cqc('me') === cqc('hale') && cqc('fsb') < cqc('me') && cqc('fsb') >= cqc('me') - 8, 'as good as Hale was; he\'s strong, but you\'re better');
+      assert(won >= 10 && won < 16, 'you win, mostly; not always');
+    },
+  },
+  {
     name: 'dojo: the lesson plays through, drills and bouts, and a save in the middle of a fight changes nothing',
     fn() {
-      const COUNT = { hit: 'guard', grapple: 'hit', guard: 'grapple', open: 'hit' };
       const play = (seed, cut = -1) => {
         let g = newGame({ seed, scenario: 'dojo' });
         start(g, null);
@@ -186,11 +221,7 @@ export default [
           if (cut >= 0 && t >= cut && g.fight && !cutDone) { cutDone = true; g = fromJSON(toJSON(g)); start(g, null); }   // (the first fight from tick cut on)
           const f = g.fight, act = [];
           if (g.scenario.phase === 'ready' && t % 20 === 0) act.push('instinct');
-          if (f?.phase === 'choose') {
-            let m = f.read ? COUNT[f.theirs.move] : MOVES[Math.floor(rnd() * 3)], spend = f.adv.a > 0 && f.read && m === 'hit';
-            if (g.scenario.step === 4 && f.read) { m = f.theirs.move === 'hit' ? 'grapple' : 'guard'; spend = true; }
-            act.push(spend ? `${m}+` : m);
-          }
+          if (f?.phase === 'choose') act.push(bot(f, rnd, g.scenario.step === 4));
           step(g, { act }, null);
         }
         return g;
@@ -198,9 +229,9 @@ export default [
       const runs = Array.from({ length: 6 }, (_, i) => play(20 + i));
       console.log(`      ${runs.map(g => `${g.scenario.outcome}: ${g.scenario.bouts.map(b => `${b.name} ${b.won ? 'won' : 'lost'} ${b.score.a}–${b.score.b}`).join(', ')}`).join('; ')}`);
       assert(runs.every(g => g.scenario.outcome), 'every lesson ends');
-      assert(runs.every(g => g.scenario.bouts.length === 3 || g.scenario.bouts.some(b => b.why === 'stopped')), 'three bouts, unless someone was sent to the bench');
+      assert(runs.every(g => g.scenario.bouts.length === 4 || g.scenario.bouts.some(b => b.why === 'stopped')), 'four bouts, unless someone was sent to the bench');
       assert(runs.filter(g => g.scenario.bouts[0].won).length >= 4, 'the weaker classmate is beaten, mostly (the bot guesses when it can\'t read)');
-      assert(runs.every(g => g.scenario.bouts.length < 3 || !g.scenario.bouts[2].won), 'Hale is not');
+      assert(runs.every(g => g.scenario.bouts.length < 4 || !g.scenario.bouts[3].won), 'Hale is not');
       const a = toJSON(play(31)), b = toJSON(play(31, 700));
       assert(a === b, 'a save and a load in a fight play on the same');
     },

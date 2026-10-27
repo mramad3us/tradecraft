@@ -186,7 +186,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .moves { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: none; }
 .moves[hidden] { display: none; }
 .moves .move { display: flex; align-items: center; gap: 5px; background: var(--hud); border: 1px solid #4c5262; border-radius: 3px; padding: 3px 9px 3px 5px; font: 12px var(--type); color: var(--paper); }
-.moves .move.spend { color: var(--brass); border-color: var(--brass); }
+.moves .move.spend { color: var(--brass); border-color: var(--brass); white-space: nowrap; }
 .charsheet .body li.injured { flex-wrap: wrap; }
 .charsheet .body li small { flex-basis: 100%; color: var(--red); font-size: 11px; text-align: right; }
 
@@ -209,3 +209,5 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .talkbox { min-width: 260px; max-width: 340px; }
 .talkbox .said { padding: 3px 10px; font-size: 12px; border-bottom: 1px dashed var(--paper-2); }
 .talkbox .said i { color: #6a7182; display: block; }
+.flash { position: absolute; inset: 0; background: #f6f4ee; pointer-events: none; animation: flash 1.6s ease-out forwards; }
+@keyframes flash { from { opacity: 1; } to { opacity: 0; } }

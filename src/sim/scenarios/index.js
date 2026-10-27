@@ -11,7 +11,7 @@
 // lists it among the mechanic tests; `brief` is the paper shown before it starts. When it ends it
 // sets state.scenario.outcome and tells the bus ('scenario-end'). holds?(state): whether the player's
 // feet are the scenario's just now (a fight, a walk onto the mat), so the move keys do nothing.
-// aware: the character takes in the whole map (a small lit room), so the view shows it all, no fog.
+// aware(state): the character takes in the whole map (a small lit room), so the view shows it all, no fog.
 // place?(state): where we are, for the watch, off the street. watch?(state): { x, z } of someone the
 // picture should lean toward while they're in sight (the tail: him).
 import { walk } from './walk.js';

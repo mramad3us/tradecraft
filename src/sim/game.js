@@ -56,13 +56,13 @@ const TICKS_PER_S = Math.round(1000 / TICK_MS);
  * player's character played by the game's own AI (an agent: sim/agents.js), with its options (as the
  * scenario reads them, e.g. { keep } for a follower); null, by hand.
  */
-export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = null } = {}) {
+export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = null, chapter = null } = {}) {
   const state = {
     game: 'tradecraft', schema: SAVE_SCHEMA, version, seed, rng: seedRng(seed), tick: 0, time: { ms: 0 }, autoplay,
     scenario: { kind: scenario }, country: 'ru', legend: null, player: null, focus: null,
     people: {}, map: null, actors: [], nextActor: 1, heat: {}, log: [], flags: {}, mind: { seen: {} },
   };
-  SCENARIOS[scenario].setup(state);
+  SCENARIOS[scenario].setup(state, { chapter });
   return state;
 }
 
@@ -104,7 +104,7 @@ export function step(state, input = {}, bus) {
     }
     if (act === 'glance' && me && !me.glance) me.glance = Math.round(GLANCE_S * TICKS_PER_S);
     // T, when the scene's line offers nothing of its own: what's at hand (sim/acts.js affordance()).
-    const here = act === 'instinct' && !state.scenario.prompt?.act && state.scenario.prompt?.tone !== 'urgent' && affordance(state, me);
+    const here = act === 'instinct' && !state.fight && !scenario.holds?.(state) && !state.scenario.prompt?.act && state.scenario.prompt?.tone !== 'urgent' && affordance(state, me);
     if (here) { doAct(state, bus, me, here.act, { toward: scenario.toward?.(state, me) }); continue; }
     scenario.act?.(state, bus, act);
   }
@@ -166,7 +166,7 @@ export function step(state, input = {}, bus) {
   // 5. A fight played out (sim/fight.js); the scenario; and what's at hand, for the instinct's line (runtime: sim/acts.js).
   fight.tick(state, bus, scenario);
   scenario.tick?.(state, bus);
-  state.$offer = me ? affordance(state, me) : null;
+  state.$offer = me && !state.fight && !scenario.holds?.(state) ? affordance(state, me) : null;   // (nothing's at hand in a fight, or while the scene has your feet)
   // 6. The map and the crowd, once a second.
   if (state.tick % TICKS_PER_S === 0) {
     drips(state);
@@ -227,6 +227,26 @@ export function changeMap(state, bus, way) {
   me.row = row;
   for (const id of carried) { const a = actor(state, id); if (a) a.row = row; }
   loadRow(state, bus, row, me.x, { way, from });
+}
+
+/**
+ * Another map altogether, round x (a scene's cut: the hall at the Farm to a street in Moscow): only the
+ * player and the actors in `keep` stay, on its row; the memory of who was where goes, and the blood on
+ * the old floor; the crowd is the new map's.
+ */
+export function newMap(state, bus, map, x, keep = []) {
+  const me = playerActor(state);
+  bus?.emit('map-', state.map);
+  state.map = { ...map, inPlay: [] };
+  state.actors = state.actors.filter(a => a === me || keep.includes(a.id));
+  for (const a of state.actors) a.row = map.row ?? 0;
+  state.mind = { ...state.mind, seen: {} };
+  state.decals = [];
+  attach(state, bus, x);
+  rehash(state);
+  populate(state, x, { fill: true });
+  rehash(state);
+  bus?.emit('map', state.map);
 }
 
 /**

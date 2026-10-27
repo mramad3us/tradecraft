@@ -9,9 +9,18 @@
 //     behind their cover, hit someone coming in to grab; the triangle mixed; then the edge
 //     (advantage points), spent with Shift;
 //   - bouts to three points, nobody calling anything: a weaker classmate first (the better you are,
-//     the more you read what's coming), an even one, and last Hale, who reads everything.
+//     the more you read what's coming), an even one, a better one, and last Hale, who reads everything.
 // Between steps the player walks the hall as they like; T, when the instinct says so, goes on. The
 // bouts' bruises stay on the sheet (C). The result paper says how it went.
+//
+// **Remembered** (chapter 'remembered'; the user, 2026-10-26: "once we did it once, remember it so next
+// time … snap flash forward to the last part about fighting the three trainees and Hale, then change of
+// scenery"): with the lesson done once (the title remembers it), the Farm comes back as a memory:
+// straight to the bouts, and when Hale's ends you hit the floor, and it isn't the mat (present()).
+// Moscow, years on, three in the morning: you get up off the cobbles, somebody having hit you hard
+// enough to send you back to the Farm. The same character, an illegal now (ILLEGAL: the trade, and
+// Hale's own combat training: CQC as Hale's was then), against an FSB officer (FSB_CQC: strong, but not
+// as good). A fight for real: it ends with one of you down.
 import { at, TICK_MS, dateText } from '../clock.js';
 import { recruit } from '../people.js';
 import { say } from '../log.js';
@@ -19,9 +28,10 @@ import { pick, int } from '../rng.js';
 import { follow } from '../crowd.js';
 import { headOf } from '../perception.js';
 import { dojo as hall, FIGHT, SPOTS } from '../map/dojo.js';
+import { newMap } from '../game.js';
 import { cqcOf } from '../cqc.js';
 import { begin as beginFight } from '../fight.js';
-import { stateText, stateOf, PARTS } from '../health.js';
+import { stateText, stateOf, takes, PARTS } from '../health.js';
 
 const TPS = 1000 / TICK_MS;
 export const HALE_PULL = 0.25;                                     // Hale's blows in a bout (a classmate's: cqc.js BOUT_K)
@@ -55,16 +65,37 @@ const STEPS = [
   { id: 'even', with: 'even', bout: 3,
     lines: ['“{name}, you\'re up. As good as you are, near enough: you won\'t read much.”'],
     hint: 'A bout to three points, against someone your equal.' },
+  { id: 'strong', with: 'strong', bout: 3,
+    lines: ['“{name}. A little better than you, and knows it. Show me something.”'],
+    hint: 'A bout to three points, against someone a little better.' },
   { id: 'hale', with: 'hale', bout: 3,
     lines: ['“Last one. Me.”', '“Nobody in this class beats me, so don\'t try to. Learn something.”'],
     hint: 'A bout with Hale. Hale reads you; you won\'t read Hale.' },
 ];
+
+const BOUTS = STEPS.filter(s => s.bout).length;
+/** Years on: an illegal's sheet (Hale's CQC is copied in: as good as Hale was then), and the FSB man's CQC (recruit()'s [base, practice]). */
+export const ILLEGAL = { deception: [15, 3], tracking: [15, 2], pathfinding: [15, 3], awareness: [15, 3], social: [15, 2], analysis: [10, 3], tech: [10, 1], medicine: [10, 2], weapons: [15, 2], fitness: [15, 2] };
+export const FSB_CQC = [17, 2];
+export const FSB_OS = 50;
+export const CUT_S = 2;                                             // from Hale's last word to the cobbles
+export const RISE_S = 3;                                            // getting up off them
 
 export const dojoScenario = {
   name: 'The Farm: hand to hand',
   about: 'Camp Peary, Virginia: the agency\'s school. An instructor, a class, a mat. A tutorial for close combat.',
   brief(state) {
     const me = state.people[state.player];
+    if (state.scenario.chapter === 'remembered') return {
+      title: 'THE FARM, REMEMBERED',
+      body: [
+        `The Farm, years ago. Week six. ${me.name}, a career trainee, and Hale's mat.`,
+        'The drills are long gone. What you remember is the bouts: three of your class, and then Hale.',
+        'You remember it for a reason.',
+      ],
+      footer: 'Camp Peary, Virginia · years ago',
+      keys: [['hit', 'hit'], ['grapple', 'grab'], ['guard', 'cover'], ['run', 'held with a move: an edge (with a cover: hit back)'], ['instinct', 'go on, when Hale says'], ['sheet', 'your sheet']],
+    };
     return {
       title: 'THE FARM: DEFENSIVE TACTICS',
       body: [
@@ -78,9 +109,9 @@ export const dojoScenario = {
     };
   },
 
-  setup(state) {
+  setup(state, { chapter = null } = {}) {
     const r = state.rng;
-    state.time.ms = at(2026, 9, 14, 10, 20);
+    state.time.ms = at(2007, 9, 14, 10, 20);                       // (the Farm is the past: Moscow's nineteen years on)
     state.legend = { id: 'farm', name: 'Career trainee, the Farm', cover: 'none', floor: 0 };
     state.country = 'us';
     const me = recruit(r, { id: 'me', cqc: [5, 2], os: 15 });
@@ -91,7 +122,7 @@ export const dojoScenario = {
     state.people.hale = recruit(r, { id: 'hale', cqc: [20, 3], os: 60, age: 46, instructor: true });
     state.people.hale.name = `${state.people.hale.name.split(' ')[0]} Hale`;
     const names = new Set([me.name.split(' ')[1], state.people.hale.name.split(' ')[1]]);
-    const cls = [{ cqc: [0, 2], os: 10 }, { cqc: [5, 2], os: 15 }, { cqc: [5, 1], os: 12 }, { cqc: [5, 0], os: 14 }, { cqc: [5, 3], os: 16 }].map((o, i) => {
+    const cls = [{ cqc: [0, 2], os: 10 }, { cqc: [5, 2], os: 15 }, { cqc: [5, 1], os: 12 }, { cqc: [5, 0], os: 14 }, { cqc: [8, 2], os: 18 }].map((o, i) => {
       let p;
       do p = recruit(r, { id: `c${i}`, ...o }); while (names.has(p.name.split(' ')[1]));
       names.add(p.name.split(' ')[1]);
@@ -103,19 +134,21 @@ export const dojoScenario = {
     person('me', FIGHT.x - 4, FIGHT.z + 1.5, 'up');
     person('hale', SPOTS.instructor.x, SPOTS.instructor.z, 'down');
     cls.forEach((who, i) => person(who, SPOTS.class[i].x, SPOTS.class[i].z, 'down'));
-    state.scenario = { kind: 'dojo', step: -1, phase: 'ready', count: 0, misses: 0, bouts: [], weak: cls[0], even: cls[1], prompt: null, outcome: null, began: state.time.ms, show: 0 };
-    say(state, null, { kind: 'note', text: `${me.name}, week six at the Farm. The hall smells of floor polish and other people's effort. Hale is waiting on the mat.` });
+    const remembered = chapter === 'remembered';
+    state.scenario = { kind: 'dojo', chapter: remembered ? 'remembered' : 'lesson', step: remembered ? STEPS.findIndex(s => s.bout) - 1 : -1, phase: 'ready', count: 0, misses: 0, bouts: [],
+      weak: cls[0], even: cls[1], strong: cls[4], prompt: null, outcome: null, began: state.time.ms, show: 0 };
+    say(state, null, { kind: 'note', text: remembered ? 'The Farm, years ago: floor polish, other people\'s effort, and Hale waiting on the mat. You remember the bouts best.' : `${me.name}, week six at the Farm. The hall smells of floor polish and other people's effort. Hale is waiting on the mat.` });
   },
 
   attach(state) {},
 
-  /** A lit hall, small enough to take in whole: the view shows all of it (src/render/view.js). */
-  aware: true,
+  /** A lit hall, small enough to take in whole: the view shows all of it (src/render/view.js). A street at night isn't. */
+  aware(state) { return state.map.kind === 'dojo'; },
 
-  /** On the mat, and walking onto it, the player's feet are the lesson's. */
-  holds(state) { return state.scenario.phase === 'walk' || state.scenario.phase === 'fight'; },
+  /** On the mat and walking onto it, on the cobbles and getting up off them: the player's feet are the scene's. */
+  holds(state) { return ['walk', 'fight', 'cut', 'rise', 'present'].includes(state.scenario.phase); },
 
-  /** Where we are, for the watch. */
+  /** Where we are, for the watch (on the street, the street's own name). */
   place() { return 'The Farm, Virginia'; },
 
   act(state, bus, action) {
@@ -123,7 +156,7 @@ export const dojoScenario = {
     if (sc.outcome || !me) return;
     if (action !== 'instinct') return;                            // (a fight's moves are the engine's: sim/fight.js)
     if (sc.phase === 'ready') return next(state, bus);
-    say(state, bus, { kind: 'instinct', text: f ? 'In the middle of it. Choose: {hit}, {grapple} or {guard}.' : 'Wait for Hale.' });
+    say(state, bus, { kind: 'instinct', text: f ? 'In the middle of it. Choose: {hit}, {grapple} or {guard}.' : sc.with === 'fsb' ? 'Get up.' : 'Wait for Hale.' });
   },
 
   think(state, a) { follow(state, a); },
@@ -136,13 +169,20 @@ export const dojoScenario = {
       const me = playerOf(state), them = actorOfWho(state, sc.with);
       if (!me.busy && !them.ai.steps.length) begin(state, bus);
     }
+    // Hale's last word, and the cut; on the cobbles, getting up: on your back, a knee, up; and he comes on.
+    if (sc.phase === 'cut' && state.tick >= sc.cutAt) present(state, bus);
+    if (sc.phase === 'rise') {
+      const me = playerOf(state), k = (state.tick - sc.rose) / TPS;
+      me.gait = k < RISE_S * 0.5 ? 'down' : k < RISE_S * 0.8 ? 'crouch' : 'guard';
+      if (k >= RISE_S) beginPresent(state, bus);
+    }
     sc.prompt = instinct(state);                                    // (every tick: a fight's choice comes with time stopped)
   },
 
   /** Each exchange of a drill: counted toward the step, or a word from Hale. */
   onExchange(state, bus, out) {
     const sc = state.scenario, f = state.fight, step = STEPS[sc.step];
-    if (step.bout) return;
+    if (!step || step.bout) return;                                 // (a bout, or years on: nobody's counting)
     if (step.need(out, f)) {
       if (++sc.count >= step.n) f.ended = { by: 'a', why: 'drill' };
     } else if (out.by !== 'a' || out.kind === 'circle') {
@@ -151,15 +191,24 @@ export const dojoScenario = {
     }
   },
 
-  /** A drill done, or a bout won or lost. */
-  onFightEnd(state, bus, f) { finishBout(state, bus, f); },
+  /** A drill done, or a bout won or lost; or, years on, the fight that sent you back there. */
+  onFightEnd(state, bus, f) { if (state.scenario.with === 'fsb') presentOver(state, bus, f); else finishBout(state, bus, f); },
 
   result(state) {
     const sc = state.scenario, me = state.people[state.player];
     const won = sc.bouts.filter(b => b.won).length;
     const hurts = Object.keys(PARTS).filter(k => stateOf(me, k) !== 'unhurt').map(k => `${PARTS[k].name.toLowerCase()} ${stateText(me, k)}`);
+    if (sc.chapter === 'remembered') return {
+      stamp: sc.outcome === 'won' ? 'WALKED AWAY' : 'TAKEN', good: sc.outcome === 'won',
+      title: 'THE FARM, REMEMBERED', text: sc.endText,
+      notes: [
+        `At the Farm, years ago: ${sc.bouts.map(b => `${b.name}, ${b.won ? 'won' : 'lost'} ${b.score.a}–${b.score.b}`).join('; ')}.`,
+        hurts.length ? `Tonight it cost you: ${hurts.join(', ')}.` : 'Tonight, not a mark on you.',
+      ],
+      stats: `CQC ${cqcOf(state, state.player)} now; the FSB man's ${cqcOf(state, 'fsb')}; Hale's, then, ${cqcOf(state, 'hale')}`,
+    };
     return {
-      stamp: won === 3 ? 'TOP OF THE CLASS' : won ? 'PASSED' : 'PASSED, JUST', good: won >= 1,
+      stamp: won === BOUTS ? 'TOP OF THE CLASS' : won ? 'PASSED' : 'PASSED, JUST', good: won >= 1,
       title: 'THE FARM: DEFENSIVE TACTICS', text: sc.endText,
       notes: [
         `Bouts: ${sc.bouts.map(b => `${b.name}, ${b.won ? 'won' : 'lost'} ${b.score.a}–${b.score.b}${b.why === 'stopped' ? ' (stopped)' : ''}`).join('; ')}.`,
@@ -174,7 +223,7 @@ export const dojoScenario = {
 
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
 const actorOfWho = (state, who) => state.actors.find(a => a.who === who);
-const whoOf = (sc, step) => (step.with === 'weak' ? sc.weak : step.with === 'even' ? sc.even : 'hale');
+const whoOf = (sc, step) => (step.with === 'hale' ? 'hale' : sc[step.with]);
 const short = (state, who) => (who === 'hale' ? 'Hale' : state.people[who].name.split(' ')[1]);
 const fill = (state, who, text) => text.replace(/\{name\}/g, short(state, who));
 const dateLine = (state) => dateText(state.time.ms);
@@ -184,11 +233,16 @@ function next(state, bus) {
   const sc = state.scenario;
   sc.step++;
   const step = STEPS[sc.step];
-  if (!step) return over(state, bus);
-  // (hurt that badly, nobody spars again today)
-  if (step.bout && ['head', 'torso'].some(k => ['wounded', 'out'].includes(stateOf(state.people[state.player], k)))) {
-    say(state, bus, { kind: 'note', text: 'Hale: “You\'re done for today. Sit down, and get some ice on that.”' });
-    return over(state, bus);
+  if (!step) return sc.chapter === 'remembered' ? present(state, bus) : over(state, bus);
+  // (hurt that badly, nobody spars again today; in the memory, Hale sends you back in, the worst of it shaken off)
+  const me0 = state.people[state.player];
+  if (step.bout && ['head', 'torso'].some(k => ['wounded', 'out'].includes(stateOf(me0, k)))) {
+    if (sc.chapter !== 'remembered') {
+      say(state, bus, { kind: 'note', text: 'Hale: “You\'re done for today. Sit down, and get some ice on that.”' });
+      return over(state, bus);
+    }
+    for (const k in me0.body) me0.body[k] = Math.min(me0.body[k], Math.floor(takes(me0, k) * 0.6 * 10) / 10);
+    say(state, bus, { kind: 'note', text: 'Hale: “Shake it off. Out there nobody lets you sit down.”' });
   }
   const who = whoOf(sc, step), me = playerOf(state);
   // The one before back to their place; this one to the mark facing us; us to ours.
@@ -222,14 +276,66 @@ function finishBout(state, bus, f) {
     sc.bouts.push({ id: step.id, name: short(state, who), won, score: { ...f.score }, why: f.ended.why });
     const line = f.ended.why === 'stopped' ? (won ? `“Stop. That's enough, ${short(state, who)}'s hurt.”` : '“Stop. You\'re hurt: that\'s the bout.”') : won ? '“That\'s the bout. Good.”' : '“That\'s the bout.”';
     say(state, bus, { kind: 'note', text: `Hale: ${line} ${won ? 'You' : short(state, who)} ${f.score.a}–${f.score.b}${won ? '' : ' you'}.` });
+    if (sc.chapter === 'remembered' && step.id === 'hale') Object.assign(sc, { phase: 'cut', cutAt: state.tick + CUT_S * TPS });   // (and then the floor)
   } else say(state, bus, { kind: 'note', text: `Hale: ${step.done}` });
+}
+
+// ---------- years on: the fight that sent you back there ----------
+
+/** The cut: you hit the floor, and it isn't the mat. Moscow, years on, three in the morning; on the cobbles. */
+function present(state, bus) {
+  const sc = state.scenario, r = state.rng, me = state.people[state.player], hale = state.people.hale;
+  say(state, bus, { kind: 'note', text: 'The mat comes up to meet you, hard. Only it isn\'t a mat.' });
+  bus?.emit('cut');
+  // An illegal now: the same face, years on; the trade, and Hale's own training: CQC as Hale's was then.
+  Object.assign(me, { cls: 'spook', os: hale.os, skills: { ...structuredClone(ILLEGAL), cqc: [...hale.skills.cqc] }, body: { head: 3 }, injuries: [], bloody: undefined });
+  me.age = (me.age ?? 26) + 19;
+  me.look = { ...me.look, top: { kind: 'coat', color: 0x23252f, trim: 0x14151c }, legs: 0x23252f, shoes: 0x14151c };
+  state.legend = { id: 'illegal', name: 'Illegal, Moscow', cover: 'non-official', floor: 30 };
+  state.country = 'ru';
+  state.time.ms = at(2026, 11, 5, 2, 55);
+  const fsb = state.people.fsb = recruit(r, { id: 'fsb', cqc: FSB_CQC, os: FSB_OS, age: 38, sex: 'm' });
+  Object.assign(fsb, { name: 'the FSB man', known: false, seen: 'the FSB man' });
+  fsb.look = { ...fsb.look, top: { kind: 'coat', color: 0x47302a, trim: 0x2a1c18 }, legs: 0x23252f, shoes: 0x14151c };
+  const pc = playerOf(state), x = 4, them = { id: `a${state.nextActor++}`, who: 'fsb', seed: null, x: x + FIGHT.gap, z: -2.7, vx: 0, vz: 0, face: 'left', head: Math.PI, gait: 'guard', stride: 0, stuck: 0,
+    ai: { kind: 'dojo', speed: 1.4, steps: [], wait: 0, fighting: true } };
+  Object.assign(pc, { x, z: -2.7, face: 'right', head: 0, gait: 'down', busy: null, glass: false });
+  state.actors.push(them);
+  newMap(state, bus, { kind: 'street', seed: int(r, 1e9), row: 0, i0: null, i1: null, crowd: 0.15 }, x, [them.id]);
+  say(state, bus, { kind: 'note', text: 'Cobbles, cold and wet. Moscow, three in the morning, years on, and you\'re on your back in a side street. Somebody hit you hard enough to send you back to the Farm.' });
+  say(state, bus, { kind: 'note', text: 'He\'s waiting for you to get up: FSB, by the way he stands. He\'s good. You\'re better. You\'ve been better since Hale.' });
+  Object.assign(sc, { phase: 'rise', rose: state.tick, with: 'fsb' });
+  bus?.emit('brief', {
+    title: 'MOSCOW, YEARS ON',
+    body: [`${me.name}, nineteen years on: an illegal, no embassy behind you, in Moscow under a name that isn't yours.`,
+      'Somebody hit you from behind, and the cobbles came up. He\'s FSB, he\'s strong, and he wants you on your feet so he can put you down properly.',
+      'You\'re as good now as Hale was then. This one isn\'t a bout: nobody stops it. It ends with one of you on the ground.'],
+    footer: 'Moscow · 02:55',
+    keys: [['hit', 'hit'], ['grapple', 'grab'], ['guard', 'cover'], ['run', 'held with a move: an edge (with a cover: hit back)'], ['sheet', 'your sheet: what you are now']],
+  });
+}
+
+/** On your feet: he comes on. */
+function beginPresent(state, bus) {
+  const me = playerOf(state);
+  beginFight(state, bus, actorOfWho(state, 'fsb'), { style: 'striker', owner: 'dojo', marks: { a: { x: me.x, z: me.z }, b: { x: me.x + FIGHT.gap, z: me.z } } });
+  state.scenario.phase = 'present';
+}
+
+/** One of you on the cobbles. */
+function presentOver(state, bus, f) {
+  const sc = state.scenario, won = f.ended.by === 'a';
+  Object.assign(sc, { phase: 'done', outcome: won ? 'won' : 'lost' });
+  sc.endText = won ? 'He doesn\'t get up. You stand over him long enough to be sure, take his radio, and walk out of the street the way a man walks home: unhurried, nobody. Hale would have called it adequate.'
+    : 'The cobbles again, and this time they stay. Boots, a car door, a hood. Somewhere a long way off, Hale is saying something about the ones who learn.';
+  bus?.emit('scenario-end', sc.outcome);
 }
 
 function over(state, bus) {
   const sc = state.scenario, won = sc.bouts.filter(b => b.won).length;
-  sc.outcome = won === 3 ? 'top' : won ? 'passed' : 'just';
+  sc.outcome = won === BOUTS ? 'top' : won ? 'passed' : 'just';
   sc.phase = 'done';
-  sc.endText = won === 3 ? 'Hale looks at you for a long moment. “Again tomorrow. Earlier.” From Hale, that\'s a medal.'
+  sc.endText = won === BOUTS ? 'Hale looks at you for a long moment. “Again tomorrow. Earlier.” From Hale, that\'s a medal.'
     : won ? '“Ice what needs icing. Tomorrow, knives.” The class files out to the showers.'
       : '“Everyone loses here. The ones who learn something lose less on the street.” The class files out to the showers.';
   bus?.emit('scenario-end', sc.outcome);
@@ -240,6 +346,13 @@ function over(state, bus) {
 function instinct(state) {
   const sc = state.scenario, f = state.fight, step = STEPS[sc.step];
   const L = (id, tone, text, act = null) => ({ id, tone, text, act });
+  if (sc.with === 'fsb' || sc.phase === 'cut') {
+    if (sc.phase === 'cut') return L('cut', 'calm', '…');
+    if (sc.phase === 'rise') return L('rise', 'calm', 'Get up.');
+    if (f?.status?.a === 'stunned') return L('dazed', 'urgent', 'Your hands won\'t come up, and whatever comes, you can\'t stop it.');
+    return f ? L(`choose-${f.round}`, 'warn', 'He\'s good. You\'re better. Nobody stops this one.') : L('wait', 'calm', '…');
+  }
+  if (sc.phase === 'ready' && sc.chapter === 'remembered' && !sc.bouts.length) return L('start', 'note', 'The bouts, as you remember them. {instinct} step onto the mat.', 'next');
   if (sc.phase === 'ready') return sc.step < 0 ? L('start', 'note', 'Hale is waiting. {instinct} step onto the mat.', 'next') : L('next', 'note', STEPS[sc.step + 1] ? 'Catch your breath. {instinct} when you\'re ready for the next.' : 'That\'s the lesson. {instinct} to finish.', 'next');
   if (sc.phase === 'walk') return L('walk', 'calm', 'Onto the mat.');
   if (!f) return L('wait', 'calm', 'Wait for Hale.');

@@ -291,7 +291,7 @@ export function createView({ parent, bus }) {
     // People as the player knows them: seen this tick, where they are; otherwise where they were.
     const pc = playerActor(state), seen = state.mind?.seen ?? {}, now = state.mind?.at;
     // (a scenario whose character takes in all of a small lit room shows it whole: aware)
-    const aware = SCENARIOS[state.scenario.kind]?.aware;
+    const aware = SCENARIOS[state.scenario.kind]?.aware?.(state);
     if (pc && !aware) fog(state, pc, S); else stage.setFog(null);
     const people = [];
     drawn.clear();

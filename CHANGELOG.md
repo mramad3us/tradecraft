@@ -4,6 +4,13 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.41 (2026-10-26)
+
+- **The Farm, remembered** (your idea). Once you've had the lesson, the title offers the Farm as a memory: no drills, straight to the bouts, now four: the weaker classmate, the even one, a better one (new, in the lesson too), and Hale. When Hale's bout ends you hit the floor, and it isn't the mat: a white flash, and it's Moscow, three in the morning, nineteen years on. You're on your back on the cobbles; somebody hit you hard enough to send you back to the Farm. Same character, an illegal now, as good in a fight as Hale was then (CQC 30), against an FSB officer (CQC 24): strong, but you're better. You get up, and it's not a bout: it ends with one of you down. The whole lesson is still on the title.
+- The Farm is 2007 now: the past.
+- In a memory, nobody's sent to the bench: hurt badly, Hale has you shake it off and go again, so all four bouts happen.
+- Fixes: a fight that isn't a drill (a street brawl, Moscow) no longer says "drill" at the top, and names them properly ("vs The FSB man", not "man"); nothing at hand is offered (T: the shop window) in the middle of a fight; the edge's line in the move panel fits on one line again (the whole of it on hover).
+
 ## v0.0.40 (2026-10-26)
 
 - **F: what to do with someone** (your ask). Close to anyone (a key shows over them), F opens a menu, numbers or a click:
