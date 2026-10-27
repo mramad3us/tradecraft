@@ -4,6 +4,10 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.39 (2026-10-26)
+
+- **The camera looks where you look** (your report: people up or down a lane were off the picture while you could still see them). It leans the way your eyes go, more north–south where the picture is shorter: a little as you walk, up to 8 m when you hold E and look; and tailing, toward him while he's in sight, so a man going up a lane stays in the picture while you're still on the street. The fog still shows only what your character sees; the picture just keeps up with the eyes. (The crowd's never-on-screen rule widens to match: nobody appears or vanishes within 24 m east–west, 22 m north–south.)
+
 ## v0.0.38 (2026-10-26)
 
 - **Injuries and blood** (your ask).

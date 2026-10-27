@@ -19,6 +19,11 @@
 //   - the camera follows the focus (the player), clamped to the map, snapped to the pixel grid, and
 //     the sun's shadow camera moves with it in whole texels of its map, so shadows never shimmer;
 //   - in a fight, a blow landing jolts the picture a pixel to three, the way it went, for SHAKE_TICKS;
+//   - the camera leans where the eyes go (LEAD_M: a little walking, far looking with E held, more
+//     north–south, where the picture is shorter; the user, 2026-10-26: "targets up and down are out
+//     of the field of view"), and in a scene following someone (scenario.watch()) toward them while
+//     they're in sight; never past what the crowd's rule allows (sim/crowd.js SCREEN_HALF_M: nobody
+//     comes or goes on screen), and eased (LEAD_S). The fog still says what's seen;
 //   - what the player's character is aware of (sim/perception.js): a mask on the ground, FOG_CELL_M
 //     cells over the view, each the visibility of its spot from the player's eyes (the cone, the
 //     radius of awareness, a shop window's glass, the light, the walls in the way). A building takes the visibility of its
@@ -38,6 +43,7 @@ import { Z, SECTION_M } from '../sim/map/street.js';
 import { passerby } from '../sim/people.js';
 import { focusActor, playerActor } from '../sim/game.js';
 import { SCENARIOS } from '../sim/scenarios/index.js';
+import { SCREEN_HALF_M } from '../sim/crowd.js';
 import { Z_BACK, Z_FRONT } from '../sim/map/dojo.js';
 import { eyes, visibility } from '../sim/perception.js';
 
@@ -46,6 +52,8 @@ export const LAMP_SLOTS = 10;
 export const BUILD_MS = 6;
 export const FOG_CELL_M = 0.5;
 export const SHAKE_TICKS = 4;
+export const LEAD_M = { walk: [1, 2.5], look: [1.5, 8] };          // the camera's lean where the eyes go (east–west, north–south): walking, looking (E held)
+export const LEAD_S = 0.35;                                         // how quickly it gets there
 // (deep to the south: a facade whose foot is well below the picture shows its upper floors in it)
 export const FOG_N = [96, 128];                                    // cells: 48 × 64 m round the camera
 const FOG_AT = [-24, -18];                                         // the mask's corner from the camera, m
@@ -108,7 +116,7 @@ export function createView({ parent, bus }) {
   const texel = (sun.shadow.camera.right - sun.shadow.camera.left) / sun.shadow.mapSize.x;
   const aim = new THREE.Vector3();
 
-  let cam = { x: 0, z: 0 };
+  let cam = { x: 0, z: 0 }, lead = [0, 0], leadAt = performance.now();
   function look(x, z) {
     x = Math.round(x * PX_PER_M) / PX_PER_M; z = Math.round(z * PX_PER_M) / PX_PER_M;
     cam = { x, z };
@@ -212,14 +220,26 @@ export function createView({ parent, bus }) {
     const f = focusActor(state);
     if (f) {
       const [fx, fz] = at(f);
-      let x = fx;
+      const now = performance.now(), dt = Math.min(0.1, (now - leadAt) / 1000), pc = playerActor(state), want = [0, 0];
+      leadAt = now;
+      if (pc && f === pc) {
+        const L = pc.looking ? LEAD_M.look : (pc.vx || pc.vz) ? LEAD_M.walk : [0, 0], h = pc.head ?? 0;
+        want[0] = Math.cos(h) * L[0]; want[1] = Math.sin(h) * L[1];
+        const w = SCENARIOS[state.scenario.kind]?.watch?.(state);
+        if (w) { want[0] += (w.x - fx) * 0.5; want[1] += (w.z - fz) * 0.5; }
+      }
+      const mx = Math.max(0, SCREEN_HALF_M[0] - halfW - 0.5), mz = Math.max(0, SCREEN_HALF_M[1] - stage.H / PX_PER_M / 2 - 0.5);
+      want[0] = Math.max(-mx, Math.min(mx, want[0])); want[1] = Math.max(-mz, Math.min(mz, want[1]));
+      const ease = 1 - Math.exp(-dt / LEAD_S);
+      lead[0] += (want[0] - lead[0]) * ease; lead[1] += (want[1] - lead[1]) * ease;
+      let x = fx + lead[0];
       if (state.map.i0 !== null) x = Math.max(state.map.i0 * SECTION_M + halfW, Math.min((state.map.i1 + 1) * SECTION_M - halfW, x));
       // (in the hall: the near sill at the picture's foot, the back wall in it)
       const cz = state.map.kind === 'dojo' ? [Z_BACK + 3, Z_FRONT + 0.4 - stage.H / PX_PER_M / 2] : camZ;
       // (a blow landing: the picture jolts a pixel or three, the way the blow went, and settles: sim/cqcshow.js)
       const imp = state.fight?.impact, since = imp ? state.tick - imp.tick + alpha : 99;
       const jolt = since < SHAKE_TICKS ? Math.round((1 + 2 * Math.min(1, imp.force / 0.4)) * (1 - since / SHAKE_TICKS)) * (Math.floor(since * 2) % 2 ? -1 : 1) * (imp.side === 'b' ? 1 : -1) / PX_PER_M : 0;
-      look(x + jolt, Math.max(cz[0], Math.min(Math.max(cz[0], cz[1]), fz)) + Math.abs(jolt) * 0.5);
+      look(x + jolt, Math.max(cz[0], Math.min(Math.max(cz[0], cz[1]), fz + lead[1])) + Math.abs(jolt) * 0.5);
     }
     // The light.
     hemi.color.setHex(S.sky); hemi.groundColor.setHex(S.ground); hemi.intensity = S.skyK * Math.PI;

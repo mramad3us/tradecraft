@@ -231,6 +231,9 @@ export const tail = {
     act(state, bus, me, p.act, { toward: tail.toward(state, me) });
   },
 
+  /** Where the picture leans: whom we take for him, while he's in sight (src/render/view.js). */
+  watch(state) { const sc = state.scenario, a = sc.marked && !sc.outcome && inView(state, sc.marked) && actorOf(state, sc.marked); return a && onMap(state, a) ? { x: a.x, z: a.z } : null; },
+
   /** A shop window's glass, to run his way: he's watched in it. */
   toward(state, me) { const t = actorOf(state, state.scenario.target); return t ? Math.sign(t.x - me.x) || 1 : undefined; },
 
