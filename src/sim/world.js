@@ -26,6 +26,7 @@ export const sectionFor = (map, i) => (map.kind === 'dojo' ? dojo(map.seed) : se
 import { section, sectionsAround, Z } from './map/street.js';
 import { dojo } from './map/dojo.js';
 import { townOf } from './cities/index.js';
+import { intoCar } from './traffic.js';
 
 export const BUCKET_M = 4;
 export const RADIUS_M = 0.25;
@@ -104,13 +105,13 @@ export function blocked(state, x, z, r = RADIUS_M) {
   return false;
 }
 
-/** Move an actor by (dx, dz), sliding along what blocks it. Returns the distance moved. */
+/** Move an actor by (dx, dz), sliding along what blocks it (the map, and the cars on the road: sim/traffic.js). Returns the distance moved. */
 export function move(state, a, dx, dz) {
-  const x0 = a.x, z0 = a.z;
-  if (!blocked(state, a.x + dx, a.z + dz)) { a.x += dx; a.z += dz; }
+  const x0 = a.x, z0 = a.z, hit = (x, z) => blocked(state, x, z) || intoCar(state, a.x, a.z, x, z);
+  if (!hit(a.x + dx, a.z + dz)) { a.x += dx; a.z += dz; }
   else {
-    if (dx && !blocked(state, a.x + dx, a.z)) a.x += dx;
-    if (dz && !blocked(state, a.x, a.z + dz)) a.z += dz;
+    if (dx && !hit(a.x + dx, a.z)) a.x += dx;
+    if (dz && !hit(a.x, a.z + dz)) a.z += dz;
   }
   return Math.hypot(a.x - x0, a.z - z0);
 }

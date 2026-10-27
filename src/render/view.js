@@ -58,6 +58,7 @@ import { buildSection } from './town.js';
 import { buildDojo } from './dojo.js';
 import { createCrowd } from './crowd.js';
 import { createBlood } from './blood.js';
+import { createTraffic } from './traffic.js';
 import { createItems } from './items.js';
 import { sky, lightAt, lightLevel, LAMP } from '../sim/light.js';
 import { Z, SECTION_M } from '../sim/map/street.js';
@@ -124,6 +125,7 @@ export function createView({ parent, bus, month = () => 11 }) {
   const sections = new Map();
   const crowd = createCrowd(scene);
   const blood = createBlood(scene);
+  const traffic = createTraffic(scene);
   const items = createItems(scene);                                // (things lying about: src/render/items.js)
   const looks = new Map();                                         // passer-by seed → look (generated once)
   let city = null;
@@ -436,6 +438,7 @@ export function createView({ parent, bus, month = () => 11 }) {
     }
     crowd.update(people, t);
     blood.update(state);
+    traffic.update(state, alpha, S.glow > 0.35);                   // (the cars on the road, their lights on after dark: src/render/traffic.js)
     items.update(state);
     stage.render();
     for (const s of dying) s.dispose();                            // (the last street's, now the next's have their shaders)
@@ -502,7 +505,7 @@ export function createView({ parent, bus, month = () => 11 }) {
     shadows();
   }
   /** Done with the view (a new game makes its own): its GPU context given back, not left for the browser to cap. */
-  function dispose() { clear(); for (const s of dying.splice(0)) s.dispose(); off.forEach(f => f()); fogTex.dispose(); crowd.atlas.dispose(); stage.dispose(); }
+  function dispose() { traffic.dispose(); clear(); for (const s of dying.splice(0)) s.dispose(); off.forEach(f => f()); fogTex.dispose(); crowd.atlas.dispose(); stage.dispose(); }
 
   return { stage, frame, resize, clear, dispose, flush: () => build(Infinity), canvas: stage.renderer.domElement, get camera() { return cam; }, posOf: (id) => drawn.get(id),
     fogAt: (x, z) => { if (!fogO) return 1; const i = Math.floor(x / FOG_CELL_M) - fogO[0], j = Math.floor(z / FOG_CELL_M) - fogO[1]; return i >= 0 && i < FNX && j >= 0 && j < FNZ ? fogVal[j * FNX + i] : 0; } };

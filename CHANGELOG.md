@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc17 (2026-10-27)
+
+- **Traffic.** Cars on the road, a lane each way on the city's side (London's on the left), every few seconds by day and a trickle at night: the city's makes and colours, its taxis, and its buses (Moscow's white and green, London's red double-decker, Beirut's van, Cairo's white and blue), their lights on after dark. They stop for anyone on a zebra, and short of anyone in the road; they never stop on a crossing; they ease round someone standing in the way, and let a bus out of its stop. People walk round them, and go round the end of one that's stopped. Step out under a car's nose and it stops, just: a horn, and you're shaken.
+- **The bus you wait for is the one you see**, pulling in at the shelter with its doors at it, a little early, and waiting while you choose. Buses on the line also stop at the shelters they pass.
+- Shelters now stand only where a bus pulled in at them stays off the zebra.
+
 ## v0.1.0-rc16 (2026-10-27)
 
 - **Buses and bus shelters.** A shelter stands at the far kerb every hundred and fifty metres or so, in each city's colours and words (ОСТАНОВКА in Moscow, BUS STOP in London, BUS in Beirut, موقف in Cairo, and the line), its fascia lit at night. T at it: you sit on its bench and wait, the street going by in front of you, a natural place to watch from for as long as the bus takes. The bus comes on the stop's timetable (every 6 to 12 minutes, half as often at night), going north or south by turns; the card asks how far (one, two or four streets, 100 ₽ / £1 / $1). Unlike a taxi, nobody writes a bus down. But a tail on foot can get on too: an overt pair runs for it and rides with you; a covert team's nearest man gets on if he's close, and their car may follow the bus. Watch who gets off at your stop.

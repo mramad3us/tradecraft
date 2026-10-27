@@ -3,7 +3,7 @@
 // An agent is an actor with a.ai.kind 'agent' and a street of its own (a.row). It walks a route
 // (sim/city.js) by the clock, kinematically, at its own fraction f of each way's width (placeAt), so
 // nothing can block it; on the loaded street it slows behind people in its way and leans aside,
-// within the way's width. Off the loaded street it walks on all the same, in the background: unseen,
+// within the way's width, and waits for a car going by (sim/traffic.js). Off the loaded street it walks on all the same, in the background: unseen,
 // undrawn, and where it should be when its street is loaded. The loaded street follows the focus
 // (sim/game.js): an agent that's the focus takes the map with it through a lane.
 //
@@ -30,10 +30,11 @@ import { townOf } from './cities/index.js';
 import { TICK_MS } from './clock.js';
 import { placeAt, routeFrom, finish, sectionOf, clearAt, LINE } from './city.js';
 import { Z, SECTION_M, mouthOf, inLane as inLaneG, laneLine } from './map/street.js';
-import { near } from './world.js';
+import { near, blocked } from './world.js';
 import { seesActor, headOf, gazeInto, openAir, reach } from './perception.js';
 import { weatherAt, footing } from './weather.js';
 import { paneAt, seatTaken } from './acts.js';
+import { intoCar, carInWay } from './traffic.js';
 
 const DT = TICK_MS / 1000;
 const TPS = 1000 / TICK_MS;
@@ -140,6 +141,34 @@ export function routeTo(state, a, to, opts = {}) {
 
 // ---------- walking ----------
 
+export const DETOUR_AFTER_S = 1.2, DETOUR_GIVE_UP_S = 20;
+
+/** Round a stopped car that's in the way: to its nearer end, past it, and back on the way where the way's clear of it (or null: the way doesn't go through it). */
+function detourRound(state, a, route, c) {
+  const clear = (q) => Math.abs(q.x - c.x) > c.len / 2 + 0.5 || Math.abs(q.z - c.z) > c.w / 2 + 0.5;
+  let s = a.ai.s, q = null, entered = false;
+  for (let k = 0; k < 160 && s < route.length; k++) {
+    s = Math.min(route.length, s + 0.25); q = placeAt(route, s, a.ai.f);
+    if (q.row !== a.row) return null;
+    if (!clear(q)) entered = true; else if (entered) break;
+  }
+  if (!entered || !clear(q)) return null;
+  const end = a.x < c.x ? c.x - c.len / 2 - 0.5 : c.x + c.len / 2 + 0.5;
+  return { pts: [{ x: end, z: a.z }, { x: end, z: q.z }, { x: q.x, z: q.z }], sAfter: s, until: state.time.ms + DETOUR_GIVE_UP_S * 1000 };
+}
+
+/** A step along the detour (true: it's what this tick was); at its end, on along the way from past the car. */
+function walkDetour(state, a, v) {
+  const d = a.ai.detour, P = d.pts[0], dx = P.x - a.x, dz = P.z - a.z, L = Math.hypot(dx, dz);
+  if (state.time.ms > d.until) { a.ai.detour = null; return false; }   // (given up: back to waiting on the way)
+  if (L < 0.05) { d.pts.shift(); if (!d.pts.length) { a.ai.s = d.sAfter; a.ai.detour = null; return false; } return true; }
+  const step = Math.min(L, v * DT), nx = a.x + dx / L * step, nz = a.z + dz / L * step;
+  if (intoCar(state, a.x, a.z, nx, nz) || blocked(state, nx, nz)) { a.vx = a.vz = 0; a.gait = 'idle'; return true; }   // (another in the way: wait)
+  a.vx = (nx - a.x) / DT; a.vz = (nz - a.z) / DT; a.stride += step; a.x = nx; a.z = nz;
+  a.face = faceFor(a.vx, a.vz, a.face); if (!a.ai.eyesOn) a.head = Math.atan2(a.vz, a.vx); a.gait = 'walk';
+  return true;
+}
+
 /** One tick of an agent (step 2 of the tick): along its route, or waiting at a stop. */
 export function stepAgent(state, a, scenario, bus) {
   const ai = a.ai, x0 = a.x, z0 = a.z, row0 = a.row;
@@ -155,6 +184,7 @@ export function stepAgent(state, a, scenario, bus) {
   if (stop && stop.s <= ai.s + 1e-6) { startStop(state, a, stop, scenario, bus); return; }
   if (!route || ai.s >= route.length - 1e-6) { a.vx = a.vz = 0; a.gait = ai.sit ? 'sit' : 'idle'; return; }
   let v = ai.speed * (ai.pace ?? 1) * footing(weatherAt(state)).walk;   // (slower going in snow: sim/weather.js)
+  if (ai.detour && walkDetour(state, a, v)) return;
   if (stop && stop.slowM && stop.s - ai.s <= stop.slowM) {        // a tell: slowing before a check
     if (ai.told !== ai.stop) { ai.told = ai.stop; scenario?.onStop?.(state, a, stop, 'tell', bus); }
     v *= 0.5;
@@ -163,7 +193,14 @@ export function stepAgent(state, a, scenario, bus) {
   if (here) v = yieldTo(state, a, v);
   let s1 = Math.min(route.length, ai.s + v * DT);
   if (stop && stop.s <= s1) s1 = stop.s;
-  const p = placeAt(route, s1, ai.f);
+  let p = placeAt(route, s1, ai.f);
+  // (a car in the way, crossing the road: wait for it to go by; stood there a moment, round its nearer
+  // end, and back on the way past it: sim/traffic.js)
+  const car = here && p.row === row0 ? carInWay(state, x0, z0, p.x, p.z) : null;
+  if (car) {
+    s1 = ai.s; p = placeAt(route, s1, ai.f);
+    if (car.v < 0.5 && (ai.carWait = (ai.carWait ?? 0) + 1) > DETOUR_AFTER_S * TPS) { ai.carWait = 0; ai.detour = detourRound(state, a, route, car); }
+  } else ai.carWait = 0;
   a.row = p.row;
   a.x = p.x; a.z = p.z; ai.s = s1;
   if (a.row !== row0) { a.vx = p.ux * v; a.vz = p.uz * v; }       // (through a seam: no leap of velocity)

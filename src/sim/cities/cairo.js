@@ -325,7 +325,7 @@ export const CAIRO = {
   terrace: { court: 0.32, square: 0.14, jog: 0.42 },
   courtName: (seed, row, i) => at(['Atfet el-Mesk', 'Atfet el-Kahwa', 'Atfet el-Fawwala', 'Atfet el-Sabbagh', 'Atfet el-Hammam', 'Atfet el-Nahhas', 'Atfet Abu Taleb', 'Atfet el-Shorbagi'], seed, row, i, 'court'),
   squareName: (seed, row, i) => at(['Midan Bab el-Khalq', 'Midan el-Gamaliya', 'Midan Abdin', 'Midan el-Sayeda Aisha', 'Midan el-Hilmiya', 'Midan el-Daher'], seed, row, i, 'square'),
-  kiosks: [['مرطبات', 0x24503a], ['جرائد', 0x6e2a2e], ['كشك', 0x283f6b], ['شاي', 0x9e3c36]], news: 'جرائد', stop: { frame: 0x8f6345, roof: 0x9e3c36, sign: ['موقف', 0x283f6b, 0xf4efe6] },
+  kiosks: [['مرطبات', 0x24503a], ['جرائد', 0x6e2a2e], ['كشك', 0x283f6b], ['شاي', 0x9e3c36]], news: 'جرائد', stop: { frame: 0x8f6345, roof: 0x9e3c36, sign: ['موقف', 0x283f6b, 0xf4efe6] }, bus: { kind: 'single', body: 0xf4efe6, stripe: 0x283f6b, len: 11 },
   litter: 0,                                                       // (no autumn on the ground; the dust in the gutters is the ground painter's: src/art/pixeltown.js)
   people: {
     name: (r, sex) => cairoName(r, sex),

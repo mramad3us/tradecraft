@@ -41,6 +41,7 @@ import { PRESSURE_K, treat } from './aid.js';
 import { atKerb, destinations, ride } from './taxi.js';
 import { shopNear, goIn, insideTick } from './shops.js';
 import * as buses from './buses.js';
+import * as traffic from './traffic.js';
 import { notice } from './notice.js';
 import { needsTick, strain } from './needs.js';
 import { weatherAt, footing, weatherTick, parseWeather, SLIP_S } from './weather.js';
@@ -171,6 +172,7 @@ export function step(state, input = {}, bus) {
   if (state.fight?.phase === 'choose' || state.talk) return;
   if (state.fight || scenario.holds?.(state) || me?.inside) input = { act: input.act };   // (a fight, the scenario, or a shop has the player's feet)
   if (me?.inside) insideTick(state, bus, me, scenario, { loadRow });
+  traffic.trafficTick(state, bus);                                 // (the cars on the road: sim/traffic.js)
   buses.waitTick(state, bus, me);                                  // (sat at a stop: the bus comes, waits, goes: sim/buses.js)
   const mine = me && state.people[me.who], fallen = mine && (mine.dead || !canStand(mine));
   if (fallen) input = { act: [] };                                 // (collapsed, out cold or dead: nothing answers)

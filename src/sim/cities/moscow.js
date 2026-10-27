@@ -272,7 +272,7 @@ export const MOSCOW = {
   boulevardName: (seed, row) => `${at(BOULEVARDS, seed, row, 'boulevard')} Boulevard`,
   parkName: (seed, row, i) => at(PARKS, seed, row, Math.floor(i / STRETCH), 'park'),
   gaps, parkShare: 0.35, building, dress: dressBuilding, LOOKS, SHOPS, carColours: CAR_COLOURS, postbox: 'wall', taxi: 'taxi',
-  kiosks: [['ПЕЧАТЬ', 0x24503a], ['КОФЕ', 0x6e2a2e], ['ЦВЕТЫ', 0x283f6b], ['МОРОЖЕНОЕ', 0x3b6296]], news: 'ПЕЧАТЬ', stop: { frame: 0x6a7182, roof: 0x3b6296, sign: ['ОСТАНОВКА', 0x3b6296, 0xf4efe6] },
+  kiosks: [['ПЕЧАТЬ', 0x24503a], ['КОФЕ', 0x6e2a2e], ['ЦВЕТЫ', 0x283f6b], ['МОРОЖЕНОЕ', 0x3b6296]], news: 'ПЕЧАТЬ', stop: { frame: 0x6a7182, roof: 0x3b6296, sign: ['ОСТАНОВКА', 0x3b6296, 0xf4efe6] }, bus: { kind: 'single', body: 0xf4efe6, stripe: 0x24503a, len: 11 },
   // Passers-by: Russian names, Moscow's November dress (sim/people.js).
   people: {
     name: (r, sex) => russianName(r, sex),

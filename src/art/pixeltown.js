@@ -1778,6 +1778,68 @@ export function car(color = 0x3b6296, { taxi = false, seed = 5, kind = 'sedan' }
 }
 
 /**
+ * A bus on the street's road (sim/traffic.js), facing +x like a car: the city's (its profile's `bus`):
+ * a single-decker (Moscow's white and green, Cairo's white and blue), London's red double-decker, or
+ * Beirut's white van. Its sides a band of windows and its doors, its front a big windscreen and the
+ * line over it in amber, the strip lights along its ceiling (lit after dark: glows), its back the
+ * engine's grille. Painted once a style and line.
+ */
+export function busModel({ kind = 'single', body = 0xf4efe6, stripe = 0x24503a, len = 11 } = {}, line = 0) {
+  const L = len, Wd = kind === 'van' ? 1.95 : 2.5, H = kind === 'double' ? 4.1 : kind === 'van' ? 1.95 : 2.75, ride = kind === 'van' ? 0.3 : 0.32;
+  const dark = 0x23252f, glassC = 0x283f6b, shine = 0x5d8fc2, amber = 0xe7b84a, CEIL = 0xf8e08a, key = `${kind}-${body}-${stripe}-${len}`;
+  const W = Math.round(L * M), Hp = Math.round(H * M);
+  const windows = (px, y0, y1, step) => {
+    px(0, y0, W, y1 - y0, glassC);
+    px(0, y0 + 1, W, 1, CEIL);                                          // (the strip lights along its ceiling: lit after dark)
+    for (let x = 0; x < W; x += step) px(x, y0, 1, y1 - y0, body);          // (the pillars)
+    for (let x = 3; x < W; x += step * 2) px(x, y0 + 3, 4, 1, shine);       // (light on the glass)
+  };
+  const side = keep(`bus-side-${key}`, () => mat(0, paint(W, Hp, (px) => {
+    px(0, 0, W, Hp, body); px(0, 0, W, 1, tone(body, 0.08));
+    if (kind === 'double') {
+      windows(px, 5, 17, 18); px(0, 19, W, 3, 0xe2dac6);                  // (upper deck; the cream band)
+      windows(px, 25, 40, 18);
+    } else if (kind === 'van') { windows(px, 4, 13, 14); px(Math.floor(W * 0.42), 4, 1, Hp - 8, dark); }   // (its sliding door's line)
+    else { windows(px, 6, 22, 20); px(0, 24, W, 3, stripe); px(0, 27, W, 1, tone(stripe, -0.1)); }
+    if (kind !== 'van') for (const f of kind === 'double' ? [0.12] : [0.12, 0.55]) {                   // (the doors: glass to the sill)
+      const x = Math.floor(W * f); px(x, kind === 'double' ? 25 : 6, 14, Hp - (kind === 'double' ? 29 : 10), glassC); px(x + 7, kind === 'double' ? 25 : 6, 1, Hp - (kind === 'double' ? 29 : 10), dark);
+    }
+    px(0, Hp - 4, W, 4, dark);                                       // (the skirt)
+  }, { glows: [CEIL] })));
+  const nose = keep(`bus-nose-${key}-${line}`, () => mat(0, paint(Math.round(Wd * M), Hp, (px, w, h) => {
+    px(0, 0, w, h, body);
+    const dest = (y) => { px(2, y, w - 4, 6, 0x14151c); const t = String(line || ''); text(px, Math.floor((w - textWidth(t)) / 2), y, t, amber); };
+    if (kind === 'double') { px(2, 5, w - 4, 11, glassC); dest(18); px(2, 26, w - 4, 12, glassC); px(4, 27, 8, 2, shine); }
+    else { dest(2); px(2, 9, w - 4, kind === 'van' ? 9 : 14, glassC); px(4, 10, 8, 2, shine); }
+    px(1, h - 9, 5, 3, 0xf8e08a); px(w - 6, h - 9, 5, 3, 0xf8e08a);   // (headlights)
+    px(Math.floor(w / 2) - 4, h - 7, 8, 3, 0xe2dac6);                 // (the plate)
+    px(0, h - 4, w, 4, dark);
+  }, { glows: [amber, 0xf8e08a] })));
+  const tail = keep(`bus-tail-${key}`, () => mat(0, paint(Math.round(Wd * M), Hp, (px, w, h) => {
+    px(0, 0, w, h, body); px(3, 6, w - 6, kind === 'double' ? 10 : 8, glassC);
+    for (let y = h - 16; y < h - 8; y += 2) px(4, y, w - 8, 1, dark);  // (the engine's grille)
+    px(1, h - 9, 4, 4, 0xc95c45); px(w - 5, h - 9, 4, 4, 0xc95c45);
+    px(0, h - 4, w, 4, dark);
+  }, { glows: [0xc95c45] })));
+  const roof = mat(kind === 'double' ? body : tone(body, -0.04));
+  const g = new THREE.Group();
+  // Built long in z (its nose +z), then turned so the nose points along +x.
+  const shell = roundedBox(Wd, H, L, kind === 'van' ? 0.16 : 0.1, { left: side, right: side, front: nose, back: tail, sides: roof, top: roof });
+  shell.rotation.y = Math.PI / 2;
+  shell.position.y = ride;
+  g.add(part(shell));
+  if (kind === 'single') { const ac = box(1.6, 0.25, 2.2, { sides: mat(0xb8bdc8), top: mat(0xdfe2e8) }); ac.position.set(-L / 2 + 2.2, ride + H, 0); g.add(part(ac, shell.userData.part)); }
+  const wheelFace = keep('car-wheel', () => mat(0, paint(10, 10, (px) => { px(0, 0, 10, 10, 0x14151c); px(3, 3, 4, 4, 0x8f96a6); px(4, 4, 2, 2, 0x4c5262); })));
+  const axle = kind === 'van' ? L / 2 - 1.0 : L / 2 - 2.0;
+  for (const sx of [-axle, axle]) for (const sz of [-Wd / 2 + 0.1, Wd / 2 - 0.1]) {
+    const wheel = box(0.9, 0.9, 0.3, { sides: mat(0x14151c), front: wheelFace, back: wheelFace });
+    wheel.position.set(sx, 0, sz);
+    g.add(part(wheel));
+  }
+  return g;
+}
+
+/**
  * A hedge's leaves for a plant (`kind`) in a month: a repeating texture a metre square. 'privet'
  * (green, keeps its leaves into the winter), 'thuja' (evergreen, dark and upright), 'hawthorn' (green;
  * russet from October), 'twigs' (spiraea: green; bare grey-brown twigs from November to April).

@@ -7,7 +7,9 @@
 // 'shelter'), and the street goes by in front of you: a natural place to sit and watch for as long as
 // the bus takes, which nobody writes down. Each stop has its line (lineOf(): a number, the same for
 // the street) and its timetable (nextBus(): every EVERY_MIN, by the stop; twice as long at night,
-// NIGHT_H). When it comes, it waits DWELL_S with its doors open, going north or south (by the bus:
+// NIGHT_H). It's sent for on the road in time (sim/traffic.js sendBus(): it comes a little early and
+// pulls in at the shelter, its doors at it; with no road behind it in play, or late past LATE_S, the
+// clock alone). When it comes, it waits DWELL_S with its doors open, going north or south (by the bus:
 // one each way in turn), and the UI asks where to (the bus: 'bus', destinations()): a street on, two,
 // four (the card stops the clock while you choose). Let it go, and you're still sat there for the next.
 // ride(): the fare (FARE_USD: sim/money.js), the minutes on the road (PER_ROW_MIN a street, and the
@@ -22,10 +24,12 @@ import { section, SECTION_M, lineNumber } from './map/street.js';
 import { townOf } from './cities/index.js';
 import { pay } from './money.js';
 import { say } from './log.js';
+import * as traffic from './traffic.js';
 
 export const EVERY_MIN = [6, 8, 10, 12];
 export const NIGHT_H = [22, 6];                                    // (from 22:00 to 06:00, half as many)
 export const DWELL_S = 20;
+export const LATE_S = 90;
 export const FARE_USD = 1;
 export const PER_ROW_MIN = 4;
 export const STOP_Z = -0.68;                                       // (where you sit in it: the bench along its back)
@@ -75,13 +79,17 @@ export function waitTick(state, bus, me) {
   const b = me?.busy;
   if (b?.what !== 'shelter' || !b.stop) return;
   const now = state.time.ms;
-  if (!b.bus && now >= b.due.at) {
+  // (sent for, to pull in at the minute: sim/traffic.js; with no road behind it in play, or late past LATE_S, the clock alone)
+  if (!b.bus && b.sent === undefined && now >= b.due.at - traffic.busLeadMs(state, b.stop)) { const id = traffic.sendBus(state, b.stop, b.due.at); if (id || now >= b.due.at) b.sent = id; }
+  const here = b.sent ? traffic.pulledIn(state, b.sent) : now >= b.due.at;
+  if (!b.bus && (here || now >= b.due.at + LATE_S * 1000)) {
     b.bus = { at: now, dir: b.due.dir };
     say(state, bus, { kind: 'note', text: `The ${lineOf(state)} pulls in, going ${b.due.dir > 0 ? 'south' : 'north'}, and the doors fold open.` });
     bus?.emit('bus', { line: lineOf(state), dir: b.due.dir, list: destinations(state, b.stop, b.due.dir) });
   } else if (b.bus && now - b.bus.at >= DWELL_S * 1000) {
     say(state, bus, { kind: 'note', text: 'The doors close, and the bus pulls away without you.' });
-    b.bus = null; b.due = nextBus(state, b.stop, now + 1000);
+    if (b.sent) traffic.release(state, b.sent);
+    b.bus = null; b.sent = undefined; b.due = nextBus(state, b.stop, now + 1000);
   }
 }
 
