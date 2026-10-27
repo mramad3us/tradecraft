@@ -1,10 +1,14 @@
 // The city graph and its routes: every way the planner may send someone is clear at its full width
 // (the guarantee the background game rests on), routes reach their goals across many streets,
 // different walkers go different ways, a careful walker's way wanders, and from anywhere walkable
-// there's a way onto the lines.
-import { planRoute, placeAt, clearAt, sectionOf, joinLine, routeFrom, LINE, HALF } from '../src/sim/city.js';
-import { Z } from '../src/sim/map/street.js';
+// there's a way onto the lines. The sections the city keeps: a cap, the least recently used going,
+// clearAt() as it was without its shortcut, and a game the same whatever was kept.
+import { planRoute, placeAt, clearAt, sectionOf, sectionsKept, joinLine, routeFrom, LINE, HALF, SECTIONS_KEPT } from '../src/sim/city.js';
+import { Z, section } from '../src/sim/map/street.js';
 import { stream, range, int } from '../src/sim/rng.js';
+import { newGame, start, step } from '../src/sim/game.js';
+import { createBus } from '../src/sim/bus.js';
+import { toJSON } from '../src/sim/state.js';
 import { assert, fmt } from './helpers.mjs';
 
 const inBounds = (z) => z > Z.north + 0.3 && z < Z.edge - 0.3;
@@ -113,6 +117,41 @@ export default [
         n++;
       }
       console.log(`      ${n} random walkable spots (lawns, pavements, the road, lanes, behind the hedge): every one joined a line and routed on`);
+    },
+  },
+  {
+    name: 'city: the sections kept: never more than SECTIONS_KEPT, the least recently used go (another game\'s first), clearAt() unchanged, a game the same whatever was kept',
+    fn() {
+      // A game's sections, then another game's: the first's go first, and the one in use stays.
+      for (let i = 0; i < 200; i++) sectionOf(11, 0, i);
+      const old = sectionOf(11, 0, 0);
+      for (let i = 0; i < SECTIONS_KEPT; i++) { sectionOf(12, i % 9, Math.floor(i / 9)); if (i % 50 === 0) sectionOf(12, 0, 0); }
+      const kept = sectionsKept(), used = sectionOf(12, 0, 0);
+      assert(kept <= SECTIONS_KEPT, `kept ${kept} sections, the cap ${SECTIONS_KEPT}`);
+      assert(sectionOf(11, 0, 0) !== old, 'another game\'s sections go first');
+      for (let i = 0; i < SECTIONS_KEPT; i++) { sectionOf(12, 20 + i % 9, Math.floor(i / 9)); if (i % 50 === 0) sectionOf(12, 0, 0); }
+      assert(sectionOf(12, 0, 0) === used && sectionsKept() <= SECTIONS_KEPT, 'a section in use stays');
+      assert(JSON.stringify(sectionOf(12, 3, 1)) === JSON.stringify(section(12, 1, 3)), 'a section made again is the same');
+      // clearAt() passes over a section whose blockers can't reach x: the answer is the same as asking every blocker.
+      const r = stream('clear-test');
+      let n = 0, blocked = 0;
+      for (let k = 0; k < 4000; k++) {
+        const seed = 1 + int(r, 50), row = int(r, 5) - 2, x = range(r, -150, 150), z = range(r, Z.north, Z.edge), rad = [0.25, 0.27, 0.6][k % 3];
+        const i = Math.floor(x / 45);
+        const all = ![i - 1, i, i + 1].some(j => section(seed, j, row).blockers.some(b => { const cx = Math.max(b.x0, Math.min(x, b.x1)), cz = Math.max(b.z0, Math.min(z, b.z1)); return (cx - x) ** 2 + (cz - z) ** 2 < rad * rad; }));
+        assert(clearAt(seed, row, x, z, rad) === all, `clearAt at row ${row} (${fmt(x, 3)}, ${fmt(z, 3)}), seed ${seed}`);
+        n++; if (!all) blocked++;
+      }
+      // The same tail, from a cold cache, from a warm one, and with another game's sections pushing its own out as it runs.
+      const play = (flood) => {
+        const g = newGame({ seed: 4, scenario: 'tail', autoplay: { keep: 20 } }), bus = createBus();
+        start(g, bus);
+        for (let t = 0; t < 600; t++) { step(g, {}, bus); if (flood && t % 100 === 0) for (let i = 0; i < SECTIONS_KEPT; i++) sectionOf(77, t + i % 7, Math.floor(i / 7)); }
+        return toJSON(g);
+      };
+      const t0 = performance.now(), a = play(false), ms = performance.now() - t0, b = play(false), c = play(true);
+      assert(a === b && a === c, 'what the city keeps changes nothing in a game');
+      console.log(`      kept at most ${SECTIONS_KEPT} (${kept} after two games' worth); ${n} spots, ${blocked} blocked: clearAt() as without its shortcut; a tail of 600 ticks (${fmt(ms, 0)} ms) the same cold, warm and flooded`);
     },
   },
 ];

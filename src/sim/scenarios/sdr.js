@@ -100,7 +100,7 @@ export const sdr = {
     const me = C ? { ...structuredClone(C.player), id: 'me' } : handler(r);
     state.people[me.id] = me;
     state.player = me.id;
-    state.people.solovey = sheet({ id: 'solovey', name: C?.asset?.codename ?? 'SOLOVEY', sex: 'm', look: C?.asset?.look ?? SOLOVEY_LOOK, persistent: true, skills: { awareness: [3, 0] } });
+    state.people.solovey = sheet({ id: 'solovey', name: C?.asset?.codename ?? 'SOLOVEY', sex: 'm', look: C?.asset?.look ?? SOLOVEY_LOOK, persistent: true, skills: { awareness: [3, 0], cqc: [2, 0] } });
     state.map = { kind: 'street', seed: C ? C.mapSeed : Math.floor(range(r, 0, 4294967296)), row: 0, i0: null, i1: null, crowd: 1, city: C?.city ?? city ?? undefined };
     state.actors.push({ id: 'a0', who: me.id, seed: null, x: 0, z: -2.6, vx: 0, vz: 0, face: 'right', head: 0, gait: 'idle', stride: 0, stuck: 0, ai: null });
     const meet = placeMeeting(state, r);
@@ -114,7 +114,7 @@ export const sdr = {
       const look = streetLook(r, sex, 28 + int(r, 20));
       delete look.carry;
       state.people[who] = sheet({ id: who, name: `an FSB officer (${describe(look, sex)})`, sex, cls: 'spook', os: team === 'covert' ? 35 : 20, look,
-        skills: { deception: team === 'covert' ? [12, 1] : [4, 0], tracking: [10, 1], awareness: [9, 1], pathfinding: [8, 0] } });
+        skills: { deception: team === 'covert' ? [12, 1] : [4, 0], tracking: [10, 1], awareness: [9, 1], pathfinding: [8, 0], cqc: [12 + int(stream('cqc', who, state.map.seed), 7), 1] } });   // (trained to take people: 12–18)
       return { who, role, keep: Math.round(range(r, ...KEEP_M[team])), side: role === 'back' && team === 'covert' ? 'across' : role === 'back' ? pick(r, ['same', 'across']) : 'same', id: null };
     });
     state.scenario = {
@@ -433,7 +433,7 @@ function look(state, bus, why, bonus = 0) {
       d > 20 ? { why: 'far off', v: -3 } : d > 12 ? { why: 'a way off', v: -1 } : null, crowd >= 2 && { why: 'among people', v: -2 },
       light === 'dark' && { why: 'in the dark', v: -2 }, a.ai?.fromLane && state.time.ms - sc.sinceMap < 30000 && { why: 'up the lane after you', v: 4 }].filter(Boolean);
     const theirs = a.who ? skill(state.people[a.who], 'deception') : 2;
-    const r = opposed(state.rng, { skill: 'pathfinding', value: ours, mods }, { skill: 'deception', value: theirs });
+    const r = opposed(state.rng, { skill: 'pathfinding', value: ours, mods, body: state.people[state.player] }, { skill: 'deception', value: theirs });
     sc.rolls++;
     if (r.ok) sighting(state, bus, a, r);
   }
@@ -512,7 +512,7 @@ function flag(state, bus, kind) {
   say(state, bus, { kind: 'note', hidden: true, text: `${cap(look)} ${SAW[kind]}, and made a note of it.` });
   // Do we catch them catching us? Only if they're in our view: our Awareness against their Deception.
   if (inView(state, w.id)) {
-    const r = opposed(state.rng, { skill: 'awareness', value: skill(state.people[state.player], 'awareness') }, { skill: 'deception', value: skill(state.people[w.who], 'deception') });
+    const r = opposed(state.rng, { skill: 'awareness', value: skill(state.people[state.player], 'awareness'), body: state.people[state.player] }, { skill: 'deception', value: skill(state.people[w.who], 'deception'), body: state.people[w.who] });
     sc.rolls++;
     if (r.ok) {
       (sc.caught ??= []).push({ kind, look });
@@ -532,8 +532,8 @@ function glanced(state, bus, me) {
   const w = sc.crew.map(c => actorOf(state, c.id)).find(a => a && !a.ai.steps.length && seesActor(state, a, me) && Math.hypot(a.x - me.x, a.z - me.z) < 25);
   if (!w) return;
   const d = Math.hypot(w.x - me.x, w.z - me.z);
-  const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception'), mods: d < 8 ? [{ why: 'close', v: -3 }] : [] },
-    { skill: 'awareness', value: skill(state.people[w.who], 'awareness') });
+  const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player], mods: d < 8 ? [{ why: 'close', v: -3 }] : [] },
+    { skill: 'awareness', value: skill(state.people[w.who], 'awareness'), body: state.people[w.who] });
   sc.rolls++;
   if (!r.ok) flag(state, bus, 'checked');
 }
@@ -548,8 +548,8 @@ function glassed(state, bus, me) {
   if (sc.teamLost) return;
   const w = sc.crew.map(c => actorOf(state, c.id)).find(a => a && !a.ai.steps.length && seesActor(state, a, me) && Math.hypot(a.x - me.x, a.z - me.z) < 25);
   if (!w) return;
-  const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception'), mods: [again ? { why: 'another window, so soon', v: GLASS_AGAIN_COVER } : { why: 'at a shop window, as people are', v: GLASS_COVER }] },
-    { skill: 'awareness', value: skill(state.people[w.who], 'awareness') });
+  const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player], mods: [again ? { why: 'another window, so soon', v: GLASS_AGAIN_COVER } : { why: 'at a shop window, as people are', v: GLASS_COVER }] },
+    { skill: 'awareness', value: skill(state.people[w.who], 'awareness'), body: state.people[w.who] });
   sc.rolls++;
   if (!r.ok) flag(state, bus, 'glassed');
 }
@@ -618,7 +618,7 @@ function meeting(state, bus, me) {
       // Do we notice them at it? Our Awareness against their Deception, if they're in our view.
       if (!sc.sawWatching && inView(state, w.id) && !sc.triedSaw?.[w.id]) {
         (sc.triedSaw ??= {})[w.id] = true;
-        const r = opposed(state.rng, { skill: 'awareness', value: skill(state.people[state.player], 'awareness') }, { skill: 'deception', value: skill(state.people[w.who], 'deception') });
+        const r = opposed(state.rng, { skill: 'awareness', value: skill(state.people[state.player], 'awareness'), body: state.people[state.player] }, { skill: 'deception', value: skill(state.people[w.who], 'deception'), body: state.people[w.who] });
         sc.rolls++;
         if (r.ok) sc.sawWatching = describe(state.people[w.who].look, state.people[w.who].sex);
       }
@@ -664,7 +664,7 @@ function end(state, bus, outcome, text) {
   // outside the building (DC 13), a face twice on the way to work (DC 18).
   const level = sc.flags.length >= 2 ? 2 : sc.flags.length;
   if (level) {
-    const r = check(state.rng, { skill: 'pathfinding', value: skill(state.people[state.player], 'pathfinding'), dc: level >= 2 ? 13 : 18 });
+    const r = check(state.rng, { skill: 'pathfinding', value: skill(state.people[state.player], 'pathfinding'), body: state.people[state.player], dc: level >= 2 ? 13 : 18 });
     sc.signs = { level, read: r.ok };
   }
   bus?.emit('scenario-end', outcome);

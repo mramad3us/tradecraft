@@ -19,7 +19,7 @@ const MOVE = { KeyW: [0, -1], ArrowUp: [0, -1], KeyS: [0, 1], ArrowDown: [0, 1],
 const ACTIONS = Object.fromEntries(Object.entries(KEYS).filter(([a]) => !['up', 'left', 'down', 'right', 'run', 'slow'].includes(a)).map(([a, c]) => [c, a]));
 export const TAP_MS = 220;
 const NAMES = { Space: 'Space', Escape: 'Esc', Tab: 'Tab', ShiftLeft: 'Shift', AltLeft: /Mac/.test(globalThis.navigator?.platform ?? '') ? 'Option' : 'Alt' };
-const AZERTY = { KeyQ: 'A', KeyW: 'Z', KeyA: 'Q', KeyZ: 'W', Semicolon: 'M', KeyM: ',', Comma: ';', Period: ':' };
+const AZERTY = { KeyQ: 'A', KeyW: 'Z', KeyA: 'Q', KeyZ: 'W', Semicolon: 'M', KeyM: ',', Comma: ';', Period: ':', BracketLeft: '^', BracketRight: '$' };
 
 export function createInput(target = window) {
   const held = new Set();

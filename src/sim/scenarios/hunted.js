@@ -172,12 +172,12 @@ export const hunted = {
       sc.recogAt[id] = now;
       const crowd = state.actors.filter(o => o !== me && o !== a && !o.hidden && Math.hypot(o.x - me.x, o.z - me.z) < 4).length;
       const light = lightBand(lightHere(state, me.x, me.z));
-      const roll = opposed(state.rng, { skill: 'awareness', value: skill(p, 'awareness'), mods: [
+      const roll = opposed(state.rng, { skill: 'awareness', value: skill(p, 'awareness'), body: p, mods: [
         sc.disguised ? { why: 'a different coat from the description', v: DISGUISE_MOD } : { why: 'the description fits', v: 2 },
         light === 'dark' && { why: 'the dark', v: -3 }, light === 'dim' && { why: 'the dusk', v: -1 },
         crowd && { why: 'people round you', v: -Math.min(4, crowd) }, d > 15 && { why: 'at a distance', v: -Math.round((d - 15) / 4) },
         me.gait === 'run' && { why: 'running', v: 6 }].filter(Boolean) },
-      { skill: 'deception', value: skill(state.people.me, 'deception') });
+      { skill: 'deception', value: skill(state.people.me, 'deception'), body: state.people.me });
       sc.rolls++;
       say(state, bus, { kind: 'roll', roll, hidden: true, text: roll.ok ? `${cap(p.seen)} knows you.` : `${cap(p.seen)} looks you over, and looks away.` });
       if (roll.ok) {

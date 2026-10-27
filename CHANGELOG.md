@@ -4,6 +4,20 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc7 (2026-10-27)
+
+- **Smoother** (the performance pass, from the review). Street changes no longer freeze: the next street is built while you walk up the lane, and arriving takes 50–60 ms instead of half a second. Dusk and night no longer hitch every few seconds: the worst frame running is 19 ms instead of 59, none over 33 ms (there were six in 40 s). The sun's shadows are drawn only when the camera has moved 2 m (333 draw calls a frame instead of 962). A game is ready in 0.8 s instead of 1.6, a new one starts in 0.2 s; twenty new games in a row no longer lose the picture to "too many WebGL contexts" or grow the memory to 180 MB. Windows light at dusk without a stall (a night face 3 ms to paint instead of 20); the once-a-second crowd update costs 2.7 ms instead of 4.6. The game plays exactly as before: saves byte for byte the same.
+- **Wounds weigh on every roll**, not just a fight's: pale −1, in shock −3, a hurt head, a broken jaw, on a tail, a meeting, a read or a dressing (the reviewer: a shocked player tailed at full skill).
+- **Everyone can fight a little now**: passers-by 0–8 at CQC (most never had a lesson), the FSB's people 12–18, Orlov 10 (the course, years ago), his contact 15, SOLOVEY 2. A handler's jab no longer drops an FSB officer cold.
+- **The screens, second pass** (from the UI review):
+  - The keys at the bottom right follow what you're doing: on the street they now show T (instinct) and H (first aid) and that E tapped glances; in a fight, only the fight's keys (K L M, Shift for an edge, G, F for your read); in a conversation, 1–4 and Esc. Their labels are lighter, easier on light pavement.
+  - What T would do is a chip of its own after the instinct's line, not run on into its sentence. Busy, the free walk says what you're busy with ("Picking it up", "Binding it") rather than "At it."
+  - A roll at the top left is in brief ("Pathfinding 23 against Deception 19 · ours"); the whole sum, every modifier, is in the log (J), and under the pointer.
+  - In a fight, your state reads YOU · DAZED, and the labels over the two of you sit apart; when they're stunned the badge over them says OPEN, not "?".
+  - When someone stands at arm's length, a small brass mark over your head says which one is you.
+  - Your read of someone lists what you've read first; what never shows at a glance is one line, not eight rows of "?".
+  - The character sheet says what its levels and dots mean; the bout's header reads "You vs the man in the red beanie"; asked the time, people tell it as the watch has it ("Twenty to"); debug mode's clock keys are named as your keyboard has them ($ and ^ on AZERTY).
+
 ## v0.1.0-rc6 (2026-10-27)
 
 - **Three more cities beside Moscow:** London, Beirut and Cairo (your ask: cities to post in), a free walk in each from the title (one entry now, a button per city). Each has its own names, buildings, shops and signs, street furniture, trees and people, and the sun where it stands over it. The mechanic tests run there too (`?play=tail&city=cairo`, or `sdr`, `hunted`), their words in the city's own (its name, its service, its prison) until the scenes are written for each.

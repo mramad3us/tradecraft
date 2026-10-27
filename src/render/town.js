@@ -399,7 +399,12 @@ export function* buildSection(S, { month = 11 } = {}) {
         m.dispose();
       }
     });
-    for (const f of fronts) if (f.night) { f.night.map.dispose(); f.night.emissiveMap?.dispose(); f.night.dispose(); }
+    // (a front's other face, day or night, isn't in the group while the other shows: freed here)
+    for (const f of fronts) for (const m of [f.day, f.night]) {
+      if (!m || done.has(m)) continue;
+      done.add(m);
+      m.map?.dispose(); m.emissiveMap?.dispose(); m.dispose();
+    }
   };
   return { group: g, fronts, heads, sprites, dispose };
 }

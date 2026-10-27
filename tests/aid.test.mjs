@@ -19,6 +19,21 @@ function timeline(p) {
 
 export default [
   {
+    name: 'the body in every roll: in shock, a dressing (and any roll naming its roller) carries the −3, not just a fight',
+    fn() {
+      const g = newGame({ seed: 8 });
+      g.time.ms = at(2026, 11, 2, 13, 0);
+      start(g, null);
+      const me = playerActor(g), p = g.people[g.player];
+      injure(p, 'armL', 0.3, g.rng, g.time.ms, { edge: true, deep: true });
+      p.blood = 60;
+      const r = treat(g, null, me, me, 'dress:0');
+      const why = r.mods.map(m => `${m.why} ${m.v}`);
+      console.log(`      dressing your own cut at 60% blood: ${why.join(', ')}`);
+      assert(why.some(w => /in shock/.test(w)), 'shock counts');
+    },
+  },
+  {
     name: 'blood: a trickle, a shallow cut, a stab, an artery: how fast, and what the loss costs (pale, shock, collapse, dead)',
     fn() {
       const r = seedRng(4), rows = [];

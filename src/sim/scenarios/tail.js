@@ -158,9 +158,9 @@ export const tail = {
     state.people[me.id] = me;
     state.player = me.id;
     state.people.orlov = sheet({ id: 'orlov', name: C?.target?.name ?? 'Gennady Orlov', sex: 'm', cls: 'spook', os: 20,
-      skills: { pathfinding: [10, 0], awareness: [8, 1], deception: [8, 0], social: [5, 1] }, langs: { ru: 'native', en: 'basic' }, look: ORLOV_LOOK, persistent: true });
+      skills: { pathfinding: [10, 0], awareness: [8, 1], deception: [8, 0], social: [5, 1], cqc: [10, 0] }, langs: { ru: 'native', en: 'basic' }, look: ORLOV_LOOK, persistent: true });   // (ex-GRU: he had the course, years ago)
     state.people.contact = sheet({ id: 'contact', name: 'the man in the blue beanie', sex: 'm', cls: 'spook', os: 30,
-      skills: { pathfinding: [10, 2], awareness: [10, 2], deception: [10, 1] }, langs: { ru: 'native' }, look: CONTACT_LOOK, persistent: true });
+      skills: { pathfinding: [10, 2], awareness: [10, 2], deception: [10, 1], cqc: [15, 0] }, langs: { ru: 'native' }, look: CONTACT_LOOK, persistent: true });
     const looks = TWIN_LOOKS.slice();
     for (let i = 0; i < TWINS; i++) {
       const [look, tell] = looks.splice(int(r, looks.length), 1)[0];
@@ -420,7 +420,7 @@ function tell(state, bus, t, kind) {
   if (!me || sc.outcome || sc.marked !== t.id) return;
   const d = Math.hypot(t.x - me.x, t.z - me.z);
   if (!inView(state, t.id)) return;                               // we weren't looking
-  const r = check(state.rng, { skill: 'awareness', value: skill(state.people[state.player], 'awareness'),
+  const r = check(state.rng, { skill: 'awareness', value: skill(state.people[state.player], 'awareness'), body: state.people[state.player],
     dc: 10 + (sc.wary ? 3 : 0) + Math.round(sc.alert / 25) + (d > 35 ? 6 : d > 25 ? 3 : 0) });
   sc.rolls++;
   if (r.ok) { sc.tell.read = true; sc.warned++; }
@@ -449,8 +449,8 @@ function moment(state, bus, me, t, d, kind) {
   const sc = state.scenario;
   if (sc.outcome) return;
   const mods = exposure(state, me, t, d, kind);
-  const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception') },
-    { skill: 'pathfinding', value: skill(state.people.orlov, 'pathfinding'), mods });
+  const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] },
+    { skill: 'pathfinding', value: skill(state.people.orlov, 'pathfinding'), body: state.people.orlov, mods });
   sc.rolls++;
   if ((kind === 'exit' || kind === 'cross') && d > 15 && sc.marked === t.id) keep(state, bus, t, d, kind === 'exit' ? 'out of a shop' : 'across the road');
   // We know what he saw only if we saw him look: a check we didn't see goes in the log unseen, for
@@ -544,8 +544,8 @@ function glanced(state, bus, me) {
   if (!t || t.hidden || !seesActor(state, t, me)) return;
   const d = Math.hypot(t.x - me.x, t.z - me.z);
   if (d > 30) return;
-  const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception') },
-    { skill: 'awareness', value: skill(state.people.orlov, 'awareness'), mods: [d < 10 ? { why: 'close', v: 3 } : d > 20 ? { why: 'a good way back', v: -3 } : null].filter(Boolean) });
+  const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] },
+    { skill: 'awareness', value: skill(state.people.orlov, 'awareness'), body: state.people.orlov, mods: [d < 10 ? { why: 'close', v: 3 } : d > 20 ? { why: 'a good way back', v: -3 } : null].filter(Boolean) });
   sc.rolls++;
   if (r.ok) return;
   sc.alert = Math.min(100, sc.alert + 15);
@@ -561,7 +561,7 @@ function glanced(state, bus, me) {
 function keep(state, bus, t, d, why = null, passing = null) {
   const sc = state.scenario;
   const mods = [why && { why: `he's come ${why}`, v: -3 }, passing && { why: 'another grey coat beside him', v: -3 }].filter(Boolean);
-  const r = check(state.rng, { skill: 'tracking', value: skill(state.people[state.player], 'tracking'), dc: keepDC(state, t, d), mods });
+  const r = check(state.rng, { skill: 'tracking', value: skill(state.people[state.player], 'tracking'), body: state.people[state.player], dc: keepDC(state, t, d), mods });
   sc.rolls++;
   if (r.ok) { if (passing && r.margin < 4) say(state, bus, { kind: 'roll', roll: r, text: 'Two grey coats, side by side for a moment. You keep your eyes on the right one: the briefcase.' }); return; }
   const twin = passing ?? sc.twins.map(id => actorOf(state, id)).find(o => o && inView(state, o.id) && Math.hypot(o.x - t.x, o.z - t.z) < 7);
@@ -627,7 +627,7 @@ function second(state, bus, me, t, d) {
     find(state, bus, me, t);
   }
   if (sc.sensed === false && inView(state, t.id) && d < 35) {    // he saw us when we weren't looking: does it show?
-    const r = check(state.rng, { skill: 'awareness', value: skill(state.people[state.player], 'awareness'), dc: 15 });
+    const r = check(state.rng, { skill: 'awareness', value: skill(state.people[state.player], 'awareness'), body: state.people[state.player], dc: 15 });
     sc.rolls++;
     sc.sensed = r.ok;
     if (r.ok) say(state, bus, { kind: 'roll', roll: r, text: 'Something\'s changed in how he walks: shorter steps, his head up. He\'s seen something behind him. Possibly you.' });
@@ -655,7 +655,7 @@ function find(state, bus, me, t) {
     .map(o => [o, Math.hypot(o.x - me.x, o.z - me.z)]).filter(([, dd]) => dd < 32).sort((a, b) => a[1] - b[1]);
   for (const [o, dd] of candidates) {
     const light = lightBand(lightHere(state, o.x, o.z)), crowd = crowdAround(state, o, 3);
-    const r = check(state.rng, { skill: 'awareness', value: skill(state.people[state.player], 'awareness'), dc: 10,
+    const r = check(state.rng, { skill: 'awareness', value: skill(state.people[state.player], 'awareness'), body: state.people[state.player], dc: 10,
       mods: [dd > 15 && { why: 'at a distance', v: -Math.round((dd - 15) / 4) }, crowd && { why: 'people round him', v: -crowd },
         light !== 'day' && { why: light === 'dark' ? 'the dark' : 'the dusk', v: light === 'dark' ? -4 : -2 }].filter(Boolean) });
     sc.rolls++;
@@ -689,7 +689,7 @@ function closeLook(state, bus, me, t) {
   if (sc.lookAt.s < CLOSE_LOOK_S) return;
   sc.looked[best.id] = state.time.ms; sc.lookAt = null;
   const dd = Math.hypot(best.x - me.x, best.z - me.z), light = lightBand(lightHere(state, best.x, best.z)), crowd = crowdAround(state, best, 3);
-  const r = check(state.rng, { skill: 'awareness', value: skill(state.people[state.player], 'awareness'), dc: 8,
+  const r = check(state.rng, { skill: 'awareness', value: skill(state.people[state.player], 'awareness'), body: state.people[state.player], dc: 8,
     mods: [dd > 8 && { why: 'at a distance', v: -Math.round((dd - 8) / 3) }, crowd && { why: 'people round him', v: -crowd },
       light !== 'day' && { why: light === 'dark' ? 'the dark' : 'the dusk', v: light === 'dark' ? -4 : -2 }].filter(Boolean) });
   sc.rolls++;
@@ -726,8 +726,8 @@ function meeting(state, bus, me, t, d) {
   const dc = Math.hypot(c.x - me.x, c.z - me.z);
   if (dc < CONTACT_M && !sc.contactLooked && seesActor(state, c, me)) {   // too close: the other man has eyes too
     sc.contactLooked = true;
-    const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception') },
-      { skill: 'pathfinding', value: skill(state.people.contact, 'pathfinding'), mods: [{ why: 'right by the bench', v: 6 }] });
+    const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] },
+      { skill: 'pathfinding', value: skill(state.people.contact, 'pathfinding'), body: state.people.contact, mods: [{ why: 'right by the bench', v: 6 }] });
     sc.rolls++;
     if (!r.ok) {
       say(state, bus, { kind: 'roll', roll: r, text: 'The other man looks up from his paper, straight at you. He folds it, stands and goes.' });

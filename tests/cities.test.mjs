@@ -42,7 +42,9 @@ export default [
         parts.push(JSON.stringify(planRoute(seed, { row: 0, x: 5, z: LINE.F }, { row: -6, x: 260, z: LINE.P }, { walker: 3, evasive: true })));
         assert(hash(...parts) === want[seed], `Moscow's streets with seed ${seed} differ from v0.0.46's`);
       }
-      assert(hash(...Array.from({ length: 60 }, (_, k) => JSON.stringify(passerby(k * 101 + 7)))) === want.people, 'Moscow\'s passers-by differ from v0.0.46\'s');
+      // (as v0.0.46 drew them; the CQC added in 0.1.0-rc7, from a stream of its own, left out)
+      const was = (p) => { const { cqc, ...skills } = p.skills; return { ...p, skills }; };
+      assert(hash(...Array.from({ length: 60 }, (_, k) => JSON.stringify(was(passerby(k * 101 + 7))))) === want.people, 'Moscow\'s passers-by differ from v0.0.46\'s');
       assert(townOf({ seed: 5 }) === 5 && townOf({ seed: 5, city: 'moscow' }) === 5 && townOf({ seed: 5, city: 'cairo' }) === 'cairo:5', 'a town: the seed in Moscow, city:seed elsewhere');
       console.log('      Moscow: 45 sections × 3 seeds, a careful route and 60 passers-by, as v0.0.46 made them');
     },

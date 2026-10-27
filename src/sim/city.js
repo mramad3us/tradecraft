@@ -36,18 +36,43 @@ export const LANE_M = (LINE.F - Z.north) + (Z.edge - LINE.S);      // F of a row
 
 // ---------- the city's sections, kept ----------
 
-const cache = new Map();
-/** Section i of row `row` (a cache over sim/map/street.js section()). */
-export function sectionOf(seed, row, i) {
-  const k = `${seed}|${row}|${i}`;
-  let S = cache.get(k);
-  if (!S) {
-    S = section(seed, i, row);
-    cache.set(k, S);
-    if (cache.size > 6000) cache.delete(cache.keys().next().value);
+// A cache over sim/map/street.js section(): by seed, then row and index in one number (no string
+// built a lookup: a route's checks ask hundreds of thousands of times). Each entry keeps its blockers'
+// x extent, so clearAt() passes over a section that can't reach the spot, and when it was last used:
+// past SECTIONS_KEPT (about 30 MB of them), the quarter used longest ago go (another game's first).
+export const SECTIONS_KEPT = 800;
+const cache = new Map();                                           // seed → Map(row · 65536 + i → { S, bx0, bx1, used })
+let kept = 0, clock = 0, lastSeed = null, last = null;
+function entryOf(seed, row, i) {
+  if (seed !== lastSeed) {
+    lastSeed = seed; last = cache.get(seed);
+    if (!last) { last = new Map(); cache.set(seed, last); }
   }
-  return S;
+  const k = row * 65536 + i;
+  let e = last.get(k);
+  if (!e) {
+    const S = section(seed, i, row);
+    let bx0 = Infinity, bx1 = -Infinity;
+    for (const b of S.blockers) { if (b.x0 < bx0) bx0 = b.x0; if (b.x1 > bx1) bx1 = b.x1; }
+    e = { S, bx0, bx1, used: 0 };
+    last.set(k, e);
+    if (++kept > SECTIONS_KEPT) forget();
+  }
+  e.used = ++clock;
+  return e;
 }
+// Down to three quarters of SECTIONS_KEPT, those used longest ago first (a game left behind, all of it).
+function forget() {
+  const all = [];
+  for (const m of cache.values()) for (const [k, e] of m) all.push([e.used, m, k]);
+  all.sort((a, b) => a[0] - b[0]);
+  for (let j = 0; kept > SECTIONS_KEPT * 0.75; j++, kept--) all[j][1].delete(all[j][2]);
+  for (const [s, m] of cache) if (!m.size && m !== last) cache.delete(s);
+}
+/** Section i of row `row` (kept: see above). */
+export const sectionOf = (seed, row, i) => entryOf(seed, row, i).S;
+/** How many sections are kept (for tests). */
+export const sectionsKept = () => kept;
 
 /** Where on a row's lines a place (x, z) belongs: the line, and the way off it if it's in a lane. */
 export function lineOf(seed, row, x, z) {
@@ -274,8 +299,10 @@ export function pointAt(route, s) {
  */
 export function clearAt(seed, row, x, z, r = 0.25) {
   const i = Math.floor(x / SECTION_M);
-  for (const k of [i - 1, i, i + 1]) {
-    for (const b of sectionOf(seed, row, k).blockers) {
+  for (let k = i - 1; k <= i + 1; k++) {
+    const e = entryOf(seed, row, k);
+    if (e.bx0 > x + r + 1e-6 || e.bx1 < x - r - 1e-6) continue;     // (nothing in it reaches x: the margin keeps rounding out of it)
+    for (const b of e.S.blockers) {
       const cx = Math.max(b.x0, Math.min(x, b.x1)), cz = Math.max(b.z0, Math.min(z, b.z1));
       if ((cx - x) ** 2 + (cz - z) ** 2 < r * r) return false;
     }

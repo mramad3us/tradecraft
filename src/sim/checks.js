@@ -10,11 +10,14 @@
 //   - A hook spent halves the difficulty of a check, or the other side's total in an opposed roll
 //     (rounded up).
 // Modifiers are [{ why, v }]: their gauges toward us, a need, the environment (light from
-// sim/light.js, the crowd, distance). Each is shown in the log by its why, so every number in a
+// sim/light.js, the crowd, distance); and the roller's own body, when a side names it (body: their
+// sheet): the blood lost, a hurt head, a broken jaw, whatever the wounds cost that skill
+// (sim/health.js mods(); the reviewer: "hurts, blood loss and fractures cost only CQC, not everything"). Each is shown in the log by its why, so every number in a
 // roll can be read. The result is plain data, stored in the log as is; checkText() is the one way
 // it reads, wherever it's shown.
 import { d20 } from './rng.js';
 import { SKILLS } from './skills.js';
+import { mods as bodyMods } from './health.js';
 
 export const DC = { easy: 10, average: 15, hard: 20, veryHard: 25, expert: 30, elite: 40 };
 
@@ -22,14 +25,15 @@ const sumMods = (mods) => mods.reduce((a, m) => a + m.v, 0);
 const halve = (x) => Math.ceil(x / 2);
 
 /** One side's roll: { skill, value, roll, mods, total, nat }. */
-function side(rng, { skill, value, mods = [] }) {
+function side(rng, { skill, value, mods = [], body = null }) {
+  if (body) mods = [...mods, ...bodyMods(body, skill)];
   const roll = d20(rng);
   return { skill, value, roll, mods, total: roll + value + sumMods(mods), nat: roll === 20 ? 20 : roll === 1 ? 1 : 0 };
 }
 
 /** A check: { skill (key), value (its value on the sheet), dc, mods, hook } → result. */
-export function check(rng, { skill, value, dc, mods = [], hook = false }) {
-  const s = side(rng, { skill, value, mods });
+export function check(rng, { skill, value, dc, mods = [], hook = false, body = null }) {
+  const s = side(rng, { skill, value, mods, body });
   const against = hook ? halve(dc) : dc;
   const ok = s.nat === 20 ? true : s.nat === 1 ? false : s.total >= against;
   return { kind: 'check', ...s, dc: against, hook, ok, margin: s.total - against };
@@ -47,6 +51,13 @@ const name = (key) => SKILLS[key]?.name ?? key;
 const sum = (s) => [s.roll, s.value, ...s.mods.map(m => `${m.v < 0 ? '− ' + -m.v : m.v} (${m.why})`)].join(' + ').replace(/\+ − /g, '− ')
   + (s.raw !== undefined ? ` = ${s.raw}, halved by a hook to ${s.total}` : ` = ${s.total}`);
 const natural = (n) => n === 20 ? ', a natural 20' : n === 1 ? ', a natural 1' : '';
+
+/** A roll in brief, for the line at the top left (the whole sum is the log's, J): 'Deception 28 against 15 · made'. */
+export function checkShort(r) {
+  const nat = (n) => (n === 20 ? ' (a natural 20)' : n === 1 ? ' (a natural 1)' : '');
+  if (r.kind === 'check') return `${name(r.skill)} ${r.total} against ${r.dc}${nat(r.nat)} · ${r.ok ? 'made' : 'missed'}`;
+  return `${name(r.ours.skill)} ${r.ours.total}${nat(r.ours.nat)} against ${name(r.theirs.skill)} ${r.theirs.total}${nat(r.theirs.nat)} · ${r.ok ? 'ours' : 'theirs'}`;
+}
 
 /** The log's line for a roll: 'Deception check: 14 + 12 + 2 (night) = 28 against 15, success.' */
 export function checkText(r) {

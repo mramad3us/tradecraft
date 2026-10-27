@@ -765,6 +765,7 @@ function colours(spec) {
   };
 }
 
+const INNER = [[1, 0], [-1, 0], [0, 1]];
 /**
  * Shade a grid of { ch, part } cells into colours: `col` gives each role letter its palette colour
  * (the person's roles, or a prop's own). See the header for the rules. Returns rows of colours.
@@ -773,8 +774,10 @@ export function shade(cells, col, { outline = INK } = {}) {
   const H = cells.length, W = cells[0].length;
   const ramps = Object.fromEntries(Object.entries(col).map(([k, v]) => [k, ramp(v)]));
   const at = (x, y) => (x >= 0 && y >= 0 && x < W && y < H ? cells[y][x] : null);
-  const role = (c) => c && col[c.ch.toLowerCase()] !== undefined ? c.ch.toLowerCase() : null;
-  const same = (c, x, y) => { const o = at(x, y); return o && o.part === c.part && role(o) === role(c); };
+  // (each cell's role worked out once: the edge tests below ask for a neighbour's again and again)
+  const roles = cells.map(row => row.map(c => { const lc = c?.ch.toLowerCase(); return c && col[lc] !== undefined ? lc : null; }));
+  const roleAt = (x, y) => (x >= 0 && y >= 0 && x < W && y < H ? roles[y][x] : null);
+  const same = (c, r, x, y) => { const o = at(x, y); return o && o.part === c.part && roles[y][x] === r; };
   const out = Array.from({ length: H }, () => Array(W).fill(null));
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const c = cells[y][x];
@@ -783,28 +786,28 @@ export function shade(cells, col, { outline = INK } = {}) {
     if (c.ch === 'b' && ramps.h) { out[y][x] = ramps.h.dark; continue; }
     if (c.ch === 'z' && ramps.s) { out[y][x] = ramps.s.dark; continue; }
     if (c.ch === 'W') { out[y][x] = 0xdfe2e8; continue; }
-    const r = role(c);
+    const r = roles[y][x];
     if (!r) continue;
     const R = ramps[r];
     if (HELD_ROLES.has(c.ch)) { out[y][x] = R.base; continue; }      // (a weapon a pixel wide: its own colour, or it'd vanish into a coat)
     let tone = c.ch === c.ch.toUpperCase() ? R.shade : R.base;
     if (tone === R.base) {
       const up = at(x, y - 1);
-      if (up && up.part > c.part && role(up) && !FIXED[up.ch]) tone = R.shade;           // in the shadow of a part above
-      else if (!same(c, x + 1, y) || !same(c, x, y + 1)) tone = R.shade;                   // the right and bottom edges
-      else if (!same(c, x, y - 1) && same(c, x + 1, y)) tone = R.light;                    // the top edge
+      if (up && up.part > c.part && roles[y - 1][x] && !FIXED[up.ch]) tone = R.shade;   // in the shadow of a part above
+      else if (!same(c, r, x + 1, y) || !same(c, r, x, y + 1)) tone = R.shade;           // the right and bottom edges
+      else if (!same(c, r, x, y - 1) && same(c, r, x + 1, y)) tone = R.light;            // the top edge
     }
     // A part lying over another: its edge is drawn in its darkest tone (an inner line).
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1]]) {
+    for (const [dx, dy] of INNER) {
       const o = at(x + dx, y + dy);
-      if (o && o.part < c.part && role(o)) { tone = R.dark; break; }
+      if (o && o.part < c.part && roleAt(x + dx, y + dy)) { tone = R.dark; break; }
     }
     out[y][x] = tone;
   }
   // The outline: ink round the silhouette (4-neighbours).
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     if (out[y][x] !== null) continue;
-    if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => cells[y + dy]?.[x + dx])) out[y][x] = outline;
+    if (cells[y][x + 1] || cells[y][x - 1] || cells[y + 1]?.[x] || cells[y - 1]?.[x]) out[y][x] = outline;
   }
   return out;
 }
@@ -815,19 +818,27 @@ export function frame(spec, dir, name) {
   return dir === 'left' ? px.map(row => row.slice().reverse()) : px;
 }
 
+/**
+ * Every frame of a person, FRAMES across, DIRS down, as rows of colours (null transparent): facing
+ * left is facing right mirrored, so those frames are drawn once, not twice.
+ */
+export function frames(spec) {
+  const right = new Map();
+  return DIRS.map(dir => FRAMES.map(name => {
+    if (dir === 'left' && right.has(name)) return right.get(name).map(row => row.slice().reverse());
+    const px = frame(spec, dir, name);
+    if (dir === 'right') right.set(name, px);
+    return px;
+  }));
+}
+
 /** Every frame of a person on one canvas: FRAMES across, DIRS down. */
 export function sheet(spec) {
   const [W, H] = CELL;
   const cv = document.createElement('canvas');
   cv.width = W * FRAMES.length; cv.height = H * DIRS.length;
   const g = cv.getContext('2d');
-  DIRS.forEach((dir, j) => FRAMES.forEach((name, i) => {
-    frame(spec, dir, name).forEach((row, y) => row.forEach((c, x) => {
-      if (c === null) return;
-      g.fillStyle = '#' + c.toString(16).padStart(6, '0');
-      g.fillRect(i * W + x, j * H + y, 1, 1);
-    }));
-  }));
+  frames(spec).forEach((facing, j) => facing.forEach((px, i) => blit(g, px, i * W, j * H)));
   return cv;
 }
 
@@ -843,13 +854,20 @@ export function drawSprite(w, h, layers, col, opts) {
   return shade(cells, col, opts);
 }
 
-/** Rows of colours onto a canvas (at ox, oy). */
+/**
+ * Rows of colours onto a canvas (at ox, oy), where it's still clear: a null is written transparent.
+ * One putImageData, not a fillRect a pixel (a person's sheet is 110,000 pixels).
+ */
 export function blit(g, px, ox = 0, oy = 0) {
-  px.forEach((row, y) => row.forEach((c, x) => {
-    if (c === null) return;
-    g.fillStyle = '#' + c.toString(16).padStart(6, '0');
-    g.fillRect(ox + x, oy + y, 1, 1);
-  }));
+  const h = px.length, w = px[0]?.length ?? 0;
+  if (!w) return;
+  const img = new ImageData(w, h), d = img.data;
+  for (let y = 0, p = 0; y < h; y++) for (let x = 0; x < w; x++, p += 4) {
+    const c = px[y][x];
+    if (c === null) continue;
+    d[p] = (c >> 16) & 255; d[p + 1] = (c >> 8) & 255; d[p + 2] = c & 255; d[p + 3] = 255;
+  }
+  g.putImageData(img, ox, oy);
 }
 
 /**

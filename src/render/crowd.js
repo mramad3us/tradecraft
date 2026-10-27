@@ -13,7 +13,7 @@
 // card turned on its side, its back to where they fell from (DOWN). Each card has a blob of shadow
 // under it (a second instanced draw), as in the samples.
 import * as THREE from 'three';
-import { frame, CELL, FRAMES, DIRS, FIGHT_FRAMES } from '../art/sprites.js';
+import { frames, CELL, FRAMES, DIRS, FIGHT_FRAMES } from '../art/sprites.js';
 import { PX_PER_M } from '../art/pixelart.js';
 
 export const ATLAS_PX = 4096;                                       // (150 people's sheets of 29 frames)
@@ -59,8 +59,8 @@ export function createCrowd(scene) {
   function drawSheet(i, look) {
     const ox = (i % COLS) * SW, oy = Math.floor(i / COLS) * SH;
     const img = g2.createImageData(SW, SH), d = img.data;
-    DIRS.forEach((dir, j) => FRAMES.forEach((name, k) => {
-      frame(look, dir, name).forEach((row, y) => row.forEach((c, x) => {
+    frames(look).forEach((facing, j) => facing.forEach((px, k) => {   // (left: right mirrored, drawn once)
+      px.forEach((row, y) => row.forEach((c, x) => {
         if (c === null) return;
         const p = ((j * CH + y) * SW + k * CW + x) * 4;
         d[p] = (c >> 16) & 255; d[p + 1] = (c >> 8) & 255; d[p + 2] = c & 255; d[p + 3] = 255;

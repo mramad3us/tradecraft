@@ -13,10 +13,10 @@
 // fill (any scale: the view's last pass keeps every pixel the same size, src/art/pixelart.js).
 //
 // It shows the state and routes the player's choices to the callbacks it's given (src/main.js); it
-// never changes the state itself. Times are game time (sim/clock.js); rolls read through checkText().
+// never changes the state itself. Times are game time (sim/clock.js); rolls read through checkShort() at the top left, checkText() (the whole sum) in the log.
 import { townOf, localize } from '../sim/cities/index.js';
 import { clockText, stampText, dateText } from '../sim/clock.js';
-import { checkText } from '../sim/checks.js';
+import { checkText, checkShort } from '../sim/checks.js';
 import { SCENARIOS } from '../sim/scenarios/index.js';
 import { placeName } from '../sim/map/street.js';
 import { shownRolls } from '../sim/scenarios/sdr.js';
@@ -63,6 +63,7 @@ export function createUI({ input, cb }) {
   const marker = el('div', { className: 'marker', hidden: true });
   const bubble = el('div', { className: 'bubble', hidden: true });   // what a character's just become aware of: ? or !
   const speech = el('div', { className: 'speech' });                // what's said aloud, in balloons over whoever said it
+  const you = el('div', { className: 'you', hidden: true });         // which one is you, when someone's at arm's length
   const intent = el('div', { className: 'intent', hidden: true });   // in a fight: what they're about to do, if we read it
   const bout = el('div', { className: 'bout', hidden: true });       // in a fight: the two of them, the score, the edges
   const moves = el('div', { className: 'moves', hidden: true });    // in a fight: the three moves and their keys, while we choose
@@ -74,7 +75,7 @@ export function createUI({ input, cb }) {
   const goal = el('div', { className: 'goal', hidden: true });      // where you're going, when it's off the picture
   const prompt = el('div', { className: 'prompt', hidden: true });
   const veil = el('div', { className: 'bloodveil' });                 // (the blood lost: the world dims and reddens at the edges)
-  const hud = el('div', { id: 'hud' }, veil, tags, marker, bubble, intent, ...states, speech, reach, ask, talkbox, bout, moves, goal, prompt, watch, toasts, keys, banner);
+  const hud = el('div', { id: 'hud' }, veil, tags, marker, bubble, intent, ...states, you, speech, reach, ask, talkbox, bout, moves, goal, prompt, watch, toasts, keys, banner);
   const menu = el('div', { className: 'overlay', hidden: true });
   const log = el('div', { className: 'overlay', hidden: true });
   const paper = el('div', { className: 'overlay', hidden: true });     // a brief, a result
@@ -96,12 +97,17 @@ export function createUI({ input, cb }) {
   fit();
   addEventListener('resize', fit);
 
-  const keyHints = () => {
+  // The keys at the bottom right, for what you're doing: on the street, in a fight, in a conversation.
+  let hintsFor = null;
+  const keyHints = (mode = hintsFor ?? 'street') => {
+    hintsFor = mode;
     const k = (a) => `<kbd>${input.label(a)}</kbd>`;
-    keys.innerHTML = `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look · ${k('interact')} interact · ${k('inventory')} carry · ${k('gun')} draw · ${k('sheet')} sheet · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
+    keys.innerHTML = mode === 'fight' ? `${k('hit')} hit · ${k('grapple')} grab · ${k('guard')} cover · ${k('run')} held: spend an edge · ${k('gun')} draw · ${k('interact')} your read · ${k('log')} log · ${k('pause')} pause`
+      : mode === 'talk' ? `<kbd>1</kbd>–<kbd>4</kbd> say · ${k('menu')} leave it there`
+      : `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look (tap: glance) · ${k('instinct')} instinct · ${k('interact')} people · ${k('aid')} first aid · ${k('inventory')} carry · ${k('gun')} draw · ${k('sheet')} sheet · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
   };
   keyHints();
-  setTimeout(keyHints, 300);                                       // once the keyboard's layout is known
+  setTimeout(() => keyHints(), 300);                               // once the keyboard's layout is known
 
   // ---------- the title ----------
   function showTitle({ version, auto, farm = false }) {
@@ -147,16 +153,22 @@ export function createUI({ input, cb }) {
   const hideTitle = () => { title.hidden = true; };
 
   // ---------- the HUD ----------
+  // (every frame: the frame's width read before anything's written, and text written only when it
+  // changes, so the HUD forces no layout of its own and leaves the page's untouched when nothing moves)
+  const put = (node, text) => { if (node.textContent !== text) node.textContent = text; };
   /** view: { posOf(id) → [x, z] as drawn, camera { x, z } }, for the marker over a scenario's target. */
   function update(state, paused, view) {
     here = state.map?.city ?? null;
-    watch.querySelector('.time').textContent = clockText(state.time.ms);
-    watch.querySelector('.date').textContent = stampText(state.time.ms).split(',')[0];
+    const mode = state.fight && !state.fight.ended ? 'fight' : state.talk ? 'talk' : 'street';
+    if (mode !== hintsFor) keyHints(mode);
+    const fw = frame.clientWidth;
+    put(watch.querySelector('.time'), clockText(state.time.ms));
+    put(watch.querySelector('.date'), stampText(state.time.ms).split(',')[0]);
     const me = state.actors.find(a => a.who === state.player);
     const held = weaponOf(state.people[state.player]?.hand);       // (what's in your hand, under the watch: sim/items.js)
-    watch.querySelector('.hand').textContent = held ? `in hand: ${bare(held)}` : '';
-    if (me && state.map?.kind === 'street') watch.querySelector('.place').textContent = placeName(townOf(state.map), state.map.row ?? 0, me.x, me.z);
-    else watch.querySelector('.place').textContent = SCENARIOS[state.scenario.kind]?.place?.(state) ?? '';
+    put(watch.querySelector('.hand'), held ? `in hand: ${bare(held)}` : '');
+    if (me && state.map?.kind === 'street') put(watch.querySelector('.place'), placeName(townOf(state.map), state.map.row ?? 0, me.x, me.z));
+    else put(watch.querySelector('.place'), SCENARIOS[state.scenario.kind]?.place?.(state) ?? '');
     frame.classList.toggle('paused', paused && menu.hidden && log.hidden && paper.hidden);
     if (paused && banner.dataset.key !== input.label('pause')) { banner.dataset.key = input.label('pause'); banner.textContent = `PAUSED · ${input.label('pause')}`; }
     // The marker: over whom we take for the target (sc.marked), as we last saw them (live, or their
@@ -168,7 +180,7 @@ export function createUI({ input, cb }) {
     marker.hidden = !t;
     if (t) {
       marker.classList.toggle('memory', state.mind?.seen?.[mk]?.[5] !== state.mind?.at);
-      const k = frame.clientWidth / RES[0], cam = view.camera;
+      const k = fw / RES[0], cam = view.camera;
       const sx = RES[0] / 2 + (t[0] - cam.x) * 16, sy = RES[1] / 2 + (t[1] - cam.z) * 16 - 2.45 * 16;
       const cx = Math.max(6, Math.min(RES[0] - 6, sx)), cy = Math.max(8, Math.min(RES[1] - 8, sy));
       const off = cx !== sx || cy !== sy;
@@ -177,7 +189,7 @@ export function createUI({ input, cb }) {
       marker.style.setProperty('--k', k);
     }
     // Faces you've marked (a scenario's suspects: { actor id: 1 seen before, 2 a tail }), over them as drawn.
-    const k0 = frame.clientWidth / RES[0], cam0 = view?.camera;
+    const k0 = fw / RES[0], cam0 = view?.camera;
     const sus = !sc.outcome && sc.suspects ? Object.entries(sc.suspects).filter(([, v]) => v >= 1) : [];
     while (tags.children.length < sus.length) tags.append(el('div', { className: 'tag' }));
     [...tags.children].forEach((t, i) => {
@@ -207,7 +219,7 @@ export function createUI({ input, cb }) {
     const mk2 = sc.mark && sc.mark.until > state.time.ms && !sc.outcome && view?.posOf(sc.mark.id);
     bubble.hidden = !mk2;
     if (mk2) {
-      const k = frame.clientWidth / RES[0], cam = view.camera;
+      const k = fw / RES[0], cam = view.camera;
       const bx = RES[0] / 2 + (mk2[0] - cam.x) * 16, by = RES[1] / 2 + (mk2[1] - cam.z) * 16 - 3.0 * 16;
       bubble.textContent = sc.mark.glyph;
       bubble.className = `bubble ${sc.mark.glyph === '!' ? 'alarm' : ''}`;
@@ -217,15 +229,15 @@ export function createUI({ input, cb }) {
     const near = !sc.outcome && !state.fight && ask.hidden && atHand(state), nearAt = near && view?.posOf(near.id);
     reach.hidden = !nearAt;
     if (nearAt && view?.camera) {
-      const k = frame.clientWidth / RES[0], cam = view.camera;
+      const k = fw / RES[0], cam = view.camera;
       if (reach.dataset.key !== input.label('interact')) { reach.dataset.key = input.label('interact'); reach.replaceChildren(el('kbd', { textContent: input.label('interact') })); }
       reach.style.transform = `translate(${Math.round((RES[0] / 2 + (nearAt[0] - cam.x) * 16) * k)}px, ${Math.round((RES[1] / 2 + (nearAt[1] - cam.z) * 16 - 2.2 * 16) * k)}px)`;   // (the point just over the head)
     }
     if (!ask.hidden && askFor) {
-      const at = view?.posOf(askFor.id), k = frame.clientWidth / RES[0], cam = view?.camera;
+      const at = view?.posOf(askFor.id), k = fw / RES[0], cam = view?.camera;
       // (beside them, kept inside the picture)
       if (at && cam) {
-        const W = frame.clientWidth, H = frame.clientHeight, w = ask.offsetWidth, h = ask.offsetHeight;
+        const W = fw, H = frame.clientHeight, w = ask.offsetWidth, h = ask.offsetHeight;
         const x = Math.max(8, Math.min(W - w - 8, (RES[0] / 2 + (at[0] - cam.x) * 16 + 14) * k)), y = Math.max(h / 2 + 8, Math.min(H - h / 2 - 8, (RES[1] / 2 + (at[1] - cam.z) * 16 - 2.6 * 16) * k));
         ask.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
       }
@@ -244,7 +256,7 @@ export function createUI({ input, cb }) {
           el('div', { className: 'foot', textContent: `Time stands still while you talk · ${input.label('menu')}: leave it there` }));
       }
       if (tAt && view?.camera) {
-        const k = frame.clientWidth / RES[0], cam = view.camera, W = frame.clientWidth, H = frame.clientHeight, w = talkbox.offsetWidth, h = talkbox.offsetHeight;
+        const k = fw / RES[0], cam = view.camera, W = fw, H = frame.clientHeight, w = talkbox.offsetWidth, h = talkbox.offsetHeight;
         const x = Math.max(8, Math.min(W - w - 8, (RES[0] / 2 + (tAt[0] - cam.x) * 16 + 14) * k)), y = Math.max(h / 2 + 8, Math.min(H - h / 2 - 8, (RES[1] / 2 + (tAt[1] - cam.z) * 16 - 2.6 * 16) * k));
         talkbox.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
       }
@@ -253,32 +265,37 @@ export function createUI({ input, cb }) {
     // brass; a '?' when we can't), while we choose; over either, staggered or dazed; at the top, the
     // two of them, a bout's score and the edges each holds; at the foot, the three moves and their keys.
     const fi = !sc.outcome && state.fight, sides = fi ? [state.actors.find(a => a.who === fi.a), state.actors.find(a => a.who === fi.b)] : [];
-    const kk = frame.clientWidth / RES[0], camF = view?.camera, over = (a, up) => { const p = a && view?.posOf(a.id); return p && camF && `translate(${Math.round((RES[0] / 2 + (p[0] - camF.x) * 16) * kk)}px, ${Math.round((RES[1] / 2 + (p[1] - camF.z) * 16 - up * 16) * kk)}px)`; };
+    // (each label nudged outward, away from the other fighter, so two labels never read as one)
+    const kk = fw / RES[0], camF = view?.camera, pos = (a) => a && view?.posOf(a.id);
+    const out = (i) => { const p = pos(sides[i]), q = pos(sides[1 - i]); return p && q ? Math.sign(p[0] - q[0] || (i ? 1 : -1)) * 0.75 : 0; };
+    const over = (a, up, dx = 0) => { const p = pos(a); return p && camF && `translate(${Math.round((RES[0] / 2 + (p[0] + dx - camF.x) * 16) * kk)}px, ${Math.round((RES[1] / 2 + (p[1] - camF.z) * 16 - up * 16) * kk)}px)`; };
     const choosing = fi && fi.phase === 'choose' && fi.status?.a !== 'stunned';
-    const at = choosing && over(sides[1], 2.45);
+    const at = choosing && over(sides[1], 2.45, out(1));
     intent.hidden = !at;
     if (at) {
-      const m = fi.theirs.move, read = fi.read && m !== 'open', key = read ? m : '?';
+      // (stunned, they've nothing coming: OPEN, not the '?' of a move we can't read)
+      const m = fi.theirs.move, open = m === 'open', read = fi.read && !open, key = open ? 'open' : read ? m : '?';
       if (intent.dataset.key !== key) {
         intent.dataset.key = key;
-        intent.replaceChildren(...[read && el('img', { src: icon(m), alt: '' }), el('span', { textContent: read ? MOVE_WORD[m] : '?' })].filter(Boolean));
-        intent.className = `intent ${read ? 'read' : ''}`;
+        intent.replaceChildren(...[read && el('img', { src: icon(m), alt: '' }), el('span', { textContent: open ? 'OPEN' : read ? MOVE_WORD[m] : '?' })].filter(Boolean));
+        intent.className = `intent ${read ? 'read' : ''}${open ? ' open' : ''}`;
       }
       intent.style.transform = at;
     }
     states.forEach((t, i) => {
-      const st = fi?.status?.[i ? 'b' : 'a'], at2 = st && over(sides[i], fi.phase === 'choose' && i === 1 ? 3.3 : 2.45);
+      const st = fi?.status?.[i ? 'b' : 'a'], at2 = st && over(sides[i], fi.phase === 'choose' && i === 1 ? 3.3 : 2.45, out(i));
       t.hidden = !at2;
       if (!at2) return;
-      t.textContent = { stunned: 'STUNNED', dazed: 'DAZED', staggered: 'STAGGERED' }[st];
+      t.textContent = `${i ? '' : 'YOU · '}${{ stunned: 'STUNNED', dazed: 'DAZED', staggered: 'STAGGERED' }[st]}`;
       t.className = `fstate ${st}`;
       t.style.transform = at2;
     });
     const lost = Math.max(0, Math.min(1, (100 - bloodOf(state.people[state.player])) / (100 - BLOOD.dead)));
-    veil.style.opacity = String(Math.round(lost * 100) / 100);
+    const vo = String(Math.round(lost * 100) / 100);
+    if (veil.style.opacity !== vo) veil.style.opacity = vo;
     bout.hidden = !fi;
     if (fi) {
-      const name = (who) => (who === state.player ? 'You' : cap(shortName(state, who)));
+      const name = (who) => { if (who === state.player) return 'You'; const n = shortName(state, who); return /^(the|a|an) /.test(n) ? n : cap(n); };   // ('You vs the man in the red beanie')
       const key = `${name(fi.a)}|${fi.adv.a}|${fi.bout ? `${fi.score.a}:${fi.score.b}` : '-'}|${fi.adv.b}|${name(fi.b)}`;
       if (bout.dataset.key !== key) {
         bout.dataset.key = key;
@@ -306,12 +323,13 @@ export function createUI({ input, cb }) {
     // (in a fight, how things stand; then your own body, if it's more pressing than the scene's line: sim/aid.js)
     const body = bodyLine(state), scene = sc.prompt && body && RANKS[body.tone] <= RANKS[sc.prompt.tone] ? sc.prompt : body ?? sc.prompt;
     const sp = !sc.outcome && ((state.fight?.phase === 'choose' && statusLine(state)) || scene), off = !sc.outcome && !sp?.act && sp?.tone !== 'urgent' && state.$offer;
-    const p = sp || off ? { tone: sp?.tone ?? 'calm', text: `${sp?.text ?? ''}${off ? off.text : ''}`.trim() } : null;
+    // (the offer a chip of its own after the line, not run on into its sentence)
+    const p = sp || off ? { tone: sp?.tone ?? 'calm', text: (sp?.text ?? '').trim(), offer: off ? off.text.trim() : '' } : null;
     prompt.hidden = !p;
-    if (p && prompt.dataset.text !== p.text + p.tone) {
-      prompt.dataset.text = p.text + p.tone;
+    if (p && prompt.dataset.text !== p.text + p.offer + p.tone) {
+      prompt.dataset.text = p.text + p.offer + p.tone;
       prompt.className = `prompt ${p.tone}`;
-      prompt.replaceChildren(...keyed(p.text));
+      prompt.replaceChildren(...keyed(p.text), ...(p.offer ? [el('span', { className: `offer${p.text ? '' : ' alone'}` }, ...keyed(p.offer))] : []));
     }
     // (the move panel sits above the instinct, however many lines it runs to)
     if (!moves.hidden) moves.style.bottom = `${p ? 58 + prompt.offsetHeight + 8 : 96}px`;
@@ -326,7 +344,12 @@ export function createUI({ input, cb }) {
       if (now - t.born > (TOAST_S + 1.5) * 1000) t.remove();
     }
     seenView = view;
-    placeBalloons(view, now);
+    placeBalloons(view, now, fw);
+    // (you, marked: a brass caret over your head while someone stands within reach of you, out of a fight)
+    const meA = state.actors.find(a => a.who === state.player), meAt = meA && view?.posOf(meA.id), camY = view?.camera;
+    const crowded = meA && !state.fight && state.actors.some(o => o !== meA && !o.hidden && (o.row ?? state.map.row) === (meA.row ?? state.map.row) && Math.hypot(o.x - meA.x, o.z - meA.z) < 1.3);
+    you.hidden = !(crowded && meAt && camY);
+    if (!you.hidden) you.style.transform = `translate(${Math.round((RES[0] / 2 + (meAt[0] - camY.x) * 16) * (fw / RES[0]))}px, ${Math.round((RES[1] / 2 + (meAt[1] - camY.z) * 16 - 2.15 * 16) * (fw / RES[0]))}px)`;
   }
   // A line with {key} placeholders, the keys as this player has them (a prompt, a toast, the log).
   // Pixel icons for the three moves: a fist, an open hand, a cover (12 × 12, '#' ink, 'o' the fill).
@@ -355,7 +378,7 @@ export function createUI({ input, cb }) {
   function toast(e) {
     if (e.hidden) return;                                          // (what the character didn't see)
     if (e.says && speakOver(e)) { if (e.aside) toast({ kind: e.kind, text: e.aside }); return; }   // (said aloud: a balloon; the rest top left)
-    const t = el('div', { className: `toast ${e.kind}${e.roll && !e.roll.ok ? ' fail' : ''}` }, ...keyed(e.text ?? ''), e.roll ? el('span', { className: 'num', textContent: checkText(e.roll) }) : null);
+    const t = el('div', { className: `toast ${e.kind}${e.roll && !e.roll.ok ? ' fail' : ''}` }, ...keyed(e.text ?? ''), e.roll ? el('span', { className: 'num', textContent: checkShort(e.roll), title: checkText(e.roll) }) : null);   // (in brief: the whole sum is the log's, J)
     t.born = hudMs;
     toasts.append(t);
     while (toasts.children.length > 3) toasts.firstChild.remove();
@@ -379,8 +402,8 @@ export function createUI({ input, cb }) {
     return true;
   }
   /** Each line its TOAST_S, as a line at the top left (the same clock); over the speaker's head, kept inside the picture. */
-  function placeBalloons(view, now) {
-    const k = frame.clientWidth / RES[0], W = frame.clientWidth, cam = view?.camera;
+  function placeBalloons(view, now, W) {
+    const k = W / RES[0], cam = view?.camera;
     for (const [id, b] of balloons) {
       for (const p of [...b.children]) {
         if (now - p.born > TOAST_S * 1000 && !p.classList.contains('gone')) p.classList.add('gone');
@@ -401,7 +424,7 @@ export function createUI({ input, cb }) {
   function openMenu({ debug }) {
     const toggle = el('label', { className: 'toggle' },
       el('input', { type: 'checkbox', checked: debug, onchange: (e) => { cb.setDebug(e.target.checked); openMenu({ debug: e.target.checked }); } }),
-      el('span', {}, 'Debug mode', el('small', { className: 'note', style: 'display:block', textContent: 'Manual save and load. ] moves the clock on an hour, [ a quarter of an hour.' })));
+      el('span', {}, 'Debug mode', el('small', { className: 'note', style: 'display:block', textContent: `Manual save and load. ${input.label('BracketRight')} moves the clock on an hour, ${input.label('BracketLeft')} a quarter of an hour.` })));
     menu.replaceChildren(el('div', { className: 'sheet' },
       el('h2', { textContent: 'MENU' }), el('hr'),
       el('button', { className: 'item', onclick: () => cb.resume() }, 'Resume'),
@@ -454,6 +477,7 @@ export function createUI({ input, cb }) {
       el('div', { className: 'cols' },
         el('div', {},
           el('table', { className: 'skills' }, el('tbody', {}, rows)),
+          el('p', { className: 'note', textContent: 'The level is the training you had (a course, advanced…); each • is practice since, a point each.' }),
           el('p', { className: 'langs', textContent: Object.entries(p.langs ?? {}).map(([c, l]) => `${LANGS[c] ?? c}: ${l}`).join(' · ') }),
           el('p', { className: 'langs', textContent: `Carrying: ${[p.hand && `${weaponOf(p.hand).name}, in hand`, ...(p.items ?? []).map(k => weaponOf(k)?.name ?? k)].filter(Boolean).join('; ') || 'nothing to fight with'}. (${input.label('inventory')})` })),
         el('div', { className: 'body' },
@@ -573,11 +597,15 @@ export function createUI({ input, cb }) {
   /** Their sheet as you guess it: what you know of them (sim/know.js). */
   function openRead(state, who) {
     const p = state.people[who], k = knownOf(state, who), title = p.known === false ? p.seen : p.name;
-    const rows = Object.entries(SKILLS).map(([key, sk]) => {
+    // (what you've read first, then what a read could show but hasn't, then one line for what never shows at a glance)
+    const all = Object.entries(SKILLS), got = all.filter(([key]) => k?.skills?.[key]), could = all.filter(([key]) => !k?.skills?.[key] && READABLE.includes(key));
+    const hidden = all.filter(([key]) => !k?.skills?.[key] && !READABLE.includes(key)).map(([, sk]) => sk.name);
+    const rows = [...got, ...could].map(([key, sk]) => {
       const r = k?.skills?.[key];
       return el('tr', { className: r ? '' : 'none' }, el('td', { textContent: sk.name }), el('td', { className: 'val', textContent: r ? (r[0] === r[1] ? `${r[0]}` : `${r[0]}–${r[1]}`) : '?' }),
-        el('td', { className: 'lvl', textContent: r ? '' : READABLE.includes(key) ? 'not read yet' : 'doesn\'t show at a glance' }));
+        el('td', { className: 'lvl', textContent: r ? '' : 'not read yet' }));
     });
+    if (hidden.length) rows.push(el('tr', { className: 'none' }, el('td', { colSpan: 3, className: 'lvl', textContent: `Not to be read at a glance: ${hidden.join(', ')}.` })));
     const bloodied = p.bloody?.face !== undefined;
     const seen = Object.keys(PARTS).filter(part => ['hurt', 'wounded', 'out'].includes(stateOf(p, part)) || (part === 'head' && bloodied));
     card.replaceChildren(el('div', { className: 'sheet charsheet readsheet' },

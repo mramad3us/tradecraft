@@ -32,7 +32,7 @@ export function read(state, me, them) {
   const r = state.rng, p = state.people[them.who], mine = state.people[state.player];
   const d = Math.hypot(them.x - me.x, them.z - me.z), light = lightBand(lightHere(state, them.x, them.z));
   const mods = [d > 6 && { why: 'at a distance', v: -2 }, light === 'dark' && { why: 'in the dark', v: -3 }, light === 'dim' && { why: 'in the dusk', v: -1 }].filter(Boolean);
-  const roll = check(r, { skill: 'analysis', value: skill(mine, 'analysis'), dc: READ_DC, mods });
+  const roll = check(r, { skill: 'analysis', value: skill(mine, 'analysis'), body: mine, dc: READ_DC, mods });
   const k = known(state, them.who), w = WIDTH(roll.margin);
   for (const key of READABLE) {
     const v = skill(p, key), off = range(r, -w / 2, w / 2);

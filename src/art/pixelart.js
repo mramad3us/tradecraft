@@ -146,6 +146,8 @@ export const FINE_PALETTE = [
  * every pixel shows the same size at any scale (nearest-neighbour would make some a screen pixel
  * wider than others, and they'd crawl as the camera moves), and a whole-number scale is exact.
  *
+ * dispose() frees it, its WebGL context with it.
+ *
  * setFog(texture, x0, z0, w, h, dimK) dims what lies where a ground-plane mask says it's unseen (to dimK of its light): the mask
  * (one channel, 1 seen … 0 unseen) covers x0 … x0 + w, z0 … z0 + h in world metres, and each pixel
  * looks it up at the ground position under it (from the depth buffer: a wall's pixels at its foot, a
@@ -343,7 +345,20 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
     renderer.setRenderTarget(null);
     renderer.render(out, postCam);
   };
-  return { THREE, renderer, scene, camera, sun, hemi, look, render, setFog, size, get W() { return W; }, get H() { return H; }, lightAt: null };
+  // Done with it: its targets freed and its WebGL context given back at once (a browser keeps 16 or
+  // so; left to the garbage collector, a seventeenth new game lost the oldest's).
+  const dispose = () => {
+    for (const t of [rt, rtId, rtOut]) t.dispose();
+    rt.depthTexture.dispose();
+    for (const m of [quad, blit]) { m.geometry.dispose(); m.material.dispose(); }
+    for (const m of idMats.values()) m.dispose();
+    sun.shadow.map?.dispose();
+    if (autoFit) removeEventListener('resize', fit);
+    renderer.dispose();
+    renderer.forceContextLoss();
+    canvas.remove();
+  };
+  return { THREE, renderer, scene, camera, sun, hemi, look, render, setFog, size, dispose, get W() { return W; }, get H() { return H; }, lightAt: null };
 }
 
 /**
@@ -382,24 +397,22 @@ export function nightfall(stage) {
 const emissives = new WeakMap();
 /**
  * A painted texture's glow at night: an emissive map holding only its GLOWS pixels (a lit window, a
- * sign's letters), the rest black; null when nothing in it glows. Made once a texture.
+ * sign's letters), the rest black; null when nothing in it glows. Made once a texture, from where
+ * paint() found its glowing colours (userData.glowRuns), not by reading the texture back.
  */
 export function emissiveOf(tex) {
   if (emissives.has(tex)) return emissives.get(tex);
-  const glowing = tex.userData.glows.map(h => [(h >> 16) & 255, (h >> 8) & 255, h & 255]);
+  const runs = tex.userData.glowRuns ?? [], lit = (tex.userData.glows ?? []).map(rgba);
   const src = tex.image, cv = document.createElement('canvas');
   cv.width = src.width; cv.height = src.height;
-  const g = cv.getContext('2d', { willReadFrequently: true });
-  g.drawImage(src, 0, 0);
-  const img = g.getImageData(0, 0, cv.width, cv.height), d = img.data;
-  let any = false;
-  for (let i = 0; i < d.length; i += 4) {
-    const lit = glowing.some(([r, gg, b]) => d[i] === r && d[i + 1] === gg && d[i + 2] === b);
-    if (lit) any = true; else d[i] = d[i + 1] = d[i + 2] = 0;
-  }
-  g.putImageData(img, 0, 0);
+  const img = new ImageData(cv.width, cv.height), u32 = new Uint32Array(img.data.buffer);
+  u32.fill(0xff000000);                                          // (black, opaque: only its colour is read)
+  for (let j = 0; j < runs.length; j += 3) u32.fill(lit[runs[j + 2]], runs[j], runs[j + 1]);
+  const any = runs.length > 0;
+  delete tex.userData.glowRuns;                                  // (kept with the result from here on)
   let out = null;
   if (any) {
+    cv.getContext('2d').putImageData(img, 0, 0);
     out = new THREE.CanvasTexture(cv);
     out.magFilter = out.minFilter = THREE.NearestFilter;
     out.generateMipmaps = false;
@@ -463,14 +476,29 @@ export function rng(seed) { let s = (seed >>> 0) || 1; return () => ((s = (s * 1
 
 /**
  * A painted texture, w × h pixels (so w / PX_PER_M × h / PX_PER_M metres): draw(px, w, h) paints it,
- * px(x, y, w, h, colour) filling pixels, y from the top. `repeat` makes it tile; `glows` lists the
- * colours that light up at night.
+ * px(x, y, w, h, colour) filling pixels, y from the top (a negative w or h runs left or up, as a
+ * canvas's fillRect does; what's off the texture is left out). `repeat` makes it tile; `glows` lists
+ * the colours that light up at night.
+ *
+ * The pixels go into a typed array, a store each, and onto the canvas in one putImageData: a
+ * fillRect a pixel, with a CSS colour string to parse each time, made a street's paint 25–85 ms. The
+ * glowing pixels are found in that array as it's finished (glowRuns), so emissiveOf() never has to
+ * read the canvas back from the GPU.
  */
 export function paint(w, h, draw, { repeat = false, glows = null } = {}) {
   const cv = document.createElement('canvas');
   cv.width = w; cv.height = h;
-  const g = cv.getContext('2d');
-  draw((x, y, ww = 1, hh = 1, c = 0x14151c) => { g.fillStyle = hex(c); g.fillRect(x, y, ww, hh); }, w, h, g);
+  const img = new ImageData(w, h), u32 = new Uint32Array(img.data.buffer);
+  let lastC = null, lastV = 0;
+  draw((x, y, ww = 1, hh = 1, c = 0x14151c) => {
+    if (ww < 0) { x += ww; ww = -ww; }
+    if (hh < 0) { y += hh; hh = -hh; }
+    const x0 = Math.max(0, x), x1 = Math.min(w, x + ww), y0 = Math.max(0, y), y1 = Math.min(h, y + hh);
+    if (!(x1 > x0 && y1 > y0)) return;
+    if (c !== lastC) { lastC = c; lastV = rgba(c); }
+    for (let yy = y0; yy < y1; yy++) u32.fill(lastV, yy * w + x0, yy * w + x1);
+  }, w, h);
+  cv.getContext('2d').putImageData(img, 0, 0);
   const t = new THREE.CanvasTexture(cv);
   t.magFilter = t.minFilter = THREE.NearestFilter;
   t.generateMipmaps = false;
@@ -478,7 +506,22 @@ export function paint(w, h, draw, { repeat = false, glows = null } = {}) {
   if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.userData.size = [w / PX_PER_M, h / PX_PER_M];             // metres one copy covers
   t.userData.glows = glows;
+  if (glows) t.userData.glowRuns = glowRuns(u32, glows.map(rgba));
   return t;
+}
+// A colour 0xrrggbb as the little-endian RGBA word an ImageData's Uint32Array holds, opaque.
+function rgba(c) { return (0xff000000 | ((c & 0xff) << 16) | (c & 0xff00) | ((c >>> 16) & 0xff)) >>> 0; }
+// Where in a painted texture its glowing colours are: runs [start, end, which glow] of pixel indices.
+function glowRuns(u32, lit) {
+  const runs = [];
+  for (let i = 0; i < u32.length;) {
+    const k = lit.indexOf(u32[i]);
+    if (k < 0) { i++; continue; }
+    const s = i;
+    while (++i < u32.length && u32[i] === lit[k]);
+    runs.push(s, i, k);
+  }
+  return runs;
 }
 
 /**

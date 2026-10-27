@@ -11,8 +11,8 @@
 // rows north and south (exitAt(), and sim/game.js changeMap()). Or a room (state.map.kind: the dojo,
 // sim/map/dojo.js), one section with no way out.
 
-/** A section of the map: a street's, or the room. */
-const sectionFor = (map, i) => (map.kind === 'dojo' ? dojo(map.seed) : section(townOf(map), i, map.row ?? 0));
+/** A section of the map: a street's, or the room (the view builds the next street's ahead with it). */
+export const sectionFor = (map, i) => (map.kind === 'dojo' ? dojo(map.seed) : section(townOf(map), i, map.row ?? 0));
 //
 // Sections come and go around a focus (the player, or a target the scenario follows): those within
 // REACH_M are generated, those beyond DROP_M are dropped, and the bus hears of both so the renderer

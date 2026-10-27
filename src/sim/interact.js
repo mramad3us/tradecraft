@@ -114,7 +114,7 @@ export function act(state, bus, id, them) {
   f.opening = id;
   let open = !seesUs(state, them);
   if (id === 'sucker' && !open) {
-    const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception') }, { skill: 'awareness', value: skill(p, 'awareness') });
+    const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] }, { skill: 'awareness', value: skill(p, 'awareness'), body: p });
     open = r.ok;
     if (!r.ok) say(state, bus, { kind: 'roll', roll: r, text: `${cap(name)} sees it coming.` });
   }

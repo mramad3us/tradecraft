@@ -9,6 +9,11 @@
 // Each frame:
 //   - sections are built and freed as the sim reports them ('section+' / 'section-' on the bus), a
 //     section spread over a few frames (BUILD_MS of building a frame; flush() builds all at once),
+//     but one on screen at once: on the next street, what's in the picture is built the frame it
+//     arrives and the rest over the frames after (building it all froze a street change half a second).
+//     Better still, it's built ahead: up a lane, within AHEAD_M of its end, the part of the next street
+//     that will be on screen is built in the frames' spare time, kept out of the scene, and put in it
+//     when the street changes (and thrown away if they turn back);
 //     in the clock's month (`month()`: the trees in leaf or bare, the hedges', the fallen leaves);
 //     a change of map ('map-': the player has gone on to the next street) frees them all;
 //   - the light is the clock's (sim/light.js sky()): the sun and the sky fill take its colours and
@@ -18,7 +23,11 @@
 //   - people and sprite props take the light where they stand (lightAt), the same number checks read;
 //     a card in front of the player that would hide them is seen through;
 //   - the camera follows the focus (the player), clamped to the map, snapped to the pixel grid, and
-//     the sun's shadow camera moves with it in whole texels of its map, so shadows never shimmer;
+//     the sun's shadow camera moves with it in steps of SHADOW_STEP texels of its map, so shadows never
+//     shimmer. Nothing that moves casts a sun shadow (people have blobs) and the sun stands still, so
+//     the shadow map is drawn only when that camera steps or a section comes or goes, not every frame
+//     (it was two thirds of the draw calls). Its frustum is wider by a step, and its map by as many
+//     texels, so a texel covers the same ground on the same grid as when it followed texel by texel;
 //   - in a fight, a blow landing jolts the picture a pixel to three, the way it went, for SHAKE_TICKS;
 //   - the camera leans where the eyes go (LEAD_M: a little walking, far looking with E held, more
 //     north–south, where the picture is shorter; the user, 2026-10-26: "targets up and down are out
@@ -29,7 +38,11 @@
 //     cells over the view, each the visibility of its spot from the player's eyes (the cone, the
 //     radius of awareness, a shop window's glass, the light, the walls in the way). A building takes the visibility of its
 //     walls' feet, so a facade lights up when it's seen. The stage dims what's unseen (pixelStage
-//     setFog); the mask eases in quickly and out slowly (FOG_IN_S, FOG_OUT_S), as eyes do;
+//     setFog); the mask eases in quickly and out slowly (FOG_IN_S, FOG_OUT_S), as eyes do. What the
+//     eyes take in changes with the sim, so it's worked out again only on a new tick (or when the mask
+//     moves, or the light changes, once a game second); only the easing runs every frame. The light on
+//     a cell is the open air's, but where a lamp's pool may reach (each lamp stamps the cells under
+//     it): those take lightLevel() with the lamps that reach them, the number checks read;
 //   - people as the player knows them: those seen this tick where they are, the rest where they were
 //     last seen, frozen mid-step in the dimmed street, until that spot is looked at again.
 // Positions are interpolated between the last two ticks (alpha), so motion is smooth at any frame rate.
@@ -49,10 +62,12 @@ import { SCENARIOS } from '../sim/scenarios/index.js';
 import { SCREEN_HALF_M } from '../sim/crowd.js';
 import { Z_BACK, Z_FRONT } from '../sim/map/dojo.js';
 import { eyes, visibility, openAir } from '../sim/perception.js';
+import { sectionFor } from '../sim/world.js';
 
 export const RES = [640, 360];
 export const LAMP_SLOTS = 10;
 export const BUILD_MS = 6;
+export const AHEAD_M = 15;                                          // up a lane this near its far end, the next street's built ahead
 export const FOG_CELL_M = 0.5;
 export const SHAKE_TICKS = 4;
 export const LEAD_M = { walk: [1, 2.5], look: [1.5, 8] };          // the camera's lean where the eyes go (east–west, north–south): walking, looking (E held)
@@ -82,26 +97,64 @@ export function createView({ parent, bus, month = () => 11 }) {
   const items = createItems(scene);                                // (things lying about: src/render/items.js)
   const looks = new Map();                                         // passer-by seed → look (generated once)
   let city = null;
-  const building = new Map();                                     // i → a section's build, under way
+  const building = new Map();                                     // i → a section's build under way: { gen, x0, x1 }
+  let cut = false;                                                 // (the street just changed: this frame builds only what's on screen)
   const off = [
-    bus.on('map-', () => clear()),                                // another street: its sections share the old one's indices
-    bus.on('section+', (S) => { if (!sections.has(S.i) && !building.has(S.i)) building.set(S.i, S.kind === 'dojo' ? buildDojo(S) : buildSection(S, { month: month() })); }),
+    bus.on('map-', () => clear(true)),                            // another street: its sections share the old one's indices
+    bus.on('section+', (S) => {
+      if (sections.has(S.i) || building.has(S.i)) return;
+      const k = `${S.row}|${S.i}`, a = ahead.get(k)?.S.seed === S.seed && ahead.get(k).month === month() ? ahead.get(k) : null;
+      if (a) ahead.delete(k);                                     // (built ahead: in the scene now, or the rest of it to build)
+      if (a?.built) { sections.set(S.i, a.built); scene.add(a.built.group); shadows(); return; }
+      building.set(S.i, { gen: a ? a.gen : S.kind === 'dojo' ? buildDojo(S) : buildSection(S, { month: month() }), x0: S.x0, x1: S.x1 });
+    }),
+    bus.on('map', () => { for (const k of [...ahead.keys()]) drop(k); cut = true; }),   // (what was built ahead and not wanted after all)
     bus.on('section-', (S) => {
       const b = building.get(S.i);
-      if (b) { building.delete(S.i); const r = b.return(); r.value?.dispose(); }
-      const s = sections.get(S.i); if (s) { scene.remove(s.group); s.dispose(); sections.delete(S.i); }
+      if (b) { building.delete(S.i); const r = b.gen.return(); r.value?.dispose(); }
+      const s = sections.get(S.i); if (s) { scene.remove(s.group); s.dispose(); sections.delete(S.i); shadows(); }
     }),
   ];
-  /** Build what's queued: for BUILD_MS, or everything (budget Infinity). */
-  function build(budget = BUILD_MS) {
+  /** Build what's queued: one within m metres of x (on screen) whole, the rest for `budget` ms (Infinity: everything). */
+  function build(budget = BUILD_MS, x = null, m = 0) {
     const t0 = performance.now();
-    for (const [i, gen] of building) {
+    for (const [i, b] of building) {
+      const now = x !== null && b.x1 > x - m && b.x0 < x + m;
       for (;;) {
-        const r = gen.next();
-        if (r.done) { building.delete(i); sections.set(i, r.value); scene.add(r.value.group); break; }
-        if (performance.now() - t0 > budget) return;
+        if (!now && performance.now() - t0 > budget) break;
+        const r = b.gen.next();
+        if (r.done) { building.delete(i); sections.set(i, r.value); scene.add(r.value.group); shadows(); break; }
       }
     }
+  }
+
+  // The next street's sections, built ahead (see the header): `row|i` → { S, gen, built, month }. One
+  // dropped half built is finished first (scrap), so all it made is freed.
+  const ahead = new Map(), scrap = [];
+  function drop(k) {
+    const a = ahead.get(k);
+    ahead.delete(k);
+    if (a.built) a.built.dispose(); else scrap.push(a.gen);
+  }
+  function buildAhead(state, f, t0) {
+    const m = state.map, row = m.row ?? 0;
+    const next = f && m.kind === 'street' ? (f.z < Z.north + AHEAD_M ? row - 1 : f.z > Z.hedge ? row + 1 : null) : null;
+    const want = new Set();
+    if (next !== null) {
+      const r = SCREEN_HALF_M[0] + 1;                              // (as far as the picture reaches from them, leaning)
+      let a = Math.floor((f.x - r) / SECTION_M), b = Math.floor((f.x + r) / SECTION_M);
+      if (m.i0 !== null) a = Math.max(a, m.i0);
+      if (m.i1 !== null) b = Math.min(b, m.i1);
+      for (let i = a; i <= b; i++) {
+        const k = `${next}|${i}`;
+        want.add(k);
+        if (!ahead.has(k)) { const S = sectionFor({ ...m, row: next }, i); ahead.set(k, { S, gen: buildSection(S, { month: month() }), built: null, month: month() }); }
+      }
+    }
+    for (const k of [...ahead.keys()]) if (!want.has(k)) drop(k);
+    // (in what's left of the frame's building time)
+    for (const gen of [...scrap]) while (performance.now() - t0 < BUILD_MS) { const r = gen.next(); if (r.done) { r.value.dispose(); scrap.splice(scrap.indexOf(gen), 1); break; } }
+    for (const a of ahead.values()) while (!a.built && performance.now() - t0 < BUILD_MS) { const r = a.gen.next(); if (r.done) a.built = r.value; }
   }
 
   // Lamp light: pairs of spotlights (a core and a ring), moved to the nearest lamps each frame.
@@ -114,11 +167,20 @@ export function createView({ parent, bus, month = () => 11 }) {
     return pair;
   });
 
-  // The sun's shadow camera: its basis, to snap it to whole texels as it follows.
+  // The sun's shadow camera: its basis, to snap it to SHADOW_STEP as it follows. The step is an even
+  // number of texels (about 2 m), so the frustum, a step wider (its map as many texels more), keeps
+  // its edges on the texel grid it had when it followed texel by texel: the same shadows, drawn only
+  // when the step changes or the street does (shadows()).
   const sunDir = new THREE.Vector3(8, -15, -5).normalize();        // from the upper left, a little in front
   const right = new THREE.Vector3().crossVectors(sunDir, new THREE.Vector3(0, 1, 0)).normalize();
   const up = new THREE.Vector3().crossVectors(right, sunDir).normalize();
-  const texel = (sun.shadow.camera.right - sun.shadow.camera.left) / sun.shadow.mapSize.x;
+  const sc = sun.shadow.camera, texel = (sc.right - sc.left) / sun.shadow.mapSize.x;
+  const SHADOW_STEP = 2 * Math.round(1 / texel) * texel;
+  { const h = sc.right + SHADOW_STEP / 2, n = Math.round(2 * h / texel); Object.assign(sc, { left: -h, right: h, top: h, bottom: -h }); sc.updateProjectionMatrix(); sun.shadow.mapSize.set(n, n); }
+  stage.renderer.shadowMap.autoUpdate = false;
+  const shadows = () => { stage.renderer.shadowMap.needsUpdate = true; };
+  shadows();
+  let shadowU = null, shadowV = null;
   const aim = new THREE.Vector3();
 
   let cam = { x: 0, z: 0 }, lead = [0, 0], leadAt = performance.now();
@@ -129,7 +191,8 @@ export function createView({ parent, bus, month = () => 11 }) {
     camera.position.set(x, 60 * s45, z + 60 * s45);
     camera.lookAt(x, 0, z);
     aim.set(x, 0, z);
-    const u = Math.round(aim.dot(right) / texel) * texel, v = Math.round(aim.dot(up) / texel) * texel, w = aim.dot(sunDir);
+    const u = Math.round(aim.dot(right) / SHADOW_STEP) * SHADOW_STEP, v = Math.round(aim.dot(up) / SHADOW_STEP) * SHADOW_STEP, w = aim.dot(sunDir);
+    if (u !== shadowU || v !== shadowV) { shadowU = u; shadowV = v; shadows(); }
     aim.copy(right).multiplyScalar(u).addScaledVector(up, v).addScaledVector(sunDir, w);
     sun.target.position.copy(aim);
     sun.position.copy(aim).addScaledVector(sunDir, -18);
@@ -138,10 +201,11 @@ export function createView({ parent, bus, month = () => 11 }) {
   // The fog: what the player's character is aware of, on the ground.
   const [FNX, FNZ] = FOG_N, fogData = new Uint8Array(FNX * FNZ), fogVal = new Float32Array(FNX * FNZ).fill(1);
   const fogAim = new Float32Array(FNX * FNZ), fogLight = new Float32Array(FNX * FNZ), fogIn = new Int16Array(FNX * FNZ);
+  const fogLamps = Array.from({ length: FNX * FNZ }, () => []);   // per cell, the lamps whose pool may reach it
   const fogTex = new THREE.DataTexture(fogData, FNX, FNZ, THREE.RedFormat, THREE.UnsignedByteType);
   fogTex.magFilter = fogTex.minFilter = THREE.LinearFilter;
   fogTex.generateMipmaps = false;
-  let fogO = null, fogLitAt = -1e12, fogWalls = null, fogLast = performance.now();
+  let fogO = null, fogLitAt = -1e12, fogWalls = null, fogLast = performance.now(), fogTick = null;
   /** Bring the mask up to date for the player's eyes (dt: seconds since the last frame). */
   function fog(state, me, S) {
     const now = performance.now(), dt = Math.min(0.25, (now - fogLast) / 1000);
@@ -166,37 +230,51 @@ export function createView({ parent, bus, month = () => 11 }) {
         const j0 = Math.max(0, Math.ceil((w.z0 - z0) / FOG_CELL_M - 0.5)), j1 = Math.min(FNZ - 1, Math.floor((w.z1 - z0) / FOG_CELL_M - 0.5));
         for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) fogIn[j * FNX + i] = k;
       });
+      // Each lamp near the mask onto the cells its pool may reach (its box, 1.5 radii and a cell's
+      // margin), in the lamps' order: lightLevel() over a cell's own then adds up what it did over all.
+      for (const l of fogLamps) l.length = 0;
+      for (const l of W.lamps) {
+        if (!(l.x > x0 - 4 && l.x < x0 + FNX * FOG_CELL_M + 4 && l.z > z0 - 4 && l.z < z0 + FNZ * FOG_CELL_M + 4)) continue;
+        const R = l.r * 1.5 + FOG_CELL_M;
+        const i0 = Math.max(0, Math.floor((l.x - R - x0) / FOG_CELL_M)), i1 = Math.min(FNX - 1, Math.floor((l.x + R - x0) / FOG_CELL_M));
+        const j0 = Math.max(0, Math.floor((l.z - R - z0) / FOG_CELL_M)), j1 = Math.min(FNZ - 1, Math.floor((l.z + R - z0) / FOG_CELL_M));
+        for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) fogLamps[j * FNX + i].push(l);
+      }
     }
     const x0 = ox * FOG_CELL_M, z0 = oz * FOG_CELL_M;
     if (Math.abs(state.time.ms - fogLitAt) > 1000) {               // the light changes slowly: once a game second
-      fogLitAt = state.time.ms;
-      const lamps = W.lamps.filter(l => l.x > x0 - 4 && l.x < x0 + FNX * FOG_CELL_M + 4 && l.z > z0 - 4 && l.z < z0 + FNZ * FOG_CELL_M + 4);
-      for (let j = 0; j < FNZ; j++) for (let i = 0; i < FNX; i++) fogLight[j * FNX + i] = lightLevel(lamps, x0 + (i + 0.5) * FOG_CELL_M, z0 + (j + 0.5) * FOG_CELL_M, state.time.ms, S);
+      fogLitAt = state.time.ms; fogTick = null;
+      const open = lightLevel([], x0, z0, state.time.ms, S);      // (the open air's: the same everywhere)
+      for (let j = 0, k = 0; j < FNZ; j++) for (let i = 0; i < FNX; i++, k++) fogLight[k] = fogLamps[k].length ? lightLevel(fogLamps[k], x0 + (i + 0.5) * FOG_CELL_M, z0 + (j + 0.5) * FOG_CELL_M, state.time.ms, S) : open;
     }
-    const e = eyes(state, me);
-    const walls = W.walls.filter(w => w.x1 > Math.min(e.x, x0) - 1 && w.x0 < Math.max(e.x, x0 + FNX * FOG_CELL_M) + 1 && w.z1 > Math.min(e.z, z0) - 1 && w.z0 < Math.max(e.z, z0 + FNZ * FOG_CELL_M) + 1);
-    for (let j = 0, k = 0; j < FNZ; j++) {
-      const z = z0 + (j + 0.5) * FOG_CELL_M;
-      for (let i = 0; i < FNX; i++, k++) {
-        if (fogIn[k] >= 0) { fogAim[k] = 0; continue; }
-        fogAim[k] = visibility(state, e, x0 + (i + 0.5) * FOG_CELL_M, z, fogLight[k], walls);
+    // What the eyes take in: again only when the sim has moved on (or the mask, or the light).
+    if (fogTick !== state.tick) {
+      fogTick = state.tick;
+      const e = eyes(state, me);
+      const walls = W.walls.filter(w => w.x1 > Math.min(e.x, x0) - 1 && w.x0 < Math.max(e.x, x0 + FNX * FOG_CELL_M) + 1 && w.z1 > Math.min(e.z, z0) - 1 && w.z0 < Math.max(e.z, z0 + FNZ * FOG_CELL_M) + 1);
+      for (let j = 0, k = 0; j < FNZ; j++) {
+        const z = z0 + (j + 0.5) * FOG_CELL_M;
+        for (let i = 0; i < FNX; i++, k++) {
+          if (fogIn[k] >= 0) { fogAim[k] = 0; continue; }
+          fogAim[k] = visibility(state, e, x0 + (i + 0.5) * FOG_CELL_M, z, fogLight[k], walls);
+        }
       }
-    }
-    // A building's cells take its walls' feet: the facade's (the open cell south of them in their
-    // column), and near its ends, the side walls' (the open cell beside them in their row).
-    for (let i = 0; i < FNX; i++) {
-      let foot = 0;
-      for (let j = FNZ - 1; j >= 0; j--) { const k = j * FNX + i; if (fogIn[k] < 0) foot = fogAim[k]; else fogAim[k] = foot; }
-    }
-    for (let j = 0; j < FNZ; j++) {
-      const row = j * FNX;
+      // A building's cells take its walls' feet: the facade's (the open cell south of them in their
+      // column), and near its ends, the side walls' (the open cell beside them in their row).
       for (let i = 0; i < FNX; i++) {
-        if (fogIn[row + i] >= 0) continue;
-        const v = fogAim[row + i];
-        for (const s of [-1, 1]) for (let n = 1; n <= 2; n++) {
-          const ii = i + s * n;
-          if (ii < 0 || ii >= FNX || fogIn[row + ii] < 0) break;
-          fogAim[row + ii] = Math.max(fogAim[row + ii], v);
+        let foot = 0;
+        for (let j = FNZ - 1; j >= 0; j--) { const k = j * FNX + i; if (fogIn[k] < 0) foot = fogAim[k]; else fogAim[k] = foot; }
+      }
+      for (let j = 0; j < FNZ; j++) {
+        const row = j * FNX;
+        for (let i = 0; i < FNX; i++) {
+          if (fogIn[row + i] >= 0) continue;
+          const v = fogAim[row + i];
+          for (const s of [-1, 1]) for (let n = 1; n <= 2; n++) {
+            const ii = i + s * n;
+            if (ii < 0 || ii >= FNX || fogIn[row + ii] < 0) break;
+            fogAim[row + ii] = Math.max(fogAim[row + ii], v);
+          }
         }
       }
     }
@@ -218,7 +296,6 @@ export function createView({ parent, bus, month = () => 11 }) {
 
   /** Draw the state. prev: id → [x, z, stride] at the last tick; alpha: how far into this one. */
   function frame(state, prev, alpha, t) {
-    build();
     city = state.map.city;                                         // (passers-by dress as their city does)
     const ms = state.time.ms, S = sky(ms, geoOf(state.map)), W = state.$world;
     const lamps = W.lamps;
@@ -249,6 +326,10 @@ export function createView({ parent, bus, month = () => 11 }) {
       const jolt = since < SHAKE_TICKS ? Math.round((1 + 2 * Math.min(1, imp.force / 0.4)) * (1 - since / SHAKE_TICKS)) * (Math.floor(since * 2) % 2 ? -1 : 1) * (imp.side === 'b' ? 1 : -1) / PX_PER_M : 0;
       look(x + jolt, Math.max(cz[0], Math.min(Math.max(cz[0], cz[1]), fz + lead[1])) + Math.abs(jolt) * 0.5);
     }
+    const t0 = performance.now();
+    build(cut ? 0 : BUILD_MS, cam.x, halfW + 1);                   // (what's on screen whole: the next street's, the frame it comes)
+    cut = false;
+    if (!building.size) buildAhead(state, f, t0);
     // The light.
     hemi.color.setHex(S.sky); hemi.groundColor.setHex(S.ground); hemi.intensity = S.skyK * Math.PI;
     sun.color.setHex(S.sun); sun.intensity = S.sunK * Math.PI;
@@ -326,20 +407,30 @@ export function createView({ parent, bus, month = () => 11 }) {
     blood.update(state);
     items.update(state);
     stage.render();
+    for (const s of dying) s.dispose();                            // (the last street's, now the next's have their shaders)
+    dying.length = 0;
   }
   function lookOf(seed) {
     if (!looks.has(seed)) { looks.set(seed, passerby(seed, city).look); if (looks.size > 600) looks.delete(looks.keys().next().value); }
     return looks.get(seed);
   }
 
-  /** Free every section (a new game, a load). */
-  function clear() {
-    for (const s of sections.values()) { scene.remove(s.group); s.dispose(); }
+  /**
+   * Free every section (a new game, a load); on a street change (`later`), after the next frame's
+   * drawn: three frees a shader with the last material using it, and the next street's are the same
+   * shaders, so freeing the last street first had them all compiled again in that frame (60 ms).
+   */
+  const dying = [];
+  function clear(later = false) {
+    for (const s of sections.values()) { scene.remove(s.group); if (later) dying.push(s); else s.dispose(); }
     sections.clear();
-    for (const gen of building.values()) gen.return();
+    for (const b of building.values()) b.gen.return();
     building.clear();
+    if (!later) { for (const k of [...ahead.keys()]) drop(k); for (const gen of scrap.splice(0)) gen.return(); }
+    shadows();
   }
-  function dispose() { clear(); off.forEach(f => f()); stage.renderer.dispose(); stage.renderer.domElement.remove(); }
+  /** Done with the view (a new game makes its own): its GPU context given back, not left for the browser to cap. */
+  function dispose() { clear(); for (const s of dying.splice(0)) s.dispose(); off.forEach(f => f()); fogTex.dispose(); crowd.atlas.dispose(); stage.dispose(); }
 
   return { stage, frame, resize, clear, dispose, flush: () => build(Infinity), canvas: stage.renderer.domElement, get camera() { return cam; }, posOf: (id) => drawn.get(id),
     fogAt: (x, z) => { if (!fogO) return 1; const i = Math.floor(x / FOG_CELL_M) - fogO[0], j = Math.floor(z / FOG_CELL_M) - fogO[1]; return i >= 0 && i < FNX && j >= 0 && j < FNZ ? fogVal[j * FNX + i] : 0; } };

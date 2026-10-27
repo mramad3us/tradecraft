@@ -134,6 +134,9 @@ export function passerby(seed, city = 'moscow') {
     langs: P.langs(r),
     look: P.look(r, sex, age),
   });
+  // (how they'd do in a fight, 0–8: most never had a lesson; a stream of its own, so who they are doesn't change)
+  const q = stream('passerby-cqc', seed);
+  p.skills.cqc = [int(q, 4) + (chance(q, sex === 'm' ? 0.3 : 0.15) ? int(q, 5) : 0), 0];
   p.age = age;
   return p;
 }

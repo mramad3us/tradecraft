@@ -98,7 +98,7 @@ function launch(s, { hour = null } = {}) {
   });
   bus.on('cut', () => ui.flash());                                 // (a scene's cut to another time: sim/scenarios/dojo.js)
   bus.on('brief', (b) => ui.showBrief(b, () => {}, state.map?.city));
-  bus.on('map', () => { prev = new Map(); view.flush(); });         // the next street: no gliding there from the last
+  bus.on('map', () => { prev = new Map(); });                      // the next street: no gliding there from the last (the view builds what's on screen of it at once)
   start(state, bus);
   view.flush();                                                    // the street around you, before the first frame
   if (Number.isFinite(hour)) skip(state, bus, ((hour - hourOfDay(state.time.ms)) * HOUR % (24 * HOUR) + 24 * HOUR) % (24 * HOUR));

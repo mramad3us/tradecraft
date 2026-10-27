@@ -80,7 +80,7 @@ export function treat(state, bus, medicActor, patientActor, key) {
   const [method, arg] = key.split(':');
   const self = medicActor === patientActor, whose = self ? 'your' : `${patient.known === false ? patient.seen : patient.name.split(' ').slice(-1)[0]}'s`;
   const mods = [self && { why: 'on yourself', v: SELF_MOD }, oneHanded(medic) && { why: 'one-handed', v: ONE_HAND_MOD }].filter(Boolean);
-  const roll = (dc, extra = []) => check(state.rng, { skill: 'medicine', value: skill(medic, 'medicine'), dc, mods: [...mods, ...extra] });
+  const roll = (dc, extra = []) => check(state.rng, { skill: 'medicine', value: skill(medic, 'medicine'), body: medic, dc, mods: [...mods, ...extra] });
   // (a busy plan's wait is in ticks)
   const stoop = (s, what) => { medicActor.busy = { what, on: patientActor.id, steps: [['wait', Math.round(s * 1000 / TICK_MS), medicActor.face, 'crouch']], wait: 0, since: ms }; };
   if (method === 'pressure') {
