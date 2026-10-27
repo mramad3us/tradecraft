@@ -41,10 +41,12 @@ export function createUI({ input, cb }) {
   const bubble = el('div', { className: 'bubble', hidden: true });   // what a character's just become aware of: ? or !
   const intent = el('div', { className: 'intent', hidden: true });   // in a fight: what they're about to do, if we read it
   const bout = el('div', { className: 'bout', hidden: true });       // in a fight: the two of them, the score, the edges
+  const moves = el('div', { className: 'moves', hidden: true });    // in a fight: the three moves and their keys, while we choose
+  const states = [0, 1].map(() => el('div', { className: 'fstate', hidden: true }));   // staggered, dazed: over a fighter
   const tags = el('div', { className: 'tags' });                   // faces you've marked: seen before, a tail
   const goal = el('div', { className: 'goal', hidden: true });      // where you're going, when it's off the picture
   const prompt = el('div', { className: 'prompt', hidden: true });
-  const hud = el('div', { id: 'hud' }, tags, marker, bubble, intent, bout, goal, prompt, watch, toasts, keys, banner);
+  const hud = el('div', { id: 'hud' }, tags, marker, bubble, intent, ...states, bout, moves, goal, prompt, watch, toasts, keys, banner);
   const menu = el('div', { className: 'overlay', hidden: true });
   const log = el('div', { className: 'overlay', hidden: true });
   const paper = el('div', { className: 'overlay', hidden: true });     // a brief, a result
@@ -158,22 +160,47 @@ export function createUI({ input, cb }) {
       bubble.className = `bubble ${sc.mark.glyph === '!' ? 'alarm' : ''}`;
       bubble.style.transform = `translate(${Math.round(bx * k)}px, ${Math.round(by * k)}px)`;
     }
-    // A fight (sim/cqc.js): over the other one, what we read they're about to do (or a '?'), while
-    // we choose; at the top, the two of them, a bout's score, and the edges each holds.
-    const fi = !sc.outcome && state.fight, them = fi && state.actors.find(a => a.who === fi.b), ip = them && view?.posOf(them.id);
-    intent.hidden = !(ip && fi.phase === 'choose');
-    if (!intent.hidden) {
-      const k = frame.clientWidth / RES[0], cam = view.camera;
-      intent.textContent = fi.read ? { hit: 'HIT', grapple: 'GRAB', guard: 'COVER' }[fi.theirs.move] : '?';
-      intent.className = `intent ${fi.read ? 'read' : ''}`;
-      intent.style.transform = `translate(${Math.round((RES[0] / 2 + (ip[0] - cam.x) * 16) * k)}px, ${Math.round((RES[1] / 2 + (ip[1] - cam.z) * 16 - 3.0 * 16) * k)}px)`;
+    // A fight (sim/cqc.js): over the other one, what we read they're about to do (an icon and a word,
+    // brass; a '?' when we can't), while we choose; over either, staggered or dazed; at the top, the
+    // two of them, a bout's score and the edges each holds; at the foot, the three moves and their keys.
+    const fi = !sc.outcome && state.fight, sides = fi ? [state.actors.find(a => a.who === fi.a), state.actors.find(a => a.who === fi.b)] : [];
+    const kk = frame.clientWidth / RES[0], camF = view?.camera, over = (a, up) => { const p = a && view?.posOf(a.id); return p && camF && `translate(${Math.round((RES[0] / 2 + (p[0] - camF.x) * 16) * kk)}px, ${Math.round((RES[1] / 2 + (p[1] - camF.z) * 16 - up * 16) * kk)}px)`; };
+    const choosing = fi && fi.phase === 'choose' && fi.status?.a !== 'stunned';
+    const at = choosing && over(sides[1], 2.45);
+    intent.hidden = !at;
+    if (at) {
+      const m = fi.theirs.move, read = fi.read && m !== 'open', key = read ? m : '?';
+      if (intent.dataset.key !== key) {
+        intent.dataset.key = key;
+        intent.replaceChildren(...[read && el('img', { src: icon(m), alt: '' }), el('span', { textContent: read ? MOVE_WORD[m] : '?' })].filter(Boolean));
+        intent.className = `intent ${read ? 'read' : ''}`;
+      }
+      intent.style.transform = at;
     }
+    states.forEach((t, i) => {
+      const st = fi?.status?.[i ? 'b' : 'a'], at2 = st && over(sides[i], fi.phase === 'choose' && i === 1 ? 3.3 : 2.45);
+      t.hidden = !at2;
+      if (!at2) return;
+      t.textContent = st === 'stunned' ? 'DAZED' : 'STAGGERED';
+      t.className = `fstate ${st}`;
+      t.style.transform = at2;
+    });
     bout.hidden = !fi;
     if (fi) {
-      const pips = (n) => '◆'.repeat(n) || '·';
       const name = (who) => (who === state.player ? 'You' : state.people[who]?.name.split(' ').slice(-1)[0] ?? '?');
-      const txt = `${name(fi.a)} ${pips(fi.adv.a)}${fi.bout ? `   ${fi.score.a} – ${fi.score.b}   ` : '   ·   '}${pips(fi.adv.b)} ${name(fi.b)}`;
-      if (bout.textContent !== txt) bout.textContent = txt;
+      const key = `${name(fi.a)}|${fi.adv.a}|${fi.bout ? `${fi.score.a}:${fi.score.b}` : '-'}|${fi.adv.b}|${name(fi.b)}`;
+      if (bout.dataset.key !== key) {
+        bout.dataset.key = key;
+        const pips = (n, s) => el('span', { className: `pips ${s}`, title: 'edges' }, ...Array.from({ length: Math.max(n, 0) }, () => el('i')));
+        bout.replaceChildren(el('b', { textContent: name(fi.a) }), pips(fi.adv.a, 'a'),
+          el('span', { className: 'score', textContent: fi.bout ? `${fi.score.a} – ${fi.score.b}` : 'drill' }), pips(fi.adv.b, 'b'), el('b', { textContent: name(fi.b) }));
+      }
+    }
+    moves.hidden = !choosing;
+    if (choosing && moves.dataset.adv !== String(fi.adv.a)) {
+      moves.dataset.adv = String(fi.adv.a);
+      moves.replaceChildren(...['hit', 'grapple', 'guard'].map(m => el('div', { className: 'move' }, el('kbd', { textContent: input.label(m) }), el('img', { src: icon(m), alt: '' }), el('span', { textContent: MOVE_WORD[m].toLowerCase() }))),
+        ...(fi.adv.a ? [el('div', { className: 'move spend' }, el('kbd', { textContent: input.label('run') }), el('span', { textContent: `+ a key: spend an edge (${fi.adv.a})` }))] : []));
     }
     // The instinct: always a line, its tone in its border; {key} in the text shows as that key.
     // What's at hand (the engine's: sim/acts.js affordance()) ends a line that offers nothing itself.
@@ -192,6 +219,23 @@ export function createUI({ input, cb }) {
     }
   }
   // A line with {key} placeholders, the keys as this player has them (a prompt, a toast, the log).
+  // Pixel icons for the three moves: a fist, an open hand, a cover (12 × 12, '#' ink, 'o' the fill).
+  const MOVE_WORD = { hit: 'HIT', grapple: 'GRAB', guard: 'COVER' };
+  const ICONS = {
+    hit: ['....####....', '...#oooo##..', '..#oo#oo#o#.', '..#oo#oo#o#.', '..#oooooooo#', '..#oooooooo#', '..#ooooooo#.', '...#oooooo#.', '...#ooooo#..', '....#####...'],
+    grapple: ['..#.#.#.....', '.#o#o#o#....', '.#o#o#o#.#..', '.#o#o#o##o#.', '.#ooooooo#..', '.#ooooooo#..', '..#ooooo#...', '..#ooooo#...', '...#####....'],
+    guard: ['.##########.', '#oooooooooo#', '#ooo####ooo#', '#oooooooooo#', '.#oooooooo#.', '.#oooooooo#.', '..#oooooo#..', '...#oooo#...', '....####....'],
+  };
+  const iconCache = {};
+  function icon(name) {
+    if (iconCache[name]) return iconCache[name];
+    const rows = ICONS[name], cv = document.createElement('canvas');
+    cv.width = 12; cv.height = 12;
+    const g = cv.getContext('2d');
+    rows.forEach((row, y) => [...row].forEach((c, x) => { if (c === '.') return; g.fillStyle = c === '#' ? '#14151c' : '#f4efe6'; g.fillRect(x, y + Math.floor((12 - rows.length) / 2), 1, 1); }));
+    return (iconCache[name] = cv.toDataURL());
+  }
+
   const keyed = (text) => text.split(/(\{[a-z]+\})/).filter(Boolean).map(part => {
     const m = part.match(/^\{([a-z]+)\}$/);
     return m ? el('kbd', { textContent: input.label(m[1]) }) : el('span', { textContent: part });

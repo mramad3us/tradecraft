@@ -1,6 +1,6 @@
 // TRADECRAFT render: everyone on the map, in one draw.
 //
-// Each person's sprite sheet (src/art/sprites.js: 15 frames across, 4 facings down, a 24 × 34 cell)
+// Each person's sprite sheet (src/art/sprites.js: 29 frames across, 4 facings down, a 24 × 34 cell)
 // goes into a slot of one ATLAS_PX square atlas, the first time their look is seen; a slot whose look
 // has gone unseen longest is reused when the atlas is full. Everyone is then one instance of one
 // upright card (an InstancedMesh): per instance its place, its atlas cell (the slot plus the frame and
@@ -13,15 +13,15 @@
 // card turned on its side, its back to where they fell from (DOWN). Each card has a blob of shadow
 // under it (a second instanced draw), as in the samples.
 import * as THREE from 'three';
-import { frame, CELL, FRAMES, DIRS } from '../art/sprites.js';
+import { frame, CELL, FRAMES, DIRS, FIGHT_FRAMES } from '../art/sprites.js';
 import { PX_PER_M } from '../art/pixelart.js';
 
-export const ATLAS_PX = 2048;
+export const ATLAS_PX = 4096;                                       // (150 people's sheets of 29 frames)
 export const MAX_PEOPLE = 160;
 export const STEP_M = { walk: 0.16, run: 0.45 };            // (8 frames a second at an ordinary walk, as the samples)
 const SEAT = { y: 0.24, z: -0.2 };                                 // a sitter's card: up on the seat, back against it
-const DOWN = { y: 0.3, x: 1.05 };                                 // a card laid on its side: lifted off the floor, its middle over the spot
-const FIGHT = new Set(['guard', 'punch', 'grab', 'reel']);
+const DOWN = { y: 0.35, x: 0.9 };                                 // a card laid on its side: lifted off the floor, its middle over the spot
+const FIGHT = new Set(FIGHT_FRAMES);
 const [CW, CH] = CELL, SW = CW * FRAMES.length, SH = CH * DIRS.length;
 const COLS = Math.floor(ATLAS_PX / SW), ROWS = Math.floor(ATLAS_PX / SH);
 const INK = 0x14151c;
@@ -126,7 +126,7 @@ export function createCrowd(scene) {
       const sit = p.gait === 'sit';                                 // (a crouch is the same pose, on the ground)
       if (p.gait === 'down') {                                      // (on their back, the head away from whoever they faced)
         const s = p.face === 'left' ? -1 : 1;
-        m4.makeRotationZ(s * Math.PI / 2).setPosition(snap(p.x - s * DOWN.x), DOWN.y, snap(p.z));
+        m4.makeRotationZ(s * Math.PI / 2).setPosition(snap(p.x + s * DOWN.x), DOWN.y, snap(p.z));
       } else m4.makeTranslation(snap(p.x), sit ? SEAT.y : 0, snap(p.z + (sit ? SEAT.z : 0)));
       cards.setMatrixAt(i, m4);
       m4.makeTranslation(snap(p.x), 0.02, snap(p.z));

@@ -4,6 +4,20 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.37 (2026-10-26)
+
+- **The fight, faster and harder** (your asks). An exchange is quick now and lands:
+  - a wind-up, the strike with a step in, the moment of impact held a beat (0.15 s) while the picture jolts a pixel or three, the one struck knocked back by how hard it was, then reeling, staggering, or standing dazed;
+  - a throw puts you down beside your mark and you get up through a kneel (it used to drop you two metres off and pop you back);
+  - 0.45 s for an expert's blocked kick, nearly a second for a beginner thrown. No sparks.
+- **Techniques by level** (your ask): you still choose hit, grab or cover; how it comes out is your CQC.
+  - A beginner swings, slow and wide; then jabs, crosses, hooks and front kicks; experts elbows, knees, low kicks, a palm to the jaw, a kick to the head.
+  - A grab goes from a shove to a hip throw, a sweep, an arm lock, a choke; a cover from a block to a parry or a slip.
+  - Each with its own frame of animation (there are 18 fight frames now), its target and its weight.
+- **Staggered and dazed:** a heavy blow, a low kick, a shove, a parry or a slip leaves someone off balance (−3 next exchange, no reading anyone); a hard blow to the head, a palm, a head kick or a choke can daze them, and the next exchange they can't do anything. Hale will do it to you.
+- **The words:** every exchange told from many lines, by technique, outcome, the part hit and how hard; what you do to them as it looks, what they do to you as it feels ("Your ribs light up", "Lights go off behind your eyes").
+- **The indications:** over your opponent, what you read as a pixel icon and a word (a fist, an open hand, a cover), or a ?; STAGGERED and DAZED over whoever is; the header with both names, the score and each one's edges as brass diamonds; the three moves and their keys at the foot of the picture while you choose.
+
 ## v0.0.36 (2026-10-26)
 
 - **What's at hand is the game's, not the scene's** (your ask): in the free walk, tailing and being tailed alike, the instinct's line ends with what you can do where you stand (look in the shop window, sit on a free seat, cross at the zebra) and T does it. A scene still offers its own moves first (sit down with SOLOVEY, call it off, a shoelace as he looks back). Being tailed now offers benches, which it never did; sitting is a quiet way to check your back.

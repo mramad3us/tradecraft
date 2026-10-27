@@ -24,18 +24,69 @@
 // play against what you lean on: they keep count of your last moves (SEEN_MOVES) and, ADAPT_PER_CQC a
 // point of CQC (at most ADAPT_MAX), pick what beats the move you've made most. A scripted fight (a
 // drill: f.script) takes its moves in turn, and may show them (f.tell).
+// **Techniques** (the user, 2026-10-26: "we could also hit with other body parts depending on the
+// CQC level, beginners would only punch"; the list and the levels my call): how a move is done is the
+// fighter's level, not a choice (TECHNIQUES). Under 7 CQC a hit is a swing, slow to come; then jabs
+// and crosses, hooks, a front kick; past 17 elbows and knees, low kicks, a palm to the jaw; past 26 a
+// kick to the head. A grab is a shove at first, then a hip throw, a sweep, an arm lock, a choke. A
+// cover is a block, then a parry or a slip, which can leave the attacker off balance. Each has its
+// targets, its weight (k), how long it takes to come (wind: the picture's, sim/cqcshow.js), and what
+// it can do besides hurt.
+// **Staggered, stunned** (the user: "string opponents would also be able to stagger, stun"): a blow
+// that takes STAGGER_AT of what a part can take in one go, or a low kick, a parry, a slip, a shove,
+// leaves someone staggered for the next exchange (STAGGER_MOD to their CQC, and no reading anyone);
+// one to the head that takes STUN_AT, or a palm, a head kick, a choke, may stun them: the next
+// exchange they do nothing at all (the move 'open'), and whatever comes at them lands.
 // **The end.** A bout (sparring: f.bout) pulls its blows (BOUT_K the damage; a drill's f.pull, less)
-// and is scored, a hit a point and a throw two, first to f.to; it's stopped sooner if a head or a
-// torso is wounded (f.stop). A real fight ends when someone can't go on: out cold, down, or unable to
-// stand (sim/health.js).
+// and is scored, a hit or a shove a point and a throw, a lock or a choke two, first to f.to; it's
+// stopped sooner if a head or a torso is wounded (f.stop). A real fight ends when someone can't go on:
+// out cold, down, or unable to stand (sim/health.js).
 import { skill } from './skills.js';
 import { opposed } from './checks.js';
 import { int, chance, weighted } from './rng.js';
-import { hurt, stateOf, mods as hurtMods, canGrapple, canStand } from './health.js';
+import { hurt, stateOf, takes, mods as hurtMods, canGrapple, canStand } from './health.js';
 
 export const MOVES = ['hit', 'grapple', 'guard'];
 export const BEATS = { guard: 'hit', hit: 'grapple', grapple: 'guard' };   // each beats the one it names
 const BEATEN_BY = { hit: 'guard', grapple: 'hit', guard: 'grapple' };
+export const STAGGER_AT = 0.3;
+export const STUN_AT = 0.35;
+export const STAGGER_MOD = -3;
+const LEGS = { legL: 50, legR: 50 }, ARMS = { armL: 50, armR: 50 };
+/** How each move is done, by CQC (from … below): pose (the picture's), at (where it lands), k, wind, and what else it does. */
+export const TECHNIQUES = {
+  hit: [
+    { id: 'swing', below: 7, pose: 'swing', at: { head: 40, torso: 50, armL: 5, armR: 5 }, k: 1, wind: 3 },
+    { id: 'jab', from: 6, pose: 'punch', at: { head: 60, torso: 36, armL: 2, armR: 2 }, k: 0.85, wind: 1 },
+    { id: 'cross', from: 8, pose: 'punch', at: { head: 55, torso: 45 }, k: 1.1, wind: 2 },
+    { id: 'hook', from: 11, pose: 'hook', at: { head: 75, torso: 25 }, k: 1.2, wind: 2 },
+    { id: 'kick', from: 13, pose: 'kick', at: { torso: 76, legL: 12, legR: 12 }, k: 1.2, wind: 2 },
+    { id: 'elbow', from: 17, pose: 'elbow', at: { head: 85, torso: 15 }, k: 1.4, wind: 1 },
+    { id: 'knee', from: 17, pose: 'knee', at: { torso: 80, head: 20 }, k: 1.4, wind: 1 },
+    { id: 'lowkick', from: 19, pose: 'lowkick', at: LEGS, k: 1.1, wind: 1, stagger: 0.7 },
+    { id: 'palm', from: 22, pose: 'punch', at: { head: 90, torso: 10 }, k: 1.1, wind: 1, stun: 0.25 },
+    { id: 'roundhouse', from: 26, pose: 'highkick', at: { head: 80, torso: 20 }, k: 1.7, wind: 2, stun: 0.35 },
+  ],
+  grapple: [
+    { id: 'shove', below: 9, pose: 'grab', at: { torso: 1 }, k: 0.6, stagger: 1, pts: 1 },
+    { id: 'hip', from: 9, pose: 'throw', at: { torso: 1 }, k: 1, down: true, pts: 2 },
+    { id: 'sweep', from: 14, pose: 'sweep', at: { torso: 70, ...{ legL: 15, legR: 15 } }, k: 1, down: true, pts: 2 },
+    { id: 'armlock', from: 21, pose: 'grab', at: ARMS, k: 1.5, pts: 2 },
+    { id: 'choke', from: 27, pose: 'grab', at: { head: 1 }, k: 0.8, stun: 0.5, pts: 2 },
+  ],
+  guard: [
+    { id: 'block', pose: 'guard' },
+    { id: 'parry', from: 12, pose: 'parry', stagger: 0.4 },
+    { id: 'slip', from: 20, pose: 'slip', stagger: 0.6 },
+  ],
+};
+
+/** The technique a fighter of this CQC does a move with: one of what they know, the newer the likelier. */
+export function technique(r, move, cqc) {
+  const known = (TECHNIQUES[move] ?? []).filter(t => (t.from ?? 0) <= cqc && (t.below ?? Infinity) > cqc);
+  if (!known.length) return null;
+  return weighted(r, known.map(t => [t, 1 + Math.max(0, Math.min(10, cqc - (t.from ?? 0))) / 10]));
+}
 export const HIT_PTS = [2, 5];
 export const EDGE_PER_PT = 5;                                      // a point more damage for each 5 of CQC over
 export const CLEAN_K = 1.5;
@@ -65,21 +116,24 @@ export const advMax = (state, who) => Math.max(1, Math.floor(cqcOf(state, who) /
  * Returns the fight (state.fight), its first exchange prepared.
  */
 export function startFight(state, a, b, { bout = false, to = 3, style = 'even', script = null, tell = false, pull = bout ? BOUT_K : 1, stop = bout } = {}) {
-  const f = state.fight = { a, b, bout, to, style, script, tell, pull, stop, round: 0, adv: { a: 0, b: 0 }, score: { a: 0, b: 0 }, seen: [], theirs: null, read: false, last: null, ended: null, phase: 'choose' };
+  const f = state.fight = { a, b, bout, to, style, script, tell, pull, stop, round: 0, adv: { a: 0, b: 0 }, score: { a: 0, b: 0 }, status: { a: null, b: null }, seen: [], theirs: null, read: false, last: null, ended: null, phase: 'choose' };
   prepare(state, f);
   return f;
 }
 
-/** The chance a fights b's intent: READ_PER_PT a point of CQC over theirs. */
-export const readChance = (state, a, b) => Math.min(READ_MAX, Math.max(0, cqcOf(state, a) - cqcOf(state, b)) * READ_PER_PT);
+/** The chance a fights b's intent: READ_PER_PT a point of CQC over theirs (none, staggered or stunned). */
+export const readChance = (state, a, b, f = state.fight) => {
+  const s = f && (a === f.a ? f.status?.a : a === f.b ? f.status?.b : null);
+  return s ? 0 : Math.min(READ_MAX, Math.max(0, cqcOf(state, a) - cqcOf(state, b)) * READ_PER_PT);
+};
 
-/** The next exchange: their move (and whether they'll spend a point), and whether we read it. */
+/** The next exchange: their move (and whether they'll spend a point), and whether we read it. A stunned fighter does nothing. */
 export function prepare(state, f) {
   const r = state.rng;
-  const move = f.script ? f.script[f.round % f.script.length] : choose(state, f);
-  const spend = f.adv.b > 0 && !f.script && chance(r, move === 'hit' ? 0.5 : 0.25);
+  const move = f.status?.b === 'stunned' ? 'open' : f.script ? f.script[f.round % f.script.length] : choose(state, f);
+  const spend = move !== 'open' && f.adv.b > 0 && !f.script && chance(r, move === 'hit' ? 0.5 : 0.25);
   f.theirs = { move, spend };
-  f.read = f.tell || chance(r, readChance(state, f.a, f.b));
+  f.read = move === 'open' || f.tell || chance(r, readChance(state, f.a, f.b, f));
 }
 
 /** Their choice: their style's mix, turned against what we lean on the better they fight. */
@@ -96,63 +150,82 @@ export function choose(state, f) {
   return weighted(r, MOVES.filter(allowed).map(m => [m, mix[m]]));
 }
 
-/** Where a hit lands (clean: the head more often). */
-function partHit(r, clean) {
-  return weighted(r, Object.entries(HIT_AT).map(([k, w]) => [k, k === 'head' && clean ? w * 1.5 : w]));
+/** Where a blow lands: the technique's targets (clean: the head more often). */
+function partHit(r, at, clean) {
+  return weighted(r, Object.entries(at ?? HIT_AT).map(([k, w]) => [k, k === 'head' && clean ? w * 1.5 : w]));
 }
 
 /**
  * Our move ({ move, spend }) against theirs: the exchange, resolved. Returns what happened, for the
- * log and the picture: { ours, theirs, kind ('blocked' | 'landed' | 'thrown' | 'circle' | 'fended' |
- * 'absorbed'), by ('a' | 'b' | null: who came out on top), part, dmg, roll, spent: { a, b }, gained }.
+ * log and the picture: { ours, theirs (moves, 'open' for someone stunned), tech: { a, b } (how each
+ * did it), kind ('blocked' | 'landed' | 'thrown' | 'shoved' | 'locked' | 'choked' | 'circle' |
+ * 'fended' | 'absorbed'), by ('a' | 'b' | null: who came out on top), part, dmg, force (the blow, as a
+ * share of what the part can take), roll, spent: { a, b }, gained, status: { a, b } (staggered or
+ * stunned by it, for the next exchange) }.
  */
 export function resolve(state, f, ours) {
   const r = state.rng, A = state.people[f.a], B = state.people[f.b];
-  const moves = { a: ours.move === 'grapple' && !canGrapple(A) ? 'guard' : ours.move, b: f.theirs.move };
+  const was = { ...f.status };
+  const moves = { a: was.a === 'stunned' ? 'open' : ours.move === 'grapple' && !canGrapple(A) ? 'guard' : ours.move, b: f.theirs.move };
   // (the better one, if it's them, may see ours coming and answer it)
   const answer = BEATEN_BY[moves.a];
-  if (!f.script && (answer !== 'grapple' || canGrapple(B)) && chance(r, readChance(state, f.b, f.a))) { moves.b = answer; f.theirs.read = true; }
-  const wants = { a: !!ours.spend && f.adv.a > 0, b: !!f.theirs.spend && f.adv.b > 0 };
-  const out = { round: f.round, ours: moves.a, theirs: moves.b, kind: 'circle', by: null, part: null, dmg: 0, roll: null, spent: { a: false, b: false }, gained: null, read: f.read };
-  // Who comes out on top: the triangle, or, the same move both ways, the dice.
+  if (moves.b !== 'open' && moves.a !== 'open' && !f.script && (answer !== 'grapple' || canGrapple(B)) && chance(r, readChance(state, f.b, f.a, f))) { moves.b = answer; f.theirs.read = true; }
+  const tech = { a: technique(r, moves.a, cqcOf(state, f.a)), b: technique(r, moves.b, cqcOf(state, f.b)) };
+  const wants = { a: !!ours.spend && f.adv.a > 0 && moves.a !== 'open', b: !!f.theirs.spend && f.adv.b > 0 };
+  const out = { round: f.round, ours: moves.a, theirs: moves.b, tech: { a: tech.a?.id ?? null, b: tech.b?.id ?? null }, kind: 'circle', by: null, part: null, dmg: 0, force: 0, roll: null,
+    spent: { a: false, b: false }, gained: null, read: f.read, status: { a: null, b: null }, was };
+  f.status = { a: null, b: null };
+  // Who comes out on top: the triangle (someone stunned loses to anything but a cover), or, the same move both ways, the dice.
   let by = null;
-  if (moves.a !== moves.b) by = BEATS[moves.a] === moves.b ? 'a' : 'b';
+  if (moves.a === 'open' || moves.b === 'open') by = moves.a === moves.b ? null : moves.a === 'open' ? (moves.b === 'guard' ? null : 'b') : (moves.a === 'guard' ? null : 'a');
+  else if (moves.a !== moves.b) by = BEATS[moves.a] === moves.b ? 'a' : 'b';
   else if (moves.a !== 'guard') {
-    const roll = opposed(r, { skill: 'cqc', value: cqcOf(state, f.a), mods: hurtMods(A, 'cqc') }, { skill: 'cqc', value: cqcOf(state, f.b), mods: hurtMods(B, 'cqc') });
+    const off = (s) => (was[s] === 'staggered' ? [{ why: 'off balance', v: STAGGER_MOD }] : []);
+    const roll = opposed(r, { skill: 'cqc', value: cqcOf(state, f.a), mods: [...hurtMods(A, 'cqc'), ...off('a')] }, { skill: 'cqc', value: cqcOf(state, f.b), mods: [...hurtMods(B, 'cqc'), ...off('b')] });
     out.roll = roll;
     by = roll.ok ? 'a' : 'b';
   }
   out.by = by;
   if (by) {
-    const win = moves[by], lose = moves[other(by)], w = by, l = other(by);
-    const W = by === 'a' ? f.a : f.b, L = by === 'a' ? f.b : f.a;
-    if (win === 'guard') {                                          // a hit, guarded
+    const win = moves[by], lose = moves[other(by)], w = by, l = other(by), T = tech[w];
+    const W = by === 'a' ? f.a : f.b, L = by === 'a' ? f.b : f.a, LP = state.people[L];
+    if (win === 'guard') {                                          // a hit, guarded (parried, slipped: off balance, perhaps)
       out.kind = 'blocked';
       if (f.adv[w] < advMax(state, W)) { f.adv[w]++; out.gained = w; }
-    } else if (win === 'grapple') {                                 // a throw (a guard, or the other's grapple, beaten)
+      if (T?.stagger && chance(r, T.stagger)) out.status[l] = 'staggered';
+    } else if (win === 'grapple') {                                 // a throw, a shove, a lock, a choke
       if (lose === 'guard' && wants[l]) { f.adv[l]--; out.spent[l] = true; out.kind = 'fended'; }
       else {
-        out.kind = 'thrown'; out.part = 'torso';
-        out.dmg = damage(state, f, int(r, THROW_PTS[1] - THROW_PTS[0] + 1) + THROW_PTS[0], W, L);
+        out.part = partHit(r, T?.at ?? { torso: 1 }, false);
+        out.kind = T?.down ? 'thrown' : T?.id === 'shove' ? 'shoved' : T?.id === 'armlock' ? 'locked' : T?.id === 'choke' ? 'choked' : 'thrown';
+        out.dmg = damage(state, f, (int(r, THROW_PTS[1] - THROW_PTS[0] + 1) + THROW_PTS[0]) * (T?.k ?? 1), W, L);
+        if (T?.stagger) out.status[l] = 'staggered';
       }
-    } else {                                                        // a hit lands (on a grapple, or the other's hit beaten)
-      const clean = lose === 'grapple';
-      out.part = partHit(r, clean);
+    } else {                                                        // a blow lands (on someone grabbing, or open, or the other's hit beaten)
+      const clean = lose === 'grapple' || lose === 'open';
+      out.part = partHit(r, T?.at, clean);
       if (lose === 'grapple' && wants[l]) { f.adv[l]--; out.spent[l] = true; out.kind = 'absorbed'; }
       else {
-        let pts = int(r, HIT_PTS[1] - HIT_PTS[0] + 1) + HIT_PTS[0];
+        let pts = (int(r, HIT_PTS[1] - HIT_PTS[0] + 1) + HIT_PTS[0]) * (T?.k ?? 1);
         if (clean) pts *= CLEAN_K;
         if (wants[w]) { f.adv[w]--; out.spent[w] = true; pts *= 2; }
         out.kind = 'landed';
         out.dmg = damage(state, f, pts, W, L);
+        if (T?.stagger && chance(r, T.stagger)) out.status[l] = 'staggered';
       }
     }
     if (out.dmg) {
-      hurt(state.people[L], out.part, out.dmg);
-      if (f.bout) f.score[w] += out.kind === 'thrown' ? 2 : 1;
+      out.force = Math.round(out.dmg / takes(LP, out.part) * 100) / 100;
+      hurt(LP, out.part, out.dmg);
+      // A heavy blow staggers; a hard one to the head, or a technique that's made for it, may stun.
+      if (!out.status[l] && out.force >= STAGGER_AT) out.status[l] = 'staggered';
+      const stun = (out.part === 'head' && out.force >= STUN_AT ? 0.5 : 0) + (T?.stun ?? 0);
+      if (stun && chance(r, Math.min(0.9, stun))) out.status[l] = 'stunned';
+      if (f.bout) f.score[w] += T?.pts ?? (out.kind === 'thrown' ? 2 : 1);
     }
   }
-  f.seen.push(moves.a); if (f.seen.length > SEEN_MOVES) f.seen.shift();
+  f.status = out.status;
+  if (moves.a !== 'open') { f.seen.push(moves.a); if (f.seen.length > SEEN_MOVES) f.seen.shift(); }
   f.last = out;
   f.round++;
   f.ended = ended(state, f);

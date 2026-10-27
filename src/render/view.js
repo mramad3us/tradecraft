@@ -18,6 +18,7 @@
 //     a card in front of the player that would hide them is seen through;
 //   - the camera follows the focus (the player), clamped to the map, snapped to the pixel grid, and
 //     the sun's shadow camera moves with it in whole texels of its map, so shadows never shimmer;
+//   - in a fight, a blow landing jolts the picture a pixel to three, the way it went, for SHAKE_TICKS;
 //   - what the player's character is aware of (sim/perception.js): a mask on the ground, FOG_CELL_M
 //     cells over the view, each the visibility of its spot from the player's eyes (the cone, the
 //     radius of awareness, a shop window's glass, the light, the walls in the way). A building takes the visibility of its
@@ -43,6 +44,7 @@ export const RES = [640, 360];
 export const LAMP_SLOTS = 10;
 export const BUILD_MS = 6;
 export const FOG_CELL_M = 0.5;
+export const SHAKE_TICKS = 4;
 // (deep to the south: a facade whose foot is well below the picture shows its upper floors in it)
 export const FOG_N = [96, 128];                                    // cells: 48 × 64 m round the camera
 const FOG_AT = [-24, -18];                                         // the mask's corner from the camera, m
@@ -212,7 +214,10 @@ export function createView({ parent, bus }) {
       if (state.map.i0 !== null) x = Math.max(state.map.i0 * SECTION_M + halfW, Math.min((state.map.i1 + 1) * SECTION_M - halfW, x));
       // (in the hall: the near sill at the picture's foot, the back wall in it)
       const cz = state.map.kind === 'dojo' ? [Z_BACK + 3, Z_FRONT + 0.4 - stage.H / PX_PER_M / 2] : camZ;
-      look(x, Math.max(cz[0], Math.min(Math.max(cz[0], cz[1]), fz)));
+      // (a blow landing: the picture jolts a pixel or three, the way the blow went, and settles: sim/cqcshow.js)
+      const imp = state.fight?.impact, since = imp ? state.tick - imp.tick + alpha : 99;
+      const jolt = since < SHAKE_TICKS ? Math.round((1 + 2 * Math.min(1, imp.force / 0.4)) * (1 - since / SHAKE_TICKS)) * (Math.floor(since * 2) % 2 ? -1 : 1) * (imp.side === 'b' ? 1 : -1) / PX_PER_M : 0;
+      look(x + jolt, Math.max(cz[0], Math.min(Math.max(cz[0], cz[1]), fz)) + Math.abs(jolt) * 0.5);
     }
     // The light.
     hemi.color.setHex(S.sky); hemi.groundColor.setHex(S.ground); hemi.intensity = S.skyK * Math.PI;

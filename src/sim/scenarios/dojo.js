@@ -19,16 +19,14 @@ import { pick, int } from '../rng.js';
 import { follow } from '../crowd.js';
 import { headOf } from '../perception.js';
 import { dojo as hall, FIGHT, SPOTS } from '../map/dojo.js';
-import { startFight, resolve, readChance, cqcOf, advMax, MOVES } from '../cqc.js';
+import { startFight, resolve, cqcOf, MOVES } from '../cqc.js';
+import { exchangeText } from '../cqctext.js';
+import { animate, length } from '../cqcshow.js';
 import { stateText, stateOf, PARTS } from '../health.js';
 
 const TPS = 1000 / TICK_MS;
-export const SHOW_S = 0.9;                                         // an exchange, played out, before the next choice
 export const HALE_PULL = 0.25;                                     // Hale's blows in a bout (a classmate's: cqc.js BOUT_K)
 
-const PART_TEXT = { head: 'the head', torso: 'the body', armL: 'the left arm', armR: 'the right arm', legL: 'the left leg', legR: 'the right leg' };
-const MOVE_TEXT = { hit: 'hits', grapple: 'goes for a grab', guard: 'covers up' };
-const KEY_OF = { hit: '{hit}', grapple: '{grapple}', guard: '{guard}' };
 
 // The lesson, step by step. need(out, f): whether an exchange counts toward n; or a bout (to: points).
 const STEPS = [
@@ -36,11 +34,11 @@ const STEPS = [
     lines: ['“Three things you can do with your hands. Hit, grab, cover. Everything else is decoration.”', '“I\'m going to hit you. Cover up.”'],
     hint: 'Hale\'s going to hit. {guard} cover.', miss: ['“Cover means cover.”', '“That would have been your nose.”'],
     done: '“Good. A punch you cover is an opening you\'ve earned: that\'s an edge. Remember it.”' },
-  { id: 'grapple', with: 'hale', fight: { script: ['guard'], tell: true, pull: 0.2 }, n: 2, need: (o) => o.kind === 'thrown' && o.by === 'a',
+  { id: 'grapple', with: 'hale', fight: { script: ['guard'], tell: true, pull: 0.2 }, n: 2, need: (o) => o.by === 'a' && o.ours === 'grapple',
     lines: ['“Now I\'m covering. Someone behind their hands can still be put on the floor. Grab me.”'],
     hint: 'Hale\'s covering. {grapple} grab.', miss: ['“Punching my forearms. Very satisfying for my forearms.”', '“Grab. Hands on cloth, hip in, and down I go.”'],
     done: '“And down I go. Cover beats a hit; a grab beats cover.”' },
-  { id: 'hit', with: 'hale', fight: { script: ['grapple'], tell: true, pull: 0.2 }, n: 2, need: (o) => o.kind === 'landed' && o.by === 'a',
+  { id: 'hit', with: 'hale', fight: { script: ['grapple'], tell: true, pull: 0.2 }, n: 2, need: (o) => o.by === 'a' && o.ours === 'hit',
     lines: ['“Now I\'m coming in to grab you. Hit me before I get hold.”'],
     hint: 'Hale\'s coming in to grab. {hit} hit.', miss: ['“I\'ve got hold of you. Now what?”', '“Hit me first. Someone reaching has no hands to cover with.”'],
     done: '“A hit beats a grab: hands reaching aren\'t covering. Cover, grab, hit: that\'s the triangle. All of it.”' },
@@ -124,9 +122,9 @@ export const dojoScenario = {
   act(state, bus, action) {
     const sc = state.scenario, f = state.fight, me = playerOf(state);
     if (sc.outcome || !me) return;
-    const move = action.replace('+', '');
+    const move = String(action).replace('+', '');
     if (MOVES.includes(move)) {
-      if (!f || f.phase !== 'choose') return;
+      if (!f || f.phase !== 'choose' || f.status?.a === 'stunned') return;
       exchange(state, bus, { move, spend: action.endsWith('+') });
       return;
     }
@@ -145,10 +143,11 @@ export const dojoScenario = {
       const me = playerOf(state), them = actorOfWho(state, sc.with);
       if (!me.busy && !them.ai.steps.length) begin(state, bus);
     }
-    // An exchange played out: the next choice, or the end.
+    // An exchange played out: the next choice (dazed, there's none: it comes at you), or the end.
     if (f && f.phase === 'show' && state.tick >= sc.show) {
       if (f.ended) return finishBout(state, bus);
       f.phase = 'choose';
+      if (f.status.a === 'stunned') exchange(state, bus, { move: 'open' });
     }
     poses(state);
     sc.prompt = instinct(state);                                    // (every tick: a fight's choice comes with time stopped)
@@ -209,6 +208,7 @@ function begin(state, bus) {
   const opts = step.bout ? { bout: true, to: step.bout, stop: true, pull: step.with === 'hale' ? HALE_PULL : undefined, style: step.with === 'hale' ? 'even' : pick(state.rng, ['striker', 'wrestler', 'careful', 'even']) } : { ...step.fight };
   const f = startFight(state, state.player, sc.with, opts);
   if (step.fight?.adv) f.adv.a = step.fight.adv;
+  f.marks = { a: { x: FIGHT.x - FIGHT.gap / 2, z: FIGHT.z }, b: { x: FIGHT.x + FIGHT.gap / 2, z: FIGHT.z } };
   f.phase = 'choose';
   sc.phase = 'fight';
 }
@@ -217,10 +217,10 @@ function begin(state, bus) {
 function exchange(state, bus, ours) {
   const sc = state.scenario, f = state.fight, step = STEPS[sc.step], who = sc.with;
   const out = resolve(state, f, ours);
-  say(state, bus, { kind: out.roll ? 'roll' : 'note', roll: out.roll ?? undefined, text: tell(state, who, out) });
+  say(state, bus, { kind: out.roll ? 'roll' : 'note', roll: out.roll ?? undefined, text: exchangeText(out, short(state, who), state.people[who], state.map.seed) });
   f.phase = 'show';
   f.shown = state.tick;
-  sc.show = state.tick + Math.round(SHOW_S * TPS);
+  sc.show = state.tick + length(state, f, out);
   if (step.bout) return;
   if (step.need(out, f)) {
     if (++sc.count >= step.n) { f.ended = { by: 'a', why: 'drill' }; return; }
@@ -230,28 +230,12 @@ function exchange(state, bus, ours) {
   }
 }
 
-/** The exchange in words: who did what, and what came of it. */
-function tell(state, who, o) {
-  const them = short(state, who), dmg = (p) => (o.dmg ? ` To ${PART_TEXT[o.part]}: ${stateText(state.people[p], o.part)}.` : '');
-  const us = o.by === 'a', theirLine = `${them} ${MOVE_TEXT[o.theirs]}`;
-  const yours = { hit: 'you hit', grapple: 'you go for a grab', guard: 'you cover' }[o.ours];
-  switch (o.kind) {
-    case 'circle': return `${theirLine}; ${yours}. You circle.`;
-    case 'blocked': return us ? `${theirLine}; ${yours}, and take it on the forearms.${o.gained === 'a' ? ' An edge to you.' : ''}` : `${yours}; ${them} covers, and your fist finds forearms.${o.gained === 'b' ? ` An edge to ${them}.` : ''}`;
-    case 'landed': return us ? `${theirLine}; ${yours}, and it lands.${o.spent.a ? ' Your edge spent: double.' : ''}${dmg(who)}` : `${theirLine}; ${yours}, and it lands on you.${o.spent.b ? ` ${them}'s edge spent: double.` : ''}${dmg(state.player)}`;
-    case 'thrown': return us ? `${theirLine}; ${yours}, hip in, and ${them} goes over onto the mat.${dmg(who)}` : `${theirLine}; ${yours}, and the mat comes up to meet you.${dmg(state.player)}`;
-    // (an edge spent by whoever lost the move: the one who covered against a grab, or grabbed into a punch)
-    case 'fended': return !us ? `${them} goes for the throw; you spend your edge and break the grip.` : `You go for the throw; ${them} breaks your grip, an edge spent.`;
-    case 'absorbed': return !us ? `${them} hits as you go in; you take it and keep coming, your edge spent.` : `You hit as ${them} comes in; ${them} takes it and keeps coming, an edge spent.`;
-  }
-  return `${theirLine}; ${yours}.`;
-}
-
 /** A fight over: a drill done, or a bout won or lost. */
 function finishBout(state, bus) {
   const sc = state.scenario, f = state.fight, step = STEPS[sc.step], who = sc.with;
   state.fight = null;
   sc.phase = 'ready';
+  for (const a of [playerOf(state), actorOfWho(state, who)]) if (a) a.gait = 'idle';
   if (step.bout) {
     const won = f.ended.by === 'a';
     sc.bouts.push({ id: step.id, name: short(state, who), won, score: { ...f.score }, why: f.ended.why });
@@ -270,24 +254,11 @@ function over(state, bus) {
   bus?.emit('scenario-end', sc.outcome);
 }
 
-// ---------- the picture: poses through an exchange ----------
+// ---------- the picture: the exchange played out (sim/cqcshow.js) ----------
 
-const POSE = { hit: 'punch', grapple: 'grab', guard: 'guard' };
 function poses(state) {
   const f = state.fight;
-  if (!f) return;
-  const sides = { a: playerOf(state), b: actorOfWho(state, f.b) };
-  const o = f.last, k = state.tick - (f.shown ?? 0);
-  for (const s of ['a', 'b']) {
-    const a = sides[s];
-    if (!a) continue;
-    a.vx = a.vz = 0;
-    a.face = s === 'a' ? 'right' : 'left'; a.head = headOf(a.face);
-    if (f.phase !== 'show' || !o) { a.gait = 'guard'; continue; }
-    const move = s === 'a' ? o.ours : o.theirs, lost = o.by && o.by !== s;
-    a.gait = k < 5 ? 'guard' : POSE[move];
-    if (lost && k >= 8 && o.dmg) a.gait = o.kind === 'thrown' ? 'down' : 'reel';
-  }
+  if (f) animate(state, f, { a: playerOf(state), b: actorOfWho(state, f.b) });
 }
 
 // ---------- the instinct: what to do now ----------
@@ -298,6 +269,6 @@ function instinct(state) {
   if (sc.phase === 'ready') return sc.step < 0 ? L('start', 'note', 'Hale is waiting. {instinct} step onto the mat.', 'next') : L('next', 'note', STEPS[sc.step + 1] ? 'Catch your breath. {instinct} when you\'re ready for the next.' : 'That\'s the lesson. {instinct} to finish.', 'next');
   if (sc.phase === 'walk') return L('walk', 'calm', 'Onto the mat.');
   if (!f) return L('wait', 'calm', 'Wait for Hale.');
-  const edge = f.adv.a ? ` · hold {run} to spend an edge (${f.adv.a})` : '';
-  return L(`choose-${f.round}`, step.bout ? 'warn' : 'note', `${fill(state, sc.with, step.hint)}${step.bout ? `   ${f.score.a}–${f.score.b}` : ''}   {hit} hit · {grapple} grab · {guard} cover${edge}`);
+  if (f.status?.a === 'stunned') return L('dazed', 'urgent', 'You\'re dazed. Your hands won\'t come up, and whatever comes, you can\'t stop it.');
+  return L(`choose-${f.round}`, step.bout ? 'warn' : 'note', `${fill(state, sc.with, step.hint)}`);
 }

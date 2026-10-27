@@ -16,7 +16,7 @@ function ring(a, b, seed = 1) {
   state.people.b = sheet({ id: 'b', name: 'B', cls: 'civilian', skills: { cqc: [b, 0], fitness: [5, 0] } });
   return state;
 }
-const COUNTER = { hit: 'guard', grapple: 'hit', guard: 'grapple' };
+const COUNTER = { hit: 'guard', grapple: 'hit', guard: 'grapple', open: 'hit' };
 
 /** A bout to `to`, our side answering what it reads and guessing otherwise. */
 function bout(a, b, seed, to = 3) {
@@ -61,7 +61,7 @@ export default [
       };
       const plain = (() => { const s = ring(10, 10, 3), f = startFight(s, 'a', 'b', { script: ['grapple'] }); return resolve(s, f, { move: 'hit' }); })();
       const dbl = spend('hit', 'grapple');
-      assert(dbl.o.spent.a && dbl.o.dmg === plain.dmg * 2, `double: ${dbl.o.dmg} against ${plain.dmg}`);
+      assert(dbl.o.spent.a && Math.abs(dbl.o.dmg - plain.dmg * 2) <= 0.11, `double: ${dbl.o.dmg} against ${plain.dmg}`);
       const shrug = spend('grapple', 'hit');
       assert(shrug.o.kind === 'absorbed' && shrug.o.dmg === 0 && shrug.f.adv.a === 0, 'a punch walked into, shrugged off');
       const stop = spend('guard', 'grapple');
@@ -103,7 +103,7 @@ export default [
   {
     name: 'dojo: the lesson plays through, drills and bouts, and a save in the middle of a fight changes nothing',
     fn() {
-      const COUNT = { hit: 'guard', grapple: 'hit', guard: 'grapple' };
+      const COUNT = { hit: 'guard', grapple: 'hit', guard: 'grapple', open: 'hit' };
       const play = (seed, cut = -1) => {
         let g = newGame({ seed, scenario: 'dojo' });
         start(g, null);

@@ -167,3 +167,23 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .bout { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: var(--hud); padding: 5px 14px; border-radius: 4px;
   font: 13px var(--type); color: var(--paper); white-space: pre; letter-spacing: 0.04em; }
 .bout[hidden] { display: none; }
+
+/* The fight, polished: the read as a badge with the move's pixel icon; STAGGERED and DAZED over a
+   fighter; the header's edges as brass pips; the three moves at the foot while you choose. */
+.intent { display: flex; align-items: center; gap: 4px; padding: 2px 6px 2px 3px; }
+.intent img, .moves img { width: 18px; height: 18px; image-rendering: pixelated; }
+.intent:not(.read) { padding: 1px 7px; font-size: 13px; }
+.fstate { position: absolute; left: 0; top: 0; transform-origin: 0 0; translate: -50% -100%; padding: 1px 5px; font: bold 10px var(--type); letter-spacing: 0.12em;
+  background: #c95c45; color: var(--paper); border: 1px solid var(--ink); border-radius: 2px; pointer-events: none; }
+.fstate.stunned { background: var(--red); animation: daze 0.6s steps(2) infinite; }
+.fstate[hidden] { display: none; }
+@keyframes daze { 50% { translate: -46% -100%; } }
+.bout { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+.bout b { font-weight: bold; letter-spacing: 0.08em; }
+.bout .score { color: var(--brass); font-weight: bold; min-width: 3.4em; text-align: center; }
+.bout .pips { display: inline-flex; gap: 3px; min-width: 10px; }
+.bout .pips i { width: 7px; height: 7px; background: var(--brass); transform: rotate(45deg); border: 1px solid var(--ink); }
+.moves { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); display: flex; gap: 8px; pointer-events: none; }
+.moves[hidden] { display: none; }
+.moves .move { display: flex; align-items: center; gap: 5px; background: var(--hud); border: 1px solid #4c5262; border-radius: 3px; padding: 3px 9px 3px 5px; font: 12px var(--type); color: var(--paper); }
+.moves .move.spend { color: var(--brass); border-color: var(--brass); }
