@@ -4,6 +4,14 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc8 (2026-10-27)
+
+- **The scenes notice what you do to their people** (from the gameplay review). In the tail, a word with Orlov or his contact makes you, face to face, and a blow blows it (once the fight's over), where before he got up and walked on. Being tailed: a word with one of the watchers tells them you've made them, a blow is an incident (+12 heat, written down, and they don't lose you for it), and turning on SOLOVEY ends it: INCIDENT. In Blown, a blow on a hunter and he knows you and radios it; a word, and he looks at you from arm's length.
+- **A weapon in your hand shows.** Orlov and Blown's hunters get +3 looking at someone holding one; the FSB writes it down.
+- **Being tailed: running away has a cost.** Lose a team that's already caught you at two evasive things (running and a blow count twice), and there's an even chance a car or a post sees the bench anyway; you won't know until SOLOVEY misses his signals. Running from an overt team, the meeting's burned 3 evenings in 12 now, from none; from a covert team 6, from 2.
+- **Being tailed: you can call it off on a face seen once before** ("seen before … or T call it off, to be safe"), where you had to be sure first.
+- **The fight AI is harder to farm.** It reads what you lean on with your latest moves counting most, and when your last move beat its own (you're reading it), it often thinks a step further. Playing what beats its counter wins 61% of even bouts now (68% before), 57% of real fights (67%).
+
 ## v0.1.0-rc7 (2026-10-27)
 
 - **Smoother** (the performance pass, from the review). Street changes no longer freeze: the next street is built while you walk up the lane, and arriving takes 50–60 ms instead of half a second. Dusk and night no longer hitch every few seconds: the worst frame running is 19 ms instead of 59, none over 33 ms (there were six in 40 s). The sun's shadows are drawn only when the camera has moved 2 m (333 draw calls a frame instead of 962). A game is ready in 0.8 s instead of 1.6, a new one starts in 0.2 s; twenty new games in a row no longer lose the picture to "too many WebGL contexts" or grow the memory to 180 MB. Windows light at dusk without a stall (a night face 3 ms to paint instead of 20); the once-a-second crowd update costs 2.7 ms instead of 4.6. The game plays exactly as before: saves byte for byte the same.

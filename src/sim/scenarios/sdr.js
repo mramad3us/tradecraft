@@ -220,9 +220,29 @@ export const sdr = {
     sc.arrival = { x: playerOf(state).x, z: playerOf(state).z };
   },
 
+  /**
+   * F on someone (sim/interact.js): a word with one of them tells them you've made them; a blow is an
+   * incident, with your name on it (ASSAULT_HEAT), and they don't lose you for it. A blow on SOLOVEY
+   * ends it (when the fight's over).
+   */
+  onInteract(state, bus, them, id) {
+    const sc = state.scenario;
+    if (sc.outcome || id === 'read' || id === 'aid') return;
+    const crew = sc.crew.find(c => c.id === them.id);
+    if (crew) {
+      const kind = id === 'talk' ? 'spoke' : 'assaulted';
+      if (sc.flags.filter(f => f.kind === kind).length < FLAGS_MAX) sc.flags.push({ kind, ms: state.time.ms, who: them.who });
+      if (kind === 'assaulted') addHeat(state, ASSAULT_HEAT);
+      sc.teamSeenMs = state.time.ms;
+      say(state, bus, { kind: 'note', hidden: true, text: kind === 'spoke' ? 'That was one of them, and now they know you know.' : 'That was one of them. There\'ll be an incident report with your name on it by morning.' });
+    }
+    if (them.who === 'solovey' && id !== 'talk' && !sc.after) sc.after = ['incident', 'You turned on your own source, in the street, in front of whoever was watching. Whatever SOLOVEY was, he isn\'t yours any more.'];
+  },
+
   tick(state, bus) {
     const sc = state.scenario;
     if (sc.outcome) return;
+    if (sc.after) { if (!state.fight) { const [outcome, text] = sc.after; sc.after = null; end(state, bus, outcome, text); } return; }
     const me = playerOf(state);
     if (!me) return;
     // Watchers coming up the lane after us.
@@ -293,7 +313,8 @@ export const shownRolls = (state) => state.log.filter(e => e.roll && !e.hidden &
 // What the world tells you later: how it went for SOLOVEY, and the signs of what the FSB made of you.
 function epilogue(state) {
   const sc = state.scenario;
-  const him = sc.outcome === 'burned' ? 'Three weeks later SOLOVEY misses his signal, and the one after. In December the evening papers report the arrest of a Ministry of Defence official for espionage.'
+  const him = sc.outcome === 'incident' ? 'SOLOVEY never signals again. The embassy\'s told nothing, which tells it everything.'
+    : sc.outcome === 'burned' ? 'Three weeks later SOLOVEY misses his signal, and the one after. In December the evening papers report the arrest of a Ministry of Defence official for espionage.'
     : sc.outcome === 'clean' ? 'Later: SOLOVEY\'s next signal comes on time, and the one after that.'
       : 'A week later SOLOVEY makes the fallback meeting, nervous, but whole.';
   // The signs are there to be read, and only a good eye reads them. Unread, a month of them reads
@@ -305,18 +326,22 @@ function epilogue(state) {
 }
 
 // (the stamp says what the character knows: whether they sat down with him, not how it went)
-const OUTCOMES = { clean: 'MET', burned: 'MET', right: 'CALLED OFF', needless: 'CALLED OFF', missed: 'MISSED' };
+const OUTCOMES = { clean: 'MET', burned: 'MET', right: 'CALLED OFF', needless: 'CALLED OFF', missed: 'MISSED', incident: 'INCIDENT' };
 const CAUGHT_LINE = {
+  armed: (who) => `${who}'s eyes go to your hand, and stay there.`,
   ran: (who) => `${who} turns to watch you run, and keeps watching a beat too long.`,
   checked: (who) => `As you turn back, ${who[0].toLowerCase() + who.slice(1)} looks away a moment too late. They may have seen you check.`,
   glassed: (who) => `In the glass, ${who[0].toLowerCase() + who.slice(1)} is watching you, not the street. They may know what you were looking at.`,
   jaywalked: (who) => `${who} watches you cross, and doesn't look away when you look up.`,
   doubled: (who) => `When you turn round, ${who[0].toLowerCase() + who.slice(1)} stops too, and finds a shop window very interesting.`,
 };
-const CAUGHT = { ran: 'run', checked: 'look back', glassed: 'check behind you in a shop window', jaywalked: 'cross away from the zebra', doubled: 'double back' };
-const FLAGS = { ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back', taxi: 'you jumped into a taxi' };
-const SAW = { ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back', taxi: 'saw you jump into a taxi' };
-export const FLAGS_MAX = 2;                                        // times a kind of thing is written down, at most
+const CAUGHT = { armed: 'carry a weapon in your hand', ran: 'run', checked: 'look back', glassed: 'check behind you in a shop window', jaywalked: 'cross away from the zebra', doubled: 'double back' };
+const FLAGS = { armed: 'you walked the street with a weapon in your hand', assaulted: 'you went for one of them', spoke: 'you spoke to one of them', ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back', taxi: 'you jumped into a taxi' };
+const SAW = { armed: 'saw what was in your hand', assaulted: 'took it from you', spoke: 'had a word from you', ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back', taxi: 'saw you jump into a taxi' };
+export const FLAGS_MAX = 2;
+export const ASSAULT_HEAT = 12;
+export const NET_FLAGS = 2;                                        // (lost after this many things written down: the wider net)
+export const NET_CHANCE = 0.5;                                    // (an FSB officer assaulted: an incident, a note to the embassy)                                        // times a kind of thing is written down, at most
 const list = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 const actorOf = (state, id) => (id ? state.actors.find(a => a.id === id) : null);
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
@@ -560,6 +585,7 @@ function second(state, bus, me) {
   const sc = state.scenario, now = state.time.ms;
   const still = Math.hypot(me.vx, me.vz) < 0.05 && !me.busy;
   sc.stillS = still ? sc.stillS + 1 : 0;
+  if (state.people[state.player]?.hand) flag(state, bus, 'armed');   // (a weapon in the hand, seen: written down)
   // Our heading along the street, and doubling back (a sharp reversal after a steady stretch).
   const vdir = Math.abs(me.vx) > 0.5 ? Math.sign(me.vx) : 0;
   if (vdir && vdir !== sc.heading.dir) { if (sc.heading.s >= 8) { flag(state, bus, 'doubled'); snapshot(state, 'double'); sc.moves++; } sc.heading = { dir: vdir, s: 0 }; }
@@ -629,6 +655,10 @@ function meeting(state, bus, me) {
       const saw = sc.sawWatching;                                 // (a watcher we noticed, watching us at it)
       const text = saw ? `Twenty seconds about the weather, and a folded newspaper changes hands. Across the path ${saw} is looking at nothing in particular, for too long. You hope you're wrong.`
         : 'Twenty seconds about the weather, and a folded newspaper changes hands. You saw nobody watching. SOLOVEY goes home lighter.';
+      // (lost by someone they'd already caught at it twice: they don't just shrug. A description out, a car
+      // round the parks and the boulevards, the static posts told: NET_CHANCE that someone sees the bench anyway)
+      const evasive = sc.flags.reduce((n, f) => n + (f.kind === 'ran' || f.kind === 'assaulted' ? 2 : 1), 0);   // (running from them, or a blow: the loudest, counted twice)
+      if (!sc.burned && sc.teamLost && sc.team !== 'none' && evasive >= NET_FLAGS && chance(stream('net', state.map.seed, sc.flags.length), NET_CHANCE)) { sc.burned = true; sc.net = true; }
       if (sc.burned) addHeat(state, 10);
       return end(state, bus, sc.burned ? 'burned' : 'clean', text);
     }
@@ -699,7 +729,8 @@ function instinct(state, me, still) {
     if (still) return L('lane-watch', 'note', ['Good. Watch the mouth of the lane. Whoever comes out after you may be going your way, or may be coming for you: the second kind stops when you do.', 'Watch the lane\'s mouth. People come through lanes all day; the one who comes for you looks for you when they come out.']);
     return A(L('lane-out', 'note', 'Out of the lane. Stop somewhere natural and watch the mouth of it: whoever comes out after you, see what they do when you don\'t move.'));
   }
-  if (familiar.length && !me.glass) return A(L('familiar', 'note', `${cap(familiar[0].look)}: seen before. Could be nothing. Check again in a while, somewhere else.`));
+  // (a face seen before is enough to call it off, if you'd rather be safe: the reviewer found one sighting left you wandering till you'd missed him)
+  if (familiar.length && !me.glass) return L('familiar', 'note', `${cap(familiar[0].look)}: seen before. Could be nothing: check again somewhere else, or {instinct} call it off, to be safe.`, 'abort');
   if (sc.lead && now - sc.lead.ms < 12000) return A(L(`lead-${sc.lead.ms}`, 'note', [`Behind you, going your way: ${sc.lead.look}. You'll know that face again.`, `${cap(sc.lead.look)}, a way back, walking your way. Probably nothing. Remember the face.`]));
   // At a shop window: what it shows, and how to use it.
   if (me.glass && now < g.to) return L(sc.glassS < 7 ? 'glass' : 'glass-stay', 'calm', sc.glassS < 7

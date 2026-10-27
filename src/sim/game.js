@@ -111,6 +111,7 @@ export function step(state, input = {}, bus) {
     if (String(act).startsWith('interact:')) {                     // (F's menu, chosen: sim/interact.js)
       const [, id, aid] = act.split(':'), them = state.actors.find(a => a.id === aid);
       const done = interact.act(state, bus, id, them);
+      if (done && them) scenario.onInteract?.(state, bus, them, id);   // (a scene's own people, touched: a word, a blow: sim/scenarios/*)
       if (done?.show === 'read') bus?.emit('read', done.who);
       if (done?.show === 'aid') bus?.emit('aid', them.id);          // (first aid for them: the UI's panel, its choice back as 'aid:')
       continue;

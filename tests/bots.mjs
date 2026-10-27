@@ -107,7 +107,7 @@ export const checker = (g, me) => {
   const k = mem(me, 'checker', () => ({ glance: g.time.ms + 20000, window: 0 }));
   if (me.busy || sc.phase === 'meet') return {};
   if (me.glass && g.time.ms - me.glass.since < GLASS_STAY_S * 1000) return { look: true, mx: -sc.heading.dir * 0.7, mz: -0.7 };
-  if (p?.act === 'abort') return { act: ['instinct'] };
+  if (p?.act === 'abort' && p.id !== 'familiar') return { act: ['instinct'] };   // (a face seen once before: it checks again rather than give up)
   if (p?.act === 'meet') return { act: ['instinct'] };
   if (p?.act === 'window' && g.time.ms > k.window) { k.window = g.time.ms + 45000; return { act: ['instinct'] }; }
   if (g.time.ms > k.glance) { k.glance = g.time.ms + 25000; return { ...goTo(g, me, m.row, m.seat2, 13.5), act: ['glance'] }; }

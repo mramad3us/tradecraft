@@ -246,9 +246,22 @@ export const tail = {
     if (a.who === state.player && state.autoplay) autoplay(state, a, bus);
   },
 
+  /**
+   * F on someone (sim/interact.js): a word with him (or his contact) makes the tail, face to face; a
+   * blow blows it, and the meeting with it. It ends when the fight's over (sc.after).
+   */
+  onInteract(state, bus, them, id) {
+    const sc = state.scenario;
+    if (sc.outcome || sc.after || !['orlov', 'contact'].includes(them.who) || id === 'read' || id === 'aid') return;
+    const who = them.who === 'orlov' ? 'the man you were sent to follow' : 'the man he came to meet';
+    sc.after = id === 'talk' ? ['made', `You spoke to ${who}, face to face, and he'll know that face again anywhere. Orlov goes home the long way, and the meeting never happens.`]
+      : ['blown', `You put hands on ${who}. Whatever was meant to happen tonight won't now, and by morning someone will be asking the embassy about an attack in the street.`];
+  },
+
   tick(state, bus) {
     const sc = state.scenario;
     if (sc.outcome) return;
+    if (sc.after) { if (!state.fight) { const [outcome, text] = sc.after; sc.after = null; end(state, bus, outcome, text); } return; }
     const me = playerOf(state), t = actorOf(state, sc.target);
     if (!me || !t) return;
     const same = rowOf(state, t) === rowOf(state, me);
@@ -450,7 +463,7 @@ function moment(state, bus, me, t, d, kind) {
   if (sc.outcome) return;
   const mods = exposure(state, me, t, d, kind);
   const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] },
-    { skill: 'pathfinding', value: skill(state.people.orlov, 'pathfinding'), body: state.people.orlov, mods });
+    { skill: 'pathfinding', value: skill(state.people.orlov, 'pathfinding'), body: state.people.orlov, mods: [...mods, ...inHand(state)] });
   sc.rolls++;
   if ((kind === 'exit' || kind === 'cross') && d > 15 && sc.marked === t.id) keep(state, bus, t, d, kind === 'exit' ? 'out of a shop' : 'across the road');
   // We know what he saw only if we saw him look: a check we didn't see goes in the log unseen, for
@@ -545,7 +558,7 @@ function glanced(state, bus, me) {
   const d = Math.hypot(t.x - me.x, t.z - me.z);
   if (d > 30) return;
   const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] },
-    { skill: 'awareness', value: skill(state.people.orlov, 'awareness'), body: state.people.orlov, mods: [d < 10 ? { why: 'close', v: 3 } : d > 20 ? { why: 'a good way back', v: -3 } : null].filter(Boolean) });
+    { skill: 'awareness', value: skill(state.people.orlov, 'awareness'), body: state.people.orlov, mods: [d < 10 ? { why: 'close', v: 3 } : d > 20 ? { why: 'a good way back', v: -3 } : null, ...inHand(state)].filter(Boolean) });
   sc.rolls++;
   if (r.ok) return;
   sc.alert = Math.min(100, sc.alert + 15);
@@ -746,6 +759,9 @@ function meeting(state, bus, me, t, d) {
 }
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+/** A weapon in your hand on the street (sim/items.js): the eye goes to it, and to you (HELD_MOD on his side). */
+export const HELD_MOD = 3;
+const inHand = (state) => (state.people[state.player]?.hand ? [{ why: 'something in your hand', v: HELD_MOD }] : []);
 const clockOf = (state) => { const m = Math.floor(state.time.ms / 60000) % 1440; return hhmm(Math.floor(m / 60), m % 60); };
 
 // ---------- the instinct ----------

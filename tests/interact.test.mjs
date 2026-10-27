@@ -81,4 +81,31 @@ export default [
       assert(ends.some(e => e.startsWith('ran')) || ends.some(e => e.startsWith('down')), 'they run, or go down');
     },
   },
+  {
+    name: 'interact: the scenes notice: a word with Orlov makes the tail, a blow blows it (once the fight is over); a blow on an FSB watcher is an incident',
+    fn() {
+      const out = {};
+      for (const id of ['talk', 'hit']) {
+        const g = newGame({ seed: 6, scenario: 'tail' });
+        start(g, null);
+        for (let t = 0; t < 20 * 5; t++) step(g, {}, null);
+        const me = playerActor(g), orlov = g.actors.find(a => a.who === 'orlov');
+        Object.assign(me, { row: orlov.row, x: orlov.x - 1, z: orlov.z, busy: null });
+        step(g, { act: [`interact:${id}:${orlov.id}`] }, null);
+        for (let t = 0; t < 20 * 120 && !g.scenario.outcome; t++) step(g, g.fight?.phase === 'choose' ? { act: ['hit'] } : id === 'talk' ? { act: ['talk:leave'] } : {}, null);
+        out[id] = g.scenario.outcome;
+      }
+      const g = newGame({ seed: 2, scenario: 'sdr' });
+      start(g, null);
+      let k = 2; while (g.scenario.team === 'none') { const h = newGame({ seed: ++k, scenario: 'sdr' }); start(h, null); Object.assign(g, h); }
+      for (let t = 0; t < 20 * 60 && !g.scenario.crew.some(c => c.id); t++) step(g, {}, null);
+      const me = playerActor(g), w = g.actors.find(a => a.id === g.scenario.crew.find(c => c.id).id), heat0 = Object.values(g.heat)[0];
+      Object.assign(me, { row: w.row, x: w.x - 1, z: w.z, busy: null });
+      step(g, { act: [`interact:hit:${w.id}`] }, null);
+      const flagged = g.scenario.flags.map(f => f.kind);
+      console.log(`      Orlov, a word: ${out.talk}; a blow: ${out.hit}; an FSB watcher hit: flags ${flagged.join(', ')}, heat ${heat0} → ${Object.values(g.heat)[0]}`);
+      assert(out.talk === 'made' && out.hit === 'blown', 'the tail notices');
+      assert(flagged.includes('assaulted') && Object.values(g.heat)[0] > heat0, 'an incident');
+    },
+  },
 ];

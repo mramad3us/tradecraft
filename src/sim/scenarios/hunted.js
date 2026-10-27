@@ -176,7 +176,7 @@ export const hunted = {
         sc.disguised ? { why: 'a different coat from the description', v: DISGUISE_MOD } : { why: 'the description fits', v: 2 },
         light === 'dark' && { why: 'the dark', v: -3 }, light === 'dim' && { why: 'the dusk', v: -1 },
         crowd && { why: 'people round you', v: -Math.min(4, crowd) }, d > 15 && { why: 'at a distance', v: -Math.round((d - 15) / 4) },
-        me.gait === 'run' && { why: 'running', v: 6 }].filter(Boolean) },
+        me.gait === 'run' && { why: 'running', v: 6 }, state.people.me.hand && { why: 'something in your hand', v: 3 }].filter(Boolean) },
       { skill: 'deception', value: skill(state.people.me, 'deception'), body: state.people.me });
       sc.rolls++;
       say(state, bus, { kind: 'roll', roll, hidden: true, text: roll.ok ? `${cap(p.seen)} knows you.` : `${cap(p.seen)} looks you over, and looks away.` });
@@ -188,6 +188,17 @@ export const hunted = {
       }
     }
     sc.prompt = settle(sc.prompt, [...instinct(state, me, now)], now);
+  },
+
+  /** F on one of them (sim/interact.js): a blow and he knows you, and says so on the radio; a word, and he looks at you close. */
+  onInteract(state, bus, them, id) {
+    const sc = state.scenario;
+    if (sc.outcome || !sc.hunters.includes(them.id)) return;
+    if (id === 'talk' || id === 'read') { sc.recogAt[them.id] = 0; return; }   // (his look at you, now, from arm's length)
+    if (id === 'aid') return;
+    sc.known[them.id] = state.time.ms;
+    sc.lastSeen = { row: state.map.row, x: playerOf(state).x, ms: state.time.ms };
+    for (const other of sc.hunters) { const o = actorOf(state, other); if (o && o !== them && !o.ai.follow) leg(state, o, sc.lastSeen); }   // (the radio)
   },
 
   /** A fight with one of them (sim/fight.js): won, he's down; lost, you're taken. */

@@ -24,7 +24,8 @@
 // undoes the other.
 // **Their choice** (choose()): their style's mix (STYLES), and the better they fight, the more they
 // play against what you lean on: they keep count of your last moves (SEEN_MOVES) and, ADAPT_PER_CQC a
-// point of CQC (at most ADAPT_MAX), pick what beats the move you've made most. A scripted fight (a
+// point of CQC (at most ADAPT_MAX), pick what beats the move you lean on (the latest counting most,
+// SEEN_DECAY); when your last move beat theirs, DOUBLE_THINK of the time a step further. A scripted fight (a
 // drill: f.script) takes its moves in turn, and may show them (f.tell).
 // **Techniques** (the user, 2026-10-26: "we could also hit with other body parts depending on the
 // CQC level, beginners would only punch"; the list and the levels my call): how a move is done is the
@@ -177,6 +178,8 @@ export const SEEN_MOVES = 4;
 export const ADAPT_PER_CQC = 0.02;
 export const ADAPT_MAX = 0.7;
 export const HIT_AT = { head: 30, torso: 45, armL: 8, armR: 8, legL: 4.5, legR: 4.5 };
+export const SEEN_DECAY = 0.6;                                     // (the move before last counts 0.6 of the last, and so on)
+export const DOUBLE_THINK = 0.7;
 export const STYLES = {
   even: { hit: 1, grapple: 1, guard: 1 },
   striker: { hit: 1.8, grapple: 0.6, guard: 1 },
@@ -232,8 +235,14 @@ export function choose(state, f) {
   const ok = (m) => (m !== 'grapple' || (canGrapple(me) && canGrabWith(W))) && allowed(st, m);
   const adapt = Math.min(ADAPT_MAX, cqcOf(state, f.b) * ADAPT_PER_CQC);
   if (f.seen.length >= 2 && chance(r, adapt)) {
-    const counts = MOVES.map(m => [m, f.seen.filter(x => x === m).length]).sort((p, q) => q[1] - p[1]);
-    const counter = BEATEN_BY[counts[0][0]];
+    // (what we lean on, the latest counting most; and if our last move beat theirs (we're reading them,
+    // and they know it), DOUBLE_THINK of the time a step further: they expect us to beat their counter,
+    // and beat that, which round the triangle is our own move back at us. The reviewer found the plain
+    // counter farmable: play what beats it, and win 68% of even bouts. Against someone who does the
+    // same thing every time, the plain counter.)
+    const lean = MOVES.map(m => [m, f.seen.reduce((s, x, i) => s + (x === m ? SEEN_DECAY ** (f.seen.length - 1 - i) : 0), 0)]).sort((p, q) => q[1] - p[1])[0][0];
+    const last = f.theirs?.move, reading = !!last && f.seen.at(-1) === BEATEN_BY[last];
+    const counter = reading && chance(r, DOUBLE_THINK) ? lean : BEATEN_BY[lean];
     if (ok(counter)) return counter;
   }
   const base = STYLES[f.style] ?? STYLES.even;
