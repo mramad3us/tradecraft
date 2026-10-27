@@ -45,7 +45,7 @@ import { focusActor, playerActor } from '../sim/game.js';
 import { SCENARIOS } from '../sim/scenarios/index.js';
 import { SCREEN_HALF_M } from '../sim/crowd.js';
 import { Z_BACK, Z_FRONT } from '../sim/map/dojo.js';
-import { eyes, visibility } from '../sim/perception.js';
+import { eyes, visibility, openAir } from '../sim/perception.js';
 
 export const RES = [640, 360];
 export const LAMP_SLOTS = 10;
@@ -202,7 +202,9 @@ export function createView({ parent, bus }) {
       fogData[k] = Math.round(fogVal[k] * 255);
     }
     fogTex.needsUpdate = true;
-    stage.setFog(fogTex, x0, z0, FNX * FOG_CELL_M, FNZ * FOG_CELL_M);
+    // (unseen: dimmed by day, near black at night, so the edge of sight is a shadow)
+    const air = Math.max(0, Math.min(1, (openAir(state) - 0.11) / 0.89));
+    stage.setFog(fogTex, x0, z0, FNX * FOG_CELL_M, FNZ * FOG_CELL_M, 0.18 + 0.3 * air);
   }
 
   const lerp = (a, b, k) => a + (b - a) * k;

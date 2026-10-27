@@ -46,6 +46,7 @@ const ui = createUI({ input, cb: {
   quit: async () => { await autosave(); stop(); showTitle(); },
   setDebug: (on) => { settings.debug = on; try { localStorage.setItem('tradecraft.debug', on ? '1' : '0'); } catch {} },
   fit: (w, h, outW, outH) => view?.resize(w, h, outW, outH),
+  talk: (id) => acts.push(`talk:${id}`),                        // (a conversation's choice: sim/talk.js)
 } });
 
 function randomSeed() { return crypto.getRandomValues(new Uint32Array(1))[0]; }
@@ -72,6 +73,7 @@ function launch(s, { hour = null } = {}) {
   ui.frame.prepend(view.canvas);
   ui.fit();                                                        // (the picture to the window)
   bus.on('log', (e) => ui.toast(e));
+  bus.on('read', (who) => ui.openRead(state, who));
   bus.on('autosave', () => autosave());
   bus.on('scenario-end', () => setTimeout(() => { if (state === s) result(); }, 1800));
   bus.on('map', () => { prev = new Map(); view.flush(); });         // the next street: no gliding there from the last
@@ -109,9 +111,15 @@ input.onAction((action) => {
   if (!running) return;
   const open = ui.overlay();
   if (open === 'brief' || open === 'result') return;              // a paper waits for its choice
+  if (action === 'menu' && state?.talk && !open) { acts.push('talk:leave'); return; }   // (Esc in a conversation: leave it there)
   if (action === 'menu') { if (open) { ui.closeOverlays(); paused = false; } else { ui.openMenu(settings); } return; }
   if (action === 'log') { if (open === 'log') { ui.closeOverlays(); } else if (!open) ui.openLog(state, settings); return; }
   if (action === 'sheet') { if (open === 'sheet') { ui.closeOverlays(); } else if (!open) ui.openSheet(state); return; }
+  if (action === 'interact') {                                    // (F: what to do with whoever's within reach; the sim does it: sim/interact.js)
+    if (open === 'interact') { ui.closeOverlays(); return; }
+    if (!open && !paused && !ui.openInteract(state, (id, them) => acts.push(`interact:${id}:${them.id}`))) ui.toast({ kind: 'instinct', text: 'Nobody within reach.' });
+    return;
+  }
   if (action === 'pause' && !open) paused = !paused;
   if ((action === 'instinct' || action === 'glance') && !open && !paused) acts.push(action);
   if ((action === 'hit' || action === 'grapple' || action === 'guard') && !open && !paused) acts.push(input.poll().run ? `${action}+` : action);   // (Shift held: an edge spent)

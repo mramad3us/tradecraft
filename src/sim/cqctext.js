@@ -69,8 +69,11 @@ const LOCKED = [['{n}\'s arm goes up behind {him}, and {n} slaps the mat', 'you 
 const CHOKED = [['your forearm closes on {n}\'s throat; {n} sags', '{n} claws at your arm, then taps', '{n}\'s face darkens; {n} taps'],
   ['an arm closes on your throat; the room goes grey', 'you claw at the arm, then tap', 'the light narrows to a tunnel; you tap']];
 const CIRCLE = ['You circle.', 'Nobody commits.', 'Feet slide on the mat; you circle.', 'You watch each other over your hands.'];
-const STATUS = { staggered: [[' {n} staggers.', ' {n} is off balance.', ' {n} sways.'], [' You stagger.', ' You\'re off balance.', ' You sway.']],
-  stunned: [[' {n} is out on {his} feet.', ' {n}\'s eyes have gone somewhere else.', ' {n} is dazed.'], [' You\'re seeing two of {n}.', ' You\'re dazed.', ' Your hands won\'t come up.']] };
+const STATUS = { staggered: [[' {n} staggers: no footing to throw from.', ' {n} is off balance.', ' {n} sways.'], [' You stagger: no footing to grab from.', ' You\'re off balance.', ' You sway.']],
+  dazed: [[' {n} blinks, slow: {his} hands are late.', ' {n} is dazed.', ' {n} shakes {his} head.'], [' You\'re dazed: your hands are slow to come up.', ' The hall swims.', ' You blink, and blink again.']],
+  stunned: [[' {n} is out on {his} feet.', ' {n}\'s eyes have gone somewhere else.', ' {n} is stunned.'], [' You\'re seeing two of {n}.', ' You\'re stunned.', ' Nothing answers: arms, legs, nothing.']] };
+const RIPOSTE = [['you take it on the forearms and come straight back over the top', 'you slap it aside and counter in the same breath', 'you cover, and answer before {his} hand is home'],
+  ['{n} takes it on the forearms and comes straight back over the top', '{n} slaps it aside and counters in the same breath', '{n} covers, and answers before your hand is home']];
 const FENDED = [['{n} goes for the throw; you spend your edge and break the grip.', 'you tear {his} grip off and step clear, your edge spent.'],
   ['you go for the throw; {n} breaks your grip, an edge spent.', '{n} tears your grip off and steps clear, an edge spent.']];
 const ABSORBED = [['you walk into it, take it on the shoulder and keep coming, your edge spent.', 'you eat it and keep coming, your edge spent.'],
@@ -113,6 +116,11 @@ export function exchangeText(out, name, p, salt = 0) {
       const part = PART[out.part], s = sev(out.force);
       text = us ? `${does('b')}; ${does('a')}, and ${pick(LOOKS[part][s], 6)}.${out.spent.a ? ' Your edge spent: it lands double.' : ''}`
         : `${does('b')}; ${does('a')}, and it lands. ${pick(FEELS[part][s], 6)}${out.spent.b ? ' {n} spent an edge on that one.' : ''}`;
+      break;
+    }
+    case 'riposte': {
+      const part = PART[out.part], s = sev(out.force);
+      text = us ? `${does('b')}; ${pick(RIPOSTE[0], 6)}, and ${pick(LOOKS[part][s], 7)}. Your edge kept.` : `${does('a')}; ${pick(RIPOSTE[1], 6)}. ${pick(FEELS[part][s], 7)}`;
       break;
     }
     case 'thrown': text = us ? `${does('b')}; ${does('a')}, and ${pick(THROWN[0], 7)}.` : `${does('a')}; ${does('b')}, and ${pick(THROWN[1], 7)}. ${pick(FEELS.torso[sev(out.force)], 8)}`; break;

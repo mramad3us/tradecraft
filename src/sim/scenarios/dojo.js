@@ -19,9 +19,8 @@ import { pick, int } from '../rng.js';
 import { follow } from '../crowd.js';
 import { headOf } from '../perception.js';
 import { dojo as hall, FIGHT, SPOTS } from '../map/dojo.js';
-import { startFight, resolve, cqcOf, MOVES } from '../cqc.js';
-import { exchangeText } from '../cqctext.js';
-import { animate, length } from '../cqcshow.js';
+import { cqcOf } from '../cqc.js';
+import { begin as beginFight } from '../fight.js';
 import { stateText, stateOf, PARTS } from '../health.js';
 
 const TPS = 1000 / TICK_MS;
@@ -122,13 +121,7 @@ export const dojoScenario = {
   act(state, bus, action) {
     const sc = state.scenario, f = state.fight, me = playerOf(state);
     if (sc.outcome || !me) return;
-    const move = String(action).replace('+', '');
-    if (MOVES.includes(move)) {
-      if (!f || f.phase !== 'choose' || f.status?.a === 'stunned') return;
-      exchange(state, bus, { move, spend: action.endsWith('+') });
-      return;
-    }
-    if (action !== 'instinct') return;
+    if (action !== 'instinct') return;                            // (a fight's moves are the engine's: sim/fight.js)
     if (sc.phase === 'ready') return next(state, bus);
     say(state, bus, { kind: 'instinct', text: f ? 'In the middle of it. Choose: {hit}, {grapple} or {guard}.' : 'Wait for Hale.' });
   },
@@ -136,22 +129,30 @@ export const dojoScenario = {
   think(state, a) { follow(state, a); },
 
   tick(state, bus) {
-    const sc = state.scenario, f = state.fight;
+    const sc = state.scenario;
     if (sc.outcome) return;
     // Into place for a fight: both on their marks, and it starts.
     if (sc.phase === 'walk') {
       const me = playerOf(state), them = actorOfWho(state, sc.with);
       if (!me.busy && !them.ai.steps.length) begin(state, bus);
     }
-    // An exchange played out: the next choice (dazed, there's none: it comes at you), or the end.
-    if (f && f.phase === 'show' && state.tick >= sc.show) {
-      if (f.ended) return finishBout(state, bus);
-      f.phase = 'choose';
-      if (f.status.a === 'stunned') exchange(state, bus, { move: 'open' });
-    }
-    poses(state);
     sc.prompt = instinct(state);                                    // (every tick: a fight's choice comes with time stopped)
   },
+
+  /** Each exchange of a drill: counted toward the step, or a word from Hale. */
+  onExchange(state, bus, out) {
+    const sc = state.scenario, f = state.fight, step = STEPS[sc.step];
+    if (step.bout) return;
+    if (step.need(out, f)) {
+      if (++sc.count >= step.n) f.ended = { by: 'a', why: 'drill' };
+    } else if (out.by !== 'a' || out.kind === 'circle') {
+      sc.misses++;
+      say(state, bus, { kind: 'note', text: `Hale: ${step.miss[(sc.misses - 1) % step.miss.length]}` });
+    }
+  },
+
+  /** A drill done, or a bout won or lost. */
+  onFightEnd(state, bus, f) { finishBout(state, bus, f); },
 
   result(state) {
     const sc = state.scenario, me = state.people[state.player];
@@ -206,34 +207,14 @@ function next(state, bus) {
 function begin(state, bus) {
   const sc = state.scenario, step = STEPS[sc.step];
   const opts = step.bout ? { bout: true, to: step.bout, stop: true, pull: step.with === 'hale' ? HALE_PULL : undefined, style: step.with === 'hale' ? 'even' : pick(state.rng, ['striker', 'wrestler', 'careful', 'even']) } : { ...step.fight };
-  const f = startFight(state, state.player, sc.with, opts);
-  if (step.fight?.adv) f.adv.a = step.fight.adv;
-  f.marks = { a: { x: FIGHT.x - FIGHT.gap / 2, z: FIGHT.z }, b: { x: FIGHT.x + FIGHT.gap / 2, z: FIGHT.z } };
-  f.phase = 'choose';
+  beginFight(state, bus, actorOfWho(state, sc.with), { ...opts, adv: step.fight?.adv, owner: 'dojo',
+    marks: { a: { x: FIGHT.x - FIGHT.gap / 2, z: FIGHT.z }, b: { x: FIGHT.x + FIGHT.gap / 2, z: FIGHT.z } } });
   sc.phase = 'fight';
 }
 
-/** An exchange: resolved, told, counted. */
-function exchange(state, bus, ours) {
-  const sc = state.scenario, f = state.fight, step = STEPS[sc.step], who = sc.with;
-  const out = resolve(state, f, ours);
-  say(state, bus, { kind: out.roll ? 'roll' : 'note', roll: out.roll ?? undefined, text: exchangeText(out, short(state, who), state.people[who], state.map.seed) });
-  f.phase = 'show';
-  f.shown = state.tick;
-  sc.show = state.tick + length(state, f, out);
-  if (step.bout) return;
-  if (step.need(out, f)) {
-    if (++sc.count >= step.n) { f.ended = { by: 'a', why: 'drill' }; return; }
-  } else if (out.by !== 'a' || out.kind === 'circle') {
-    sc.misses++;
-    say(state, bus, { kind: 'note', text: `Hale: ${step.miss[(sc.misses - 1) % step.miss.length]}` });
-  }
-}
-
-/** A fight over: a drill done, or a bout won or lost. */
-function finishBout(state, bus) {
-  const sc = state.scenario, f = state.fight, step = STEPS[sc.step], who = sc.with;
-  state.fight = null;
+/** A fight over (f, the engine's: sim/fight.js): a drill done, or a bout won or lost. */
+function finishBout(state, bus, f) {
+  const sc = state.scenario, step = STEPS[sc.step], who = sc.with;
   sc.phase = 'ready';
   for (const a of [playerOf(state), actorOfWho(state, who)]) if (a) a.gait = 'idle';
   if (step.bout) {
@@ -252,13 +233,6 @@ function over(state, bus) {
     : won ? '“Ice what needs icing. Tomorrow, knives.” The class files out to the showers.'
       : '“Everyone loses here. The ones who learn something lose less on the street.” The class files out to the showers.';
   bus?.emit('scenario-end', sc.outcome);
-}
-
-// ---------- the picture: the exchange played out (sim/cqcshow.js) ----------
-
-function poses(state) {
-  const f = state.fight;
-  if (f) animate(state, f, { a: playerOf(state), b: actorOfWho(state, f.b) });
 }
 
 // ---------- the instinct: what to do now ----------

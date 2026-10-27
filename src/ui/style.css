@@ -189,3 +189,23 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .moves .move.spend { color: var(--brass); border-color: var(--brass); }
 .charsheet .body li.injured { flex-wrap: wrap; }
 .charsheet .body li small { flex-basis: 100%; color: var(--red); font-size: 11px; text-align: right; }
+
+/* F: a key over whoever's within reach; the menu over them (numbers or a click; greyed with why). */
+.reach { position: absolute; left: 0; top: 0; transform-origin: 0 0; translate: -50% -100%; pointer-events: none; opacity: 0.85; }
+.reach[hidden] { display: none; }
+.ask { position: absolute; left: 0; top: 0; transform-origin: 0 0; translate: 0 -50%; min-width: 190px; background: var(--paper); color: var(--ink); font-family: var(--type);
+  border: 1px solid var(--ink); border-radius: 2px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45); padding: 6px 0 4px; pointer-events: auto; }
+.ask[hidden] { display: none; }
+.ask .who { font-size: 11px; color: #6a7182; padding: 0 10px 4px; border-bottom: 1px dashed var(--rule); margin-bottom: 2px; }
+.ask .opt { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; align-items: center; width: 100%; background: none; border: 0; padding: 4px 10px; text-align: left; font: 14px var(--type); color: var(--ink); cursor: pointer; }
+.ask .opt:hover:not([disabled]) { background: var(--paper-2); }
+.ask .opt.off { color: #a0978a; cursor: default; }
+.ask .opt small { grid-column: 2; font-size: 11px; color: #8f6345; }
+.ask .foot { font-size: 10px; color: #6a7182; padding: 4px 10px 0; border-top: 1px dashed var(--rule); margin-top: 3px; }
+.readsheet table.skills td.val { width: 5em; }
+.moves .move.off { opacity: 0.45; text-decoration: line-through; }
+.fstate.dazed { background: #b9862e; }
+.ask kbd { color: var(--ink); background: var(--paper-2); border: 1px solid #6a7182; border-radius: 2px; padding: 0 4px; font: 11px var(--mono); }
+.talkbox { min-width: 260px; max-width: 340px; }
+.talkbox .said { padding: 3px 10px; font-size: 12px; border-bottom: 1px dashed var(--paper-2); }
+.talkbox .said i { color: #6a7182; display: block; }

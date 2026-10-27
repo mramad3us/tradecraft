@@ -130,6 +130,8 @@ export function routeTo(state, a, to, opts = {}) {
 /** One tick of an agent (step 2 of the tick): along its route, or waiting at a stop. */
 export function stepAgent(state, a, scenario, bus) {
   const ai = a.ai, x0 = a.x, z0 = a.z, row0 = a.row;
+  if (ai.fighting) return;                                          // (in a fight, its feet are the fight's: sim/fight.js)
+  if (ai.downUntil > state.time.ms) { a.vx = a.vz = 0; a.gait = 'down'; return; }   // (knocked out: lying there a while)
   if (ai.wait > 0) {
     a.vx = a.vz = 0;
     if (--ai.wait === 0) endStop(state, a, scenario, bus);

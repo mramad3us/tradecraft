@@ -37,6 +37,9 @@ import { drift } from './people.js';
 import { heal } from './health.js';
 import { drips } from './blood.js';
 import { glassAhead, affordance, act as doAct } from './acts.js';
+import * as fight from './fight.js';
+import * as interact from './interact.js';
+import * as talk from './talk.js';
 import { SCENARIOS } from './scenarios/index.js';
 
 export const WALK_MS = 1.45;                                       // the player's walk, m/s
@@ -91,15 +94,23 @@ export function step(state, input = {}, bus) {
   // 1. The player.
   const me = playerActor(state);
   for (const act of input.act ?? []) {
+    if (fight.act(state, bus, act, scenario)) continue;            // (a fight's move: sim/fight.js)
+    if (String(act).startsWith('talk:')) { talk.choose(state, bus, act.slice(5)); continue; }   // (a conversation's choice: sim/talk.js)
+    if (String(act).startsWith('interact:')) {                     // (F's menu, chosen: sim/interact.js)
+      const [, id, aid] = act.split(':'), them = state.actors.find(a => a.id === aid);
+      const done = interact.act(state, bus, id, them);
+      if (done?.show === 'read') bus?.emit('read', done.who);
+      continue;
+    }
     if (act === 'glance' && me && !me.glance) me.glance = Math.round(GLANCE_S * TICKS_PER_S);
     // T, when the scene's line offers nothing of its own: what's at hand (sim/acts.js affordance()).
     const here = act === 'instinct' && !state.scenario.prompt?.act && state.scenario.prompt?.tone !== 'urgent' && affordance(state, me);
     if (here) { doAct(state, bus, me, here.act, { toward: scenario.toward?.(state, me) }); continue; }
     scenario.act?.(state, bus, act);
   }
-  // A fight waiting for a choice: time stands still until it's made (sim/cqc.js).
-  if (state.fight?.phase === 'choose') return;
-  if (scenario.holds?.(state)) input = { act: input.act };        // (the scenario has the player's feet)
+  // A fight waiting for a choice, a conversation: time stands still (sim/fight.js, sim/talk.js).
+  if (state.fight?.phase === 'choose' || state.talk) return;
+  if (state.fight || scenario.holds?.(state)) input = { act: input.act };   // (a fight, or the scenario, has the player's feet)
   if (me && !me.ai) {
     let mx = input.mx ?? 0, mz = input.mz ?? 0;
     const n = Math.hypot(mx, mz);
@@ -152,7 +163,8 @@ export function step(state, input = {}, bus) {
     else if (a.ai?.kind === 'walker') think(state, a);
     else if (a.ai) scenario.think?.(state, a, bus);
   }
-  // 5. The scenario; and what's at hand, for the instinct's line (runtime: sim/acts.js).
+  // 5. A fight played out (sim/fight.js); the scenario; and what's at hand, for the instinct's line (runtime: sim/acts.js).
+  fight.tick(state, bus, scenario);
   scenario.tick?.(state, bus);
   state.$offer = me ? affordance(state, me) : null;
   // 6. The map and the crowd, once a second.

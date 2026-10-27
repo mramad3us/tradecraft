@@ -1,6 +1,7 @@
 // TRADECRAFT ui: the keyboard. Keys are read by physical position (KeyboardEvent.code), so the game
 // plays the same on any layout; labels on screen show the player's own layout where the browser can
-// tell (navigator.keyboard.getLayoutMap(), Chrome), so an AZERTY player reads Z Q S D, not W A S D.
+// tell (navigator.keyboard.getLayoutMap(), Chrome), and AZERTY where it can't or hasn't yet (the
+// user's, the only player: "don't give me the QWERTY keybinds"), so the keys read Z Q S D and M.
 // The bindings are DESIGN.md's (Controls). Arrow keys move too.
 //
 // poll() is what the sim gets each tick: { mx, mz, run, slow, look }, from the keys held: Shift runs,
@@ -17,7 +18,8 @@ export const KEYS = {
 const MOVE = { KeyW: [0, -1], ArrowUp: [0, -1], KeyS: [0, 1], ArrowDown: [0, 1], KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0] };
 const ACTIONS = Object.fromEntries(Object.entries(KEYS).filter(([a]) => !['up', 'left', 'down', 'right', 'run', 'slow'].includes(a)).map(([a, c]) => [c, a]));
 export const TAP_MS = 220;
-const QWERTY = { Semicolon: ';', Space: 'Space', Escape: 'Esc', Tab: 'Tab', ShiftLeft: 'Shift', AltLeft: /Mac/.test(globalThis.navigator?.platform ?? '') ? 'Option' : 'Alt' };
+const NAMES = { Space: 'Space', Escape: 'Esc', Tab: 'Tab', ShiftLeft: 'Shift', AltLeft: /Mac/.test(globalThis.navigator?.platform ?? '') ? 'Option' : 'Alt' };
+const AZERTY = { KeyQ: 'A', KeyW: 'Z', KeyA: 'Q', KeyZ: 'W', Semicolon: 'M', KeyM: ',', Comma: ';', Period: ':' };
 
 export function createInput(target = window) {
   const held = new Set();
@@ -58,9 +60,9 @@ export function createInput(target = window) {
     /** What the key for an action (or a code) is labelled on the player's keyboard. */
     label(actionOrCode) {
       const code = KEYS[actionOrCode] ?? actionOrCode;
-      if (QWERTY[code]) return QWERTY[code];
+      if (NAMES[code]) return NAMES[code];
       const l = layout?.get(code);
-      return (l ?? code.replace(/^Key|^Digit/, '')).toUpperCase();
+      return (l ?? AZERTY[code] ?? code.replace(/^Key|^Digit/, '')).toUpperCase();
     },
     dispose() { target.removeEventListener('keydown', down); target.removeEventListener('keyup', up); window.removeEventListener('blur', blur); },
   };

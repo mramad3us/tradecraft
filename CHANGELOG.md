@@ -4,6 +4,20 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.40 (2026-10-26)
+
+- **F: what to do with someone** (your ask). Close to anyone (a key shows over them), F opens a menu, numbers or a click:
+  - **Talk:** time stands still while you talk; ask the time, the way, some small talk; what they say depends on how they feel about you, and someone you've hit is afraid of you. (A KLM-style minigame for some conversations comes later.)
+  - **Violence:** a hit, a sucker punch (if they don't see it coming: it lands with all your weight), a push, a grab (CQC 9 and over), a stab (greyed: no blades yet). It's a fight on the spot, the same engine as the dojo's; caught unawares, they're open. A civilian who's had enough runs; one out cold lies there a minute. Whoever saw it remembers your face: heat.
+  - **Read:** their sheet as you guess it. Your Analysis decides how close: each skill that shows at a glance (Fitness, CQC, Awareness, Weapon handling) as a range that holds the truth, narrower the better the read and with every read after; a good read says what they are, a very good one how trained. A fight shows bounds. What you've learned is kept.
+- **The fight, deeper** (your asks):
+  - **The riposte:** cover with Shift held, an edge in hand, and when the hit comes you hit back, half as hard again, mostly to the head, and they're dazed; you keep the edge. A plain cover still earns one. Hitting every time into a much better fighter no longer stalls: they read it, cover, and riposte, and a bout is over in four exchanges.
+  - **Handicaps:** staggered, no grab (no footing) and −3; dazed, no cover (hands too slow) and −4; stunned, nothing at all. The move panel greys out what you can't do.
+  - **Their edges:** when they can't read you, they spend them; when they can, they keep them to riposte.
+  - An expert's variety, checked: at CQC 30 a hit is a kick a third of the time, a punch about half, an elbow or a knee the rest.
+- **Night is dark** (your report): in the dark the eye reaches 15 m (was 22), into a lamp's light 30 m (was 34), by day 52 m. On screen, what you can't see goes near black at night, so the edge of your sight is a shadow. It cuts both ways: watchers lose you more easily, and tailing at night means staying close: the game's follower held 309 night chases in 320 (most losses on the first street, starting further back than it could see), and over mixed evenings a follower of 15 against Orlov's 10 sees the meeting 54% of the time (79% before).
+- **Your keys:** labels read AZERTY whatever the browser says or hasn't said yet: the cover is M, not ";".
+
 ## v0.0.39 (2026-10-26)
 
 - **The camera looks where you look** (your report: people up or down a lane were off the picture while you could still see them). It leans the way your eyes go, more north–south where the picture is shorter: a little as you walk, up to 8 m when you hold E and look; and tailing, toward him while he's in sight, so a man going up a lane stays in the picture while you're still on the street. The fog still shows only what your character sees; the picture just keeps up with the eyes. (The crowd's never-on-screen rule widens to match: nobody appears or vanishes within 24 m east–west, 22 m north–south.)

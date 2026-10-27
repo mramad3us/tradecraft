@@ -4,8 +4,9 @@
 // the camera), set by where they walk and where they stop to look. What someone sees (eyes()):
 //   - a cone ahead, CONE_DEG wide plus CONE_PER_AWARENESS for each point of Awareness, out to a range
 //     set by the light at the spot looked at: SIGHT_M + LIGHT_M × lightLevel (sim/light.js, the one
-//     number the dice read). By day the eye reaches 50 m; at night a man under a lamp is seen from
-//     34 m, one in the dark between lamps from 22;
+//     number the dice read). By day the eye reaches 52 m; at night a man under a lamp is seen from
+//     30 m, one in the dark between lamps from 15: the night street is islands of light (the user,
+//     2026-10-26: "at night we don't get a malus to sight?");
 //   - all round, a radius of situational awareness, AWARE_M plus AWARE_PER for each point of
 //     Awareness: the edge of the eye, footsteps, the sense of someone there;
 //   - looking into a shop window (a.glass: its pane, { x0, x1, z }), the street behind, as a mirror
@@ -35,8 +36,8 @@ export const CONE_PER_AWARENESS = 2;
 export const CONE_MAX_DEG = 170;
 export const AWARE_M = 2.5;
 export const AWARE_PER = 0.2;
-export const SIGHT_M = 18;
-export const LIGHT_M = 34;
+export const SIGHT_M = 10;
+export const LIGHT_M = 42;
 export const GLASS_K = 0.75;
 export const BODY_DEG = 24;
 export const GLASS_MAX_DEG = 60;

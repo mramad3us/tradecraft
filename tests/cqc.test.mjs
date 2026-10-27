@@ -3,7 +3,7 @@
 // balance, bouts between fighters of different CQC, as numbers; then the dojo played through.
 import { seedRng } from '../src/sim/rng.js';
 import { sheet } from '../src/sim/people.js';
-import { startFight, resolve, readChance, MOVES, BEATS } from '../src/sim/cqc.js';
+import { startFight, resolve, readChance, technique, MOVES, BEATS } from '../src/sim/cqc.js';
 import { stateOf, injure, bleeding, heal } from '../src/sim/health.js';
 import { spatter } from '../src/sim/blood.js';
 import { newGame, start, step } from '../src/sim/game.js';
@@ -69,6 +69,44 @@ export default [
       assert(stop.o.kind === 'fended' && stop.o.dmg === 0, 'a throw stopped');
       const kept = spend('guard', 'hit');
       assert(!kept.o.spent.a && kept.f.adv.a === 1, 'covering a hit needs no edge: it\'s kept');
+    },
+  },
+  {
+    name: 'cqc: a cover with Shift held meets a hit and hits back (the edge kept); staggered, no grab; dazed, no cover; always hitting into a better fighter loses, fast',
+    fn() {
+      const s = ring(10, 10, 5), f = startFight(s, 'a', 'b', { script: ['hit'] });
+      resolve(s, f, { move: 'guard' });
+      assert(f.adv.a === 1, 'a plain cover earns an edge');
+      const o = resolve(s, f, { move: 'guard', spend: true });
+      assert(o.kind === 'riposte' && o.dmg > 0 && o.status.b === 'dazed' && f.adv.a === 1, `a Shift cover: a riposte that dazes, the edge kept (${o.kind}, ${o.status.b}, ${f.adv.a})`);
+      // What a status forbids does nothing: the move goes open.
+      const t = ring(10, 10, 6), g = startFight(t, 'a', 'b', { script: ['guard'] });
+      g.status.a = 'staggered';
+      assert(resolve(t, g, { move: 'grapple' }).ours === 'open', 'staggered: a grab is nothing');
+      g.status.a = 'dazed';
+      g.theirs = { move: 'hit', spend: false };
+      const d = resolve(t, g, { move: 'guard' });
+      assert(d.ours === 'open' && d.kind === 'landed', 'dazed: no cover, and the hit lands');
+      // Hitting every time into someone far better: they read it, cover, and riposte.
+      let rounds = 0, ripostes = 0, won = 0;
+      for (let seed = 1; seed <= 30; seed++) {
+        const u = ring(8, 26, seed), h = startFight(u, 'a', 'b', { bout: true, to: 3 });
+        for (let i = 0; i < 60 && !h.ended; i++) { const x = resolve(u, h, { move: 'hit' }); ripostes += x.kind === 'riposte'; }
+        rounds += h.round; won += h.ended?.by === 'a';
+      }
+      console.log(`      CQC 8 hitting every time into 26, 30 bouts: ${fmt(rounds / 30, 1)} exchanges a bout, ${ripostes} ripostes, ${won} won`);
+      assert(rounds / 30 < 8 && ripostes > 15 && won === 0, 'no stalemate: the better fighter answers with ripostes, and wins');
+    },
+  },
+  {
+    name: 'cqc: an expert has variety: no one technique, and not all kicks',
+    fn() {
+      const r = seedRng(9), n = {};
+      for (let i = 0; i < 3000; i++) { const t = technique(r, 'hit', 30); n[t.id] = (n[t.id] ?? 0) + 1; }
+      const share = (ids) => ids.reduce((a, k) => a + (n[k] ?? 0), 0) / 3000;
+      console.log(`      CQC 30, a hit: ${Object.entries(n).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${Math.round(v / 30)}%`).join(', ')}`);
+      assert(Object.values(n).every(v => v / 3000 < 0.25), 'no one technique a quarter of the time');
+      assert(share(['kick', 'lowkick', 'roundhouse']) < 0.4 && share(['jab', 'cross', 'hook', 'palm']) > 0.3, 'kicks, but punches more');
     },
   },
   {

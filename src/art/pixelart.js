@@ -136,7 +136,7 @@ export const FINE_PALETTE = [
  * every pixel shows the same size at any scale (nearest-neighbour would make some a screen pixel
  * wider than others, and they'd crawl as the camera moves), and a whole-number scale is exact.
  *
- * setFog(texture, x0, z0, w, h) dims what lies where a ground-plane mask says it's unseen: the mask
+ * setFog(texture, x0, z0, w, h, dimK) dims what lies where a ground-plane mask says it's unseen (to dimK of its light): the mask
  * (one channel, 1 seen … 0 unseen) covers x0 … x0 + w, z0 … z0 + h in world metres, and each pixel
  * looks it up at the ground position under it (from the depth buffer: a wall's pixels at its foot, a
  * person's at their feet), dithered between seen and dimmed. setFog(null) turns it off.
@@ -208,7 +208,7 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
       tColor: { value: rt.texture }, tDepth: { value: rt.depthTexture }, tId: { value: rtId.texture },
       res: { value: new THREE.Vector2(W, H) }, near: { value: camera.near }, far: { value: camera.far },
       outline: { value: outline ? 1 : 0 }, grade: { value: grade },
-      tFog: { value: null }, fogOn: { value: 0 }, fogBox: { value: new THREE.Vector4(0, 0, 1, 1) }, invVP: { value: new THREE.Matrix4() },
+      tFog: { value: null }, fogOn: { value: 0 }, fogBox: { value: new THREE.Vector4(0, 0, 1, 1) }, invVP: { value: new THREE.Matrix4() }, dimK: { value: 0.48 },
       // (padded to the shader's 128: three uploads the array at the declared size)
       pal: { value: Array.from({ length: 128 }, (_, i) => { const c = pal[Math.min(i, pal.length - 1)]; return new THREE.Vector3(c.r, c.g, c.b); }) },
       count: { value: Math.min(pal.length, 128) },
@@ -218,7 +218,7 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
       precision highp float;
       in vec2 vUv; out vec4 outColor;
       uniform sampler2D tColor, tDepth, tId, tFog; uniform vec2 res; uniform float near, far, outline, grade, fogOn;
-      uniform vec3 pal[128]; uniform int count; uniform vec4 fogBox; uniform mat4 invVP;
+      uniform vec3 pal[128]; uniform int count; uniform vec4 fogBox; uniform mat4 invVP; uniform float dimK;
       float lin(float d) { return near + d * (far - near); }
       // A 4 × 4 ordered dither: the threshold for this pixel.
       float bayer(vec2 p) {
@@ -226,10 +226,10 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
         float m[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.);
         return (m[i] + 0.5) / 16.0;
       }
-      // Unseen: darker, greyer, a little cold, as a memory of the place.
+      // Unseen: darker, greyer, a little cold, as a memory of the place; at night much darker (dimK).
       vec3 dim(vec3 c) {
         float l = dot(c, vec3(0.30, 0.59, 0.11));
-        return mix(vec3(l), c, 0.3) * 0.48 + vec3(0.010, 0.016, 0.032);
+        return mix(vec3(l), c, 0.3) * dimK + vec3(0.010, 0.016, 0.032) * dimK / 0.48;
       }
       vec3 nearest(vec3 c) {
         vec3 best = pal[0]; float bd = 1e9;
@@ -309,7 +309,7 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
     blit.material.uniforms.scale.value.set(outW / W, outH / H);
     renderer.setSize(outW, outH, false);
   };
-  const setFog = (tex, x0 = 0, z0 = 0, w = 1, h = 1) => { U.tFog.value = tex; U.fogOn.value = tex ? 1 : 0; U.fogBox.value.set(x0, z0, w, h); };
+  const setFog = (tex, x0 = 0, z0 = 0, w = 1, h = 1, dimK = 0.48) => { U.tFog.value = tex; U.fogOn.value = tex ? 1 : 0; U.fogBox.value.set(x0, z0, w, h); U.dimK.value = dimK; };
   const render = () => {
     renderer.setRenderTarget(rt);
     renderer.render(scene, camera);

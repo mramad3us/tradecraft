@@ -32,11 +32,22 @@
 // cover is a block, then a parry or a slip, which can leave the attacker off balance. Each has its
 // targets, its weight (k), how long it takes to come (wind: the picture's, sim/cqcshow.js), and what
 // it can do besides hurt.
-// **Staggered, stunned** (the user: "string opponents would also be able to stagger, stun"): a blow
-// that takes STAGGER_AT of what a part can take in one go, or a low kick, a parry, a slip, a shove,
-// leaves someone staggered for the next exchange (STAGGER_MOD to their CQC, and no reading anyone);
-// one to the head that takes STUN_AT, or a palm, a head kick, a choke, may stun them: the next
-// exchange they do nothing at all (the move 'open'), and whatever comes at them lands.
+// **Staggered, dazed, stunned**, for the next exchange, each a handicap (the user: "stuns and dazes
+// should have effects like preventing blocks or hit or grab"; HANDICAP): staggered, off balance, no
+// grab (no footing to throw from) and STAGGER_MOD; dazed, no cover (the hands come up too slow) and
+// DAZE_MOD; stunned, nothing at all (the move 'open'): whatever comes lands. None of the three reads
+// anyone. A blow that takes STAGGER_AT of what a part can take in one go staggers, as do a low kick,
+// a parry, a slip, a shove; one to the head that takes DAZE_AT may daze, STUN_AT may stun (a palm, a
+// head kick, a choke, likelier); a riposte dazes.
+// **The riposte** (the user: "blocking a hit with advantage should result in a riposte that does even
+// more damage than a direct hit and dazes … when you block normally you get an advantage, when you
+// block with shift, you keep the advantage point and also hit back"): a cover with an edge in hand,
+// Shift held, that meets a hit answers it at once, RIPOSTE_K a hit's damage, mostly to the head, and
+// the hitter is dazed; the edge is kept. A plain cover earns an edge, as ever. So hitting into someone
+// better, who reads it and covers, costs every time.
+// **Spending an edge, their side** (the user: "using it when you can't read the opponent … or block
+// and riposte without losing the advantage"): not reading you, they spend one on whatever they do
+// (SPEND_BLIND); reading you, they keep it, for the riposte; holding all they can, now and then.
 // **Injuries** besides the hurt (sim/health.js injure(): a crack, a split brow or lip, a bloody nose),
 // and blood flying from a blow that drew it, or landed on a face already bleeding (out.blood: how much;
 // the picture flings it, sim/cqcshow.js, onto the floor, sim/blood.js).
@@ -53,8 +64,16 @@ export const MOVES = ['hit', 'grapple', 'guard'];
 export const BEATS = { guard: 'hit', hit: 'grapple', grapple: 'guard' };   // each beats the one it names
 const BEATEN_BY = { hit: 'guard', grapple: 'hit', guard: 'grapple' };
 export const STAGGER_AT = 0.3;
-export const STUN_AT = 0.35;
+export const DAZE_AT = 0.25;
+export const STUN_AT = 0.5;
 export const STAGGER_MOD = -3;
+export const DAZE_MOD = -4;
+export const RIPOSTE_K = 1.5;
+export const SPEND_BLIND = 0.7;
+/** What each status forbids, for the next exchange. */
+export const HANDICAP = { staggered: 'grapple', dazed: 'guard' };
+/** Whether a fighter under `status` may make `move`. */
+export const allowed = (status, move) => HANDICAP[status] !== move && status !== 'stunned';
 const LEGS = { legL: 50, legR: 50 }, ARMS = { armL: 50, armR: 50 };
 /** How each move is done, by CQC (from … below): pose (the picture's), at (where it lands), k, wind, and what else it does. */
 export const TECHNIQUES = {
@@ -124,7 +143,7 @@ export function startFight(state, a, b, { bout = false, to = 3, style = 'even', 
   return f;
 }
 
-/** The chance a fights b's intent: READ_PER_PT a point of CQC over theirs (none, staggered or stunned). */
+/** The chance a fights b's intent: READ_PER_PT a point of CQC over theirs (none, staggered, dazed or stunned). */
 export const readChance = (state, a, b, f = state.fight) => {
   const s = f && (a === f.a ? f.status?.a : a === f.b ? f.status?.b : null);
   return s ? 0 : Math.min(READ_MAX, Math.max(0, cqcOf(state, a) - cqcOf(state, b)) * READ_PER_PT);
@@ -134,23 +153,25 @@ export const readChance = (state, a, b, f = state.fight) => {
 export function prepare(state, f) {
   const r = state.rng;
   const move = f.status?.b === 'stunned' ? 'open' : f.script ? f.script[f.round % f.script.length] : choose(state, f);
-  const spend = move !== 'open' && f.adv.b > 0 && !f.script && chance(r, move === 'hit' ? 0.5 : 0.25);
+  // (an edge: spent when they can't read you; kept, for the riposte, when they can; now and then when they hold all they can)
+  const blind = readChance(state, f.b, f.a, f) < 0.2, full = f.adv.b >= advMax(state, f.b);
+  const spend = move !== 'open' && f.adv.b > 0 && !f.script && chance(r, blind ? SPEND_BLIND : full ? 0.35 : 0.05);
   f.theirs = { move, spend };
   f.read = move === 'open' || f.tell || chance(r, readChance(state, f.a, f.b, f));
 }
 
 /** Their choice: their style's mix, turned against what we lean on the better they fight. */
 export function choose(state, f) {
-  const r = state.rng, me = state.people[f.b];
-  const allowed = (m) => m !== 'grapple' || canGrapple(me);
+  const r = state.rng, me = state.people[f.b], st = f.status?.b;
+  const ok = (m) => (m !== 'grapple' || canGrapple(me)) && allowed(st, m);
   const adapt = Math.min(ADAPT_MAX, cqcOf(state, f.b) * ADAPT_PER_CQC);
   if (f.seen.length >= 2 && chance(r, adapt)) {
     const counts = MOVES.map(m => [m, f.seen.filter(x => x === m).length]).sort((p, q) => q[1] - p[1]);
     const counter = BEATEN_BY[counts[0][0]];
-    if (allowed(counter)) return counter;
+    if (ok(counter)) return counter;
   }
   const mix = STYLES[f.style] ?? STYLES.even;
-  return weighted(r, MOVES.filter(allowed).map(m => [m, mix[m]]));
+  return weighted(r, MOVES.filter(ok).map(m => [m, mix[m]]));
 }
 
 /** Where a blow lands: the technique's targets (clean: the head more often). */
@@ -169,11 +190,15 @@ function partHit(r, at, clean) {
 export function resolve(state, f, ours) {
   const r = state.rng, A = state.people[f.a], B = state.people[f.b];
   const was = { ...f.status };
-  const moves = { a: was.a === 'stunned' ? 'open' : ours.move === 'grapple' && !canGrapple(A) ? 'guard' : ours.move, b: f.theirs.move };
+  const forced = (st, m) => (st === 'stunned' ? 'open' : allowed(st, m) ? m : 'open');   // (what a handicap forbids does nothing)
+  const moves = { a: forced(was.a, ours.move === 'grapple' && !canGrapple(A) ? 'guard' : ours.move), b: forced(was.b, f.theirs.move) };
   // (the better one, if it's them, may see ours coming and answer it)
   const answer = BEATEN_BY[moves.a];
-  if (moves.b !== 'open' && moves.a !== 'open' && !f.script && (answer !== 'grapple' || canGrapple(B)) && chance(r, readChance(state, f.b, f.a, f))) { moves.b = answer; f.theirs.read = true; }
-  const tech = { a: technique(r, moves.a, cqcOf(state, f.a)), b: technique(r, moves.b, cqcOf(state, f.b)) };
+  if (moves.b !== 'open' && moves.a !== 'open' && !f.script && (answer !== 'grapple' || canGrapple(B)) && allowed(was.b, answer) && chance(r, readChance(state, f.b, f.a, f))) {
+    moves.b = answer; f.theirs.read = true;
+    if (answer === 'guard' && f.adv.b > 0) f.theirs.spend = true;  // (they see the hit coming, an edge in hand: the riposte)
+  }
+  const tech = { a: (ours.tech && TECHNIQUES[moves.a]?.find(t => t.id === ours.tech)) || technique(r, moves.a, cqcOf(state, f.a)), b: technique(r, moves.b, cqcOf(state, f.b)) };
   const wants = { a: !!ours.spend && f.adv.a > 0 && moves.a !== 'open', b: !!f.theirs.spend && f.adv.b > 0 };
   const out = { round: f.round, ours: moves.a, theirs: moves.b, tech: { a: tech.a?.id ?? null, b: tech.b?.id ?? null }, kind: 'circle', by: null, part: null, dmg: 0, force: 0, roll: null,
     spent: { a: false, b: false }, gained: null, read: f.read, status: { a: null, b: null }, was };
@@ -183,7 +208,7 @@ export function resolve(state, f, ours) {
   if (moves.a === 'open' || moves.b === 'open') by = moves.a === moves.b ? null : moves.a === 'open' ? (moves.b === 'guard' ? null : 'b') : (moves.a === 'guard' ? null : 'a');
   else if (moves.a !== moves.b) by = BEATS[moves.a] === moves.b ? 'a' : 'b';
   else if (moves.a !== 'guard') {
-    const off = (s) => (was[s] === 'staggered' ? [{ why: 'off balance', v: STAGGER_MOD }] : []);
+    const off = (s) => (was[s] === 'staggered' ? [{ why: 'off balance', v: STAGGER_MOD }] : was[s] === 'dazed' ? [{ why: 'dazed', v: DAZE_MOD }] : []);
     const roll = opposed(r, { skill: 'cqc', value: cqcOf(state, f.a), mods: [...hurtMods(A, 'cqc'), ...off('a')] }, { skill: 'cqc', value: cqcOf(state, f.b), mods: [...hurtMods(B, 'cqc'), ...off('b')] });
     out.roll = roll;
     by = roll.ok ? 'a' : 'b';
@@ -192,7 +217,12 @@ export function resolve(state, f, ours) {
   if (by) {
     const win = moves[by], lose = moves[other(by)], w = by, l = other(by), T = tech[w];
     const W = by === 'a' ? f.a : f.b, L = by === 'a' ? f.b : f.a, LP = state.people[L];
-    if (win === 'guard') {                                          // a hit, guarded (parried, slipped: off balance, perhaps)
+    if (win === 'guard' && wants[w]) {                              // a hit, covered with an edge held ready (Shift): the riposte, the edge kept
+      out.kind = 'riposte';
+      out.part = partHit(r, { head: 70, torso: 30 }, true);
+      out.dmg = damage(state, f, (int(r, HIT_PTS[1] - HIT_PTS[0] + 1) + HIT_PTS[0]) * RIPOSTE_K, W, L);
+      out.status[l] = 'dazed';
+    } else if (win === 'guard') {                                   // a hit, guarded (parried, slipped: off balance, perhaps)
       out.kind = 'blocked';
       if (f.adv[w] < advMax(state, W)) { f.adv[w]++; out.gained = w; }
       if (T?.stagger && chance(r, T.stagger)) out.status[l] = 'staggered';
@@ -223,10 +253,11 @@ export function resolve(state, f, ours) {
       // What else it did (a crack, a split, a bloody nose), and whether it drew blood to fly.
       out.injuries = injure(LP, out.part, out.force, r, state.time.ms);
       out.blood = out.injuries.some(i => i.bleed) || (out.part === 'head' && LP.injuries?.some(i => i.bleed > state.time.ms)) ? Math.round(4 + out.force * 20) : 0;
-      // A heavy blow staggers; a hard one to the head, or a technique that's made for it, may stun.
+      // A heavy blow staggers; a hard one to the head dazes, a very hard one stuns (likelier for a technique made for it).
+      const head = out.part === 'head', t = T?.stun ?? 0;
+      if (head && out.force >= STUN_AT && chance(r, Math.min(0.9, 0.6 + t))) out.status[l] = 'stunned';
+      else if ((head && out.force >= DAZE_AT && chance(r, Math.min(0.9, 0.5 + t))) || (t && chance(r, t))) out.status[l] = out.status[l] === 'stunned' ? 'stunned' : 'dazed';
       if (!out.status[l] && out.force >= STAGGER_AT) out.status[l] = 'staggered';
-      const stun = (out.part === 'head' && out.force >= STUN_AT ? 0.5 : 0) + (T?.stun ?? 0);
-      if (stun && chance(r, Math.min(0.9, stun))) out.status[l] = 'stunned';
       if (f.bout) f.score[w] += T?.pts ?? (out.kind === 'thrown' ? 2 : 1);
     }
   }

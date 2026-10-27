@@ -19,6 +19,7 @@ import { skill } from './skills.js';
 import { spatter } from './blood.js';
 
 export const HITSTOP = 3;
+export const RIPOSTE_T = 2;
 export const KNOCK_M = [0.35, 0.85];
 export const DOWN_M = 0.7;
 const LUNGE_M = { hit: 0.42, grapple: 0.5 };
@@ -50,6 +51,8 @@ export function plan(state, f, out) {
   const impact = attacker?.acts ? attacker.wind : (A.acts ? A.wind : B.acts ? B.wind : 2);
   const ends = [A, B].map(x => (x.acts ? x.wind + x.strike + x.recover : 0));
   const struck = w && out.kind !== 'circle' && out.kind !== 'fended' && out.kind !== 'blocked' && out.kind !== 'absorbed' ? (w === 'a' ? 'b' : 'a') : null;
+  // (a riposte: the cover meets the blow, then hits back RIPOSTE_T later: that's the impact)
+  if (out.kind === 'riposte') return { A, B, impact: impact + RIPOSTE_T, covered: impact, struck, length: impact + RIPOSTE_T + 6 + HITSTOP + 1 };
   let tail = 3;
   if (struck) tail = out.kind === 'thrown' ? 1 + 6 + 4 : out.status[struck] === 'staggered' ? 8 : out.kind === 'locked' || out.kind === 'choked' ? 8 : 5;
   return { A, B, impact, struck, length: Math.max(...ends, impact + tail) + HITSTOP + 1 };
@@ -73,7 +76,7 @@ function at(pl, out, s, k) {
     if (out.kind === 'locked' || out.kind === 'choked') return { gait: t < 8 ? 'stun' : 'guard', off: t < 8 ? 0.1 : 0 };
     if (out.kind === 'shoved') return t < 6 ? { gait: 'stagger', off: back * Math.min(1, (t + 1) / 3) } : { gait: 'guard', off: back * Math.max(0, 1 - (t - 6) / 3) };
     if (t < 2) return { gait: 'reel', off: back * (t + 1) / 2 };
-    if (status === 'stunned') return { gait: 'stun', off: back };
+    if (status === 'stunned' || status === 'dazed') return { gait: status === 'stunned' ? 'stun' : 'reel', off: back };
     if (status === 'staggered') return t < 6 ? { gait: 'stagger', off: back * 1.3 } : { gait: 'guard', off: back * Math.max(0, 1.3 - (t - 6) * 0.5) };
     return { gait: 'guard', off: back * Math.max(0, 1 - (t - 2) / 3) };
   }
@@ -86,6 +89,8 @@ function at(pl, out, s, k) {
     if (k < wind + strike + recover) return { gait: 'guard', off: lunge * (1 - (k - wind - strike + 1) / (recover + 1)) };
     return { gait: status === 'staggered' ? 'stagger' : 'guard', off: 0 };
   }
+  // A riposte: the cover meets the blow, and hits straight back.
+  if (out.kind === 'riposte' && out.by === s) return k < pl.covered ? { gait: 'guard', off: 0 } : k < I ? { gait: 'guard', off: -0.08 } : k < I + 3 ? { gait: 'hook', off: 0.35 } : { gait: 'guard', off: 0 };
   // A cover (or nothing, dazed): it gives a little when the blow arrives.
   const t = s === 'a' ? out.tech.a : out.tech.b, pose = me.move === 'open' ? 'stun' : techOf('guard', t)?.pose ?? 'guard';
   if (out.kind === 'circle') return { gait: 'guard', off: 0.12 * Math.sin(Math.PI * k / 8) };

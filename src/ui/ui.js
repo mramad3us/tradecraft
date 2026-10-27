@@ -2,7 +2,9 @@
 // watch and where you are, the log's lines as they come, the keys, a scenario's marker over its target and the
 // instinct's line), and the sheets laid over it: the menu (Esc), the log (J), the character sheet (C:
 // the over-skill, the skills, health part by part), a test's brief before it starts and its result
-// when it ends. Plain DOM over the canvas, sized to it: the picture fills the
+// when it ends; F's menu over whoever's within reach (Talk, Violence and its openings, Read:
+// sim/interact.js), and their sheet as you guess it (sim/know.js). Plain DOM over the canvas, sized
+// to it: the picture fills the
 // window (fit()), centred, and the HUD is the same box, so nothing sits off the picture.
 //
 // The picture is RES pixels: 640 × 360, or on a window of another shape a little more street on its
@@ -20,6 +22,11 @@ import { shownRolls } from '../sim/scenarios/sdr.js';
 import { SCREEN_HALF_M } from '../sim/crowd.js';
 import { SKILLS, CLASSES, TRAINED, skill } from '../sim/skills.js';
 import { PARTS, stateOf, stateText, injuriesOn, FITNESS_K } from '../sim/health.js';
+import { atHand, options as interactOptions } from '../sim/interact.js';
+import { allowed } from '../sim/cqc.js';
+import { knownOf, classOf, READABLE } from '../sim/know.js';
+import { passerby, describe } from '../sim/people.js';
+import { CHOICES as TALK_CHOICES } from '../sim/talk.js';
 
 const el = (tag, props = {}, ...kids) => {
   const e = Object.assign(document.createElement(tag), props);
@@ -42,11 +49,14 @@ export function createUI({ input, cb }) {
   const intent = el('div', { className: 'intent', hidden: true });   // in a fight: what they're about to do, if we read it
   const bout = el('div', { className: 'bout', hidden: true });       // in a fight: the two of them, the score, the edges
   const moves = el('div', { className: 'moves', hidden: true });    // in a fight: the three moves and their keys, while we choose
+  const ask = el('div', { className: 'ask', hidden: true });           // F's menu, over whoever's within reach
+  const reach = el('div', { className: 'reach', hidden: true });       // a key over whoever's within reach
+  const talkbox = el('div', { className: 'ask talkbox', hidden: true }); // a conversation, over them (time stands still)
   const states = [0, 1].map(() => el('div', { className: 'fstate', hidden: true }));   // staggered, dazed: over a fighter
   const tags = el('div', { className: 'tags' });                   // faces you've marked: seen before, a tail
   const goal = el('div', { className: 'goal', hidden: true });      // where you're going, when it's off the picture
   const prompt = el('div', { className: 'prompt', hidden: true });
-  const hud = el('div', { id: 'hud' }, tags, marker, bubble, intent, ...states, bout, moves, goal, prompt, watch, toasts, keys, banner);
+  const hud = el('div', { id: 'hud' }, tags, marker, bubble, intent, ...states, reach, ask, talkbox, bout, moves, goal, prompt, watch, toasts, keys, banner);
   const menu = el('div', { className: 'overlay', hidden: true });
   const log = el('div', { className: 'overlay', hidden: true });
   const paper = el('div', { className: 'overlay', hidden: true });     // a brief, a result
@@ -70,7 +80,7 @@ export function createUI({ input, cb }) {
 
   const keyHints = () => {
     const k = (a) => `<kbd>${input.label(a)}</kbd>`;
-    keys.innerHTML = `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look · ${k('sheet')} sheet · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
+    keys.innerHTML = `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look · ${k('interact')} someone · ${k('sheet')} sheet · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
   };
   keyHints();
   setTimeout(keyHints, 300);                                       // once the keyboard's layout is known
@@ -160,6 +170,42 @@ export function createUI({ input, cb }) {
       bubble.className = `bubble ${sc.mark.glyph === '!' ? 'alarm' : ''}`;
       bubble.style.transform = `translate(${Math.round(bx * k)}px, ${Math.round(by * k)}px)`;
     }
+    // Whoever's within reach of F, marked with its key; F's menu over them while it's open.
+    const near = !sc.outcome && !state.fight && ask.hidden && atHand(state), nearAt = near && view?.posOf(near.id);
+    reach.hidden = !nearAt;
+    if (nearAt && view?.camera) {
+      const k = frame.clientWidth / RES[0], cam = view.camera;
+      if (reach.dataset.key !== input.label('interact')) { reach.dataset.key = input.label('interact'); reach.replaceChildren(el('kbd', { textContent: input.label('interact') })); }
+      reach.style.transform = `translate(${Math.round((RES[0] / 2 + (nearAt[0] - cam.x) * 16) * k)}px, ${Math.round((RES[1] / 2 + (nearAt[1] - cam.z) * 16 - 2.5 * 16) * k)}px)`;
+    }
+    if (!ask.hidden && askFor) {
+      const at = view?.posOf(askFor.id), k = frame.clientWidth / RES[0], cam = view?.camera;
+      // (beside them, kept inside the picture)
+      if (at && cam) {
+        const W = frame.clientWidth, H = frame.clientHeight, w = ask.offsetWidth, h = ask.offsetHeight;
+        const x = Math.max(8, Math.min(W - w - 8, (RES[0] / 2 + (at[0] - cam.x) * 16 + 14) * k)), y = Math.max(h / 2 + 8, Math.min(H - h / 2 - 8, (RES[1] / 2 + (at[1] - cam.z) * 16 - 2.6 * 16) * k));
+        ask.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+      }
+    }
+    // A conversation (sim/talk.js): what's been said, and what to say, over them; time stands still.
+    const tk = !sc.outcome && state.talk, tAt = tk && view?.posOf(tk.id);
+    talkbox.hidden = !tk;
+    if (tk) {
+      const key = `${tk.who}:${tk.round}`;
+      if (talkbox.dataset.key !== key) {
+        talkbox.dataset.key = key;
+        const p = state.people[tk.who], name = p.known === false ? p.seen : p.name;
+        talkbox.replaceChildren(el('div', { className: 'who', textContent: `Talking to ${name}` }),
+          ...tk.said.slice(-3).map(x => el('div', { className: 'said' }, el('i', { textContent: x.ours }), el('div', { textContent: x.theirs }))),
+          ...TALK_CHOICES.map((c, i) => el('button', { className: 'opt', onclick: () => cb.talk?.(c.id) }, el('kbd', { textContent: String(i + 1) }), el('span', { textContent: c.label }))),
+          el('div', { className: 'foot', textContent: `Time stands still while you talk · ${input.label('menu')}: leave it there` }));
+      }
+      if (tAt && view?.camera) {
+        const k = frame.clientWidth / RES[0], cam = view.camera, W = frame.clientWidth, H = frame.clientHeight, w = talkbox.offsetWidth, h = talkbox.offsetHeight;
+        const x = Math.max(8, Math.min(W - w - 8, (RES[0] / 2 + (tAt[0] - cam.x) * 16 + 14) * k)), y = Math.max(h / 2 + 8, Math.min(H - h / 2 - 8, (RES[1] / 2 + (tAt[1] - cam.z) * 16 - 2.6 * 16) * k));
+        talkbox.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+      }
+    }
     // A fight (sim/cqc.js): over the other one, what we read they're about to do (an icon and a word,
     // brass; a '?' when we can't), while we choose; over either, staggered or dazed; at the top, the
     // two of them, a bout's score and the edges each holds; at the foot, the three moves and their keys.
@@ -181,7 +227,7 @@ export function createUI({ input, cb }) {
       const st = fi?.status?.[i ? 'b' : 'a'], at2 = st && over(sides[i], fi.phase === 'choose' && i === 1 ? 3.3 : 2.45);
       t.hidden = !at2;
       if (!at2) return;
-      t.textContent = st === 'stunned' ? 'DAZED' : 'STAGGERED';
+      t.textContent = { stunned: 'STUNNED', dazed: 'DAZED', staggered: 'STAGGERED' }[st];
       t.className = `fstate ${st}`;
       t.style.transform = at2;
     });
@@ -197,10 +243,12 @@ export function createUI({ input, cb }) {
       }
     }
     moves.hidden = !choosing;
-    if (choosing && moves.dataset.adv !== String(fi.adv.a)) {
-      moves.dataset.adv = String(fi.adv.a);
-      moves.replaceChildren(...['hit', 'grapple', 'guard'].map(m => el('div', { className: 'move' }, el('kbd', { textContent: input.label(m) }), el('img', { src: icon(m), alt: '' }), el('span', { textContent: MOVE_WORD[m].toLowerCase() }))),
-        ...(fi.adv.a ? [el('div', { className: 'move spend' }, el('kbd', { textContent: input.label('run') }), el('span', { textContent: `+ a key: spend an edge (${fi.adv.a})` }))] : []));
+    if (choosing && moves.dataset.adv !== `${fi.adv.a}${fi.status?.a}`) {
+      moves.dataset.adv = `${fi.adv.a}${fi.status?.a}`;
+      const why = { staggered: 'off balance', dazed: 'too slow' }[fi.status?.a];
+      moves.replaceChildren(...['hit', 'grapple', 'guard'].map(m => el('div', { className: `move${allowed(fi.status?.a, m) ? '' : ' off'}`, title: allowed(fi.status?.a, m) ? '' : why },
+        el('kbd', { textContent: input.label(m) }), el('img', { src: icon(m), alt: '' }), el('span', { textContent: allowed(fi.status?.a, m) ? MOVE_WORD[m].toLowerCase() : `${MOVE_WORD[m].toLowerCase()}: ${why}` }))),
+        ...(fi.adv.a ? [el('div', { className: 'move spend' }, el('kbd', { textContent: input.label('run') }), el('span', { textContent: `+ a key: an edge (${fi.adv.a}): a hit lands double, a grab shrugs off a punch; a cover hits back, and keeps it` }))] : []));
     }
     // The instinct: always a line, its tone in its border; {key} in the text shows as that key.
     // What's at hand (the engine's: sim/acts.js affordance()) ends a line that offers nothing itself.
@@ -319,6 +367,69 @@ export function createUI({ input, cb }) {
     menu.hidden = log.hidden = true;
   }
 
+  // ---------- F: what to do with whoever's within reach (sim/interact.js) ----------
+  let askFor = null, askKeys = null;
+  /** The menu over them; choose(id, them) does it (an opening of VIOLENCE, or TALK, or READ). Returns whether it opened. */
+  function openInteract(state, choose) {
+    const them = atHand(state);
+    if (!them) return false;
+    askFor = them;
+    const p = them.who ? state.people[them.who] : null, q = !p && them.seed !== null ? passerby(them.seed) : null;
+    const whoText = p ? (p.known === false ? p.seen : p.name) : q ? describe(q.look, q.sex) : 'someone';
+    const show = (list, sub) => {
+      ask.replaceChildren(el('div', { className: 'who', textContent: whoText.charAt(0).toUpperCase() + whoText.slice(1) }),
+        ...list.map((o, i) => el('button', { className: `opt${o.ok ? '' : ' off'}`, disabled: !o.ok, onclick: () => pick(o) },
+          el('kbd', { textContent: String(i + 1) }), el('span', { textContent: `${o.label}${o.sub ? ' ▸' : ''}` }), o.why ? el('small', { textContent: o.why }) : null)),
+        el('div', { className: 'foot', textContent: sub ? `Backspace: back · ${input.label('interact')} or ${input.label('menu')}: close` : `${input.label('interact')} or ${input.label('menu')}: close` }));
+      askKeys = (e) => {
+        const n = Number(e.key);
+        if (n >= 1 && n <= list.length) { e.preventDefault(); pick(list[n - 1]); }
+        else if (e.key === 'Backspace' && sub) { e.preventDefault(); show(interactOptions(state, them), false); }
+      };
+    };
+    const pick = (o) => {
+      if (!o.ok) return;
+      if (o.sub) return show(o.sub, true);
+      closeAsk();
+      choose(o.id, them);
+    };
+    show(interactOptions(state, them), false);
+    ask.hidden = false;
+    reach.hidden = true;
+    return true;
+  }
+  const closeAsk = () => { ask.hidden = true; askFor = null; askKeys = null; };
+  addEventListener('keydown', (e) => {
+    if (!ask.hidden && askKeys) askKeys(e);
+    else if (!talkbox.hidden) { const n = Number(e.key); if (n >= 1 && n <= TALK_CHOICES.length) { e.preventDefault(); cb.talk?.(TALK_CHOICES[n - 1].id); } }
+  });
+
+  /** Their sheet as you guess it: what you know of them (sim/know.js). */
+  function openRead(state, who) {
+    const p = state.people[who], k = knownOf(state, who), title = p.known === false ? p.seen : p.name;
+    const rows = Object.entries(SKILLS).map(([key, sk]) => {
+      const r = k?.skills?.[key];
+      return el('tr', { className: r ? '' : 'none' }, el('td', { textContent: sk.name }), el('td', { className: 'val', textContent: r ? (r[0] === r[1] ? `${r[0]}` : `${r[0]}–${r[1]}`) : '?' }),
+        el('td', { className: 'lvl', textContent: r ? '' : READABLE.includes(key) ? 'not read yet' : 'doesn\'t show at a glance' }));
+    });
+    const bloodied = p.bloody?.face !== undefined;
+    const seen = Object.keys(PARTS).filter(part => ['hurt', 'wounded', 'out'].includes(stateOf(p, part)) || (part === 'head' && bloodied));
+    card.replaceChildren(el('div', { className: 'sheet charsheet readsheet' },
+      el('span', { className: 'stamp', textContent: 'YOUR READ' }),
+      el('h2', { textContent: title.toUpperCase() }),
+      el('p', { className: 'note', textContent: `${classOf(k) ? `By the look of them: ${classOf(k)}.` : 'What they are, you can\'t yet say.'} Read ${k?.reads ?? 0} time${k?.reads === 1 ? '' : 's'}${k?.fights?.won || k?.fights?.lost ? `; fought ${k.fights.won + k.fights.lost} time${k.fights.won + k.fights.lost === 1 ? '' : 's'} (${k.fights.won} won)` : ''}.` }), el('hr'),
+      el('div', { className: 'cols' },
+        el('div', {}, el('table', { className: 'skills' }, el('tbody', {}, rows)),
+          el('p', { className: 'note', textContent: 'Each range holds the truth; a better read (your Analysis) narrows it, and so does every read after. A fight shows bounds.' })),
+        el('div', { className: 'body' },
+          el('ul', {}, seen.length ? seen.map(part => el('li', { className: stateOf(p, part) }, el('span', { textContent: PARTS[part].name }),
+            el('span', { textContent: part === 'head' && bloodied && stateOf(p, part) === 'unhurt' ? 'bloodied' : stateText(p, part) }))) : [el('li', {}, el('span', { textContent: 'Nothing shows on them' }))]))),
+      el('p', { className: 'note', textContent: `${input.label('sheet')} or ${input.label('menu')} to close.` }),
+    ));
+    card.hidden = false;
+    menu.hidden = log.hidden = true;
+  }
+
   // ---------- a test's papers: the brief, the result ----------
   function showBrief(brief, onBegin) {
     const begin = () => { paper.hidden = true; paper.dataset.kind = ''; onBegin(); };
@@ -381,9 +492,9 @@ export function createUI({ input, cb }) {
     paper.querySelector('.item').focus();
   }
 
-  const closeOverlays = () => { menu.hidden = log.hidden = card.hidden = true; };
-  const closeAll = () => { menu.hidden = log.hidden = card.hidden = paper.hidden = true; paper.dataset.kind = ''; };
-  const overlay = () => (!menu.hidden ? 'menu' : !log.hidden ? 'log' : !card.hidden ? 'sheet' : !paper.hidden ? paper.dataset.kind : null);
+  const closeOverlays = () => { menu.hidden = log.hidden = card.hidden = true; closeAsk(); };
+  const closeAll = () => { menu.hidden = log.hidden = card.hidden = paper.hidden = true; paper.dataset.kind = ''; closeAsk(); };
+  const overlay = () => (!menu.hidden ? 'menu' : !log.hidden ? 'log' : !card.hidden ? 'sheet' : !ask.hidden ? 'interact' : !paper.hidden ? paper.dataset.kind : null);
 
-  return { frame, fit, showTitle, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
+  return { frame, fit, showTitle, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
 }
