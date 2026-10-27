@@ -4,6 +4,13 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc13 (2026-10-27)
+
+- **Weather** (your ask: snow, rain and wind, light to extreme, real effects). Every city has its own climate now, and every day its own weather, the same for the same game and date: Moscow's November is low grey cloud, light snow or sleet often, now and then a heavy fall, rarely a clear frost; London drizzles and sometimes pours; Beirut has showers and the odd storm; Cairo is sun, with haze and dust some days. A front comes and goes: the snow starts light, thickens, thins, and the log says so; the watch says what it's like ("Sleet, and a raw wind off the river").
+- **You see it.** Rain streaks down slanted by the wind and splashes on the pavement; snow falls in flakes, settles on the pavements, the roofs and the cars, and churns grey on the road; wet streets darken and stand in puddles that mirror the sky and the lamps; a frost silvers everything and glints; fog and dust swallow the far end of the street, and the lamps wear halos in them. Under cloud the light goes flat and grey, and dusk comes a little sooner.
+- **It counts.** Heavy rain or snow cuts how far anyone sees (fog much more: heavy fog 18 m, thick fog 10); fewer people come out in it (a downpour or a blizzard empties the street); hoods and umbrellas make faces harder to know, yours and theirs (−1 to −3 on Orlov's looks, the hunters', your checks of faces behind you); deep snow is slower going, and running on snow or ice you may slip. The free walk's instinct says when it matters. `?weather=snow-heavy-gale` pins it, for shots.
+- The watching test feels it too: the minder's eyes and your photographs (shorter reach and softer frames in rain, snow and fog).
+
 ## v0.1.0-rc12 (2026-10-27)
 
 - **Photographs in the campaign.** A target you've seen meet someone on a tail brings a photograph to take a few days on: his café, his minder, his name. A sharp print is worth two of intelligence, a soft one or the meeting witnessed one; made by his minder, heat, and he's careful.

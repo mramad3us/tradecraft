@@ -107,6 +107,9 @@ A motion I made can look fine to me and be wrong. On 2026-10-25 the walk had sho
 
 ## Lessons
 
+- *2026-10-27.* A smooth gradient laid over the picture in the composite (the weather's haze, by distance) comes out of the palette snap as rings: a hard-edged arc round the player, 28 m out. Dither it with the same 4 × 4 Bayer matrix as the fog of awareness, and it reads as haze.
+- *2026-10-27.* A frost drawn as a little snow lying (white patches by a noise) read as litter strewn on the street. Frost is a veil, not patches: what faces up mixed a third of the way to a pale blue-white, and one cell in fifty a glint.
+
 - *2026-10-26.* `tone()` lightens toward yellow, as a pixel artist does, and the game's warm grade and the lit top of the ground push the same way: a road painted a touch paler than the asphalt came out brown on screen. Ground that must stay cool keeps the asphalt's own colour and shows its age by grain and tarred cracks; check what a colour snaps to in the game (sample the screenshot), not in the painter.
 - *2026-10-26.* A tile drawn with `noise()` doesn't repeat: its last column and its first don't match, and the seam beats every tile's width (a 3 m tile of patches read as a grid of squares). Tiles use `tnoise()` (the same noise, periodic), or wrap what they draw; a tile of patches is made big (6 m) so they don't beat.
 - *2026-10-26.* Bare trees in pixel art: branches grown by space colonisation (points through the crown draw the nearest tip toward them) fill a crown as a tree's do; a recursive fork makes a fan. Under them, a twig haze of an ordered dither, thin inside and thick toward the rim, reads as a winter crown; noise blotches read as camouflage, and a few leaves drawn as lit clumps read as fruit.

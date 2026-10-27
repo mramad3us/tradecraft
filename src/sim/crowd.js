@@ -17,7 +17,8 @@
 // On the street in view they come in from beyond the screen's edges or out of doors, never where the
 // player would see them appear, and leave by their doors or off the screen; on the streets either side
 // (unseen) they appear anywhere along it. The count on each street holds near a target that follows the
-// hour (density()).
+// hour (density()) and the weather (sim/weather.js crowdK(): fewer out in heavy rain or snow, many
+// fewer in a downpour, a blizzard or a gale).
 //
 // A passer-by's route isn't saved (2 KB): it keeps its plan (ai.plan: where from, where to, who) and
 // the route is planned again on load, the same (agents.js PLANNERS).
@@ -33,6 +34,7 @@ import { hourOfDay, TICK_MS } from './clock.js';
 import { routeFrom, sectionOf, finish, LINE } from './city.js';
 import { makeAgent, rowOf, PLANNERS } from './agents.js';
 import { withHabits, withEnd, spur } from './habits.js';
+import { weatherAt, crowdK } from './weather.js';
 
 export const CROWD_PER_100M = 40;                                  // at the busiest hours, along a street
 export const WINDOW_M = 45;                                        // passers-by live within this of the focus, along the street
@@ -113,7 +115,7 @@ export function populate(state, focusX, { fill = false } = {}) {
   const r = state.rng, R = state.map.row, seed = townOf(state.map), rows = [];
   for (let k = -BUBBLE_ROWS; k <= BUBBLE_ROWS; k++) rows.push(R + k);
   state.actors = state.actors.filter(a => !isPasserby(a) || stays(state, a, rows, focusX));
-  const target = Math.round(CROWD_PER_100M * (2 * WINDOW_M / 100) * density(state.time.ms) * (state.map.crowd ?? 1));
+  const target = Math.round(CROWD_PER_100M * (2 * WINDOW_M / 100) * density(state.time.ms) * (state.map.crowd ?? 1) * crowdK(weatherAt(state)));
   const count = new Map(rows.map(row => [row, 0]));
   for (const a of state.actors) if (isPasserby(a)) { const row = rowOf(state, a); if (count.has(row)) count.set(row, count.get(row) + 1); }
   // Nobody appears where the player would see it happen: on screen and in their sight.

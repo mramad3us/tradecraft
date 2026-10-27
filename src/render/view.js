@@ -44,10 +44,16 @@
 //     a cell is the open air's, but where a lamp's pool may reach (each lamp stamps the cells under
 //     it): those take lightLevel() with the lamps that reach them, the number checks read;
 //   - people as the player knows them: those seen this tick where they are, the rest where they were
-//     last seen, frozen mid-step in the dimmed street, until that spot is looked at again.
+//     last seen, frozen mid-step in the dimmed street, until that spot is looked at again;
+//   - the weather (sim/weather.js weatherAt(), the sim's, so the screen shows what the dice read):
+//     the light under cloud is sky()'s; on the surfaces (src/art/pixelart.js WX) the snow lying, the
+//     wet and its puddles, the lamps mirrored in them; in the composite (setWeather()) what falls, at
+//     its density by level (FALL), slanted by the wind (SLANT), splashes, the haze out to how far the
+//     eye reaches through it (sightM(): what's hazed out is what can't be seen) and the lamps' halos.
+//     Nothing on a map indoors.
 // Positions are interpolated between the last two ticks (alpha), so motion is smooth at any frame rate.
 import * as THREE from 'three';
-import { pixelStage, finish, FINE_PALETTE, PX_PER_M, emissiveOf } from '../art/pixelart.js';
+import { pixelStage, finish, FINE_PALETTE, PX_PER_M, emissiveOf, WX, WX_LAMPS } from '../art/pixelart.js';
 import { buildSection } from './town.js';
 import { buildDojo } from './dojo.js';
 import { createCrowd } from './crowd.js';
@@ -63,6 +69,8 @@ import { SCREEN_HALF_M } from '../sim/crowd.js';
 import { Z_BACK, Z_FRONT } from '../sim/map/dojo.js';
 import { eyes, visibility, openAir } from '../sim/perception.js';
 import { sectionFor } from '../sim/world.js';
+import { weatherAt, sightM, FALLS } from '../sim/weather.js';
+import { TICK_MS } from '../sim/clock.js';
 
 export const RES = [640, 360];
 export const LAMP_SLOTS = 10;
@@ -77,6 +85,14 @@ export const FOG_N = [96, 128];                                    // cells: 48 
 const FOG_AT = [-24, -18];                                         // the mask's corner from the camera, m
 const FOG_IN_S = 0.08, FOG_OUT_S = 0.4;
 const LAMP_Y = 2.7;
+// The weather drawn: what falls by kind and level (rain's streaks, snow's flakes, dust's grit; sleet
+// is both, half each), splashes on wet ground, the haze's strength (by its far edge, the eye's reach
+// through it), the wind's slant (pixels across a pixel down, by its level; snow drifts further).
+export const FALL = { rain: [0, 0.25, 0.6, 1], snow: [0, 0.3, 0.65, 1], dust: [0, 0, 0.5, 1] };
+export const SPLASH = [0, 0.15, 0.4, 0.7];
+export const HAZE = { rain: [0, 0, 0.18, 0.4], sleet: [0, 0.05, 0.22, 0.45], snow: [0, 0.08, 0.3, 0.55], fog: [0, 0.45, 0.7, 0.85], dust: [0, 0.35, 0.6, 0.8] };
+export const SLANT = { rain: [0.06, 0.18, 0.4, 0.75], snow: [0.1, 0.3, 0.65, 1.1] };
+const FALL_LOOP_MS = 600000;                                        // (what falls loops every ten minutes: small numbers for the GPU)
 const CAMERA_Z = [Z.north + 8, Z.edge - 8];                        // the camera's centre stays within these (at RES)
 
 export function createView({ parent, bus, month = () => 11 }) {
@@ -297,7 +313,7 @@ export function createView({ parent, bus, month = () => 11 }) {
   /** Draw the state. prev: id → [x, z, stride] at the last tick; alpha: how far into this one. */
   function frame(state, prev, alpha, t) {
     city = state.map.city;                                         // (passers-by dress as their city does)
-    const ms = state.time.ms, S = sky(ms, geoOf(state.map)), W = state.$world;
+    const ms = state.time.ms, wx = weatherAt(state), S = sky(ms, geoOf(state.map), wx), W = state.$world;
     const lamps = W.lamps;
     // Where everyone is, between the ticks.
     const at = (a) => { const p = prev.get(a.id); return p ? [lerp(p[0], a.x, alpha), lerp(p[1], a.z, alpha), lerp(p[2], a.stride, alpha)] : [a.x, a.z, a.stride]; };
@@ -358,6 +374,7 @@ export function createView({ parent, bus, month = () => 11 }) {
         if (l) { spot.position.set(l.x, LAMP_Y, l.z); spot.target.position.set(l.x, 0, l.z); }
       });
     });
+    weather(state, wx, S, near, f, alpha);
     // Sprite props and people, in the light where they stand. On screen, something at height y on a
     // card at z sits where the ground at z − y does: a card hides whoever stands behind it (smaller z)
     // within its width and height.
@@ -410,6 +427,47 @@ export function createView({ parent, bus, month = () => 11 }) {
     for (const s of dying) s.dispose();                            // (the last street's, now the next's have their shaders)
     dying.length = 0;
   }
+  // The weather, each frame: on the surfaces (WX) and in the composite (setWeather()).
+  const proj = new THREE.Vector3(), lin = new THREE.Color();
+  function weather(state, w, S, near, f, alpha) {
+    if (w.indoors) { WX.wxCover.value = WX.wxRime.value = WX.wxWet.value = WX.wxPuddles.value = 0; stage.setWeather(null); return; }
+    const falls = FALLS.has(w.kind), L = w.level, sleet = w.kind === 'sleet';
+    // (how bright the open air is, 0 night … 1 day: what falls and the haze are lit by it)
+    const air = Math.max(0, Math.min(1, (openAir(state) - 0.06) / 0.9)), lit = (c, lo = 0.3) => c.map(v => v * (lo + (1 - lo) * air));
+    const dusk = (day, night) => day.map((v, j) => night[j] + (v - night[j]) * air);   // (the haze: its night colour to its day's)
+    WX.wxCover.value = w.cover;
+    WX.wxRime.value = w.rime;
+    WX.wxWet.value = w.wet;
+    WX.wxPuddles.value = Math.max(0, Math.min(1, (w.wet - 0.45) / 0.55)) * (falls ? 0.3 + 0.25 * L : 0.4) * (state.map.city === 'cairo' ? 0.3 : 1);
+    lin.setHex(S.sky, THREE.SRGBColorSpace).multiplyScalar(0.25 * S.skyK + 0.1 * S.sunK);
+    WX.wxSky.value.copy(lin);
+    WX.wxRoad.value.set(Z.kerbN, Z.kerbS, Z.roadN, Z.roadS);
+    WX.wxLamps.value.forEach((v, i) => { const l = near[i]?.[0]; v.set(l?.x ?? 0, l?.z ?? 0, l && w.wet > 0.3 ? S.glow : 0, LAMP_Y); });
+    const hk = HAZE[w.kind]?.[L] ?? 0, far = Math.min(60, sightM(w));
+    const slant = w.dir * (SLANT[w.kind === 'snow' ? 'snow' : 'rain'][w.wind] ?? 0);
+    // (the lamps' halos in wet or thick air: their heads on the screen, pixels from the bottom left)
+    const halos = [];
+    const wetAir = hk + (falls ? 0.08 * L : 0);
+    if (S.glow > 0 && wetAir > 0.05) {
+      camera.updateMatrixWorld();
+      for (const [l] of near.slice(0, WX_LAMPS)) {
+        proj.set(l.x, LAMP_Y, l.z).project(camera);
+        halos.push([(proj.x + 1) / 2 * stage.W, (proj.y + 1) / 2 * stage.H, S.glow * Math.min(0.5, 0.15 + 0.5 * wetAir), 8 + 16 * hk]);
+      }
+    }
+    const fx = f ? f.x : cam.x, fz = f ? f.z : cam.z;
+    stage.setWeather({
+      rain: w.kind === 'rain' ? FALL.rain[L] : sleet ? 0.5 * FALL.rain[L] : 0,
+      snow: w.kind === 'snow' ? FALL.snow[L] : sleet ? 0.5 * FALL.snow[L] : 0,
+      dust: w.kind === 'dust' ? FALL.dust[L] : 0,
+      splash: w.kind === 'rain' || sleet ? SPLASH[L] : 0,
+      slant, t: ((state.time.ms + alpha * TICK_MS) % FALL_LOOP_MS) / 1000, cam: [cam.x * PX_PER_M, cam.z * PX_PER_M],
+      drop: lit([0.7, 0.76, 0.86]), flake: lit([0.95, 0.96, 1], 0.4), grit: lit([0.78, 0.64, 0.42]),
+      haze: hk ? { k: hk, far, eye: [fx, fz], col: dusk(w.kind === 'dust' ? [0.78, 0.64, 0.44] : w.kind === 'fog' ? [0.72, 0.74, 0.77] : [0.62, 0.65, 0.7], w.kind === 'dust' ? [0.2, 0.16, 0.12] : [0.13, 0.15, 0.21]) } : null,
+      halos,
+    });
+  }
+
   function lookOf(seed) {
     if (!looks.has(seed)) { looks.set(seed, passerby(seed, city).look); if (looks.size > 600) looks.delete(looks.keys().next().value); }
     return looks.get(seed);

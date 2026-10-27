@@ -11,7 +11,7 @@ import { sectionAt } from '../src/sim/world.js';
 
 /** A bot at (x, z), eyes on the café while it waits, a frame every 2 s while they're together. */
 function run(seed, how) {
-  const g = newGame({ seed, scenario: 'watch' });
+  const g = newGame({ seed, scenario: 'watch', weather: 'clear' });   // (the baseline: sim/weather.js)
   start(g, null);
   const sc = g.scenario;
   for (let t = 0; t < 20 * 60 * 40 && !sc.outcome; t++) {

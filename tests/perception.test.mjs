@@ -8,8 +8,9 @@ import { skill } from '../src/sim/skills.js';
 import { Z } from '../src/sim/map/street.js';
 import { assert, fmt } from './helpers.mjs';
 
+// (in clear weather: the reach here is the light's alone; tests/weather.test.mjs has the weather's toll)
 function street(hour = 15, seed = 4) {
-  const g = newGame({ seed });
+  const g = newGame({ seed, weather: 'clear' });
   g.time.ms = at(2026, 11, 2, hour, 0);
   start(g, null);
   return g;

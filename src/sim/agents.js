@@ -31,7 +31,8 @@ import { TICK_MS } from './clock.js';
 import { placeAt, routeFrom, finish, sectionOf, clearAt, LINE } from './city.js';
 import { Z, SECTION_M, mouthOf, inLane as inLaneG, laneLine } from './map/street.js';
 import { near } from './world.js';
-import { seesActor, headOf, gazeInto, openAir, SIGHT_M, LIGHT_M } from './perception.js';
+import { seesActor, headOf, gazeInto, openAir, reach } from './perception.js';
+import { weatherAt, footing } from './weather.js';
 import { paneAt, seatTaken } from './acts.js';
 
 const DT = TICK_MS / 1000;
@@ -153,7 +154,7 @@ export function stepAgent(state, a, scenario, bus) {
   const stop = route?.stops?.[ai.stop];
   if (stop && stop.s <= ai.s + 1e-6) { startStop(state, a, stop, scenario, bus); return; }
   if (!route || ai.s >= route.length - 1e-6) { a.vx = a.vz = 0; a.gait = ai.sit ? 'sit' : 'idle'; return; }
-  let v = ai.speed * (ai.pace ?? 1);
+  let v = ai.speed * (ai.pace ?? 1) * footing(weatherAt(state)).walk;   // (slower going in snow: sim/weather.js)
   if (stop && stop.slowM && stop.s - ai.s <= stop.slowM) {        // a tell: slowing before a check
     if (ai.told !== ai.stop) { ai.told = ai.stop; scenario?.onStop?.(state, a, stop, 'tell', bus); }
     v *= 0.5;
@@ -332,8 +333,8 @@ export function routeFollower(state, a) {
   const T = fo.trail, seed = townOf(state.map), row = rowOf(state, a);
   const t = state.actors.find(o => o.id === fo.id), unseen = (state.time.ms - fo.seenMs) / 1000;
   // How far back: never further than KEEP_SIGHT of how far the eye reaches (perception.js) in the
-  // open air's light, not a lamp's: they'll walk out of the lamplight.
-  const keepNow = Math.min(fo.keep, KEEP_SIGHT * (SIGHT_M + LIGHT_M * openAir(state)));
+  // open air's light, not a lamp's (they'll walk out of the lamplight), through the weather.
+  const keepNow = Math.min(fo.keep, KEEP_SIGHT * reach(state, openAir(state)));
   const walking = () => a.ai.route && a.ai.s < a.ai.route.length - 0.05;
   const go = (route, pace = 1) => { Object.assign(a.ai, { route, s: 0, stop: 0, f: 0, pace }); };
   throughLane(state, fo);

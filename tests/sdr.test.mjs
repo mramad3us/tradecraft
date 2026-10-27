@@ -9,7 +9,7 @@ import { oblivious, checker, pro } from './bots.mjs';
 import { assert, fmt } from './helpers.mjs';
 
 function play(seed, bot) {
-  const g = newGame({ seed, scenario: 'sdr' });
+  const g = newGame({ seed, scenario: 'sdr', weather: 'clear' });   // (clear: the numbers DESIGN.md quotes)
   start(g, null);
   for (let t = 0; t < 20 * 60 * 20 && !g.scenario.outcome; t++) {
     const me = g.actors.find(a => a.who === g.player);

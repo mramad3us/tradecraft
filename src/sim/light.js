@@ -15,6 +15,11 @@
 //     (0 pitch dark … 1 daylight). So what you see is what's rolled.
 // The sun's direction on screen stays the art's (from the upper left): sprites are shaded that way,
 // and a sun swinging round them would contradict their drawing. Its height, colour and strength move.
+// The weather (sim/weather.js, sky()'s third argument) veils it: under cloud the sun's light and its
+// shadows go (CLOUD.sun, its shadows × 1 − cloud), the sky's fill takes over (CLOUD.sky), every colour
+// goes greyer (CLOUD.grey): a flatter, greyer light. The open air's tint, what sprites take and the
+// dice read, goes down CLOUD.dim under full cloud and FALL_DIM a level of rain, snow, fog or dust: dusk
+// comes a little sooner under a heavy sky. A clear sky (or none given) is the sun's alone.
 import { calendar, hourOfDay, TZ_H } from './clock.js';
 
 export const LAT = 55.75, LON = 37.62;
@@ -54,18 +59,25 @@ const lerpHex = (a, b, k) => {
 };
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
+// Under cloud: the sun's light × (1 − sun × cloud), the sky's fill × (1 + sky × cloud), colours toward
+// grey by grey × cloud, the open air's tint × (1 − dim × cloud − FALL_DIM × the level of what falls).
+export const CLOUD = { sun: 0.7, sky: 0.9, grey: 0.6, dim: 0.12 };
+export const FALL_DIM = 0.05;
+const GREY = 0xd9dbe0;
+
 /**
  * The scene's light at a game time: { elev, sun, sunK, sky, ground, skyK, tint, glow, shadow }.
  * glow 0..1: windows and lamps lit (on from 2° above the horizon to 3° below);
  * shadow 0..1: the sun's shadows (they fade out as it sets; the moon casts none).
+ * w: the weather (sim/weather.js weatherAt()), if any: its cloud and what falls veil the sun.
  */
-export function sky(ms, geo = MOSCOW_GEO) {
+export function sky(ms, geo = MOSCOW_GEO, w = null) {
   const { elev } = sun(ms, geo);
   let i = 0;
   while (i < KEYS.length - 1 && elev < KEYS[i + 1].elev) i++;
   const a = KEYS[i], b = KEYS[Math.min(i + 1, KEYS.length - 1)];
   const k = a === b ? 0 : clamp01((a.elev - elev) / (a.elev - b.elev));
-  return {
+  const S = {
     elev,
     sun: lerpHex(a.sun, b.sun, k), sunK: lerp(a.sunK, b.sunK, k),
     sky: lerpHex(a.sky, b.sky, k), ground: lerpHex(a.ground, b.ground, k), skyK: lerp(a.skyK, b.skyK, k),
@@ -73,6 +85,12 @@ export function sky(ms, geo = MOSCOW_GEO) {
     glow: clamp01((2 - elev) / 5),
     shadow: clamp01(elev / 4),
   };
+  if (!w || (!w.cloud && !w.level)) return S;
+  const c = w.cloud ?? 0, dim = 1 - CLOUD.dim * c - FALL_DIM * (w.level ?? 0);
+  S.sunK *= 1 - CLOUD.sun * c; S.skyK *= 1 + CLOUD.sky * c; S.shadow *= 1 - c;
+  S.sun = lerpHex(S.sun, GREY, CLOUD.grey * c); S.sky = lerpHex(S.sky, GREY, CLOUD.grey * c);
+  S.tint = S.tint.map(v => v * dim);
+  return S;
 }
 
 const toLinear = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };

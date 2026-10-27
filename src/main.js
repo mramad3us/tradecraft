@@ -10,7 +10,9 @@
 // (src/ui/store.js); the menu exports and imports save files. ?play=<scenario>&seed=<n>&hour=<h>
 // skips the title and starts a new game there (for shots and smoke tests), &city=<london | beirut |
 // cairo> in another city (sim/cities/; Moscow by default); &autoplay[=<m>] has the
-// game's own AI play the character (sim/agents.js; a follower m metres back). window.__tradecraft is
+// game's own AI play the character (sim/agents.js; a follower m metres back). ?weather=<kind[-level]
+// [-wind]> pins the weather of every new game (sim/weather.js parseWeather(): snow-heavy-gale,
+// rain-light, fog-extreme, dust-heavy-strong, frost, clear), with ?play or from the title. window.__tradecraft is
 // the debug handle: { state, step(n, input), start(state or JSON), newGame(opts), save() (the JSON),
 // skip(ms), autosave(), pause(on), view }.
 import { newGame, start, step, skip } from './sim/game.js';
@@ -29,6 +31,7 @@ import { putSave, getSave, exportFile, importFile } from './ui/store.js';
 
 const VERSION = (await fetch('VERSION').then(r => (r.ok ? r.text() : '?')).catch(() => '?')).trim();
 const q = new URLSearchParams(location.search);
+const WEATHER = q.get('weather');                                  // (a pinned weather for every new game: debug and shots)
 const settings = { debug: (() => { try { return localStorage.getItem('tradecraft.debug') === '1'; } catch { return false; } })() };
 
 const input = createInput();
@@ -38,14 +41,14 @@ let paused = false, running = false, acts = [];
 let prev = new Map(), acc = 0, last = performance.now(), frames = 0;
 
 const ui = createUI({ input, cb: {
-  newGame: (kind, chapter = null, city = null) => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city })),
+  newGame: (kind, chapter = null, city = null) => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city, weather: WEATHER })),
   // (the campaign: three officers, one picked, the posting's brief, then the posting: sim/campaign.js)
   newCampaign: (city = 'moscow') => {
     const seed = randomSeed(), list = candidates(seed, city);
     ui.hideTitle();
     ui.showCandidates(list, (i) => {
       const c = newCampaign(seed, list[i], city);
-      ui.showPaper(postingPaper(c), () => launch(newGame({ seed, scenario: 'campaign', version: VERSION, campaign: c })));
+      ui.showPaper(postingPaper(c), () => launch(newGame({ seed, scenario: 'campaign', version: VERSION, campaign: c, weather: WEATHER })));
     }, city);
   },
   continue: async () => { const s = await getSave('auto'); if (s) launch(fromJSON(s.json)); },
@@ -124,8 +127,8 @@ function result() {
   if (state.campaign) return ui.showResult(state, { back: () => backToPosting(state), title: async () => { await autosave(); stop(); showTitle(); }, photo: lastPhoto?.url }, settings);
   ui.showResult(state, {
     photo: lastPhoto?.url,
-    again: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city })),
-    same: () => launch(newGame({ seed, scenario: kind, version: VERSION, chapter, city })),
+    again: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city, weather: WEATHER })),
+    same: () => launch(newGame({ seed, scenario: kind, version: VERSION, chapter, city, weather: WEATHER })),
     title: async () => { await autosave(); stop(); showTitle(); },
   }, settings);
 }
@@ -134,7 +137,7 @@ function result() {
 function launchAssignment(s, id) {
   const c = s.campaign, a = c?.assignments.find(x => x.id === id);
   if (!a || state !== s) return;
-  launch(newGame({ seed: randomSeed(), scenario: KINDS[a.kind].scenario, version: VERSION, campaign: c, context: context(c, a) }));
+  launch(newGame({ seed: randomSeed(), scenario: KINDS[a.kind].scenario, version: VERSION, campaign: c, context: context(c, a), weather: WEATHER }));
 }
 
 /** An assignment over: its outcome into the campaign, the debrief, and back to the hub where it left you. */
@@ -145,7 +148,7 @@ function backToPosting(s) {
   c.where = me ? { row: me.row ?? s.map.row, x: me.x, z: me.z } : null;
   c.now = s.time.ms;
   ui.showPaper({ stamp: 'DEBRIEF', title: paper.title, lines: paper.lines, note: `Heat: ${heatWord(c.posting.heat)}. Intelligence: ${c.posting.intelligence}.` },
-    () => launch(newGame({ seed: randomSeed(), scenario: 'campaign', version: VERSION, campaign: c })));
+    () => launch(newGame({ seed: randomSeed(), scenario: 'campaign', version: VERSION, campaign: c, weather: WEATHER })));
 }
 
 /** Papers the days brought (pay, the week's review), one after another. */
@@ -276,7 +279,7 @@ window.__tradecraft = {
 
 if (q.has('play') && SCENARIOS[q.get('play')]) {
   const autoplay = q.has('autoplay') ? { keep: Number(q.get('autoplay')) || 20 } : null;
-  launch(newGame({ seed: Number(q.get('seed') ?? 1), scenario: q.get('play'), version: VERSION, autoplay, chapter: q.get('chapter'), city: q.get('city') }), { hour: q.has('hour') ? Number(q.get('hour')) : null });
+  launch(newGame({ seed: Number(q.get('seed') ?? 1), scenario: q.get('play'), version: VERSION, autoplay, chapter: q.get('chapter'), city: q.get('city'), weather: WEATHER }), { hour: q.has('hour') ? Number(q.get('hour')) : null });
 }
 else showTitle();
 requestAnimationFrame(frame);

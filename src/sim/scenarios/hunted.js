@@ -11,7 +11,8 @@
 // **The hunters** (HUNTERS, by the heat): plain-clothes men with the description, city agents (sim/
 // agents.js) walking search legs round where you were last known, on every street, loaded or not. One
 // that sees you within SEE_M rolls his Awareness against your Deception every RECOG_EVERY_S (the
-// description, matched or not; the dark; people round you; the distance) and, knowing you, follows in
+// description, matched or not; the dark; people round you; the distance; hoods and umbrellas in the
+// rain or the snow, sim/weather.js weatherMods()) and, knowing you, follows in
 // your footsteps closing to arm's reach, and radios it (the others make for where you were seen). At
 // CAPTURE_M he takes hold: a fight (sim/fight.js), real; down, he stays down a while; lose it, you're
 // taken. The rolls you can't see are hidden from the log until the end (as being tailed's are).
@@ -22,6 +23,7 @@ import { heatKey } from '../heat.js';
 import { say, speak } from '../log.js';
 import { townOf } from '../cities/index.js';
 import { mods as showsMods } from '../notice.js';
+import { weatherMods } from '../weather.js';
 import { strain } from '../needs.js';
 import { settle } from '../instinct.js';
 import { skill } from '../skills.js';
@@ -178,7 +180,7 @@ export const hunted = {
         sc.disguised ? { why: 'a different coat from the description', v: DISGUISE_MOD } : { why: 'the description fits', v: 2 },
         light === 'dark' && { why: 'the dark', v: -3 }, light === 'dim' && { why: 'the dusk', v: -1 },
         crowd && { why: 'people round you', v: -Math.min(4, crowd) }, d > 15 && { why: 'at a distance', v: -Math.round((d - 15) / 4) },
-        me.gait === 'run' && { why: 'running', v: 6 }, ...showsMods(state.people.me)].filter(Boolean) },
+        me.gait === 'run' && { why: 'running', v: 6 }, ...showsMods(state.people.me), ...weatherMods(state)].filter(Boolean) },
       { skill: 'deception', value: skill(state.people.me, 'deception'), body: state.people.me });
       sc.rolls++;
       say(state, bus, { kind: 'roll', roll, hidden: true, text: roll.ok ? `${cap(p.seen)} knows you.` : `${cap(p.seen)} looks you over, and looks away.` });

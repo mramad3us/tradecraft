@@ -6,8 +6,8 @@ import { newGame, start, step, playerActor } from '../src/sim/game.js';
 import { goTo } from './bots.mjs';
 import { assert, fmt } from './helpers.mjs';
 
-function run(seed, { safe = true, evade = false } = {}) {
-  const g = newGame({ seed, scenario: 'hunted' });
+function run(seed, { safe = true, evade = false, weather = 'clear' } = {}) {
+  const g = newGame({ seed, scenario: 'hunted', weather });          // (clear: the numbers DESIGN.md quotes; tests/weather.test.mjs, in snow)
   start(g, null);
   const sc = g.scenario;
   for (let t = 0; t < 20 * 60 * 90 && !sc.outcome; t++) {

@@ -22,9 +22,10 @@
 //      own characters decide what they'll do next tick.
 //   5. The scenario's rules (its checks and events).
 //   6. Once a second: the map's sections follow the focus (and whatever else the scenario anchors),
-//      and the crowd's bubble is kept round the focus: its street and the streets either side.
+//      and the crowd's bubble is kept round the focus: its street and the streets either side. The
+//      weather (sim/weather.js): the log says when it turns; running on snow or ice, a slip, maybe.
 //   7. The clock advances; an autosave is due every 30 game minutes ('autosave' on the bus).
-import { seedRng } from './rng.js';
+import { seedRng, chance, stream } from './rng.js';
 import { TICK_MS, MIN, DAY, dateText } from './clock.js';
 import { SAVE_SCHEMA } from './state.js';
 import { attach, refocus, rehash, move, near, exitAt } from './world.js';
@@ -41,6 +42,7 @@ import { atKerb, destinations, ride } from './taxi.js';
 import { shopNear, goIn, insideTick } from './shops.js';
 import { notice } from './notice.js';
 import { needsTick, strain } from './needs.js';
+import { weatherAt, footing, weatherTick, parseWeather, SLIP_S } from './weather.js';
 import { shortName } from './fight.js';
 import { drips } from './blood.js';
 import { glassAhead, affordance, act as doAct } from './acts.js';
@@ -62,14 +64,18 @@ const TICKS_PER_S = Math.round(1000 / TICK_MS);
 /**
  * A new game: a scenario (SCENARIOS) from a seed. Call start() before stepping it. autoplay: the
  * player's character played by the game's own AI (an agent: sim/agents.js), with its options (as the
- * scenario reads them, e.g. { keep } for a follower); null, by hand.
+ * scenario reads them, e.g. { keep } for a follower); null, by hand. weather: a pin (sim/weather.js
+ * parseWeather(): 'snow-heavy-gale', 'frost', 'clear'), for shots, tests and debugging; none, the
+ * city's own.
  */
-export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = null, chapter = null, campaign = null, context = null, city = null } = {}) {
+export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = null, chapter = null, campaign = null, context = null, city = null, weather = null } = {}) {
   const state = {
     game: 'tradecraft', schema: SAVE_SCHEMA, version, seed, rng: seedRng(seed), tick: 0, time: { ms: 0 }, autoplay,
     scenario: { kind: scenario }, country: 'ru', legend: null, player: null, focus: null,
     people: {}, map: null, actors: [], nextActor: 1, heat: {}, log: [], flags: {}, mind: { seen: {} },
   };
+  const pin = parseWeather(weather);
+  if (pin) state.weather = pin;
   // (a campaign rides along, the persistent part: sim/campaign.js; context, an assignment's, for its scene's setup)
   state.campaign = campaign;
   state.assignment = context?.assignment ?? null;
@@ -168,11 +174,14 @@ export function step(state, input = {}, bus) {
     } else {
       if (n > 1) { mx /= n; mz /= n; }
       const run = input.run && bandOf(mine) !== 'shock';             // (in shock from the blood lost, no running)
-      const speed = run ? RUN_MS : input.slow ? STROLL_MS : WALK_MS;
+      const foot = footing(weatherAt(state));                        // (slower going in snow: sim/weather.js)
+      const speed = run ? RUN_MS * foot.run : (input.slow ? STROLL_MS : WALK_MS) * foot.walk;
       me.vx = mx * speed; me.vz = mz * speed;
       me.gait = n > 0.01 ? (run ? 'run' : 'walk') : 'idle';
       if (n > 0.01) { me.head = Math.atan2(mz, mx); me.face = facing(me.vx, me.vz, me.face); }
     }
+    // A slip on snow or ice (step 6): a moment's stagger, skidding on, the feet nobody's.
+    if (me.skid > 0) { me.skid--; me.vx *= 0.35; me.vz *= 0.35; me.gait = 'stagger'; }
     // A glance back: the eyes over the shoulder, the feet going on; then the eyes come back.
     if (me.glance) {
       me.eyesOn ??= me.head;
@@ -222,6 +231,8 @@ export function step(state, input = {}, bus) {
     for (const a of state.actors) if (a.who) bloodBeat(state, bus, a, 1);
     notice(state, bus, me);                                         // (blood on you, seen: a face remembered: sim/notice.js)
     needsTick(state, bus, me);                                      // (hunger's clock, the calm coming back, frayed slips: sim/needs.js)
+    weatherTick(state, bus);                                        // (the weather turning, in the log: sim/weather.js)
+    if (me?.gait === 'run' && !me.ai && !state.fight) slipUp(state, bus, me);
     const f = focusActor(state);
     if (f) { refocus(state, bus, [f.x, ...(scenario.anchors?.(state) ?? [])]); populate(state, f.x); }
   }
@@ -230,6 +241,18 @@ export function step(state, input = {}, bus) {
   state.time.ms += TICK_MS;
   state.tick++;
   if (Math.floor(state.time.ms / AUTOSAVE_MS) !== before) bus?.emit('autosave', 'clock');
+}
+
+/**
+ * Running on snow or ice, once a second: a slip, now and then (sim/weather.js footing(): its chance,
+ * from a stream of its own, so the game's dice don't move). SLIP_S of a stagger, a word in the log.
+ */
+function slipUp(state, bus, me) {
+  const p = footing(weatherAt(state)).slip;
+  if (!p || me.skid || !chance(stream('slip-foot', state.seed, state.tick), p)) return;
+  me.skid = Math.round(SLIP_S * TICKS_PER_S);
+  const w = weatherAt(state);
+  say(state, bus, { kind: 'note', text: w.ice ? 'Your foot goes on the ice and the street tilts; you get it back, just, arms out like a fool.' : 'Your heel skates on the packed snow; you stagger, and keep your feet.' });
 }
 
 // The player's busy plan: ['go', x, z] (walk there; given up after a second without getting closer)

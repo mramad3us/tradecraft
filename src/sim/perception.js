@@ -18,7 +18,9 @@
 //     someone who uses one to check slants their look back the way they came (GLASS_BACK_DEG), or
 //     at whoever they're keeping an eye on (gazeInto()).
 // Buildings block the line of sight (in the glass, from the street to the pane); people, cars and
-// trees don't (the street is seen over and between them).
+// trees don't (the street is seen over and between them). The weather shortens the reach (reach():
+// never further than sim/weather.js sightM(), heavy rain or snow some, fog a lot), and dims the light
+// it's read by (sim/light.js sky(), under cloud).
 //
 // visibility() is soft (0 … 1: the view dims by it); sees() is its threshold SEEN, what the rules
 // read. The screen and the dice use the same function: what's dim on screen is what the character
@@ -31,6 +33,7 @@
 import { geoOf } from './cities/index.js';
 import { lightLevel, sky } from './light.js';
 import { skill } from './skills.js';
+import { weatherAt, sightM } from './weather.js';
 
 export const CONE_DEG = 100;
 export const CONE_PER_AWARENESS = 2;
@@ -74,14 +77,17 @@ export function eyes(state, a) {
   };
 }
 
-/** The sky for this tick, kept so a tick's many looks share one sun (runtime only). */
-export function skyNow(state) {
+/** The sky for this tick (and the weather's toll on sight), kept so a tick's many looks share one sun (runtime only). */
+function airNow(state) {
   const c = state.$sky;
-  if (c && c.ms === state.time.ms) return c.s;
-  const s = sky(state.time.ms, geoOf(state.map));
-  state.$sky = { ms: state.time.ms, s };
-  return s;
+  if (c && c.ms === state.time.ms && c.map === state.map && c.pin === state.weather) return c;
+  const w = weatherAt(state);
+  return (state.$sky = { ms: state.time.ms, map: state.map, pin: state.weather, s: sky(state.time.ms, geoOf(state.map), w), m: sightM(w) });
 }
+export const skyNow = (state) => airNow(state).s;
+
+/** How far the eye reaches (m) to a spot lit `light` (lightHere()): by the light, and no further than the weather lets it. */
+export const reach = (state, light) => Math.min(SIGHT_M + LIGHT_M * light, airNow(state).m);
 
 /** The light of the open air this tick (no lamp), on the same scale: a lamp's pool shows against it. */
 export const openAir = (state) => { const t = skyNow(state).tint; return 0.3 * t[0] + 0.59 * t[1] + 0.11 * t[2]; };
@@ -98,7 +104,7 @@ export function openness(state, e, x, z, light) {
   if (d < 1) return 1;
   const v = clamp01((e.aware + 0.75 - d) / 1.5);
   if (v >= 1) return 1;
-  const range = SIGHT_M + LIGHT_M * (light ?? lightHere(state, x, z));
+  const range = reach(state, light ?? lightHere(state, x, z));
   const far = clamp01((range + 2 - d) / 4);
   if (far <= v) return v;
   return Math.max(v, far * clamp01((e.cone + 0.12 - Math.abs(wrap(Math.atan2(dz, dx) - e.head))) / 0.24));
@@ -113,7 +119,7 @@ export function inGlass(state, e, x, z, light) {
   const g = e.glass;
   if (!g || z <= g.z || e.z <= g.z) return 0;
   const ix = x - e.x, iz = 2 * g.z - z - e.z, d = Math.hypot(ix, iz);   // (the reflection, from the eyes)
-  const range = (SIGHT_M + LIGHT_M * (light ?? lightHere(state, x, z))) * GLASS_K;
+  const range = reach(state, light ?? lightHere(state, x, z)) * GLASS_K;
   const far = clamp01((range + 2 - d) / 4);
   if (far <= 0) return 0;
   const dir = Math.atan2(iz, ix), body = BODY_DEG * RAD / 2;

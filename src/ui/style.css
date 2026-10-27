@@ -27,6 +27,8 @@ button { font: inherit; color: inherit; }
 .watch .time { font-size: calc(20px * var(--ui, 1)); letter-spacing: 0.06em; color: var(--paper); font-variant-numeric: tabular-nums; }
 .watch .date { font-size: calc(11px * var(--ui, 1)); color: var(--muted); }
 .watch .place { font-size: calc(11px * var(--ui, 1)); color: #dfe2e8; font-family: var(--type); margin-top: 2px; max-width: 190px; }
+.watch .sky { font-size: calc(11px * var(--ui, 1)); color: var(--muted); font-family: var(--type); margin-top: 1px; max-width: 190px; margin-left: auto; }
+.watch .sky:empty { display: none; }
 
 /* Lines of the log as they come, bottom left. */
 .toasts { position: absolute; left: 14px; top: 14px; width: min(calc(520px * var(--ui, 1)), calc(50% - 150px));   /* (short of the middle: a fight's score sits there) */ display: flex; flex-direction: column; gap: 4px; }

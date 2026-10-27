@@ -20,7 +20,9 @@
 //     The modifiers are our choices (exposure()): distance, the other pavement, people about us, the
 //     light we stand in, running, stopping when he stops, standing about with nothing to do, staring
 //     at him, and what we were doing when he looked (a shop window, a bench, a shoelace, waiting to
-//     cross). He wins: a sighting. The first sets him dry-cleaning; the second, he's made us.
+//     cross); and what neither of us chose, the weather (hoods up, umbrellas: sim/weather.js
+//     weatherMods(), on his roll, and on ours when we look for him among the grey coats). He wins: a
+//     sighting. The first sets him dry-cleaning; the second, he's made us.
 //   - **His alertness** (0–100) rises with what he half-notices and falls slowly; it brings his checks
 //     closer together and sharpens them, and the instinct reads it.
 //   - **Keeping him.** No arrow over him (the user): a marker shows him for MARKER_S out of his door,
@@ -56,6 +58,7 @@ import { near, sectionAt } from '../world.js';
 import { planRoute, routeFrom, sectionOf, pointAt, LINE } from '../city.js';
 import { withHabits, withEnd } from '../habits.js';
 import { mods as showsMods } from '../notice.js';
+import { weatherMods } from '../weather.js';
 import { strain } from '../needs.js';
 import { makeAgent, setRoute, follow as followTarget, rowOf, onMap } from '../agents.js';
 import { isPasserby } from '../crowd.js';
@@ -465,7 +468,7 @@ function moment(state, bus, me, t, d, kind) {
   if (sc.outcome) return;
   const mods = exposure(state, me, t, d, kind);
   const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] },
-    { skill: 'pathfinding', value: skill(state.people.orlov, 'pathfinding'), body: state.people.orlov, mods: [...mods, ...inHand(state)] });
+    { skill: 'pathfinding', value: skill(state.people.orlov, 'pathfinding'), body: state.people.orlov, mods: [...mods, ...inHand(state), ...weatherMods(state)] });
   sc.rolls++;
   if ((kind === 'exit' || kind === 'cross') && d > 15 && sc.marked === t.id) keep(state, bus, t, d, kind === 'exit' ? 'out of a shop' : 'across the road');
   // We know what he saw only if we saw him look: a check we didn't see goes in the log unseen, for
@@ -677,7 +680,7 @@ function find(state, bus, me, t) {
     const light = lightBand(lightHere(state, o.x, o.z)), crowd = crowdAround(state, o, 3);
     const r = check(state.rng, { skill: 'awareness', value: skill(state.people[state.player], 'awareness'), body: state.people[state.player], dc: 10,
       mods: [dd > 15 && { why: 'at a distance', v: -Math.round((dd - 15) / 4) }, crowd && { why: 'people round him', v: -crowd },
-        light !== 'day' && { why: light === 'dark' ? 'the dark' : 'the dusk', v: light === 'dark' ? -4 : -2 }].filter(Boolean) });
+        light !== 'day' && { why: light === 'dark' ? 'the dark' : 'the dusk', v: light === 'dark' ? -4 : -2 }, ...weatherMods(state)].filter(Boolean) });
     sc.rolls++;
     if (o === t) {
       if (r.ok) { sc.marked = t.id; sc.lastSeen = { row: rowOf(state, t), x: t.x, z: t.z, ms: state.time.ms }; say(state, bus, { kind: 'roll', roll: r, text: `${pick(state.rng, foundLines)} ${cap(whereIs(me, t))}.` }); }
@@ -711,7 +714,7 @@ function closeLook(state, bus, me, t) {
   const dd = Math.hypot(best.x - me.x, best.z - me.z), light = lightBand(lightHere(state, best.x, best.z)), crowd = crowdAround(state, best, 3);
   const r = check(state.rng, { skill: 'awareness', value: skill(state.people[state.player], 'awareness'), body: state.people[state.player], dc: 8,
     mods: [dd > 8 && { why: 'at a distance', v: -Math.round((dd - 8) / 3) }, crowd && { why: 'people round him', v: -crowd },
-      light !== 'day' && { why: light === 'dark' ? 'the dark' : 'the dusk', v: light === 'dark' ? -4 : -2 }].filter(Boolean) });
+      light !== 'day' && { why: light === 'dark' ? 'the dark' : 'the dusk', v: light === 'dark' ? -4 : -2 }, ...weatherMods(state)].filter(Boolean) });
   sc.rolls++;
   if (!r.ok) return say(state, bus, { kind: 'roll', roll: r, text: 'A grey coat, a hat. From here, it could be anyone\'s. Closer, or better light.' });
   if (best === t) {

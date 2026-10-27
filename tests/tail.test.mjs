@@ -3,7 +3,9 @@
 // Awareness against his Pathfinding and Awareness, at trained bases from a course (5) to a master
 // (20). A better follower should see the meeting more often, a better watcher should make the tail
 // more often, and the far corners should be near-certain. These are the game's follower's numbers,
-// not a player's: a player who uses the street does better.
+// not a player's: a player who uses the street does better. In clear weather, so they stay the
+// numbers DESIGN.md quotes (tests/weather.test.mjs plays a cell in snow); the save and load, in the
+// evening's own.
 import { newGame, start, step } from '../src/sim/game.js';
 import { toJSON, fromJSON } from '../src/sim/state.js';
 import { skill } from '../src/sim/skills.js';
@@ -12,9 +14,9 @@ import { MARKER_S } from '../src/sim/scenarios/tail.js';
 import { inView } from '../src/sim/perception.js';
 import { assert, fmt } from './helpers.mjs';
 
-/** An evening in autoplay, the follower's bases f and the watcher's w (null: as drawn). */
-export function play(seed, f = null, w = null, limitMin = 45) {
-  const g = newGame({ seed, scenario: 'tail', autoplay: { keep: 20 } });
+/** An evening in autoplay, the follower's bases f and the watcher's w (null: as drawn), in a weather (sim/weather.js: a pin; null, the city's). */
+export function play(seed, f = null, w = null, limitMin = 45, weather = 'clear') {
+  const g = newGame({ seed, scenario: 'tail', autoplay: { keep: 20 }, weather });
   start(g, null);
   const me = g.people[g.player], o = g.people.orlov;
   if (f !== null) for (const k of ['deception', 'tracking', 'awareness']) me.skills[k] = [f, 1];
@@ -55,9 +57,9 @@ export default [
     fn() {
       let saidEyes = 0, reached = 0, looks = [];
       for (let seed = 3; seed < 40 && reached < 4; seed++) {
-        const g = newGame({ seed, scenario: 'tail', autoplay: { keep: 18 } });
+        const g = newGame({ seed, scenario: 'tail', autoplay: { keep: 18 }, weather: 'clear' });
         start(g, null);
-        g.time.ms = at(2026, 11, 3, 13, 5);                            // (by day: a close look needs light to see by)
+        g.time.ms = at(2026, 11, 3, 13, 5);                            // (by day, and clear: a close look needs light to see by)
         g.scenario.began = g.time.ms; g.scenario.markUntil = g.time.ms + MARKER_S * 1000;
         const sc = g.scenario, t = g.actors.find(a => a.id === sc.target);
         let n = 0, held = 0;

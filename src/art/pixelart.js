@@ -19,7 +19,19 @@
 //   - night (nightfall()): a moonlit sky fill, and the pixels a painted texture says glow (its
 //     `glows` colours: a lit window, a shop, a sign's letters, headlights) light up. Lamps bring
 //     their own light (pool()): cones of even light with hard edges, a bright core and a dimmer
-//     ring, as pixel art draws a pool of light, not a smooth falloff the palette would band.
+//     ring, as pixel art draws a pool of light, not a smooth falloff the palette would band;
+//   - weather (the game's: src/render/view.js sets it each frame from sim/weather.js), in two places.
+//     On every lit surface (mat(): WX, shared uniforms, patched into the toon shader), before the light
+//     falls on it, so lamps, shadows and night light snow and wet as they light the rest: the wet
+//     darkens what faces up (walls a little), stands in puddles on the ground that mirror the sky and,
+//     in a streak toward the camera under each, the lamps' heads; snow lies on whatever faces up
+//     (roofs and ledges first, pavements in drifts, the roads churned grey), by a noise in the world's
+//     metres, so it stays put as the camera moves; a frost silvers what faces up, glinting here and
+//     there. And in the composite (setWeather()): what falls (rain in slanted streaks, two layers; snow
+//     in flakes of a pixel or two, swaying; sleet, both; dust blown sideways) in screen pixels anchored
+//     to the world (the camera's offset), splashes on wet ground, haze by distance from the eyes (fog,
+//     dust, and the veil of heavy rain or snow; what the eyes don't take in is the haze's) and a halo
+//     round each lamp in it. All of it nothing when there's no weather (the samples never set it).
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { arabic, arabicWidth } from './arabic.js';
@@ -148,6 +160,13 @@ export const FINE_PALETTE = [
  *
  * dispose() frees it, its WebGL context with it.
  *
+ * setWeather(o) (src/render/view.js, each frame; nothing set, no weather): rain, snow and dust
+ * falling ({ rain, snow, dust } 0–1 densities, slant: pixels across a pixel down, t: seconds, cam: the
+ * camera's offset in pixels, so what falls stays put in the world as it pans; drop, flake, grit: their
+ * colours), splash (rain landing on the ground, 0–1), haze ({ k, far, col, eye: [x, z] }: toward col
+ * with distance from the eyes on the ground, from 0.3 of far to far), halos ([[x, y, strength,
+ * radius]] in pixels from the bottom left: each lamp's in the wet air). See the header.
+ *
  * setFog(texture, x0, z0, w, h, dimK) dims what lies where a ground-plane mask says it's unseen (to dimK of its light): the mask
  * (one channel, 1 seen … 0 unseen) covers x0 … x0 + w, z0 … z0 + h in world metres, and each pixel
  * looks it up at the ground position under it (from the depth buffer: a wall's pixels at its foot, a
@@ -221,6 +240,10 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
       res: { value: new THREE.Vector2(W, H) }, near: { value: camera.near }, far: { value: camera.far },
       outline: { value: outline ? 1 : 0 }, grade: { value: grade },
       tFog: { value: null }, fogOn: { value: 0 }, fogBox: { value: new THREE.Vector4(0, 0, 1, 1) }, invVP: { value: new THREE.Matrix4() }, dimK: { value: 0.48 },
+      // (the weather: setWeather())
+      wxOn: { value: 0 }, wxFall: { value: new THREE.Vector4() }, wxTime: { value: new THREE.Vector4() }, wxDrop: { value: new THREE.Vector3() },
+      wxFlake: { value: new THREE.Vector3() }, wxGrit: { value: new THREE.Vector3() }, wxHaze: { value: new THREE.Vector4() }, wxHazeCol: { value: new THREE.Vector3() },
+      wxHalo: { value: Array.from({ length: WX_LAMPS }, () => new THREE.Vector4()) },
       // (padded to the shader's 128: three uploads the array at the declared size)
       pal: { value: Array.from({ length: 128 }, (_, i) => { const c = pal[Math.min(i, pal.length - 1)]; return new THREE.Vector3(c.r, c.g, c.b); }) },
       count: { value: Math.min(pal.length, 128) },
@@ -231,6 +254,30 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
       in vec2 vUv; out vec4 outColor;
       uniform sampler2D tColor, tDepth, tId, tFog; uniform vec2 res; uniform float near, far, outline, grade, fogOn;
       uniform vec3 pal[128]; uniform int count; uniform vec4 fogBox; uniform mat4 invVP; uniform float dimK;
+      uniform float wxOn; uniform vec4 wxFall, wxTime, wxHaze; uniform vec3 wxDrop, wxFlake, wxGrit, wxHazeCol; uniform vec4 wxHalo[${WX_LAMPS}];
+      float wxh(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+      // A layer of streaks (rain; dust, turned on its side): a streak of len px in cells of cw × ch,
+      // one cell in 1/dens holding one, falling at v px a second along (slant, 1).
+      float streaks(vec2 p, float t, float slant, vec2 cell, float len, float v, float dens, float seed) {
+        vec2 q = vec2(p.x - slant * p.y, p.y - t * v);
+        float col = floor(q.x / cell.x);
+        q.y += wxh(vec2(col, seed)) * cell.y * 13.0;
+        float row = floor(q.y / cell.y);
+        if (wxh(vec2(col, row) + seed) > dens) return 0.0;
+        if (floor(q.x - col * cell.x) != floor(wxh(vec2(row, col) + seed * 1.7) * (cell.x - 1.0))) return 0.0;
+        float y = q.y - row * cell.y, y0 = floor(wxh(vec2(col * 1.3, row) + seed * 2.1) * (cell.y - len));
+        return y >= y0 && y < y0 + len ? 1.0 - 0.5 * (y - y0) / len : 0.0;
+      }
+      // A layer of flakes: one of size px in cells of c px, falling at v along (slant, 1), swaying.
+      float flakes(vec2 p, float t, float slant, float c, float size, float v, float dens, float seed) {
+        vec2 q = vec2(p.x - slant * p.y, p.y - t * v), k = floor(q / c);
+        float h = wxh(k + seed);
+        if (h > dens) return 0.0;
+        vec2 o = floor(vec2(wxh(k + seed + 3.1), wxh(k + seed + 7.7)) * (c - size - 4.0)) + 2.0;
+        o.x += floor(sin(t * (0.8 + 1.6 * h) + h * 40.0) * 1.6 + 0.5);
+        vec2 d = floor(q - k * c) - o;
+        return d.x >= 0.0 && d.x < size && d.y >= 0.0 && d.y < size ? 1.0 : 0.0;
+      }
       float lin(float d) { return near + d * (far - near); }
       // A 4 × 4 ordered dither: the threshold for this pixel.
       float bayer(vec2 p) {
@@ -258,10 +305,12 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
         vec3 col = pow(clamp(texture(tColor, uv).rgb, 0.0, 1.0), vec3(1.0 / 2.2));
         float raw = texture(tDepth, uv).r;
         float d = lin(raw);
+        vec4 w4 = invVP * vec4(uv * 2.0 - 1.0, raw * 2.0 - 1.0, 1.0);
+        vec3 wp = w4.xyz / w4.w;                                     // (the world under the pixel)
+        bool unseen = false;
         if (fogOn > 0.5 && raw < 0.99999) {
-          vec4 w = invVP * vec4(uv * 2.0 - 1.0, raw * 2.0 - 1.0, 1.0);
-          float v = texture(tFog, (w.xz / w.w - fogBox.xy) / fogBox.zw).r;
-          if (v < bayer(gl_FragCoord.xy)) col = dim(col);
+          float v = texture(tFog, (wp.xz - fogBox.xy) / fogBox.zw).r;
+          if (v < bayer(gl_FragCoord.xy)) { col = dim(col); unseen = true; }
         }
         if (outline > 0.5) {
           vec3 id = texture(tId, uv).rgb;
@@ -278,6 +327,48 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
             else if (other && dn > d + 0.02) edge = min(edge, 0.4);
           }
           col *= edge;
+        }
+        if (wxOn > 0.5) {
+          // The weather in the air: haze by distance on the ground from the eyes, and the lamps' halos in it.
+          // (dithered, as the palette would band a smooth one into rings; what the eyes don't take in is
+          // the haze's, near or far: in a fog what you can't see is fog, not the dark)
+          if (wxHaze.x > 0.0) {
+            float dist = raw < 0.99999 ? distance(wp.xz, wxHaze.zw) : 1e3;
+            float f = wxHaze.x * (smoothstep(wxHaze.y * 0.3, wxHaze.y, dist) * 0.88 + 0.12);
+            if (unseen) f = max(f, wxHaze.x * 0.8);
+            col = mix(col, wxHazeCol, clamp(f + (bayer(gl_FragCoord.xy) - 0.5) * 0.16, 0.0, 1.0));
+          }
+          for (int i = 0; i < ${WX_LAMPS}; i++) {
+            vec4 L = wxHalo[i];
+            if (L.z <= 0.0) continue;
+            vec2 dd = gl_FragCoord.xy - L.xy;
+            col += vec3(0.91, 0.72, 0.29) * L.z * exp(-dot(dd, dd) / (L.w * L.w));
+          }
+          // What falls, in pixels pinned to the world (wxTime.zw: the camera's offset, so it stays put as the camera pans).
+          vec2 p = vec2(floor(gl_FragCoord.x), floor(res.y - gl_FragCoord.y)) + wxTime.zw;
+          float t = wxTime.x, slant = wxTime.y;
+          if (wxFall.x > 0.0) {
+            float a = max(streaks(p, t, slant, vec2(9.0, 34.0), 4.0 + 5.0 * wxFall.x, 380.0, 0.08 + 0.55 * wxFall.x, 1.0),
+                          0.7 * streaks(p, t, slant * 0.8, vec2(6.0, 23.0), 3.0 + 2.0 * wxFall.x, 270.0, 0.08 + 0.5 * wxFall.x, 2.0));
+            col = mix(col, max(col * 1.35 + 0.05, wxDrop), 0.6 * a);
+          }
+          if (wxFall.y > 0.0) {
+            float a = max(flakes(p, t, slant, 15.0, 2.0, 42.0, 0.05 + 0.55 * wxFall.y, 3.0), 0.75 * flakes(p, t, slant * 0.8, 9.0, 1.0, 28.0, 0.06 + 0.6 * wxFall.y, 4.0));
+            col = mix(col, max(col * 1.3 + 0.12, wxFlake), 0.9 * a);
+          }
+          if (wxFall.z > 0.0) {
+            float a = streaks(p.yx, t, 0.15, vec2(5.0, 30.0), 3.0, 140.0 * sign(slant + 1e-3), 0.1 + 0.5 * wxFall.z, 5.0);
+            col = mix(col, wxGrit, 0.5 * a);
+          }
+          // Rain landing: a spark on the wet ground, a moment, here and there (cells of a quarter metre).
+          if (wxFall.w > 0.0 && raw < 0.99999 && wp.y < 0.15) {
+            vec2 c = floor(wp.xz * 4.0);
+            float h = wxh(c + 9.0), ph = t * (2.0 + 2.0 * h) + h * 10.0;
+            if (fract(ph) < 0.14 && wxh(c + floor(ph) * 0.37) < wxFall.w) {
+              vec2 o = floor(fract(wp.xz * 4.0) * 4.0);
+              if (o.y == 1.0 && (o.x == 1.0 || o.x == 2.0)) col = max(col * 1.4 + 0.08, wxDrop * 0.9);
+            }
+          }
         }
         if (grade > 0.0) {
           // A warm grade (the fine look): light a touch warmer, colour a touch muted, shadows toward violet.
@@ -322,6 +413,19 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
     renderer.setSize(outW, outH, false);
   };
   const setFog = (tex, x0 = 0, z0 = 0, w = 1, h = 1, dimK = 0.48) => { U.tFog.value = tex; U.fogOn.value = tex ? 1 : 0; U.fogBox.value.set(x0, z0, w, h); U.dimK.value = dimK; };
+  const setWeather = (o = null) => {
+    U.wxOn.value = o ? 1 : 0;
+    if (!o) return;
+    U.wxFall.value.set(o.rain ?? 0, o.snow ?? 0, o.dust ?? 0, o.splash ?? 0);
+    U.wxTime.value.set(o.t ?? 0, o.slant ?? 0, o.cam?.[0] ?? 0, o.cam?.[1] ?? 0);
+    if (o.drop) U.wxDrop.value.set(...o.drop);
+    if (o.flake) U.wxFlake.value.set(...o.flake);
+    if (o.grit) U.wxGrit.value.set(...o.grit);
+    const hz = o.haze;
+    U.wxHaze.value.set(hz?.k ?? 0, hz?.far ?? 1, hz?.eye?.[0] ?? 0, hz?.eye?.[1] ?? 0);
+    if (hz?.col) U.wxHazeCol.value.set(...hz.col);
+    U.wxHalo.value.forEach((v, i) => { const h = o.halos?.[i]; if (h) v.set(h[0], h[1], h[2], h[3]); else v.set(0, 0, 0, 1); });
+  };
   const render = () => {
     renderer.setRenderTarget(rt);
     renderer.render(scene, camera);
@@ -358,7 +462,7 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
     renderer.forceContextLoss();
     canvas.remove();
   };
-  return { THREE, renderer, scene, camera, sun, hemi, look, render, setFog, size, dispose, get W() { return W; }, get H() { return H; }, lightAt: null };
+  return { THREE, renderer, scene, camera, sun, hemi, look, render, setFog, setWeather, size, dispose, get W() { return W; }, get H() { return H; }, lightAt: null };
 }
 
 /**
@@ -457,11 +561,102 @@ const RAMP = (() => {
   return t;
 })();
 
+// ---------- the weather on lit surfaces ----------
+
+export const WX_LAMPS = 10;
+/**
+ * The weather on every lit surface (mat()), set by the view each frame: wxCover snow lying (0–1.5),
+ * wxRime (a frost, 0–1), wxWet (0–1), wxPuddles (0–1: how much of the wet ground stands in water),
+ * wxSky (what wet ground mirrors, linear), wxRoad (the roads' z bands: [z0, z1, z0, z1], where snow
+ * is churned to slush), wxLamps (the lamps the wet ground mirrors: x, z, strength, their heads' height).
+ */
+export const WX = {
+  wxCover: { value: 0 }, wxRime: { value: 0 }, wxWet: { value: 0 }, wxPuddles: { value: 0 }, wxSky: { value: new THREE.Color(0, 0, 0) },
+  wxRoad: { value: new THREE.Vector4(1e9, 1e9, 1e9, 1e9) }, wxLamps: { value: Array.from({ length: WX_LAMPS }, () => new THREE.Vector4()) },
+};
+const WX_GLSL = /* glsl */`
+  varying vec3 vWxPos;
+  varying float vWxUp;
+  uniform float wxCover, wxRime, wxWet, wxPuddles;
+  uniform vec3 wxSky;
+  uniform vec4 wxRoad;
+  uniform vec4 wxLamps[${WX_LAMPS}];
+  float wxHash(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+  float wxNoise(vec2 p) {
+    vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(wxHash(i), wxHash(i + vec2(1, 0)), f.x), mix(wxHash(i + vec2(0, 1)), wxHash(i + vec2(1, 1)), f.x), f.y);
+  }`;
+// Snow, by what it lies on (linear): fresh on roofs, pavements and lawns; churned on the roads.
+const SNOW = [0.8, 0.83, 0.88], SLUSH = [0.5, 0.48, 0.46];
+const wxPatch = (shader) => {
+  Object.assign(shader.uniforms, WX);
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\n  varying vec3 vWxPos;\n  varying float vWxUp;')
+    .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
+      vec4 wxW = vec4(transformed, 1.0);
+      vec3 wxN = objectNormal;
+      #ifdef USE_INSTANCING
+        wxW = instanceMatrix * wxW; wxN = mat3(instanceMatrix) * wxN;
+      #endif
+      vWxPos = (modelMatrix * wxW).xyz;
+      vWxUp = normalize(mat3(modelMatrix) * wxN).y;`);
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', `#include <common>${WX_GLSL}`)
+    .replace('#include <map_fragment>', `#include <map_fragment>
+      float wxPuddle = 0.0, wxRim = 0.0;
+      bool wxGround = vWxPos.y < 0.15 && vWxUp > 0.9;
+      bool wxOnRoad = wxGround && ((vWxPos.z > wxRoad.x && vWxPos.z < wxRoad.y) || (vWxPos.z > wxRoad.z && vWxPos.z < wxRoad.w));
+      if (wxRime > 0.0 && vWxUp > 0.55) {
+        // A frost: what faces up silvered (the roads, driven on, less), a glint here and there.
+        float k = wxRime * (wxOnRoad ? 0.45 : vWxPos.y > 0.3 ? 1.0 : 0.8);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.72, 0.78, 0.86), 0.4 * k);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.95, 0.97, 1.0), k * step(0.982, wxHash(floor(vWxPos.xz * 8.0) + 0.5)));
+      }
+      if (wxCover > 0.0 || wxWet > 0.0) {
+        vec2 g = vWxPos.xz;
+        // The wet: darker, what faces up most; puddles in the ground's low spots.
+        diffuseColor.rgb *= 1.0 - 0.38 * wxWet * (vWxUp > 0.6 ? 1.0 : 0.35);
+        if (wxGround && wxPuddles > 0.0) {
+          // (their far edge catches the light: a rim where the ground just north of here is dry)
+          float th = 1.0 - 0.26 * wxPuddles;
+          wxPuddle = step(th, wxNoise(g * 0.8) * 0.7 + wxNoise(g * 2.6) * 0.3);
+          vec2 gn = g - vec2(0.0, 0.07);
+          wxRim = wxPuddle * (1.0 - step(th, wxNoise(gn * 0.8) * 0.7 + wxNoise(gn * 2.6) * 0.3));
+          diffuseColor.rgb *= 1.0 - 0.55 * wxPuddle;
+        }
+        // Snow lying on what faces up: roofs and ledges first, pavements in drifts, the roads churned.
+        if (wxCover > 0.0 && vWxUp > 0.55) {
+          bool road = wxOnRoad;
+          float c = wxCover * (vWxPos.y > 0.3 ? 1.5 : road ? 0.9 : 1.0) * 1.3 - 0.12;
+          float n = wxNoise(g * 1.3) * 0.6 + wxNoise(g * 4.7) * 0.4;
+          float lie = smoothstep(n - 0.05, n + 0.05, c);
+          diffuseColor.rgb = mix(diffuseColor.rgb, road ? vec3(${SLUSH}) : vec3(${SNOW}), lie);
+          wxPuddle *= 1.0 - lie; wxRim *= 1.0 - lie;
+        }
+      }`)
+    .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      if (wxGround && wxWet > 0.3) {
+        // What wet ground mirrors: the sky, and each lamp's head, in a rippled streak toward the camera
+        // (a head h up is mirrored h further south, as the camera looks down at 45°).
+        totalEmissiveRadiance += wxSky * (0.12 * wxWet + 0.55 * wxPuddle + 1.2 * wxRim);
+        for (int i = 0; i < ${WX_LAMPS}; i++) {
+          vec4 L = wxLamps[i];
+          if (L.z <= 0.0) continue;
+          vec2 d = vWxPos.xz - vec2(L.x, L.y + L.w);
+          float streak = exp(-d.x * d.x / 0.02) * (1.0 - smoothstep(0.3, 1.3, abs(d.y)));
+          float ripple = 0.55 + 0.45 * step(0.45, wxHash(vec2(floor(vWxPos.z * 9.0), floor(vWxPos.x * 4.0))));
+          totalEmissiveRadiance += vec3(1.0, 0.62, 0.16) * L.z * streak * ripple * (0.35 * wxWet + 0.9 * wxPuddle);
+        }
+      }`);
+};
+
 const mats = new Map();
+// (a toon material with the weather in it: every one shares the patch, so one program as before)
+const toon = (opts) => { const m = new THREE.MeshToonMaterial(opts); m.onBeforeCompile = wxPatch; m.customProgramCacheKey = () => 'wx1'; return m; };
 /** A toon material: a flat colour, or a painted texture (shared when it's just a colour). */
 export function mat(color, map = null) {
-  if (map) return new THREE.MeshToonMaterial({ color: 0xffffff, map, gradientMap: RAMP });
-  if (!mats.has(color)) mats.set(color, new THREE.MeshToonMaterial({ color, gradientMap: RAMP }));
+  if (map) return toon({ color: 0xffffff, map, gradientMap: RAMP });
+  if (!mats.has(color)) mats.set(color, toon({ color, gradientMap: RAMP }));
   return mats.get(color);
 }
 /** An unlit material (a lit window, a lamp), shown as painted. */

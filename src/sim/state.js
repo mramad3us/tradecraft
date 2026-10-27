@@ -16,6 +16,8 @@
 //   nextActor, heat { 'legend@country': 0–100 }, log [ … ] (sim/log.js), flags { }
 //   mind { seen { actor id: [x, z, face, gait, stride, ms, look key] } }   what the player last saw of
 //                              whom, and where (sim/perception.js)
+//   weather (optional) { kind, level, wind, frost? }   a pinned weather (sim/weather.js): none, the
+//                              city's own, which is worked out from the map and the clock, never saved
 import { headOf } from './perception.js';
 
 export const SAVE_SCHEMA = 1;

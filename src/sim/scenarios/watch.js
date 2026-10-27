@@ -37,6 +37,7 @@ import { lightBand } from '../light.js';
 import { mods as showsMods } from '../notice.js';
 import { strain } from '../needs.js';
 import { shopWord } from '../shops.js';
+import { weatherAt, weatherMods, sightM, FALLS } from '../weather.js';
 
 const TPS = 1000 / TICK_MS;
 export const WINDOW_MIN = [6, 16];                                 // (from the start: when the subject's due)
@@ -221,7 +222,7 @@ function minderLooks(state, bus, me, m) {
   const light = lightBand(lightHere(state, me.x, me.z));
   sc.rolls++;
   const roll = opposed(state.rng, { skill: 'awareness', value: skill(state.people.minder, 'awareness'), body: state.people.minder,
-    mods: [...reasons, crowd && { why: 'people round you', v: -Math.min(3, crowd) }, light === 'dark' && { why: 'the dark', v: -3 }, d > 20 && { why: 'at a distance', v: -2 }, ...showsMods(state.people[state.player])].filter(Boolean) },
+    mods: [...reasons, crowd && { why: 'people round you', v: -Math.min(3, crowd) }, light === 'dark' && { why: 'the dark', v: -3 }, d > 20 && { why: 'at a distance', v: -2 }, ...showsMods(state.people[state.player]), ...weatherMods(state)].filter(Boolean) },
   { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] });
   if (!roll.ok) return made(state, bus, roll, reasons[0].why);
   tell(state, bus, { kind: 'roll', roll, hidden: true, text: `The man across the road looks you over, and moves on.` });
@@ -248,10 +249,13 @@ function photograph(state, bus, me) {
   const inSight = [v, c].filter(a => a && onMap(state, a) && seesActor(state, me, a));
   if (!inSight.length) return tell(state, bus, { kind: 'note', text: 'A frame of the street, and nobody in it who matters.' });
   const d = Math.max(...inSight.map(a => Math.hypot(a.x - me.x, a.z - me.z))), light = lightBand(lightHere(state, inSight[0].x, inSight[0].z));
-  if (d > PHOTO_M[light]) return tell(state, bus, { kind: 'note', text: `Too far for this light: ${Math.round(d)} m. Closer, or wait.` });
+  // (what falls, or fog, between you and them: shorter reach, softer frames: sim/weather.js)
+  const w = weatherAt(state), reachM = Math.min(PHOTO_M[light], sightM(w) * 0.7), falling = FALLS.has(w.kind) || w.kind === 'fog' || w.kind === 'dust' ? w.level : 0;
+  if (d > reachM) return tell(state, bus, { kind: 'note', text: `Too far for this ${falling ? w.kind === 'fog' ? 'fog' : 'weather' : 'light'}: ${Math.round(d)} m. Closer, or wait.` });
   const glass = !!me.inside;
   const roll = check(state.rng, { skill: 'tech', value: skill(state.people[state.player], 'tech'), body: state.people[state.player], dc: 8 + Math.round(d / 3),
-    mods: [light === 'dim' && { why: 'the light going', v: -2 }, light === 'dark' && { why: 'lamplight', v: -4 }, (me.vx || me.vz) && { why: 'on the move', v: -4 }, glass && { why: 'through the café\'s window', v: -2 }].filter(Boolean) });
+    mods: [light === 'dim' && { why: 'the light going', v: -2 }, light === 'dark' && { why: 'lamplight', v: -4 }, (me.vx || me.vz) && { why: 'on the move', v: -4 }, glass && { why: 'through the café\'s window', v: -2 },
+      falling && { why: `the ${w.kind === 'rain' ? 'rain' : w.kind === 'fog' ? 'fog' : w.kind === 'dust' ? 'dust' : 'snow'} between you`, v: -falling }].filter(Boolean) });
   const both = inSight.length === 2 && v && c && Math.hypot(v.x - c.x, v.z - c.z) < 3;
   const q = !roll.ok ? 'a blur' : roll.margin >= 3 && both ? 'sharp, both faces' : both ? 'soft, both of them' : 'one of them';
   const rank = { 'sharp, both faces': 3, 'soft, both of them': 2, 'one of them': 1, 'a blur': 0 }[q];

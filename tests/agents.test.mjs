@@ -2,7 +2,9 @@
 // stops and detours, lanes to ten streets and more away), a follower behind it by what it sees, the
 // map following the follower. Day or night, near or far behind, every run must end with the follower
 // still on him at the end of his way, both always somewhere walkable, and the map changed ten times
-// at least: the game's own follower never loses a man who isn't trying to lose it.
+// at least: the game's own follower never loses a man who isn't trying to lose it. In clear weather:
+// in fog or a blizzard it may (its eyes reach less far), which is the weather's, not the way's
+// (tests/weather.test.mjs).
 import { newGame, start, step } from '../src/sim/game.js';
 import { makeAgent, setRoute, follow, rowOf } from '../src/sim/agents.js';
 import { planRoute, clearAt, sectionOf, LINE } from '../src/sim/city.js';
@@ -15,7 +17,7 @@ import { assert, fmt } from './helpers.mjs';
 
 /** A run: a target off ten streets and more, a follower after him. → what happened. */
 export function chase(seed, { hour = 12, evasive = 1, keep = 18, style = 'calm', limitMin = 50, city = null } = {}) {
-  const g = newGame({ seed, scenario: 'walk', city });
+  const g = newGame({ seed, scenario: 'walk', city, weather: 'clear' });
   g.time.ms = at(2026, 11, 2, hour, 0);
   start(g, null);
   const r = stream('chase', seed), s = townOf(g.map);

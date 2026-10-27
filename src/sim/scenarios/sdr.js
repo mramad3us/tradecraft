@@ -17,7 +17,8 @@
 //     turned when we turned; not a lane, which people going places take too), or simply stayed with us (STAYED_S and
 //     STAYED_M on), and not from ahead of us: twice is familiar, three times is a tail.
 //     Passers-by are faces too, going places of their own: one may go your way long enough to look
-//     like a tail. Whoever comes up a lane after you is noticed more easily.
+//     like a tail. Whoever comes up a lane after you is noticed more easily; in the rain or the snow,
+//     under hoods and umbrellas, everyone less (sim/weather.js weatherMods()).
 //   - **Being followed.** The watchers keep KEEP metres back, on your pavement or the other, and go
 //     where you go (sim/nav.js), up lanes too. Out of all their sight for LOSE_S they've lost you.
 //     Take a lane none of them saw you take, and they never know where you went.
@@ -50,6 +51,7 @@ import { lightBand } from '../light.js';
 import { eyes, sees, seesActor, inView, lightHere, gazeInto } from '../perception.js';
 import { act, paneAt, paneNear, crossingAt, laneMid, say1 } from '../acts.js';
 import { waypoint, zoneOf } from '../nav.js';
+import { weatherMods } from '../weather.js';
 
 const TPS = 1000 / TICK_MS;
 export const MEET_AFTER_MIN = [5, 6.5];
@@ -493,13 +495,14 @@ function look(state, bus, why, bonus = 0) {
   if (why !== 'passive') sc.checks++;
   sc.lastCheck = why;
   const ours = skill(state.people[state.player], 'pathfinding'), reach = why === 'passive' ? 12 : 32;
+  const faces = weatherMods(state);                                 // (hoods up, umbrellas: faces are harder to know: sim/weather.js)
   for (const a of near(state, me.x, me.z, reach)) {
     if (a === me || a.hidden || a.who === 'solovey' || !inView(state, a.id)) continue;
     const d = Math.hypot(a.x - me.x, a.z - me.z), crowd = near(state, a.x, a.z, 3).filter(o => o !== a && isPasserby(o)).length;
     const light = lightBand(lightHere(state, a.x, a.z));
     const mods = [bonus && { why: { glance: 'a straight look', cross: 'crossing, looking both ways', window: 'in the glass', stop: 'stood, looking about', passive: 'not looking', kiosk: 'over the top of a paper', cafe: 'from a café window', phone: 'through a phone box\'s glass' }[why], v: bonus },
       d > 20 ? { why: 'far off', v: -3 } : d > 12 ? { why: 'a way off', v: -1 } : null, crowd >= 2 && { why: 'among people', v: -2 },
-      light === 'dark' && { why: 'in the dark', v: -2 }, a.ai?.fromLane && state.time.ms - sc.sinceMap < 30000 && { why: 'up the lane after you', v: 4 }].filter(Boolean);
+      light === 'dark' && { why: 'in the dark', v: -2 }, a.ai?.fromLane && state.time.ms - sc.sinceMap < 30000 && { why: 'up the lane after you', v: 4 }, ...faces].filter(Boolean);
     const theirs = a.who ? skill(state.people[a.who], 'deception') : 2;
     const r = opposed(state.rng, { skill: 'pathfinding', value: ours, mods, body: state.people[state.player] }, { skill: 'deception', value: theirs });
     sc.rolls++;

@@ -1,5 +1,5 @@
 // TRADECRAFT ui: the screens. The title sheet, the frame the picture sits in, the HUD over it (the
-// watch and where you are, the log's lines as they come, the keys, a scenario's marker over its target and the
+// watch, where you are and the weather, the log's lines as they come, the keys, a scenario's marker over its target and the
 // instinct's line), and the sheets laid over it: the menu (Esc), the log (J), the character sheet (C:
 // the over-skill, the skills, health part by part), a test's brief before it starts and its result
 // when it ends; F's menu over whoever's within reach (Talk, Violence and its openings, Read:
@@ -37,6 +37,7 @@ import { streetName as streetNameOf } from '../sim/map/street.js';
 import { calendar as calendarOf, DAY as DAY_MS } from '../sim/clock.js';
 import { bleedRate, bloodOf, bandOf, BLOOD } from '../sim/health.js';
 import { RANK as RANKS } from '../sim/instinct.js';
+import { weatherAt } from '../sim/weather.js';
 
 const BAND_WORDS = { steady: 'steady', pale: 'pale, light-headed', shock: 'in shock', collapsed: 'collapsed', dead: 'gone' };
 
@@ -59,7 +60,7 @@ let hudMs = 0, lastReal = 0;                                      // (the HUD's 
 
 export function createUI({ input, cb }) {
   const frame = el('div', { id: 'frame' });
-  const watch = el('div', { className: 'watch' }, el('div', { className: 'time' }), el('div', { className: 'date' }), el('div', { className: 'place' }), el('div', { className: 'hand' }));
+  const watch = el('div', { className: 'watch' }, el('div', { className: 'time' }), el('div', { className: 'date' }), el('div', { className: 'place' }), el('div', { className: 'sky' }), el('div', { className: 'hand' }));
   const toasts = el('div', { className: 'toasts' });
   const keys = el('div', { className: 'keys' });
   const banner = el('div', { className: 'banner', textContent: 'PAUSED' });
@@ -122,7 +123,7 @@ export function createUI({ input, cb }) {
     const CITY_WALKS = [['moscow', 'Moscow', 'A boulevard in central Moscow: plaster and Stalinist stone, the lanes north and south, the sun down at ten to five.'],
       ['london', 'London', 'Notting Hill\'s terraces and pubs, a November afternoon, the pavements wet.'], ['beirut', 'Beirut', 'Gemmayzeh and Achrafieh: old houses, stairs up the hill, cables everywhere.'], ['cairo', 'Cairo', 'Downtown and the lanes off it: dust, signs in Arabic, a minaret.']];
     const walkEntry = (key, s) => {
-      const about = el('small', { textContent: 'Walk, look, get the feel of it, a November afternoon: in Moscow, London, Beirut or Cairo.' });
+      const about = el('small', { textContent: 'Walk, look, get the feel of it, a November afternoon in whatever weather the day brings: in Moscow, London, Beirut or Cairo.' });
       return [el('div', { className: 'item walk' }, s.name, about, el('div', { className: 'cities' }, ...CITY_WALKS.map(([c, name, words]) =>
         el('button', { className: 'small', onclick: () => cb.newGame(key, null, c === 'moscow' ? null : c), onmouseenter: () => { about.textContent = words; }, onfocus: () => { about.textContent = words; } }, name))))];
     };
@@ -183,6 +184,7 @@ export function createUI({ input, cb }) {
     put(watch.querySelector('.hand'), held ? `in hand: ${bare(held)}` : '');
     if (me && state.map?.kind === 'street') put(watch.querySelector('.place'), placeName(townOf(state.map), state.map.row ?? 0, me.x, me.z));
     else put(watch.querySelector('.place'), SCENARIOS[state.scenario.kind]?.place?.(state) ?? '');
+    put(watch.querySelector('.sky'), weatherAt(state).words);      // (the weather, in a few words: sim/weather.js)
     frame.classList.toggle('paused', paused && menu.hidden && log.hidden && paper.hidden);
     if (paused && banner.dataset.key !== input.label('pause')) { banner.dataset.key = input.label('pause'); banner.textContent = `PAUSED · ${input.label('pause')}`; }
     // The marker: over whom we take for the target (sc.marked), as we last saw them (live, or their

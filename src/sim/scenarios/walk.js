@@ -5,8 +5,8 @@
 // to the streets north and south.
 //
 // The instinct walks with you (instinct(), once a second): where a lane leads, where to cross, what
-// T would do here (what's at hand, the engine's: sim/acts.js affordance()), and between those a lesson
-// or two.
+// T would do here (what's at hand, the engine's: sim/acts.js affordance()), and, when it matters, the
+// weather (sim/weather.js weatherLine(): running on ice, hoods up in the rain, the fog).
 import { townOf } from '../cities/index.js';
 import { at, TICK_MS, hourOfDay } from '../clock.js';
 import { handler, seedFrom } from '../people.js';
@@ -17,6 +17,7 @@ import { sectionAt } from '../world.js';
 import { act, crossingNear, paneNear, benchNear, say1 } from '../acts.js';
 import { openAir } from '../perception.js';
 import { atKerb } from '../taxi.js';
+import { weatherLine } from '../weather.js';
 
 const TPS = 1000 / TICK_MS;
 
@@ -68,6 +69,8 @@ function instinct(state, me) {
   if (me.busy) return L('busy', { window: 'To the shop window.', bench: 'A bench is a good seat for the street. Moving gets you up.',
     lace: 'A shoelace: ten seconds to look back along the street, for free.', cross: 'Over you go.', pickup: 'Picking it up.',
     pressure: 'Your hand hard on the wound. Hold still: moving lets go.', dress: 'Binding it.', tourniquet: 'The belt, tight.', splint: 'Splinting it: it takes a while.' }[me.busy.what] ?? 'Busy with it: moving stops it.');
+  const wx = weatherLine(state, me);
+  if (wx?.tone === 'note') return L(wx.id, wx.text, null, 'note');   // (running on ice or snow: before where the lanes go)
   const side = (g) => ((g.x0 + g.x1) / 2 < me.x ? 'on your left' : 'on your right');
   const inside = (g) => me.x > g.x0 && me.x < g.x1;
   // In a lane north, or one south.
@@ -101,7 +104,7 @@ function instinct(state, me) {
       monument: 'A bronze somebody on a plinth. Every square has one; nobody looks at it, which makes it a fine place to wait.', kiosk: 'A kiosk. Coffee, papers, cigarettes, and a man who sees everyone who passes.',
       beds: 'Flower beds, put to bed for the winter.', ...(C?.park ?? {}) }[f.kind]);
   }
-  return null;
+  return wx ? L(wx.id, wx.text) : null;                            // (the weather, when it matters and nothing else does)
 }
 
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
