@@ -46,6 +46,8 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 import { knownOf, classOf, READABLE } from '../sim/know.js';
 import { passerby, describe } from '../sim/people.js';
 import { CHOICES as TALK_CHOICES } from '../sim/talk.js';
+import { LESSONS, FARM, lessonOf, numberOf, nextLesson } from '../sim/tutorial/index.js';
+import { READ_S, WORD_S } from '../sim/tutorial/earpiece.js';
 
 const el = (tag, { dataset, ...props } = {}, ...kids) => {
   const e = Object.assign(document.createElement(tag), props);
@@ -62,6 +64,10 @@ let hudMs = 0, lastReal = 0;                                      // (the HUD's 
 export function createUI({ input, cb }) {
   const frame = el('div', { id: 'frame' });
   const watch = el('div', { className: 'watch' }, el('div', { className: 'time' }), el('div', { className: 'date' }), el('div', { className: 'place' }), el('div', { className: 'sky' }), el('div', { className: 'hand' }));
+  // (a lesson of the tutorial: Hale on the earpiece, his line at a time, and the lesson's checklist under the watch: sim/tutorial/)
+  const earpiece = el('div', { className: 'earpiece', hidden: true }, el('div', { className: 'who' }), el('div', { className: 'line' }));
+  const lessonBox = el('div', { className: 'lesson', hidden: true });
+  watch.append(lessonBox);
   const toasts = el('div', { className: 'toasts' });
   const keys = el('div', { className: 'keys' });
   const banner = el('div', { className: 'banner', textContent: 'PAUSED' });
@@ -81,7 +87,7 @@ export function createUI({ input, cb }) {
   const goal = el('div', { className: 'goal', hidden: true });      // where you're going, when it's off the picture
   const prompt = el('div', { className: 'prompt', hidden: true });
   const veil = el('div', { className: 'bloodveil' });                 // (the blood lost: the world dims and reddens at the edges)
-  const hud = el('div', { id: 'hud' }, veil, tags, marker, bubble, intent, ...states, you, pointed, speech, reach, ask, talkbox, bout, moves, goal, prompt, watch, toasts, keys, banner);
+  const hud = el('div', { id: 'hud' }, veil, tags, marker, bubble, intent, ...states, you, pointed, speech, reach, ask, talkbox, bout, moves, goal, prompt, watch, toasts, earpiece, keys, banner);
   const menu = el('div', { className: 'overlay', hidden: true });
   const log = el('div', { className: 'overlay', hidden: true });
   const paper = el('div', { className: 'overlay', hidden: true });     // a brief, a result
@@ -118,7 +124,9 @@ export function createUI({ input, cb }) {
   setTimeout(() => keyHints(), 300);                               // once the keyboard's layout is known
 
   // ---------- the title ----------
+  let titleWas = null;
   function showTitle({ version, auto, farm = false }) {
+    titleWas = { version, auto, farm };
     // The Farm: the lesson, or, the lesson had, a memory first (sim/scenarios/dojo.js, chapter 'remembered').
     // (the free walk in any of the cities, one entry: sim/cities/; the line under it says where the pointer is)
     const CITY_WALKS = [['moscow', 'Moscow', 'A boulevard in central Moscow: plaster and Stalinist stone, the lanes north and south, the sun down at ten to five.'],
@@ -151,13 +159,11 @@ export function createUI({ input, cb }) {
         el('div', { className: 'col' },
           auto ? el('button', { className: 'item', onclick: () => cb.continue() }, 'Continue', el('small', { textContent: auto.about })) : null,
           campaignEntry(),
-          ...Object.entries(SCENARIOS).filter(([, s]) => !s.test && !s.campaign).flatMap(([key, s]) => entry(key, s))),
+          ...Object.entries(SCENARIOS).filter(([key, s]) => !s.test && !s.campaign && key !== 'dojo').flatMap(([key, s]) => entry(key, s))),
         el('div', { className: 'col' },
-          el('h3', { className: 'section', textContent: 'Mechanic tests' }),
-          el('p', { className: 'note', textContent: 'One mechanic each, to play and score before they\'re joined into the game.' }),
-          ...Object.entries(SCENARIOS).filter(([, s]) => s.test)
-            .sort(([, a], [, b]) => a.name.localeCompare(b.name))
-            .map(([key, s]) => el('button', { className: 'item', disabled: !!s.soon, onclick: () => cb.newGame(key) }, s.name, el('small', { textContent: s.about }))),
+          el('h3', { className: 'section', textContent: 'Tutorial' }),
+          el('button', { className: 'item', onclick: () => showTutorial() }, 'The tutorial: Hale takes you through it',
+            el('small', { textContent: `${LESSONS.length} lessons: hand to hand at the Farm, then the street, with Hale in your ear and the station's own people playing the parts. Each one on your own too, once you know it.` })),
           el('hr'),
           el('button', { className: 'item', onclick: () => cb.importSave() }, 'Load a save file…', el('small', { textContent: 'A .json save exported from the menu.' })))),
       el('hr'),
@@ -167,6 +173,30 @@ export function createUI({ input, cb }) {
     title.querySelector('.item')?.focus();
   }
   const hideTitle = () => { title.hidden = true; };
+
+  /**
+   * The tutorial's directory (sim/tutorial/index.js): its lessons in order, each with Hale, and (but the
+   * Farm, which is a lesson whatever) on your own: the plain mechanic test.
+   */
+  function showTutorial() {
+    const farm = titleWas?.farm;
+    const row = (L, n) => L.farm
+      ? el('div', { className: 'row' },
+        el('button', { className: 'item', onclick: () => cb.newGame('dojo', 'lesson') }, `${n}. ${L.title}`, el('small', { textContent: L.about })),
+        farm ? el('button', { className: 'item alone', title: 'The bouts, and years on, Moscow', onclick: () => cb.newGame('dojo', 'remembered') }, 'Remembered') : null)
+      : el('div', { className: 'row' },
+        el('button', { className: 'item', onclick: () => cb.newLesson?.(L.id) }, `${n}. ${L.title}`, el('small', { textContent: L.about })),
+        el('button', { className: 'item alone', title: 'The plain test: no Hale', onclick: () => cb.newGame(L.scenario) }, 'On your own'));
+    title.replaceChildren(el('div', { className: 'sheet directory' },
+      el('h1', { textContent: 'TUTORIAL' }),
+      el('p', { className: 'sub', textContent: 'Your first month at the station. Hale, who taught you at the Farm, runs its training: before you\'re trusted with the real thing, he takes you through it on the street, an earpiece in your ear, the station\'s own people playing the parts.' }),
+      el('hr'),
+      el('div', { className: 'lessons' }, ...LESSONS.map((L, n) => row(L, n))),
+      el('hr'),
+      el('button', { className: 'item', onclick: () => showTitle(titleWas ?? {}) }, 'Back to the title')));
+    title.hidden = false;
+    title.querySelector('.item')?.focus();
+  }
 
   // ---------- the HUD ----------
   // (every frame: the frame's width read before anything's written, and text written only when it
@@ -186,6 +216,17 @@ export function createUI({ input, cb }) {
     if (me && state.map?.kind === 'street') put(watch.querySelector('.place'), placeName(townOf(state.map), state.map.row ?? 0, me.x, me.z));
     else put(watch.querySelector('.place'), SCENARIOS[state.scenario.kind]?.place?.(state) ?? '');
     put(watch.querySelector('.sky'), weatherAt(state).words);      // (the weather, in a few words: sim/weather.js)
+    // (a lesson's checklist, under the watch: redrawn only when a step's done)
+    const tu = state.tutor, L = tu && lessonOf(tu.lesson);
+    if (L) {
+      const key = `${L.id}:${tu.steps.map(s => (s.done ? 1 : 0)).join('')}`;
+      if (lessonBox.dataset.key !== key) {
+        lessonBox.dataset.key = key;
+        lessonBox.replaceChildren(el('div', { className: 'title', textContent: `LESSON ${numberOf(L.id)} · ${L.title}` }),
+          ...tu.steps.map(s => el('div', { className: `step${s.done ? ' done' : ''}` }, el('span', { className: 'box', textContent: s.done ? '✓' : '' }), ...keyed(s.text))));
+      }
+      lessonBox.hidden = false;
+    } else lessonBox.hidden = true;
     frame.classList.toggle('paused', paused && menu.hidden && log.hidden && paper.hidden);
     if (paused && banner.dataset.key !== input.label('pause')) { banner.dataset.key = input.label('pause'); banner.textContent = `PAUSED · ${input.label('pause')}`; }
     // The marker: over whom we take for the target (sc.marked), as we last saw them (live, or their
@@ -354,6 +395,7 @@ export function createUI({ input, cb }) {
     }
     // (the move panel sits above the instinct, however many lines it runs to)
     if (!moves.hidden) moves.style.bottom = `${p ? 58 + prompt.offsetHeight + 8 : 96}px`;
+    if (!earpiece.hidden) earpiece.style.bottom = `${(p ? 58 + prompt.offsetHeight + 8 : 58) + (moves.hidden ? 0 : moves.offsetHeight + 8)}px`;   // (Hale over the instinct's line, which he supplements)
     // (a log line's 16 s run while the game does: not under a brief, a sheet, a paper or the pause)
     const real = performance.now(), cover = overlay();
     if (!paused && !cover && lastReal) hudMs += real - lastReal;
@@ -364,6 +406,7 @@ export function createUI({ input, cb }) {
       if (now - t.born > TOAST_S * 1000 && !t.classList.contains('gone')) t.classList.add('gone');
       if (now - t.born > (TOAST_S + 1.5) * 1000) t.remove();
     }
+    if (!earpiece.hidden && now - earpiece.born > earpiece.life) { earpiece.classList.add('gone'); if (now - earpiece.born > earpiece.life + 1500) earpiece.hidden = true; }
     seenView = view;
     placeBalloons(view, now, fw);
     // (you, marked: a brass caret over your head while someone stands within reach of you, out of a fight)
@@ -402,14 +445,24 @@ export function createUI({ input, cb }) {
 
   function toast(e) {
     if (e.hidden) return;                                          // (what the character didn't see)
+    if (e.kind === 'radio') return radioLine(e);
     if (e.says && speakOver(e)) { if (e.aside) toast({ kind: e.kind, text: e.aside }); return; }   // (said aloud: a balloon; the rest top left)
     const t = el('div', { className: `toast ${e.kind}${e.roll && !e.roll.ok ? ' fail' : ''}` }, ...keyed(e.text ?? ''), e.roll ? el('span', { className: 'num', textContent: checkShort(e.roll), title: checkText(e.roll) }) : null);   // (in brief: the whole sum is the log's, J)
     t.born = hudMs;
     toasts.append(t);
     while (toasts.children.length > 3) toasts.firstChild.remove();
   }
+  /** Hale on the earpiece: his line in its box, for as long as it takes to read and a little (sim/tutorial/earpiece.js). */
+  function radioLine(e) {
+    put(earpiece.querySelector('.who'), `${(e.who ?? 'Hale').toUpperCase()} · EARPIECE`);
+    earpiece.querySelector('.line').replaceChildren(...keyed(e.text ?? ''));
+    earpiece.born = hudMs;
+    earpiece.life = (READ_S + String(e.text ?? '').split(/\s+/).length * WORD_S + 5) * 1000;
+    earpiece.hidden = false;
+    earpiece.classList.remove('gone');
+  }
   /** A new game: the HUD's lines and balloons cleared, and its city's words (sim/cities/ localize()) from now on. */
-  const clearToasts = (city = here) => { toasts.replaceChildren(); speech.replaceChildren(); balloons.clear(); here = city; };
+  const clearToasts = (city = here) => { toasts.replaceChildren(); speech.replaceChildren(); balloons.clear(); earpiece.hidden = true; here = city; };
 
   // ---------- speech: a balloon over whoever said it (a log line's says: { id, words }: sim/log.js) ----------
   const balloons = new Map();                                      // actor id → the balloon (its lines, each with when it was said)
@@ -726,7 +779,7 @@ export function createUI({ input, cb }) {
   function showBrief(brief, onBegin, city = here) {
     const begin = () => { paper.hidden = true; paper.dataset.kind = ''; onBegin(); };
     paper.replaceChildren(el('div', { className: 'sheet brief' },
-      el('span', { className: 'stamp', textContent: 'SECRET' }),
+      el('span', { className: 'stamp', textContent: brief.stamp ?? 'SECRET' }),
       el('h2', { textContent: brief.title }), el('hr'),
       ...brief.body.map(t => el('p', { textContent: localize(city, t) })),
       el('p', { className: 'note', textContent: brief.footer }), el('hr'),
@@ -749,13 +802,25 @@ export function createUI({ input, cb }) {
   // (his sightings of you that you saw happen; the rest you can only suspect)
   const seenText = (sc) => { const n = sc.sightings.filter(x => x.seen !== false).length; return `you saw him spot you ${n} time${n === 1 ? '' : 's'}`; };
   const stampOf = (sc) => (sc.outcome === 'made' && sc.madeSeen === false ? 'SPOOKED' : OUTCOMES[sc.outcome] ?? sc.outcome);
-  function showResult(state, { again, same, title, back = null, photo = null }, { debug = false } = {}) {
+  function showResult(state, { again, same, title, back = null, photo = null, lesson = null }, { debug = false } = {}) {
     const sc = state.scenario, secs = Math.round((sc.ended - sc.began) / 1000);
     const go = (fn) => () => { paper.hidden = true; paper.dataset.kind = ''; fn(); };
     // (the scene's own words for going again: an evening, a lesson, a walk; the score asked for only in a mechanic test)
     const S = SCENARIOS[sc.kind], w = S.again ?? { another: ['Again, another evening', 'A new street, a new evening, new dice.'], same: ['Again, the same evening', 'The same streets and the same people; the dice fall as you play.'] };
     // (in a campaign: back to the posting, the outcome folded in; or, the character gone, the title)
-    const ways = state.campaign ? [el('hr'),
+    // (a lesson: Hale's word after it, the checklist as it stood, and the ways on through the tutorial)
+    const L = state.tutor && lessonOf(state.tutor.lesson), next = L && nextLesson(L.id);
+    const debrief = L ? el('div', { className: 'debrief' }, el('h3', { textContent: 'HALE, AFTER' }),
+      ...(L.debrief?.(state) ?? []).map(t => el('p', {}, ...keyed(t))),
+      el('div', { className: 'steps' }, ...state.tutor.steps.map(s => el('div', { className: s.done ? 'done' : 'not' }, s.done ? '✓ ' : '✗ ', ...keyed(s.text))))) : null;
+    const ways = L && lesson ? [el('hr'),
+      el('p', { className: 'note', textContent: 'What was unclear, or too much hand-holding, or too little: in the chat. The tutorial\'s for refining.' }),
+      el('button', { className: 'item', onclick: go(lesson.again) }, 'Again, with Hale', el('small', { textContent: 'The same lesson, another evening.' })),
+      el('button', { className: 'item', onclick: go(lesson.alone) }, 'On your own', el('small', { textContent: 'The same work, no earpiece: the plain test.' })),
+      next ? el('button', { className: 'item', onclick: go(() => lesson.next(next.id)) }, `Next: ${numberOf(next.id)}. ${next.title}`, el('small', { textContent: next.about })) : null,
+      el('button', { className: 'item', onclick: go(lesson.tutorial) }, 'The tutorial', el('small', { textContent: 'The lessons, all of them.' })),
+      el('button', { className: 'item', onclick: go(title) }, 'Back to the title')]
+      : state.campaign ? [el('hr'),
       back && !state.people[state.player]?.dead ? el('button', { className: 'item', onclick: go(back) }, 'Back to the posting', el('small', { textContent: 'The debrief, and on with it.' })) : null,
       el('button', { className: 'item', onclick: go(title) }, 'Back to the title')] : [
       el('hr'),
@@ -775,6 +840,7 @@ export function createUI({ input, cb }) {
         last,
         photo ? el('img', { className: 'photo', src: photo, alt: 'your photograph' }) : null,   // (the frame you took: src/main.js snap())
         el('p', { textContent: localize(state.map?.city, own.text) }),
+        debrief,
         own.lead ? el('p', { className: 'lead', textContent: `Lead. ${own.lead}` }) : null,
         ...own.notes.map(t => el('p', { className: 'truth', textContent: localize(state.map?.city, t) })),
         el('p', { className: 'note', textContent: own.stats }),
@@ -784,6 +850,7 @@ export function createUI({ input, cb }) {
       el('h2', { textContent: (state.campaign && sc.kind === 'tail' ? `Tailing: ${state.people.orlov?.name ?? ''}` : S.name.replace(/^\d+\.\s*/, '')).toUpperCase() }), el('hr'),
       last,
       el('p', { textContent: localize(state.map?.city, sc.endText) }),
+      debrief,
       sc.lead ? el('p', { className: 'lead', textContent: `Lead. ${sc.lead}` }) : null,
       ...(debug ? unseenOf(state) : []),
       el('p', { className: 'note', textContent: `${Math.floor(secs / 60)} min ${secs % 60} s on his tail · ${seenText(sc)} · closest ${sc.closest < 1e8 ? sc.closest.toFixed(1) : '?'} m`
@@ -806,5 +873,5 @@ export function createUI({ input, cb }) {
     setTimeout(() => f.remove(), 1600);
   }
 
-  return { frame, fit, flash, openInventory, openAid, openDesk, openChoices, showCandidates, showPaper, showTitle, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
+  return { frame, fit, flash, openInventory, openAid, openDesk, openChoices, showCandidates, showPaper, showTitle, showTutorial, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
 }

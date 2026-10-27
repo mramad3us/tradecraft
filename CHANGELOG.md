@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc20 (2026-10-27)
+
+- **The tutorial.** The mechanic tests on the right of the title are now one entry, "The tutorial", which opens like a folder: eight lessons, from hand to hand at the Farm to the umbrella. Your first month at the station: Hale, who taught you at the Farm, takes you through the work on the street with an earpiece in your ear, the station's own people playing the parts. He talks you through it as it happens: what's coming, why the instinct says what it says, what you just did right or wrong. His lines come over the earpiece, in their own box just above the instinct's, paced so they never pile up. A checklist under the watch shows what the lesson is for, ticking as you do each thing. Afterwards, his debrief (and who was really out there), then again with Hale, on your own (the plain test), or the next lesson. The first version: tell me what's unclear, and what's too much or too little.
+- **The people waiting at Kostin's stop** (the umbrella) no longer stand in a heap: they're spread as people at a stop are, a pace apart, more so one behind another, some sat in the shelter.
+
 ## v0.1.0-rc19 (2026-10-27)
 
 - **Mechanic test 6: the umbrella.** An assassination, Cold War style. Colonel Pavel Kostin of the GRU has poisoned two defectors abroad and flies out on Friday for a third. Nobody signs for it; an umbrella with a pellet in its tip came in a pouch addressed to no one. He walks from his office to his bus stop, his minder a few paces behind. Tail him from his door, or be at his stop first, waiting like everyone else, and pick him out from the grey coats when he comes. At arm's length, T: a press of the tip against his leg, a sting like a wasp's. Where you do it is everything: alone with him on an empty pavement, he turns and sees your face and his minder sees your hand two times in three; among the people at his stop in the rain, rarely. Then walk away, and never run. If his minder saw, he comes for you. Be sure it's him: a grey coat that isn't him is a stranger who dies on Sunday.

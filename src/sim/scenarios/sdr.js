@@ -93,10 +93,11 @@ export const sdr = {
     });
   },
 
-  setup(state, { campaign: C = null, city = null } = {}) {
+  setup(state, opts = {}) {
+    const { campaign: C = null, city = null } = opts;
     const r = state.rng;
     // (from a campaign, its context: the character, the time, the city, the asset, the team by the heat: sim/campaign.js context())
-    const hour = C ? { id: 'campaign', h: 0, m: 0 } : weighted(r, HOURS.map(h => [h, h.w])), team = C?.team ?? weighted(r, TEAMS);
+    const hour = C ? { id: 'campaign', h: 0, m: 0 } : weighted(r, HOURS.map(h => [h, h.w])), team = C?.team ?? weighted(r, opts.lesson?.options?.teams ?? TEAMS);   // (a lesson's own odds: sim/tutorial/)
     state.time.ms = C ? C.startMs : at(2026, 11, 5, hour.h, hour.m);
     state.legend = { id: 'embassy', name: 'Second Secretary, US Embassy', cover: 'official', floor: 20 };
     state.country = C?.country ?? 'ru';

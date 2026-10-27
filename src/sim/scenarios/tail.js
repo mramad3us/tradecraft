@@ -153,10 +153,10 @@ export const tail = {
     });
   },
 
-  setup(state, { campaign: C = null, city = null } = {}) {
+  setup(state, { campaign: C = null, city = null, lesson = null } = {}) {
     const r = state.rng;
-    // (from a campaign, its context: the character, the time, the city, the target: sim/campaign.js context())
-    const ev = C ? campaignEvening(C) : weighted(r, EVENINGS.map(e => [e, e.w]));
+    // (from a campaign, its context: the character, the time, the city, the target: sim/campaign.js context(); in a lesson, its evening)
+    const ev = C ? campaignEvening(C) : EVENINGS.find(e => e.id === lesson?.options?.evening) ?? weighted(r, EVENINGS.map(e => [e, e.w]));
     state.time.ms = C ? C.startMs : at(2026, 11, 3, ev.h, ev.m);
     state.legend = { id: 'embassy', name: 'Second Secretary, US Embassy', cover: 'official', floor: 20 };
     state.country = C?.country ?? 'ru';
@@ -950,6 +950,7 @@ export const JAB_M = 1.3, CLOSE_M = 7, MINDER_KEEP_M = 4, MINDER_SEE_M = 14, EYE
 export const CHASE_M = 20, RUN_MS = 3.0;                           // (his minder, after you: in sight within CHASE_M, straight at you at a run)
 export const STOP_ROWS = [3, 5], BUS_WAIT_S = [80, 170], COMMUTERS = [3, 5], CLEAR_M = 40, CLEAR_S = 30;
 export const WITNESS_NEAR_M = 3.5, WITNESS_CHANCE = 0.2, FACE_HEAT = 15, MINDER_HEAT = 10, WITNESS_HEAT = 3;
+export const SPACE_M = 0.95, SPACE_DEEP_M = 1.7, STOP_SIT_Z = -0.68;   // (those waiting at his stop: a pace apart, more in depth; sat in the shelter, on its bench: sim/buses.js STOP_Z)
 const UMBRELLA_EVENINGS = [
   { id: 'rush', h: 18, m: 5, wary: false, w: 3, light: 'Dark, and the evening rush.' },
   { id: 'late', h: 19, m: 25, wary: false, w: 1.5, light: 'Dark, and the streets thinning out.' },
@@ -975,11 +976,11 @@ function stopNear(seed, row, x) {
   throw new Error('no stop');
 }
 
-/** Someone stood here a long while (waiting for the bus), facing the road. */
-function standing(state, r, row, x, z) {
+/** Someone stood (or sat in the shelter) a long while, waiting for the bus, facing the road. */
+function standing(state, r, row, x, z, sit = false) {
   const a = makeAgent(state, { seed: int(r, 1e6), row, x, z, speed: 1.2, face: 'down' });
   const route = finish([{ row, x, z, w: 0 }, { row, x: x + 0.01, z, w: 0 }]);
-  route.stops = [{ kind: 'wait', s: route.length, ticks: 45 * 60 * TPS, face: 'down', gait: 'idle' }];
+  route.stops = [{ kind: 'wait', s: route.length, ticks: 45 * 60 * TPS, face: 'down', gait: sit ? 'sit' : 'idle' }];
   setRoute(state, a, route);
   return a.id;
 }
@@ -1003,10 +1004,10 @@ export const umbrellaTest = {
     };
   },
 
-  setup(state, { city = null } = {}) {
-    const r = state.rng, ev = weighted(r, UMBRELLA_EVENINGS.map(e => [e, e.w]));
+  setup(state, { city = null, lesson = null } = {}) {
+    const r = state.rng, ev = UMBRELLA_EVENINGS.find(e => e.id === lesson?.options?.evening) ?? weighted(r, UMBRELLA_EVENINGS.map(e => [e, e.w]));
     state.time.ms = at(2026, 11, 4, ev.h, ev.m);
-    if (!state.weather) state.weather = weighted(r, [['rain', 3], ['rain-heavy', 1.5], ['', 2]]) || null;   // (rain more often than not: the umbrella's cover)
+    if (!state.weather) state.weather = lesson?.options?.weather ?? (weighted(r, [['rain', 3], ['rain-heavy', 1.5], ['', 2]]) || null);   // (rain more often than not: the umbrella's cover)
     state.legend = { id: 'embassy', name: 'Second Secretary, US Embassy', cover: 'official', floor: 20 };
     state.country = 'ru';
     state.heat[heatKey('embassy', state.country)] = 20;
@@ -1040,11 +1041,18 @@ export const umbrellaTest = {
     setRoute(state, t, route);
     const m = makeAgent(state, { who: 'minder', row: 0, x: door.x + 1.2, z: Z.front + 0.6, speed: 1.45, face: 'down' });
     followTarget(state, m, t, MINDER_KEEP_M);
-    // Those waiting at his stop, about the shelter's end and in front of it.
-    const commuters = [];
-    for (let k = 0, n = COMMUTERS[0] + int(r, COMMUTERS[1] - COMMUTERS[0] + 1); k < n; k++) {
-      commuters.push(standing(state, r, row, stand.x + side * range(r, -2.6, 1.6), range(r, -2.5, -1.6)));
+    // Those waiting at his stop, spread out as people at a stop are, and as the picture needs them: a pace
+    // apart side by side (SPACE_M), more one behind another (SPACE_DEEP_M: the camera looks down, and a man a
+    // metre behind another stands head over his feet); some sat on the shelter's bench, the rest about its
+    // ends (most at his: where the doors will open), out of the walkers' way.
+    const commuters = [], spots = [], h = stop.w / 2;
+    const free = (x, z) => [stand, ...spots].every(p => Math.hypot((p.x - x) / SPACE_M, (p.z - z) / SPACE_DEEP_M) >= 1);
+    for (let tries = 0, n = COMMUTERS[0] + int(r, COMMUTERS[1] - COMMUTERS[0] + 1); spots.length < n && tries < 120; tries++) {
+      const sit = chance(r, 0.35), end = chance(r, 0.7) ? side : -side;   // (most at his end: where the doors will open)
+      const x = sit ? stop.x + pick(r, [-0.9, 0, 0.9]) : stop.x + end * (h + range(r, 0.45, 4.5)), z = sit ? STOP_SIT_Z : range(r, -2.2, -0.8);
+      if (free(x, z)) spots.push({ x, z, sit });
     }
+    for (const s of spots) commuters.push(standing(state, r, row, s.x, s.z, s.sit));
     const first = route.pts.find(p => Math.abs(p.x - door.x) > 3), dirX = first ? Math.sign(first.x - door.x) : 1;
     state.actors.unshift({ id: 'a0', who: me.id, seed: null, row: 0, x: door.x - dirX * range(r, 17, 22), z: LINE.F, vx: 0, vz: 0, face: dirX > 0 ? 'right' : 'left', head: dirX > 0 ? 0 : Math.PI, gait: 'idle', stride: 0, stuck: 0, ai: null });
     state.scenario = {

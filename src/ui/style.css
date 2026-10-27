@@ -265,3 +265,25 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .desk button.small, .candidates button.small { font: calc(12px * var(--ui, 1)) var(--mono); padding: 3px 9px; cursor: pointer; pointer-events: auto; }
 .desk h3.section { margin: 10px 0 4px; font-size: calc(12px * var(--ui, 1)); letter-spacing: 0.2em; }
 #title .item.campaign { border-left: 4px solid var(--brass); }
+
+/* The tutorial: Hale on the earpiece (a radio transcript, top middle), and the lesson's checklist under the watch (src/ui/ui.js radioLine(), sim/tutorial/). */
+.earpiece { position: absolute; left: 50%; bottom: 58px; transform: translateX(-50%); width: min(calc(560px * var(--ui, 1)), 46%); background: rgba(16, 26, 22, 0.88); border: 1px solid #2f6b62; border-left-width: 4px; border-radius: 3px; padding: 6px 11px 7px; color: #dfe9e4; transition: opacity 1.2s; }
+.earpiece.gone { opacity: 0; }
+.earpiece .who { font-size: calc(10.5px * var(--ui, 1)); letter-spacing: 0.12em; color: #7fbfa9; margin-bottom: 2px; }
+.earpiece .who::before { content: '◉ '; color: #9ad3b6; }
+.earpiece .line { font-size: calc(13px * var(--ui, 1)); line-height: 1.35; }
+.watch .lesson { text-align: left; margin-top: 7px; padding-top: 6px; border-top: 1px solid #353947; max-width: calc(250px * var(--ui, 1)); }
+.watch .lesson .title { font-size: calc(10px * var(--ui, 1)); letter-spacing: 0.1em; color: #7fbfa9; margin-bottom: 3px; text-transform: uppercase; }
+.watch .lesson .step { font-size: calc(11.5px * var(--ui, 1)); color: #b8bdc8; display: flex; gap: 6px; align-items: baseline; margin: 2px 0; }
+.watch .lesson .step .box { flex: none; width: 1em; height: 1em; border: 1px solid #6a7182; border-radius: 2px; font-size: 0.85em; line-height: 1em; text-align: center; color: #9ad3b6; }
+.watch .lesson .step.done { color: #7a8090; text-decoration: line-through; text-decoration-color: rgba(154, 211, 182, 0.5); }
+.watch .lesson .step.done .box { border-color: #2f6b62; }
+#title .directory .lessons .row { display: flex; gap: 6px; align-items: stretch; }
+#title .directory .lessons .row .item { flex: 1; }
+#title .directory .lessons .row .item { margin: 2px 0; padding-top: 6px; padding-bottom: 6px; }
+#title .directory .lessons .row .alone { flex: none; width: 8em; font-size: 0.85em; display: flex; align-items: center; justify-content: center; text-align: center; }
+.result .debrief { border-left: 3px solid #2f6b62; padding: 4px 10px; margin: 8px 0; background: rgba(47, 107, 98, 0.08); }
+.result .debrief h3 { margin: 0 0 4px; font-size: 0.8em; letter-spacing: 0.14em; color: #2f6b62; }
+.result .debrief .steps { margin-top: 6px; font-size: 0.9em; }
+.result .debrief .steps .done { color: #2f6b62; }
+.result .debrief .steps .not { color: #8f6345; }

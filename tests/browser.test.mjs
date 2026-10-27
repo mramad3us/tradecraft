@@ -98,7 +98,8 @@ export default [
       await withGame(async (page, errors) => {
         await page.goto(`http://localhost:${PORT}/`);
         await page.waitForFunction("!document.getElementById('title').hidden", null, { timeout: 30000 });
-        await page.getByText('2. Being tailed').click();
+        await page.getByText('The tutorial: Hale takes you through it').click();   // (the tests are the tutorial's now: sim/tutorial/)
+        await page.locator('.row', { hasText: '2. Being tailed' }).getByText('On your own').click();
         await page.waitForSelector('.sheet.brief', { timeout: 30000 });
         await page.keyboard.press('Enter');
         await page.waitForFunction('window.__ready === true', null, { timeout: 30000 });
@@ -116,22 +117,25 @@ export default [
     },
   },
   {
-    name: 'mechanic test 1 from the title: the brief, the marker, the instinct, no errors',
+    name: 'lesson 1 from the tutorial: the brief, the marker, the instinct, Hale on the earpiece, the checklist, no errors',
     heavy: true,
     async fn() {
       await withGame(async (page, errors) => {
         await page.goto(`http://localhost:${PORT}/`);
         await page.waitForFunction("!document.getElementById('title').hidden", null, { timeout: 30000 });
-        await page.getByText('1. Tailing a target').click();
+        await page.getByText('The tutorial: Hale takes you through it').click();   // (lesson 1, with Hale: his earpiece checked below)
+        await page.getByText('1. Tailing a man').click();
         await page.waitForSelector('.sheet.brief', { timeout: 30000 });
         await page.keyboard.press('Enter');
         await page.waitForFunction('window.__ready === true', null, { timeout: 30000 });
         await page.keyboard.down('KeyD');
         await page.waitForTimeout(4000);
         await page.keyboard.up('KeyD');
-        const seen = await page.evaluate(() => ({ marker: !document.querySelector('.marker').hidden, prompt: document.querySelector('.prompt').hidden ? null : document.querySelector('.prompt').textContent, target: window.__tradecraft.state.scenario.target }));
-        console.log(`      marker over him: ${seen.marker}; instinct: ${seen.prompt ?? '(quiet)'}`);
+        const seen = await page.evaluate(() => ({ marker: !document.querySelector('.marker').hidden, prompt: document.querySelector('.prompt').hidden ? null : document.querySelector('.prompt').textContent, target: window.__tradecraft.state.scenario.target,
+          hale: document.querySelector('.earpiece .line')?.textContent ?? null, lesson: document.querySelector('.watch .lesson')?.hidden === false }));
+        console.log(`      marker over him: ${seen.marker}; instinct: ${seen.prompt ?? '(quiet)'}; Hale: ${seen.hale ?? '(nothing)'}; the checklist: ${seen.lesson}`);
         assert(seen.target && seen.marker, 'the target and his marker');
+        assert(seen.hale && seen.lesson, 'Hale on the earpiece, the lesson\'s checklist');
         assert(errors.length === 0, errors.join('\n'));
       });
     },
@@ -143,7 +147,8 @@ export default [
       await withGame(async (page, errors) => {
         await page.goto(`http://localhost:${PORT}/`);
         await page.waitForFunction("!document.getElementById('title').hidden", null, { timeout: 30000 });
-        await page.getByText('The Farm: hand to hand').click();
+        await page.getByText('The tutorial: Hale takes you through it').click();
+        await page.getByText('0. Hand to hand, at the Farm').click();
         await page.waitForSelector('.sheet.brief', { timeout: 30000 });
         await page.keyboard.press('Enter');
         await page.waitForFunction('window.__ready === true', null, { timeout: 30000 });

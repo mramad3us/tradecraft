@@ -28,6 +28,7 @@ import { createView } from './render/view.js';
 import { createInput } from './ui/input.js';
 import { createUI, RES } from './ui/ui.js';
 import { putSave, getSave, exportFile, importFile } from './ui/store.js';
+import { briefFor, lessonOf } from './sim/tutorial/index.js';
 
 const VERSION = (await fetch('VERSION').then(r => (r.ok ? r.text() : '?')).catch(() => '?')).trim();
 const q = new URLSearchParams(location.search);
@@ -42,6 +43,7 @@ let prev = new Map(), acc = 0, last = performance.now(), frames = 0;
 
 const ui = createUI({ input, cb: {
   newGame: (kind, chapter = null, city = null) => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city, weather: WEATHER })),
+  newLesson: (id) => launch(newGame({ seed: randomSeed(), lesson: id, version: VERSION, weather: WEATHER })),   // (the tutorial: sim/tutorial/)
   // (the campaign: three officers, one picked, the posting's brief, then the posting: sim/campaign.js)
   newCampaign: (city = 'moscow') => {
     const seed = randomSeed(), list = candidates(seed, city);
@@ -119,18 +121,26 @@ function launch(s, { hour = null } = {}) {
   prev = new Map(); acc = 0; paused = false; running = true; acts = [];
   const sc = SCENARIOS[state.scenario.kind];
   if (state.scenario.outcome) result();
-  else if (sc.brief && state.tick === 0) ui.showBrief(typeof sc.brief === 'function' ? sc.brief(state) : sc.brief, () => {}, state.map?.city);
+  else if (sc.brief && state.tick === 0) ui.showBrief(briefFor(state, typeof sc.brief === 'function' ? sc.brief(state) : sc.brief), () => {}, state.map?.city);   // (a lesson's: its framing first: sim/tutorial/)
 }
 
 /** A test's result paper, with the ways on. */
 function result() {
   const kind = state.scenario.kind, seed = state.seed, chapter = state.scenario.chapter ?? null, city = state.map?.city ?? null;
   if (state.campaign) return ui.showResult(state, { back: () => backToPosting(state), title: async () => { await autosave(); stop(); showTitle(); }, photo: lastPhoto?.url }, settings);
+  // (a lesson of the tutorial: again with Hale, on your own, the next one, the directory: sim/tutorial/)
+  const lesson = state.tutor ? {
+    again: () => launch(newGame({ seed: randomSeed(), lesson: state.tutor.lesson, version: VERSION, city, weather: WEATHER })),
+    alone: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, city, weather: WEATHER })),
+    next: (id) => launch(newGame({ seed: randomSeed(), lesson: id, version: VERSION, city, weather: WEATHER })),
+    tutorial: async () => { await autosave(); stop(); showTitle(); ui.showTutorial(); },
+  } : null;
   ui.showResult(state, {
     photo: lastPhoto?.url,
     again: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city, weather: WEATHER })),
     same: () => launch(newGame({ seed, scenario: kind, version: VERSION, chapter, city, weather: WEATHER })),
     title: async () => { await autosave(); stop(); showTitle(); },
+    lesson,
   }, settings);
 }
 
@@ -282,5 +292,6 @@ if (q.has('play') && SCENARIOS[q.get('play')]) {
   const autoplay = q.has('autoplay') ? { keep: Number(q.get('autoplay')) || 20 } : null;
   launch(newGame({ seed: Number(q.get('seed') ?? 1), scenario: q.get('play'), version: VERSION, autoplay, chapter: q.get('chapter'), city: q.get('city'), weather: WEATHER }), { hour: q.has('hour') ? Number(q.get('hour')) : null });
 }
+else if (q.has('lesson') && lessonOf(q.get('lesson'))) launch(newGame({ seed: Number(q.get('seed') ?? 1), lesson: q.get('lesson'), version: VERSION, city: q.get('city'), weather: WEATHER }));   // (a lesson of the tutorial, for shots and tests)
 else showTitle();
 requestAnimationFrame(frame);

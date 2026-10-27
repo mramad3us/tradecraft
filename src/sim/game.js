@@ -41,6 +41,8 @@ import { PRESSURE_K, treat } from './aid.js';
 import { atKerb, destinations, ride } from './taxi.js';
 import { shopNear, goIn, insideTick } from './shops.js';
 import * as buses from './buses.js';
+import { lessonOf } from './tutorial/index.js';
+import { startTutor, tutorTick } from './tutorial/earpiece.js';
 import * as traffic from './traffic.js';
 import { notice } from './notice.js';
 import { needsTick, strain } from './needs.js';
@@ -70,7 +72,10 @@ const TICKS_PER_S = Math.round(1000 / TICK_MS);
  * parseWeather(): 'snow-heavy-gale', 'frost', 'clear'), for shots, tests and debugging; none, the
  * city's own.
  */
-export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = null, chapter = null, campaign = null, context = null, city = null, weather = null } = {}) {
+export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = null, chapter = null, campaign = null, context = null, city = null, weather = null, lesson = null } = {}) {
+  // (a lesson of the tutorial: its scene, and Hale in your ear: sim/tutorial/)
+  const L = lesson ? lessonOf(lesson) : null;
+  if (L) { scenario = L.scenario; chapter = L.chapter ?? chapter; }
   const state = {
     game: 'tradecraft', schema: SAVE_SCHEMA, version, seed, rng: seedRng(seed), tick: 0, time: { ms: 0 }, autoplay,
     scenario: { kind: scenario }, country: 'ru', legend: null, player: null, focus: null,
@@ -84,7 +89,8 @@ export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = 
   // The city (sim/cities/): a street map is generated from its profile (state.map.city; none is Moscow).
   const C = city && CITIES[city];
   if (C) state.country = C.country;
-  SCENARIOS[scenario].setup(state, { chapter, campaign: context, city: C && city !== 'moscow' ? city : null });
+  SCENARIOS[scenario].setup(state, { chapter, campaign: context, city: C && city !== 'moscow' ? city : null, lesson: L });
+  if (L?.beats) startTutor(state, L);
   if (C && city !== 'moscow' && state.map?.kind === 'street') state.map.city ??= city;
   return state;
 }
@@ -237,6 +243,7 @@ export function step(state, input = {}, bus) {
   // 5. A fight played out (sim/fight.js); the scenario; and what's at hand, for the instinct's line (runtime: sim/acts.js).
   fight.tick(state, bus, scenario);
   scenario.tick?.(state, bus);
+  if (state.tutor) tutorTick(state, bus);                          // (a lesson: Hale in your ear: sim/tutorial/earpiece.js)
   state.$offer = me && !state.fight && !scenario.holds?.(state) ? affordance(state, me) : null;   // (nothing's at hand in a fight, or while the scene has your feet)
   if (fallen && me) { me.vx = me.vz = 0; me.gait = 'down'; }
   // 6. The map and the crowd, once a second; and whoever bleeds, their blood (sim/health.js).
