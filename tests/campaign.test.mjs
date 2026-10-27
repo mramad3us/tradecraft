@@ -138,4 +138,22 @@ export default [
       assert(out.length >= 6, 'played through');
     },
   },
+  {
+    name: 'campaign: a target seen meeting someone brings a photograph to take; it plays with his name, and folds back',
+    fn() {
+      const seed = 31, c = newCampaign(seed, candidates(seed)[0]);
+      const t = c.posting.targets[0];
+      t.contact = 1;                                               // (as a tail that saw his meeting leaves it: sim/campaign.js fold())
+      plan(c, c.posting.startMs + 14 * DAY);
+      const a = c.assignments.find(x => x.kind === 'watch' && x.who === t.id);
+      const g = newGame({ seed, scenario: 'watch', campaign: c, context: context(c, a) });
+      start(g, null);
+      const named = g.people.volkov.name, said = g.log.at(-1).text;
+      for (let k = 0; k < 20 * 60 * 40 && !g.scenario.outcome; k++) step(g, {}, null);
+      const paper = fold(c, a, g.scenario, g.people[g.player], g.time.ms, Object.values(g.heat)[0]);
+      console.log(`      ${a.brief} | the subject: ${named}; "${said.slice(0, 80)}…" | ${paper.title}: ${paper.lines.join(' ')}`);
+      assert(a && named === t.name && said.includes(t.name.split(' ').slice(-1)[0]), 'his name, in the scene');
+      assert(paper.title.startsWith('A PHOTOGRAPH'), 'folded back');
+    },
+  },
 ];

@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc12 (2026-10-27)
+
+- **Photographs in the campaign.** A target you've seen meet someone on a tail brings a photograph to take a few days on: his café, his minder, his name. A sharp print is worth two of intelligence, a soft one or the meeting witnessed one; made by his minder, heat, and he's careful.
+- **The tail at night is winnable** (from the review: night evenings were almost never seen). In the dark between lamps a face behind him is a shape: his look at you is −5 for the dark (−4 before), and being close counts +1, not +3, unless you're right behind him. By the game's own follower, 14 m back, night evenings seen 42% (17% before); dusk and day as they were.
+
 ## v0.1.0-rc11 (2026-10-27)
 
 - **More haircuts** (your ask). Women: a bob, a ponytail (seen from the front by its knot and its end past the neck). Men: a crew cut, a side part. Of the long and the short, about a third take the new cuts; women's and men's still never the same. Who's about doesn't change, only how their hair's cut.

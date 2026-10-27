@@ -44,9 +44,10 @@ import { at, DAY, HOUR, MIN, calendar } from './clock.js';
 export const KINDS = {
   sdr: { name: 'An asset meeting', scenario: 'sdr', about: 'Meet the asset clean: a surveillance detection run to the bench, and only sit down if nobody\'s on you.' },
   tail: { name: 'A tail', scenario: 'tail', about: 'Follow the target from his door to whoever he meets, and don\'t be seen.' },
+  watch: { name: 'A photograph', scenario: 'watch', about: 'Photograph the target at his meeting, and don\'t let his minder see you do it.' },
 };
 /** Days between one asset's meetings, and between tails on one target. */
-export const CADENCE = { sdr: [3, 6], tail: [4, 8] };
+export const CADENCE = { sdr: [3, 6], tail: [4, 8], watch: [5, 9] };
 export const WORK = { from: 9, to: 18 };
 export const WAKE_H = 7;
 export const COVER_PER_DAY = 6;                                   // (a day's work at the embassy, cover standing up)
@@ -177,6 +178,16 @@ export function plan(c, ms) {
         brief: `${t.name}, ${t.what}, leaves his office at ${hm(from)}. Follow him to whoever he meets. Don't be seen.` });
       t.nextDay = d + CADENCE.tail[0] + int(r, CADENCE.tail[1] - CADENCE.tail[0] + 1);
     }
+    // (a target seen meeting someone: the station knows where he meets now, and wants the photograph)
+    for (const t of p.targets) {
+      if (!t.contact || d < (t.photoDay ??= d + 2 + int(r, 2))) continue;
+      if (taken()) { t.photoDay = d + 1; continue; }
+      const from = slot(...(isWorkday(dayMs) ? [12.5, 14] : [13, 17]));
+      if (from === null) { t.photoDay = d + 1; continue; }
+      c.assignments.push({ id: `a${hash(c.seed, d, t.id, 'photo') % 1e7}`, kind: 'watch', who: t.id, from, to: from + 15 * MIN, start: from - 10 * MIN, status: 'open',
+        brief: `${t.name} meets someone outside a café, between ${hm(from)} and ${hm(from + 15 * MIN)}. A photograph of the two of them; his minder mustn't see you take it.` });
+      t.photoDay = d + CADENCE.watch[0] + int(r, CADENCE.watch[1] - CADENCE.watch[0] + 1);
+    }
   }
   c.plannedTo = Math.max(c.plannedTo, to);
   c.assignments.sort((a, b) => a.from - b.from);
@@ -298,9 +309,9 @@ export function context(c, a) {
     // (the heat says how hard they're on you: nobody, an overt pair, a covert team)
     const team = weighted(r, [['none', Math.max(1, 70 - p.heat)], ['overt', 20 + p.heat * 0.3], ['covert', Math.max(0, p.heat - 25)]]);
     Object.assign(ctx, { asset: { codename: s.codename, look: s.look, sex: s.sex, role: s.role }, meetFrom: a.from, team, heat: p.heat });
-  } else if (a.kind === 'tail') {
+  } else if (a.kind === 'tail' || a.kind === 'watch') {
     const t = p.targets.find(x => x.id === a.who);
-    Object.assign(ctx, { target: { name: t.name, what: t.what }, wary: t.wary || t.followed > 2, heat: p.heat });
+    Object.assign(ctx, { target: { name: t.name, what: t.what }, wary: t.wary || t.followed > 2, heat: p.heat, meetFrom: a.from, meetTo: a.to });
   }
   return ctx;
 }
@@ -346,6 +357,16 @@ export function fold(c, a, sc, player, endMs, heatNow) {
     // (the tail's endings, sim/scenarios/tail.js: seen, lost, made, blown)
     else if (sc.outcome === 'made' || sc.outcome === 'blown') { t.wary = true; p.heat = Math.min(100, p.heat + (sc.outcome === 'blown' ? 12 : 6)); lines.push(`${t.name} made you. He'll be careful now, and someone will hear of it.`); }
     else lines.push(`${t.name} got away from you.`);
+  } else if (a.kind === 'watch') {
+    const t = p.targets.find(x => x.id === a.who);
+    // (the photograph's endings, sim/scenarios/watch.js: photo, soft, seen, missed, blown)
+    const intel = { photo: 2, soft: 1, seen: 1 }[sc.outcome] ?? 0;
+    if (intel) { a.intel = intel; p.intelligence += intel; }
+    if (sc.outcome === 'photo') lines.push(`A sharp print of ${t.name} and the man he met: intelligence +2. The station will put a name to the face.`);
+    else if (sc.outcome === 'soft') lines.push(`A soft print, but it's ${t.name} and someone: intelligence +1.`);
+    else if (sc.outcome === 'seen') lines.push(`No photograph, but you saw ${t.name}'s meeting: intelligence +1.`);
+    else if (sc.outcome === 'blown') { t.wary = true; p.heat = Math.min(100, p.heat + 8); lines.push(`His minder made you. ${t.name} will meet somewhere else now, and someone will hear of a man with a camera.`); }
+    else lines.push(`${t.name}'s meeting happened where you weren't looking.`);
   }
   if (p.intelligence >= GOAL_INTEL && !c.over) { c.over = { ms: endMs, why: 'completed' }; lines.push(`That's what the station needed on ${p.subject}. The cable home is a short one: done.`); }
   plan(c, endMs);

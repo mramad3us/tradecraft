@@ -266,6 +266,8 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
     | **15** | 88% | 71% | 4% | 4% |
     | **20** | | 96% | | |
 
+    (0.1.0-rc12: in the dark a face behind him is a shape: −5 to his look, and close counts +1, not +3, unless you're right behind him; by the game's follower 14 m back, night evenings seen 42%, from 17%.)
+
     (0.1.0-rc8, the test's cross: ours against his 10, his against ours 15. The full grid of v0.0.30 is gone stale: since, his checks have their tells and his double-back its moment, and the tail's first seconds are yours.)
 
     Nearly all the rest are made (the follower lost him outright 2 evenings in 480; a few meetings were missed). At equal bases he wins three evenings in four, though our tradecraft gives us a few points more (16 against 13 at base 10): two sightings end it over a long walk, and d20 against d20 is a wide spread. A player who uses the street (cover, the crowd, the far pavement) does better than the game's follower. Playtests are logged in `docs/PLAYTESTS.md`.
@@ -465,7 +467,9 @@ Built so far (`src/sim/campaign.js`, the hub `src/sim/scenarios/campaign.js`; nu
 - **The arc** (0.1.0-rc3): the posting is done when the station has the intelligence it wanted (10: six or seven good operations, two or three weeks done well): POSTING COMPLETE. A tail that sees the meeting is a **lead**: the station names the man he met, and he becomes a target of his own (up to three), the next step. An asset at trust 4 or more brings twice as much.
 - **What heat costs** (0.1.0-rc3): an asset met with a tail on you is compromised, and each day after may be arrested (25% a day): the evening news, gone from the network, heat +10. Heat at 95 and the posting's over: persona non grata (official cover: expelled, not jailed), the posting's paper. Lying low cools 6 a day, 10 at a safe house. Heat cools 1 a day on its own.
 - **Fatigue** (0.1.0-rc3; DESIGN.md, Needs): sixteen hours awake and every skill is down 1, twenty and it's down 3, until you sleep; the instinct says so, and the sheet. (Hunger and stress to come.)
-- **To come:** London, Beirut and Cairo; the hunted state (for postings under a legend, where there's no immunity: safe houses are its stops); moving traffic and taxis to shake a tail; needs (fatigue's cost); the other kinds of assignment as they're built (a brush pass, a dead drop, photographing a meeting, the pitch, the assassination the user proposed); events and news from the intelligence brought in.
+- **Photographs** (0.1.0-rc11): a target a tail saw meet someone (his contact) brings a photograph to take, two or three days on and every 5–9 days after, at lunch or an afternoon (the watching test with his name, the desk's window): a sharp print +2 intelligence, a soft one or the meeting witnessed +1, made by his minder heat +8 and the target wary.
+- **Since built:** the four cities (a posting in any, 0.1.0-rc9), taxis (rc3), needs (hunger and stress, rc9; fatigue the campaign's own), money and clothes (rc10).
+- **To come:** the hunted state inside a campaign (for postings under a legend, where there's no immunity: safe houses are its stops); moving traffic; the other kinds of assignment as they're built (a brush pass, a dead drop, a reception).
 
 ## Look
 

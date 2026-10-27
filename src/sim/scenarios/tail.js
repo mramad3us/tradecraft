@@ -508,13 +508,15 @@ function mark(state, t, glyph, watching) {
 /** What makes us easy or hard for him to spot, as modifiers to his roll. */
 function exposure(state, me, t, d, kind) {
   const sc = state.scenario, mods = [];
-  if (d < 5) mods.push({ why: 'too close', v: 6 }); else if (d < 10) mods.push({ why: 'close', v: 3 });
+  // (in the dark, a face behind is a shape: close counts for little unless it's right behind him)
+  const dark = lightBand(lightHere(state, me.x, me.z)) === 'dark';
+  if (d < 5) mods.push({ why: 'too close', v: 6 }); else if (d < 10) mods.push({ why: 'close', v: dark ? 1 : 3 });
   else if (d > 35) mods.push({ why: 'far off', v: -6 }); else if (d > 25) mods.push({ why: 'well back', v: -4 }); else if (d > 15) mods.push({ why: 'a good way back', v: -2 });
   const n = crowdAround(state, me, 5);
   if (n === 0 && crowdAround(state, me, 8) === 0) mods.push({ why: 'alone on the pavement', v: 2 });
   else if (n >= 5) mods.push({ why: 'in a crowd', v: -4 }); else if (n >= 2) mods.push({ why: 'among people', v: -2 });
   const lit = lightHere(state, me.x, me.z), light = lightBand(lit);
-  if (light === 'dark') mods.push({ why: 'in the dark', v: -4 }); else if (light === 'dim') mods.push({ why: 'in the dusk', v: -2 });
+  if (light === 'dark') mods.push({ why: 'in the dark', v: -5 }); else if (light === 'dim') mods.push({ why: 'in the dusk', v: -2 });
   else if (lit > openAir(state) + 0.2) mods.push({ why: 'in the lamplight', v: 2 });
   if (me.gait === 'run') mods.push({ why: 'running', v: 6 });
   if (me.z > Z.kerbN + 0.3 && me.z < Z.kerbS - 0.3 && !crossingAt(state, me)) mods.push({ why: 'crossing away from the zebra', v: 2 });

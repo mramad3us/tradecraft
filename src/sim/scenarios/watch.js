@@ -53,6 +53,9 @@ const CONTACT_LOOK = { skin: 'light', hair: { style: 'short', color: 0x47302a },
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
 const actorOf = (state, who) => state.actors.find(a => a.who === who);
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+/** The subject by the campaign's name for him (a target of the posting: sim/campaign.js), or Volkov. */
+const sub = (state, text) => { const n = state.scenario?.subject; return !n || !text ? text : text.replace(/Arkady Volkov/g, n).replace(/Volkov/g, n.split(' ').slice(-1)[0]); };
+const tell = (state, bus, e) => say(state, bus, { ...e, text: sub(state, e.text) });
 
 export const watchTest = {
   name: '3. Watching and photographing',
@@ -68,7 +71,7 @@ export const watchTest = {
         `${state.people[state.player].name}: the station wants a photograph. Arkady Volkov, of the defence ministry's procurement office, meets someone this afternoon outside ${shopWord(sc.cafeShop)} on ${streetName(townOf(state.map), 0)}, ${sc.cafeAlong}. Between ${clockText(sc.window[0])} and ${clockText(sc.window[1])}, they think.`,
         'Volkov: grey hair, round glasses, a dark coat, a briefcase. Who he meets, nobody knows: that\'s what the photograph is for. Both faces, together.',
         'He won\'t be alone. The FSB minds its procurement officers, and the minder will be looking at faces round the café before Volkov comes. Don\'t stand about in the open, don\'t stare, and don\'t let him see a camera. A shop window, a kiosk, a café\'s window table across the way: reasons to be where you are.',
-      ],
+      ].map(t => sub(state, t)),
       footer: `Station Moscow · ${dateText(sc.began)} · ${clockText(sc.began)}`,
       keys: [['camera', 'a photograph (both of them in sight)'], ['watch', 'held: stop and watch'], ['instinct', 'does what your instinct offers (a window, a kiosk, a café)'], ['log', 'the log']],
     };
@@ -91,8 +94,10 @@ export const watchTest = {
     const side = chance(r, 0.5) ? -1 : 1;
     const startX = cafe.x + side * range(r, 55, 80);
     state.actors.push({ id: 'a0', who: me.id, seed: null, row: 0, x: startX, z: LINE.F, vx: 0, vz: 0, face: side < 0 ? 'right' : 'left', head: side < 0 ? 0 : Math.PI, gait: 'idle', stride: 0, stuck: 0, ai: null });
-    const t0 = state.time.ms, due = t0 + (WINDOW_MIN[0] + range(r, 0, WINDOW_MIN[1] - WINDOW_MIN[0] - 2)) * MIN;
-    state.people.volkov = sheet({ id: 'volkov', name: 'Arkady Volkov', sex: 'm', cls: 'civilian', look: SUBJECT_LOOK, persistent: true, skills: { awareness: [6, 0], cqc: [3, 0] } });
+    // (when he's due: the desk's window in a campaign, else WINDOW_MIN from now)
+    const t0 = state.time.ms, win = C?.meetFrom ? [C.meetFrom, C.meetTo] : [t0 + WINDOW_MIN[0] * MIN, t0 + WINDOW_MIN[1] * MIN];
+    const due = win[0] + range(r, 0, Math.max(60000, win[1] - win[0] - 2 * MIN));
+    state.people.volkov = sheet({ id: 'volkov', name: C?.target?.name ?? 'Arkady Volkov', sex: 'm', cls: 'civilian', look: SUBJECT_LOOK, persistent: true, skills: { awareness: [6, 0], cqc: [3, 0] } });
     state.people.contact = sheet({ id: 'contact', name: 'a man in a camel coat', sex: 'm', cls: 'civilian', look: CONTACT_LOOK, skills: { awareness: [8, 0], cqc: [6, 0] } });
     state.people.contact.known = false; state.people.contact.seen = 'the man in the camel coat';
     const minderLook = streetLook(r, 'm', 38); delete minderLook.carry;
@@ -104,10 +109,10 @@ export const watchTest = {
     setRoute(state, m, withEnd(routeFrom(town, { row: 0, x: m.x, z: m.z }, post), { kind: 'post', ticks: 3600 * TPS, face: 'up', gait: 'idle', wide: true }));
     state.scenario = {
       kind: 'watch', phase: 'wait', cafe: { x: cafe.x, z: Z.front + 0.8 }, cafeShop: cafe.shop, cafeAlong: Math.abs(cafe.x - startX) > 30 ? `${Math.round(Math.abs(cafe.x - startX) / 10) * 10} m ${cafe.x > startX ? 'east' : 'west'} of you` : 'right here',
-      side, due, window: [t0 + WINDOW_MIN[0] * MIN, t0 + WINDOW_MIN[1] * MIN], began: t0, spawned: false, minder: m.id,
-      suspicion: 0, made: false, loiterS: 0, stareS: 0, scanAt: 0, witnessS: 0, witnessed: false, photo: null, shots: 0, rolls: 0, prompt: null, outcome: null, meetEnd: null,
+      side, due, window: win, began: t0, spawned: false, minder: m.id,
+      subject: C?.target?.name ?? null, suspicion: 0, made: false, loiterS: 0, stareS: 0, scanAt: 0, witnessS: 0, witnessed: false, photo: null, shots: 0, rolls: 0, prompt: null, outcome: null, meetEnd: null,
     };
-    say(state, null, { kind: 'note', text: `${me.name}. ${clockText(t0)}, ${streetName(town, 0)}. Volkov is due at ${shopWord(cafe.shop)} between ${clockText(state.scenario.window[0])} and ${clockText(state.scenario.window[1])}.` });
+    tell(state, null, { kind: 'note', text: `${me.name}. ${clockText(t0)}, ${streetName(town, 0)}. Volkov is due at ${shopWord(cafe.shop)} between ${clockText(state.scenario.window[0])} and ${clockText(state.scenario.window[1])}.` });
   },
 
   anchors(state) { const sc = state.scenario; return [sc.cafe.x]; },
@@ -123,7 +128,7 @@ export const watchTest = {
     if (stop.kind !== 'meet' || a.who !== 'volkov') return;
     if (phase === 'start' && sc.phase === 'walk') {
       sc.phase = 'meet';
-      say(state, bus, { kind: 'note', text: 'Volkov stops outside the café and looks at his watch.' });
+      tell(state, bus, { kind: 'note', text: 'Volkov stops outside the café and looks at his watch.' });
       // (inside the very café, at its window: the minder looks in as he comes, as a minder does)
       const me = playerOf(state), m = actorOf(state, 'minder');
       if (me?.inside && Math.abs(me.inside.x - sc.cafe.x) < 1 && m && !sc.made) {
@@ -152,7 +157,7 @@ export const watchTest = {
     const v = actorOf(state, 'volkov'), c = actorOf(state, 'contact'), m = actorOf(state, 'minder');
     // Witnessed: both of them in your sight together, near the café, a while.
     if (v && c && Math.hypot(v.x - c.x, v.z - c.z) < 3 && seesActor(state, me, v) && seesActor(state, me, c)) {
-      if (++sc.witnessS === WITNESS_S && !sc.witnessed) { sc.witnessed = true; say(state, bus, { kind: 'note', text: 'Volkov and the man in the camel coat, together: a handshake, heads close. You\'ve seen it.' }); }
+      if (++sc.witnessS === WITNESS_S && !sc.witnessed) { sc.witnessed = true; tell(state, bus, { kind: 'note', text: 'Volkov and the man in the camel coat, together: a handshake, heads close. You\'ve seen it.' }); }
     }
     // The minder, every SCAN_S: whoever he can see, weighed.
     if (m && !sc.made && now - sc.scanAt >= SCAN_S * 1000) { sc.scanAt = now; minderLooks(state, bus, me, m); }
@@ -165,7 +170,7 @@ export const watchTest = {
     if (sc.phase === 'after' && now - sc.meetEnd > 30 * 1000) return end(state, bus);
     if (sc.made && sc.phase !== 'meet' && sc.madeAt && now - sc.madeAt > 60 * 1000) return end(state, bus);
     if (now > sc.window[1] + 20 * MIN) return end(state, bus);
-    sc.prompt = settle(sc.prompt, [...instinct(state, me, now, { v, c, m, near, reason })], now);
+    sc.prompt = settle(sc.prompt, [...instinct(state, me, now, { v, c, m, near, reason })].map(l => l && { ...l, text: sub(state, l.text) }), now);
   },
 
   goal(state) {
@@ -184,7 +189,7 @@ export const watchTest = {
       blown: 'Volkov walks past the café as if it were any other, and doesn\'t look back. The minder across the road watched you the whole way: they knew. Whoever the meeting was with, it\'s somewhere else now.',
     }[sc.outcome];
     return {
-      stamp, good: sc.outcome === 'photo' || sc.outcome === 'soft', title: 'A PHOTOGRAPH', text,
+      stamp, good: sc.outcome === 'photo' || sc.outcome === 'soft', title: 'A PHOTOGRAPH', text: sub(state, text),
       notes: [sc.photo ? `Your best frame: ${sc.photo.q}, at ${Math.round(sc.photo.d)} m${sc.photo.glass ? ', through a café window' : ''}.` : sc.shots ? `${sc.shots} frame${sc.shots === 1 ? '' : 's'}, none of them any use.` : null,
         sc.made ? 'The minder made you. Somewhere a report will mention a man who took too much interest in a café.' : null].filter(Boolean),
       stats: `${Math.round(((sc.ended ?? state.time.ms) - sc.began) / 60000)} min · ${sc.shots} frame${sc.shots === 1 ? '' : 's'} · ${sc.rolls} of the minder's looks at you`,
@@ -219,14 +224,14 @@ function minderLooks(state, bus, me, m) {
     mods: [...reasons, crowd && { why: 'people round you', v: -Math.min(3, crowd) }, light === 'dark' && { why: 'the dark', v: -3 }, d > 20 && { why: 'at a distance', v: -2 }, ...showsMods(state.people[state.player])].filter(Boolean) },
   { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] });
   if (!roll.ok) return made(state, bus, roll, reasons[0].why);
-  say(state, bus, { kind: 'roll', roll, hidden: true, text: `The man across the road looks you over, and moves on.` });
+  tell(state, bus, { kind: 'roll', roll, hidden: true, text: `The man across the road looks you over, and moves on.` });
 }
 
 function made(state, bus, roll, why) {
   const sc = state.scenario;
   sc.made = true; sc.madeAt = state.time.ms;
   strain(state, bus, 10);
-  say(state, bus, { kind: 'roll', roll, hidden: true, text: `The man across the road watches you a beat too long (${why}), and says something into his collar.` });
+  tell(state, bus, { kind: 'roll', roll, hidden: true, text: `The man across the road watches you a beat too long (${why}), and says something into his collar.` });
   // (Volkov is told: he walks past the café without stopping; the contact turns back)
   const v = actorOf(state, 'volkov'), c = actorOf(state, 'contact'), town = townOf(state.map);
   for (const a of [v, c].filter(Boolean)) {
@@ -241,9 +246,9 @@ function photograph(state, bus, me) {
   const sc = state.scenario, v = actorOf(state, 'volkov'), c = actorOf(state, 'contact'), m = actorOf(state, 'minder');
   sc.shots++;
   const inSight = [v, c].filter(a => a && onMap(state, a) && seesActor(state, me, a));
-  if (!inSight.length) return say(state, bus, { kind: 'note', text: 'A frame of the street, and nobody in it who matters.' });
+  if (!inSight.length) return tell(state, bus, { kind: 'note', text: 'A frame of the street, and nobody in it who matters.' });
   const d = Math.max(...inSight.map(a => Math.hypot(a.x - me.x, a.z - me.z))), light = lightBand(lightHere(state, inSight[0].x, inSight[0].z));
-  if (d > PHOTO_M[light]) return say(state, bus, { kind: 'note', text: `Too far for this light: ${Math.round(d)} m. Closer, or wait.` });
+  if (d > PHOTO_M[light]) return tell(state, bus, { kind: 'note', text: `Too far for this light: ${Math.round(d)} m. Closer, or wait.` });
   const glass = !!me.inside;
   const roll = check(state.rng, { skill: 'tech', value: skill(state.people[state.player], 'tech'), body: state.people[state.player], dc: 8 + Math.round(d / 3),
     mods: [light === 'dim' && { why: 'the light going', v: -2 }, light === 'dark' && { why: 'lamplight', v: -4 }, (me.vx || me.vz) && { why: 'on the move', v: -4 }, glass && { why: 'through the café\'s window', v: -2 }].filter(Boolean) });
@@ -251,7 +256,7 @@ function photograph(state, bus, me) {
   const q = !roll.ok ? 'a blur' : roll.margin >= 3 && both ? 'sharp, both faces' : both ? 'soft, both of them' : 'one of them';
   const rank = { 'sharp, both faces': 3, 'soft, both of them': 2, 'one of them': 1, 'a blur': 0 }[q];
   if (!sc.photo || rank > sc.photo.rank) sc.photo = { q, rank, d, glass, ms: state.time.ms };
-  say(state, bus, { kind: 'roll', roll, text: `The shutter, quiet as you can make it: ${q}.` });
+  tell(state, bus, { kind: 'roll', roll, text: `The shutter, quiet as you can make it: ${q}.` });
   bus?.emit('photo', { rank, ids: inSight.map(a => a.id) });
   // (a camera raised where the minder can see it)
   if (m && !sc.made && !me.hidden && seesActor(state, m, me)) {
