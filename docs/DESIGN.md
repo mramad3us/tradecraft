@@ -415,11 +415,24 @@ One ladder, leading to the illegal. Risk rises with rank. A rank is less a title
    6. A fight: CQC (built v0.0.35, its tutorial the dojo), then guns.
    7. A police stop.
    8. The desk and the mind map.
-4. **Joining.**
+4. **Joining.** Begun in 0.1.0-rc2 (the user, 2026-10-27: "Start working on campaign mode … the onion that is Character life > Posting > Assignment generation with the mission types that we tested"): see The campaign, below.
    - The day (schedule, cover job, travel, needs) and chapters.
    - A minimal geopolitics: a few subjects; intelligence turns into events and news.
    - The Moscow posting generator, assignments, agency services, the hunted state.
 5. **The content of 0.1.0** (the places, the posting's people, the nine kinds of assignment), then a release candidate when the user declares one.
+
+## The campaign (0.1.0-rc2)
+
+Built so far (`src/sim/campaign.js`, the hub `src/sim/scenarios/campaign.js`; numbers my call):
+- **The character.** Three generated officers to pick from (the title's Campaign), each a Handler: a name, an age, a background (Army intelligence, Treasury, State, a city detective, a Navy corpsman, a correspondent) that lifts the skills it would, Tradecraft 30–45, the posting's language at working or fluent. The pick is yours for the posting: wounds, blood and what you carry go with you from scene to scene.
+- **The posting.** A city (Moscow; London, Beirut and Cairo next), the cover (Second Secretary at the embassy, official cover, immunity), a goal (a subject the station wants: in Moscow sanctions evasion, the hypersonic programme or Unit 29155), the network (one or two assets, codenamed, each with a role, a motive, a trust from −5 to +5 and a yield), the opposition's man to watch (an officer under commercial cover), the flat, the embassy (the street the missions start from), two safe houses, and the gauges: heat (how much the opposition knows), cover standing (the embassy's view of you), intelligence, money (a salary, $7,200 a month, and the operational fund, $2,500).
+- **The assignments**, planned a week ahead, day by day, from the mission types tested: for each asset a meeting every 3–6 days (being tailed, to the bench: a 15-minute window, an evening after work or a weekend afternoon; the opposition's team by the heat: nobody, an overt pair, a covert team), for the target a tail every 4–8 days (his evening). One a day at most (two meetings in an evening is how networks get rolled up), never two at once, only the posting's own people and places: about four a week. Missed, they cost (an asset's trust; an evening unwatched).
+- **Outcomes, folded back.** A meeting met clean: intelligence (the asset's yield), trust up. Met with a tail on you: the intelligence, but heat +10 and the asset compromised. Called off rightly: nothing lost; needlessly: trust down. A tail that saw the meeting: a lead and intelligence; made or blown: heat up, the target wary from then on.
+- **The day** (the hub): from your door in the posting's city, the campaign's clock. Tab is the desk: the date, the gauges, the network, what's ahead (go now, or go at the time it starts: the clock skips to it), the places (the flat, the embassy, the safe houses: travel by foot, metro or taxi, the minutes it takes, and you're at that door on that street), and the day's choices: go to work (till 18:00 on a weekday: cover standing +6), sleep (till 7:00), lie low (a day: heat −6). A working day missed costs 10 of cover standing. Pay on the 1st, and on Sunday night the week's review (intelligence against expected, heat, cover, the network). The instinct says what's next and when to leave for it.
+- **The arc** (0.1.0-rc3): the posting is done when the station has the intelligence it wanted (10: six or seven good operations, two or three weeks done well): POSTING COMPLETE. A tail that sees the meeting is a **lead**: the station names the man he met, and he becomes a target of his own (up to three), the next step. An asset at trust 4 or more brings twice as much.
+- **What heat costs** (0.1.0-rc3): an asset met with a tail on you is compromised, and each day after may be arrested (25% a day): the evening news, gone from the network, heat +10. Heat at 95 and the posting's over: persona non grata (official cover: expelled, not jailed), the posting's paper. Lying low cools 6 a day, 10 at a safe house. Heat cools 1 a day on its own.
+- **Fatigue** (0.1.0-rc3; DESIGN.md, Needs): sixteen hours awake and every skill is down 1, twenty and it's down 3, until you sleep; the instinct says so, and the sheet. (Hunger and stress to come.)
+- **To come:** London, Beirut and Cairo; the hunted state (for postings under a legend, where there's no immunity: safe houses are its stops); moving traffic and taxis to shake a tail; needs (fatigue's cost); the other kinds of assignment as they're built (a brush pass, a dead drop, photographing a meeting, the pitch, the assassination the user proposed); events and news from the intelligence brought in.
 
 ## Look
 

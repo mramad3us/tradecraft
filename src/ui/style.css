@@ -228,3 +228,8 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .charsheet p.blood.shock, .charsheet p.blood.collapsed { color: #6e2a2e; font-weight: bold; }
 .aid td.where { color: #6a7182; font-size: 12px; }
 .aid button.small { font: 12px var(--mono); margin-left: 6px; padding: 2px 8px; cursor: pointer; pointer-events: auto; }
+.desk td { font-size: 12px; }
+.desk .deskacts { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.desk button.small, .candidates button.small { font: 12px var(--mono); padding: 3px 9px; cursor: pointer; pointer-events: auto; }
+.desk h3.section { margin: 10px 0 4px; font-size: 12px; letter-spacing: 0.2em; }
+#title .item.campaign { border-left: 4px solid var(--brass); }

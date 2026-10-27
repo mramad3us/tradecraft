@@ -59,13 +59,16 @@ const TICKS_PER_S = Math.round(1000 / TICK_MS);
  * player's character played by the game's own AI (an agent: sim/agents.js), with its options (as the
  * scenario reads them, e.g. { keep } for a follower); null, by hand.
  */
-export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = null, chapter = null } = {}) {
+export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = null, chapter = null, campaign = null, context = null } = {}) {
   const state = {
     game: 'tradecraft', schema: SAVE_SCHEMA, version, seed, rng: seedRng(seed), tick: 0, time: { ms: 0 }, autoplay,
     scenario: { kind: scenario }, country: 'ru', legend: null, player: null, focus: null,
     people: {}, map: null, actors: [], nextActor: 1, heat: {}, log: [], flags: {}, mind: { seen: {} },
   };
-  SCENARIOS[scenario].setup(state, { chapter });
+  // (a campaign rides along, the persistent part: sim/campaign.js; context, an assignment's, for its scene's setup)
+  state.campaign = campaign;
+  state.assignment = context?.assignment ?? null;
+  SCENARIOS[scenario].setup(state, { chapter, campaign: context });
   return state;
 }
 

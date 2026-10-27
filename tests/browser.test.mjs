@@ -29,13 +29,38 @@ async function withGame(fn) {
 
 export default [
   {
+    name: 'the campaign from the title: three officers, the posting\'s brief, the street from your door, the desk, a day at the embassy, no errors',
+    heavy: true,
+    async fn() {
+      await withGame(async (page, errors) => {
+        await page.goto(`http://localhost:${PORT}/`);
+        await page.waitForFunction("!document.getElementById('title').hidden", null, { timeout: 30000 });
+        await page.getByText('Campaign: a posting in Moscow').click();
+        await page.waitForSelector('.candidates', { timeout: 30000 });
+        const names = await page.locator('.cand').count();
+        await page.locator('.cand').first().click();
+        await page.locator('.overlay:not([hidden]) .sheet.brief .go').click();
+        await page.waitForFunction('window.__ready === true && window.__tradecraft.state?.scenario.kind === "campaign"', null, { timeout: 30000 });
+        await page.keyboard.press('Tab');
+        await page.waitForSelector('.desk', { timeout: 5000 });
+        const ahead = await page.locator('.desk tr').count();
+        await page.evaluate(() => [...document.querySelectorAll('.desk button')].find(b => /Go to work/.test(b.textContent))?.click());
+        await page.waitForTimeout(1500);
+        const s = await page.evaluate(() => { const st = window.__tradecraft.state; return { hour: new Date(st.time.ms).getUTCHours(), cover: st.campaign.posting.cover, log: st.log.at(-1)?.text }; });
+        console.log(`      ${names} officers; ${ahead} assignments ahead on the desk; after work: cover ${s.cover}; ${s.log}`);
+        assert(names === 3 && ahead >= 2 && s.cover > 70, 'picked, posted, at the desk, a day worked');
+        assert(errors.length === 0, errors.join('\n'));
+      });
+    },
+  },
+  {
     name: 'the title, then the free walk: no errors, keys move, saves carry on the same game',
     heavy: true,
     async fn() {
       await withGame(async (page, errors) => {
         await page.goto(`http://localhost:${PORT}/`);
         await page.waitForFunction("!document.getElementById('title').hidden", null, { timeout: 30000 });
-        await page.click('#title .item');
+        await page.locator('#title .item', { hasText: 'Free walk' }).first().click();
         await page.waitForFunction('window.__ready === true', null, { timeout: 30000 });
         const t0 = Date.now();
         await page.keyboard.down('KeyD');

@@ -13,10 +13,14 @@
 // feet are the scenario's just now (a fight, a walk onto the mat), so the move keys do nothing.
 // aware(state): the character takes in the whole map (a small lit room), so the view shows it all, no fog.
 // place?(state): where we are, for the watch, off the street. watch?(state): { x, z } of someone the
-// picture should lean toward while they're in sight (the tail: him).
+// picture should lean toward while they're in sight (the tail: him). `campaign`: the campaign's hub
+// (sim/scenarios/campaign.js), listed apart on the title. setup(state, { chapter, campaign }): campaign
+// is an assignment's context when it's run from a campaign (sim/campaign.js context()): the character,
+// the city, the time, its people; state.campaign is the campaign itself, riding along.
 import { walk } from './walk.js';
 import { tail } from './tail.js';
 import { sdr } from './sdr.js';
 import { dojoScenario } from './dojo.js';
+import { campaignHub } from './campaign.js';
 
-export const SCENARIOS = { walk, dojo: dojoScenario, tail, sdr };
+export const SCENARIOS = { walk, dojo: dojoScenario, tail, sdr, campaign: campaignHub };

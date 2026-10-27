@@ -33,7 +33,7 @@
 // The instinct talks you through it (instinct()): the way to him, the time, the faces, the lessons.
 // Everything shown is what the character knows: the result paper too (result()), with the rest told
 // later by the world (epilogue()), and in full only in debug mode.
-import { at, TICK_MS, clockText } from '../clock.js';
+import { at, TICK_MS, clockText, dateText } from '../clock.js';
 import { handler, sheet, streetLook, describe, passerby } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
 import { say } from '../log.js';
@@ -75,7 +75,7 @@ export const sdr = {
   about: 'Walk to a meeting with a source. Find out whether the FSB is behind you, and don\'t take them to him. Each evening is different.',
   brief(state) {
     const sc = state.scenario, g = sc.meet;
-    return {
+    return subAll(state, {
       title: 'MEETING: SOLOVEY',
       body: [
         `SOLOVEY works in the Ministry of Defence and has been ours for two years. Tonight he'll sit on a bench in ${g.place}, ${rowsText(g.row)}, from ${clockText(g.from)} until ${clockText(g.to)}. Bald, glasses, a brown coat, a newspaper.`,
@@ -85,23 +85,25 @@ export const sdr = {
       ],
       footer: `Station Moscow · Thursday 5 November 2026 · ${clockText(sc.began)}`,
       keys: [['watch', 'tapped: glance back; held: stop and look'], ['instinct', 'does what your instinct offers (a window, a bench, cross, sit with him, call it off)'], ['slow', 'held: stroll'], ['log', 'the log']],
-    };
+    });
   },
 
-  setup(state) {
+  setup(state, { campaign: C = null } = {}) {
     const r = state.rng;
-    const hour = weighted(r, HOURS.map(h => [h, h.w])), team = weighted(r, TEAMS);
-    state.time.ms = at(2026, 11, 5, hour.h, hour.m);
+    // (from a campaign, its context: the character, the time, the city, the asset, the team by the heat: sim/campaign.js context())
+    const hour = C ? { id: 'campaign', h: 0, m: 0 } : weighted(r, HOURS.map(h => [h, h.w])), team = C?.team ?? weighted(r, TEAMS);
+    state.time.ms = C ? C.startMs : at(2026, 11, 5, hour.h, hour.m);
     state.legend = { id: 'embassy', name: 'Second Secretary, US Embassy', cover: 'official', floor: 20 };
-    state.heat[heatKey('embassy', 'ru')] = team === 'none' ? 22 : team === 'overt' ? 34 : 44;
-    const me = handler(r);
+    state.country = C?.country ?? 'ru';
+    state.heat[heatKey('embassy', state.country)] = C ? C.heat : team === 'none' ? 22 : team === 'overt' ? 34 : 44;
+    const me = C ? { ...structuredClone(C.player), id: 'me' } : handler(r);
     state.people[me.id] = me;
     state.player = me.id;
-    state.people.solovey = sheet({ id: 'solovey', name: 'SOLOVEY', sex: 'm', look: SOLOVEY_LOOK, persistent: true, skills: { awareness: [3, 0] } });
-    state.map = { kind: 'street', seed: Math.floor(range(r, 0, 4294967296)), row: 0, i0: null, i1: null, crowd: 1 };
+    state.people.solovey = sheet({ id: 'solovey', name: C?.asset?.codename ?? 'SOLOVEY', sex: 'm', look: C?.asset?.look ?? SOLOVEY_LOOK, persistent: true, skills: { awareness: [3, 0] } });
+    state.map = { kind: 'street', seed: C ? C.mapSeed : Math.floor(range(r, 0, 4294967296)), row: 0, i0: null, i1: null, crowd: 1, city: C?.city };
     state.actors.push({ id: 'a0', who: me.id, seed: null, x: 0, z: -2.6, vx: 0, vz: 0, face: 'right', head: 0, gait: 'idle', stride: 0, stuck: 0, ai: null });
     const meet = placeMeeting(state, r);
-    meet.from = state.time.ms + Math.round(range(r, ...MEET_AFTER_MIN) * 60) * 1000;
+    meet.from = C?.meetFrom ?? state.time.ms + Math.round(range(r, ...MEET_AFTER_MIN) * 60) * 1000;
     meet.to = meet.from + MEET_FOR_MIN * 60000;
     // The team, if there is one: its people, how they keep (who's the eye, who backs up, a spare).
     const roles = team === 'overt' ? ['eye', 'back'] : team === 'covert' ? ['eye', 'back', 'spare'] : [];
@@ -119,8 +121,9 @@ export const sdr = {
       nextHandover: state.time.ms + Math.round(range(r, ...HANDOVER_S)) * 1000, heading: { dir: 1, s: 0 },
       faces: {}, suspects: {}, flags: [], flagged: {}, checks: 0, glances: 0, windows: 0, glassS: 0, stillS: 0, onRoad: false, sinceMap: null, check: null, moves: 0, snap: null,
       prompt: null, outcome: null, rolls: 0, began: state.time.ms, met: false, burned: false,
+      role: C?.asset?.role ?? null, campaign: !!C,
     };
-    say(state, null, { kind: 'note', text: `${me.name}. ${clockText(state.time.ms)}, out of the embassy on ${streetName(state.map.seed, 0)}. SOLOVEY: ${meet.place}, ${rowsText(meet.row)}, from ${clockText(meet.from)}.` });
+    say(state, null, { kind: 'note', text: sub(state, `${me.name}. ${clockText(state.time.ms)}, out of the embassy on ${streetName(state.map.seed, 0)}. SOLOVEY: ${meet.place}, ${rowsText(meet.row)}, from ${clockText(meet.from)}.`) });
   },
 
   // The team picks you up as you come out: behind you, off the screen's edge.
@@ -162,7 +165,7 @@ export const sdr = {
     if (sc.phase !== 'walk') return null;
     const me = playerOf(state), dr = g.row - state.map.row;
     const far = dr ? rowsText(dr) : `${Math.round(Math.abs(g.x - me.x))} m`;
-    return { row: g.row, x: g.x, z: g.z, label: `SOLOVEY · ${far}` };
+    return { row: g.row, x: g.x, z: g.z, label: sub(state, `SOLOVEY · ${far}`) };
   },
 
   /** Through a lane: the watchers who saw you go in follow you through it, a little behind. */
@@ -227,15 +230,33 @@ export const sdr = {
       const kinds = [...new Set(sc.flags.map(f => f.kind))].map(k => `${FLAGS[k]}${sc.flags.filter(f => f.kind === k).length > 1 ? ' (twice)' : ''}`);
       notes.push(`Debug, what really happened: ${truth}; the meeting was ${sc.outcome}; written down: ${kinds.length ? list(kinds) : 'nothing'}.`);
     }
-    return {
+    return subAll(state, {
       stamp: OUTCOMES[sc.outcome] ?? sc.outcome, good: sc.met,
-      title: sdr.name.toUpperCase(), text: sc.endText,
+      title: sc.campaign ? `MEETING: ${state.people.solovey.name}` : sdr.name.toUpperCase(), text: sc.endText,
       lead: sc.met ? `${clockText(sc.ended)}: SOLOVEY handed over a folded newspaper. Inside, next month's procurement schedule for the Western Military District.` : null,
       notes: notes.filter(Boolean),
       stats: `${Math.floor((sc.ended - sc.began) / 60000)} min ${Math.round((sc.ended - sc.began) / 1000) % 60} s · ${sc.checks} checks of your back (${sc.glances} glances, ${sc.windows ?? 0} shop windows)${shownRolls(state) ? ` · ${shownRolls(state)} rolls in the log (J)` : ''}`,
-    };
+    });
   },
 };
+
+/**
+ * From a campaign, the asset is theirs, not SOLOVEY of the Ministry of Defence: the scene's words are
+ * the test's, and this puts the campaign's codename, role, look, city and date in, where words leave
+ * the scene (the brief, the log, the instinct, the ending, the result paper). Standalone, nothing changes.
+ */
+function sub(state, t) {
+  const sc = state.scenario, s = state.people.solovey;
+  if (typeof t !== 'string' || !sc?.campaign) return t;
+  return t.replace(/SOLOVEY/g, s.name)
+    .replace('works in the Ministry of Defence and has been ours for two years', `is ${sc.role ?? 'one of ours'}, and has been ours a while`)
+    .replace('a Ministry of Defence official', sc.role ?? 'an official')
+    .replace('Bald, glasses, a brown coat, a newspaper.', `${cap(describe(s.look, s.sex))}, with a newspaper.`)
+    .replace(/Station Moscow · Thursday 5 November 2026/, `Station ${CITY_NAME[state.map.city] ?? 'Moscow'} · ${dateText(sc.began)}`)
+    .replace('Inside, next month\'s procurement schedule for the Western Military District.', 'Inside: what the agency asked for.');
+}
+const subAll = (state, o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Array.isArray(v) ? v.map(x => (typeof x === 'string' ? sub(state, x) : x)) : sub(state, v)]));
+const CITY_NAME = { moscow: 'Moscow', london: 'London', beirut: 'Beirut', cairo: 'Cairo' };
 
 // The rolls the character saw (those that reached the log not hidden): a count of all of them would
 // hint at what they didn't see.
@@ -544,6 +565,7 @@ function second(state, bus, me) {
   meeting(state, bus, me);
   if (sc.outcome) return;
   sc.prompt = settle(sc.prompt, [instinct(state, me, still)], now);   // (the line that applies now: sim/instinct.js)
+  if (sc.prompt && sc.campaign) sc.prompt.text = sub(state, sc.prompt.text);
 }
 
 function meeting(state, bus, me) {
@@ -607,7 +629,7 @@ function end(state, bus, outcome, text) {
   if (sc.outcome) return;
   sc.outcome = outcome;
   sc.phase = 'done';
-  sc.endText = text;
+  sc.endText = sub(state, text);
   sc.ended = state.time.ms;
   if (sc.flags.length) addHeat(state, FLAG_HEAT * sc.flags.length);
   // What they made of you shows in the weeks after, to whoever can read it (Pathfinding): a car

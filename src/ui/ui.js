@@ -28,6 +28,9 @@ import { deathPaper } from '../sim/game.js';
 import { shortName, statusLine } from '../sim/fight.js';
 import { weaponOf, bare } from '../sim/weapons.js';
 import { options as aidOptions, bodyLine } from '../sim/aid.js';
+import { agenda as agendaOf, heatWord as heatWordOf, places as placesOf, KINDS as KINDS_ } from '../sim/campaign.js';
+import { streetName as streetNameOf } from '../sim/map/street.js';
+import { calendar as calendarOf, DAY as DAY_MS } from '../sim/clock.js';
 import { bleedRate, bloodOf, bandOf, BLOOD } from '../sim/health.js';
 import { RANK as RANKS } from '../sim/instinct.js';
 
@@ -109,7 +112,8 @@ export function createUI({ input, cb }) {
       el('p', { className: 'sub', textContent: `v${version} · in development: the skeleton, and the first look at the street` }),
       el('hr'),
       auto ? el('button', { className: 'item', onclick: () => cb.continue() }, 'Continue', el('small', { textContent: auto.about })) : null,
-      ...Object.entries(SCENARIOS).filter(([, s]) => !s.test).flatMap(([key, s]) => entry(key, s)),
+      el('button', { className: 'item campaign', onclick: () => cb.newCampaign?.() }, 'Campaign: a posting in Moscow', el('small', { textContent: 'A Handler at the US embassy: a network to run, men to watch, the heat to keep down. Days and weeks of it, as long as it lasts.' })),
+      ...Object.entries(SCENARIOS).filter(([, s]) => !s.test && !s.campaign).flatMap(([key, s]) => entry(key, s)),
       el('h3', { className: 'section', textContent: 'Mechanic tests' }),
       el('p', { className: 'note', textContent: 'One mechanic each, to play and score before they\'re joined into the game.' }),
       ...Object.entries(SCENARIOS).filter(([, s]) => s.test).map(([key, s]) => el('button', { className: 'item', onclick: () => cb.newGame(key) }, s.name, el('small', { textContent: s.about }))),
@@ -392,6 +396,7 @@ export function createUI({ input, cb }) {
           el('div', { className: 'figure' }, part('head'), part('armR'), part('torso'), part('armL'), part('legR'), part('legL')),
           el('ul', {}, Object.keys(PARTS).map(k => el('li', { className: `${stateOf(p, k)}${injuriesOn(p, k) ? ' injured' : ''}` }, el('span', { textContent: PARTS[k].name }), el('span', { textContent: stateText(p, k) }),
             injuriesOn(p, k) ? el('small', { textContent: injuriesOn(p, k) }) : null))),
+          p.strain ? el('p', { className: 'blood pale', textContent: `Tired: ${p.strain} to every skill, until you sleep.` }) : null,
           el('p', { className: `blood ${bandOf(p)}`, textContent: `Blood ${Math.round(bloodOf(p))}%: ${BAND_WORDS[bandOf(p)]}${bleedRate(p, state.time.ms) ? `; bleeding ${bleedRate(p, state.time.ms) >= 8 ? 'fast' : bleedRate(p, state.time.ms) >= 0.8 ? 'steadily' : 'a little'} (${input.label('aid')}: first aid)` : ''}.` }),
           el('p', { className: 'note', textContent: `Fitness ${fit}: the body takes ${fit ? `${Math.round(100 * fit / FITNESS_K)}% more` : 'only what it takes'} before it gives.` }))),
       el('p', { className: 'note', textContent: `${input.label('sheet')} or ${input.label('menu')} to close.` }),
@@ -508,6 +513,69 @@ export function createUI({ input, cb }) {
   }
 
   // ---------- a test's papers: the brief, the result ----------
+  /** The campaign's three candidates (sim/campaign.js candidates()): pick one. */
+  function showCandidates(list, onPick) {
+    const top = (p) => Object.entries(p.skills).map(([k, [b, x]]) => [k, b + x]).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => SKILLS[k]?.name ?? k).join(', ');
+    paper.replaceChildren(el('div', { className: 'sheet brief candidates' },
+      el('span', { className: 'stamp', textContent: 'PERSONNEL' }),
+      el('h2', { textContent: 'WHO GOES' }),
+      el('p', { className: 'note', textContent: 'Station Moscow needs a Handler under official cover. Three files on the desk.' }), el('hr'),
+      ...list.map((p, i) => el('button', { className: 'item cand', onclick: () => { paper.hidden = true; paper.dataset.kind = ''; onPick(i); } },
+        `${p.name}, ${p.age}`, el('small', { textContent: `${p.background} Best at: ${top(p)}. Russian: ${p.langs.ru ?? 'none'}. Tradecraft ${p.os}.` })))));
+    paper.hidden = false;
+    paper.dataset.kind = 'brief';
+    paper.querySelector('.cand')?.focus();
+  }
+
+  /** A paper on the desk: { stamp, title, lines, note }, and one button to go on. */
+  function showPaper({ stamp = 'NOTE', title, lines = [], note = null, go = 'Go on' }, onClose) {
+    const close = () => { paper.hidden = true; paper.dataset.kind = ''; onClose?.(); };
+    paper.replaceChildren(el('div', { className: 'sheet brief' },
+      el('span', { className: 'stamp', textContent: stamp }),
+      el('h2', { textContent: title }), el('hr'),
+      ...lines.map(t => el('p', { textContent: t })),
+      note ? el('p', { className: 'note', textContent: note }) : null, el('hr'),
+      el('button', { className: 'item go', onclick: close }, go)));
+    paper.hidden = false;
+    paper.dataset.kind = 'brief';
+    paper.querySelector('.go').focus();
+  }
+
+  /** The desk (Tab, in the campaign's hub): today, the posting's gauges, what's ahead, and the day's choices, each a button that closes it and does it. */
+  function openDesk(state, act) {
+    const c = state.campaign, p = c.posting, now = state.time.ms, k = calendarOf(now), go = (cmd) => () => { closeOverlays(); act(cmd); };
+    const items = agendaOf(c, now).slice(0, 6), today = Math.floor(now / DAY_MS);
+    const row = (a, when) => {
+      const name = a.kind === 'sdr' ? p.assets.find(s => s.id === a.who)?.codename : p.targets.find(t => t.id === a.who)?.name;
+      const sameDay = Math.floor(a.start / DAY_MS) === today;
+      return el('tr', {}, el('td', { textContent: `${dateText(a.from).slice(0, -5)}, ${clockText(a.from)}` }), el('td', { textContent: `${KINDS_[a.kind].name}: ${name}` }),
+        el('td', {}, sameDay ? el('button', { className: 'small', onclick: go(`go:${a.id}`), title: a.brief }, when === 'now' ? 'go now' : `go (at ${clockText(a.start)})`) : el('span', { className: 'where', textContent: 'later' })));
+    };
+    const workday = k.weekday < 5 && k.hour < 18 && !c.worked[today];
+    card.replaceChildren(el('div', { className: 'sheet charsheet desk' },
+      el('span', { className: 'stamp', textContent: 'STATION' }),
+      el('h2', { textContent: `${dateText(now)}, ${clockText(now)}` }),
+      el('p', { className: 'note', textContent: `${state.people.me.name}, ${p.job}. The posting: ${p.subject} (${p.goal}).` }), el('hr'),
+      el('p', { textContent: `Heat: ${heatWordOf(p.heat)}. Cover standing: ${p.cover}/100. Intelligence: ${p.intelligence}. In the bank: $${p.money.bank ?? 0}; the operational fund: $${p.money.fundLeft ?? p.money.fund}.` }),
+      el('p', { textContent: `The network: ${p.assets.map(s => `${s.codename} (${s.role}, trust ${s.trust}${s.burned ? ', compromised' : ''})`).join('; ')}. Watched: ${p.targets.map(t => `${t.name}${t.wary ? ' (wary)' : ''}`).join('; ')}.` }),
+      el('h3', { className: 'section', textContent: 'Ahead' }),
+      items.length ? el('table', { className: 'skills' }, el('tbody', {}, items.map(({ a, when }) => row(a, when)))) : el('p', { textContent: 'Nothing planned. Days like this are for the cover job.' }),
+      items[0] ? el('p', { className: 'note', textContent: items[0].a.brief }) : null,
+      el('h3', { className: 'section', textContent: 'Places' }),
+      el('div', { className: 'deskacts' }, ...placesOf(c).filter(pl => pl.row !== (state.map.row ?? 0)).map(pl => el('button', { className: 'small', onclick: go(`travel:${pl.id}`), title: `${streetNameOf(p.mapSeed, pl.row)}` }, `To ${pl.label}`))),
+      el('h3', { className: 'section', textContent: 'The day' }),
+      el('div', { className: 'deskacts' },
+        workday ? el('button', { className: 'small', onclick: go('work') }, 'Go to work (till 18:00)') : null,
+        el('button', { className: 'small', onclick: go('sleep') }, k.hour >= 20 || k.hour < 6 ? 'Sleep (till 7:00)' : 'Home, and sleep (till 7:00 tomorrow)'),
+        el('button', { className: 'small', onclick: go('low') }, 'Lie low for a day'),
+        el('button', { className: 'small', onclick: () => closeOverlays() }, 'Walk')),
+      ...(c.log.length ? [el('h3', { className: 'section', textContent: 'Lately' }), ...c.log.slice(-4).reverse().map(e => el('p', { className: 'note', textContent: `${dateText(e.ms).slice(0, -5)}: ${e.text}` }))] : []),
+      el('p', { className: 'note', textContent: `${input.label('mindmap')} or ${input.label('menu')} to close.` })));
+    card.hidden = false;
+    card.dataset.kind = 'desk';
+    menu.hidden = log.hidden = true;
+  }
+
   function showBrief(brief, onBegin) {
     const begin = () => { paper.hidden = true; paper.dataset.kind = ''; onBegin(); };
     paper.replaceChildren(el('div', { className: 'sheet brief' },
@@ -534,10 +602,13 @@ export function createUI({ input, cb }) {
   // (his sightings of you that you saw happen; the rest you can only suspect)
   const seenText = (sc) => { const n = sc.sightings.filter(x => x.seen !== false).length; return `you saw him spot you ${n} time${n === 1 ? '' : 's'}`; };
   const stampOf = (sc) => (sc.outcome === 'made' && sc.madeSeen === false ? 'SPOOKED' : OUTCOMES[sc.outcome] ?? sc.outcome);
-  function showResult(state, { again, same, title }, { debug = false } = {}) {
+  function showResult(state, { again, same, title, back = null }, { debug = false } = {}) {
     const sc = state.scenario, secs = Math.round((sc.ended - sc.began) / 1000);
     const go = (fn) => () => { paper.hidden = true; paper.dataset.kind = ''; fn(); };
-    const ways = [
+    // (in a campaign: back to the posting, the outcome folded in; or, the character gone, the title)
+    const ways = state.campaign ? [el('hr'),
+      back && !state.people[state.player]?.dead ? el('button', { className: 'item', onclick: go(back) }, 'Back to the posting', el('small', { textContent: 'The debrief, and on with it.' })) : null,
+      el('button', { className: 'item', onclick: go(title) }, 'Back to the title')] : [
       el('hr'),
       el('p', { className: 'note', textContent: 'How did it play? A score out of 100, and what felt off, in the chat: that\'s what this test is for.' }),
       el('button', { className: 'item', onclick: go(again) }, 'Again, another evening', el('small', { textContent: 'A new street, a new evening, new dice.' })),
@@ -556,7 +627,7 @@ export function createUI({ input, cb }) {
         ...ways));
     } else paper.replaceChildren(el('div', { className: 'sheet result' },
       el('span', { className: `stamp ${sc.outcome === 'seen' ? 'good' : ''}`, textContent: stampOf(sc) }),
-      el('h2', { textContent: SCENARIOS[sc.kind].name.toUpperCase() }), el('hr'),
+      el('h2', { textContent: (state.campaign && sc.kind === 'tail' ? `Tailing: ${state.people.orlov?.name ?? ''}` : SCENARIOS[sc.kind].name).toUpperCase() }), el('hr'),
       el('p', { textContent: sc.endText }),
       sc.lead ? el('p', { className: 'lead', textContent: `Lead. ${sc.lead}` }) : null,
       ...(debug ? unseenOf(state) : []),
@@ -580,5 +651,5 @@ export function createUI({ input, cb }) {
     setTimeout(() => f.remove(), 1600);
   }
 
-  return { frame, fit, flash, openInventory, openAid, showTitle, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
+  return { frame, fit, flash, openInventory, openAid, openDesk, showCandidates, showPaper, showTitle, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
 }

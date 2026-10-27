@@ -41,7 +41,7 @@
 //     contact (a professional) gets a look of his own.
 // Every roll goes to the log with a line of flavour. The scenario's progress is plain data in
 // state.scenario, read by the UI (the marker, the instinct, the brief and the result).
-import { at, TICK_MS } from '../clock.js';
+import { at, TICK_MS, calendar, dateText } from '../clock.js';
 import { handler, sheet, seedFrom } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
 import { say } from '../log.js';
@@ -130,7 +130,7 @@ export const tail = {
   about: 'Follow a former GRU officer through Moscow to his meeting. Don\'t be seen twice. Each evening is different.',
   brief(state) {
     const ev = eveningOf(state);
-    return {
+    return subAll(state, {
       title: 'TAILING: GENNADY ORLOV',
       body: [
         'Gennady Orlov, 54. Deputy head of procurement at a defence plant. Twenty years ago an officer of the GRU, and he hasn\'t forgotten all of it.',
@@ -140,19 +140,21 @@ export const tail = {
       ],
       footer: `Station Moscow · Tuesday 3 November 2026 · ${hhmm(ev.h, ev.m)}`,
       keys: [['instinct', 'does what your instinct offers'], ['slow', 'held: stroll, to keep his pace'], ['watch', 'held: stop and look, the move keys turning your eyes (at a shop window, along its glass); on a grey coat, a close look'], ['log', 'the log']],
-    };
+    });
   },
 
-  setup(state) {
+  setup(state, { campaign: C = null } = {}) {
     const r = state.rng;
-    const ev = weighted(r, EVENINGS.map(e => [e, e.w]));
-    state.time.ms = at(2026, 11, 3, ev.h, ev.m);
+    // (from a campaign, its context: the character, the time, the city, the target: sim/campaign.js context())
+    const ev = C ? campaignEvening(C) : weighted(r, EVENINGS.map(e => [e, e.w]));
+    state.time.ms = C ? C.startMs : at(2026, 11, 3, ev.h, ev.m);
     state.legend = { id: 'embassy', name: 'Second Secretary, US Embassy', cover: 'official', floor: 20 };
-    state.heat[heatKey('embassy', 'ru')] = 20;
-    const me = handler(r);
+    state.country = C?.country ?? 'ru';
+    state.heat[heatKey('embassy', state.country)] = C?.heat ?? 20;
+    const me = C ? { ...structuredClone(C.player), id: 'me' } : handler(r);
     state.people[me.id] = me;
     state.player = me.id;
-    state.people.orlov = sheet({ id: 'orlov', name: 'Gennady Orlov', sex: 'm', cls: 'spook', os: 20,
+    state.people.orlov = sheet({ id: 'orlov', name: C?.target?.name ?? 'Gennady Orlov', sex: 'm', cls: 'spook', os: 20,
       skills: { pathfinding: [10, 0], awareness: [8, 1], deception: [8, 0], social: [5, 1] }, langs: { ru: 'native', en: 'basic' }, look: ORLOV_LOOK, persistent: true });
     state.people.contact = sheet({ id: 'contact', name: 'the man in the blue beanie', sex: 'm', cls: 'spook', os: 30,
       skills: { pathfinding: [10, 2], awareness: [10, 2], deception: [10, 1] }, langs: { ru: 'native' }, look: CONTACT_LOOK, persistent: true });
@@ -161,7 +163,7 @@ export const tail = {
       const [look, tell] = looks.splice(int(r, looks.length), 1)[0];
       state.people[`twin${i}`] = { ...sheet({ id: `twin${i}`, name: 'a man in a grey coat', sex: 'm', look, skills: { awareness: [2, 0] } }), tell };
     }
-    state.map = { kind: 'street', seed: seedFrom(r), row: 0, i0: null, i1: null, crowd: 1 };
+    state.map = { kind: 'street', seed: C ? C.mapSeed : seedFrom(r), row: 0, i0: null, i1: null, crowd: 1, city: C?.city };
     const seed = state.map.seed;
     // His office: a door near the middle of the street.
     const door = [0, 1].flatMap(i => sectionOf(seed, 0, i).doors).find(d => d.x > 14 && d.x < 26 && d.kind !== 'arch' && d.z === Z.front) ?? { x: 20 };
@@ -181,7 +183,7 @@ export const tail = {
     const mePlace = { id: 'a0', who: me.id, seed: null, row: 0, x: door.x - dirX * range(r, 17, 22), z: LINE.F, vx: 0, vz: 0, face: dirX > 0 ? 'right' : 'left', head: dirX > 0 ? 0 : Math.PI, gait: 'idle', stride: 0, stuck: 0, ai: null };
     state.actors.unshift(mePlace);
     state.scenario = {
-      kind: 'tail', evening: ev.id, wary: ev.wary, phase: 'tail', target: t.id, contact: null, twins: [], meet,
+      kind: 'tail', evening: ev.id, ev: C ? ev : undefined, campaign: !!C, what: C?.target?.what ?? undefined, wary: ev.wary, phase: 'tail', target: t.id, contact: null, twins: [], meet,
       seats: meet.seats.map(x => ({ row: meet.row, x })),           // (his bench, kept for them: nobody else sits there)
       marked: t.id, lastSeen: { row: 0, x: t.x, z: t.z, ms: state.time.ms }, lastSeenT: state.time.ms, unseenS: 0, keepS: 0, findS: 0, startX: door.x,
       alert: ev.wary ? 25 : 0, sightings: [], scan: null, lastScanMs: null, tell: null, shop: null, warned: 0, mixups: 0, stillS: 0, mirrorMs: -1e12, gap: [],
@@ -262,7 +264,28 @@ const actorOf = (state, id) => (id ? state.actors.find(a => a.id === id) : null)
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
 const ticks = (r, [a, b]) => Math.round(range(r, a, b) * TPS);
 const hhmm = (h, m) => `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-export const eveningOf = (state) => EVENINGS.find(e => e.id === state.scenario.evening) ?? EVENINGS[0];
+export const eveningOf = (state) => state.scenario.ev ?? EVENINGS.find(e => e.id === state.scenario.evening) ?? EVENINGS[0];
+
+/** A campaign's evening: the time it starts, the light by the hour, his wariness the campaign's. */
+function campaignEvening(C) {
+  const k = calendar(C.startMs), h = k.hour + k.minute / 60;
+  return { id: 'campaign', h: k.hour, m: k.minute, wary: !!C.wary, w: 0,
+    light: `${h < 15.5 ? 'Broad daylight.' : h < 17 ? 'The light\'s going.' : 'It\'s dark, and the lamps are on.'}${C.wary ? ' He\'s been jumpy since the last time.' : ''}` };
+}
+
+/**
+ * From a campaign, the target is theirs: the test's words with the campaign's name, what he is, the
+ * city and the date put in, where words leave the scene. Standalone, nothing changes.
+ */
+function sub(state, t) {
+  const sc = state.scenario, name = state.people.orlov?.name ?? 'Gennady Orlov', family = name.split(' ').slice(-1)[0];
+  if (typeof t !== 'string' || !sc?.campaign) return t;
+  return t.replace(/Gennady Orlov, 54\. Deputy head of procurement at a defence plant\. Twenty years ago an officer of the GRU, and he hasn't forgotten all of it\./, `${name}: ${sc.what ?? 'a man the station wants watched'}.`)
+    .replace(/GENNADY ORLOV/g, name.toUpperCase()).replace(/Gennady Orlov/g, name).replace(/Orlov/g, family)
+    .replace(/Station Moscow · Tuesday 3 November 2026/, `Station ${CITY_NAME[state.map.city] ?? 'Moscow'} · ${dateText(sc.began)}`);
+}
+const subAll = (state, o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Array.isArray(v) ? v.map(x => (typeof x === 'string' ? sub(state, x) : x)) : sub(state, v)]));
+const CITY_NAME = { moscow: 'Moscow', london: 'London', beirut: 'Beirut', cairo: 'Cairo' };
 
 /** A bench on a row near x (the nearest section along with one). */
 function benchNear(seed, row, x) {
@@ -617,6 +640,7 @@ function second(state, bus, me, t, d) {
   // (every rule that fires, and the engine's choice: the line up stays while it still applies: sim/instinct.js)
   const was = sc.prompt?.id;
   sc.prompt = settle(sc.prompt, [...instinct(state, me, t, d, still)], state.time.ms);
+  if (sc.prompt && sc.campaign) sc.prompt.text = sub(state, sc.prompt.text);
   if (sc.prompt?.log && sc.prompt.id !== was) say(state, bus, { kind: 'instinct', text: sc.prompt.text.replace(/\s*\{[a-z]+\}.*$/, '') });
 }
 
@@ -710,7 +734,7 @@ function meeting(state, bus, me, t, d) {
   }
   if (d < WITNESS_M && inView(state, t.id) && inView(state, c.id)) sc.witnessS++;
   if (sc.witnessS >= WITNESS_S) {
-    sc.lead = `${clockOf(state)}: Orlov met a man in a blue beanie on a bench on the boulevard. Something passed between them in a newspaper.`;
+    sc.lead = sub(state, `${clockOf(state)}: Orlov met a man in a blue beanie on a bench on the boulevard. Something passed between them in a newspaper.`);
     say(state, bus, { kind: 'note', text: 'A newspaper changes hands on the bench. He leaves it lighter by an envelope. That\'s the meeting, and you saw it.' });
     end(state, bus, 'seen', sc.sightings.length ? 'You saw the meeting. He saw you once on the way, and put it down to Moscow being a small town.'
       : 'You saw the meeting, and he never knew you were there. The station will want to know who wears that beanie.');
@@ -845,7 +869,7 @@ function end(state, bus, outcome, text) {
   if (sc.outcome) return;
   sc.outcome = outcome;
   sc.phase = 'done';
-  sc.endText = text;
+  sc.endText = sub(state, text);
   sc.ended = state.time.ms;
   bus?.emit('scenario-end', outcome);
 }

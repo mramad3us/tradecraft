@@ -17,6 +17,7 @@ import { createBus } from './sim/bus.js';
 import { toJSON, fromJSON } from './sim/state.js';
 import { TICK_MS, HOUR, MIN, stampText, hourOfDay, calendar } from './sim/clock.js';
 import { SCENARIOS } from './sim/scenarios/index.js';
+import { candidates, newCampaign, context, fold, heatWord, KINDS } from './sim/campaign.js';
 import { createView } from './render/view.js';
 import { createInput } from './ui/input.js';
 import { createUI } from './ui/ui.js';
@@ -34,6 +35,15 @@ let prev = new Map(), acc = 0, last = performance.now(), frames = 0;
 
 const ui = createUI({ input, cb: {
   newGame: (kind, chapter = null) => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter })),
+  // (the campaign: three officers, one picked, the posting's brief, then the posting: sim/campaign.js)
+  newCampaign: () => {
+    const seed = randomSeed(), list = candidates(seed, 'moscow');
+    ui.hideTitle();
+    ui.showCandidates(list, (i) => {
+      const c = newCampaign(seed, list[i], 'moscow');
+      ui.showPaper(postingPaper(c), () => launch(newGame({ seed, scenario: 'campaign', version: VERSION, campaign: c })));
+    });
+  },
   continue: async () => { const s = await getSave('auto'); if (s) launch(fromJSON(s.json)); },
   importSave: async () => {
     const text = await importFile();
@@ -77,6 +87,9 @@ function launch(s, { hour = null } = {}) {
   bus.on('read', (who) => ui.openRead(state, who));
   bus.on('aid', (id) => ui.openAid(state, id, (key) => acts.push(`aid:${id}:${key}`)));   // (first aid for someone at hand: sim/aid.js)
   bus.on('autosave', () => autosave());
+  // (the campaign: an assignment taken at the desk, launched after this tick; papers the days bring, one after another)
+  bus.on('assignment', (id) => setTimeout(() => launchAssignment(s, id), 0));
+  bus.on('papers', (list) => showPapers(list));
   bus.on('scenario-end', () => {
     if (s.scenario.kind === 'dojo' && s.scenario.chapter !== 'remembered') { try { localStorage.setItem(FARM_KEY, 'done'); } catch {} }   // (the lesson had: next time the Farm is a memory)
     setTimeout(() => { if (state === s) result(); }, 1800);
@@ -100,11 +113,48 @@ function launch(s, { hour = null } = {}) {
 /** A test's result paper, with the ways on. */
 function result() {
   const kind = state.scenario.kind, seed = state.seed, chapter = state.scenario.chapter ?? null;
+  if (state.campaign) return ui.showResult(state, { back: () => backToPosting(state), title: async () => { await autosave(); stop(); showTitle(); } }, settings);
   ui.showResult(state, {
     again: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter })),
     same: () => launch(newGame({ seed, scenario: kind, version: VERSION, chapter })),
     title: async () => { await autosave(); stop(); showTitle(); },
   }, settings);
+}
+
+/** The campaign: an assignment from the desk, its scene with the campaign's context (sim/campaign.js context()). */
+function launchAssignment(s, id) {
+  const c = s.campaign, a = c?.assignments.find(x => x.id === id);
+  if (!a || state !== s) return;
+  launch(newGame({ seed: randomSeed(), scenario: KINDS[a.kind].scenario, version: VERSION, campaign: c, context: context(c, a) }));
+}
+
+/** An assignment over: its outcome into the campaign, the debrief, and back to the hub where it left you. */
+function backToPosting(s) {
+  const c = s.campaign, a = c.assignments.find(x => x.id === s.assignment);
+  const me = s.actors.find(x => x.who === s.player);
+  const paper = a ? fold(c, a, s.scenario, s.people[s.player], s.time.ms, Object.values(s.heat)[0]) : { title: 'BACK', lines: [] };
+  c.where = me ? { row: me.row ?? s.map.row, x: me.x, z: me.z } : null;
+  c.now = s.time.ms;
+  ui.showPaper({ stamp: 'DEBRIEF', title: paper.title, lines: paper.lines, note: `Heat: ${heatWord(c.posting.heat)}. Intelligence: ${c.posting.intelligence}.` },
+    () => launch(newGame({ seed: randomSeed(), scenario: 'campaign', version: VERSION, campaign: c })));
+}
+
+/** Papers the days brought (pay, the week's review), one after another. */
+function showPapers(list) {
+  const next = () => { const p = list.shift(); if (p) ui.showPaper({ stamp: { pay: 'PAY', review: 'REVIEW', news: 'NEWS', over: 'CABLE' }[p.kind] ?? 'NOTE', title: p.title, lines: p.lines }, next); };
+  next();
+}
+
+/** The posting's brief, the paper before day one. */
+function postingPaper(c) {
+  const p = c.posting, me = c.character;
+  return { stamp: 'POSTING', title: 'STATION MOSCOW', go: 'Begin the posting', lines: [
+    `${me.name}: ${p.job}. Diplomatic immunity: caught, you'd be expelled. The people you run wouldn't be so lucky.`,
+    `The station wants ${p.goal}. Every meeting, every tail, is a step toward it.`,
+    `Your network: ${p.assets.map(s => `${s.codename}, ${s.role}, in it for ${s.motive}`).join('; ')}.`,
+    `Watched: ${p.targets.map(t => `${t.name}, ${t.what}`).join('; ')}.`,
+    'The embassy expects you nine to six on weekdays: the work is in the evenings. Tab is the desk: what\'s ahead, the day\'s choices. Heat cools if you let it.',
+  ] };
 }
 
 async function showTitle() {
@@ -133,6 +183,11 @@ input.onAction((action) => {
   if (action === 'aid') {                                          // (H: tend your own wounds: sim/aid.js)
     const me = state.actors.find(a => a.who === state.player);
     if (open === 'aid') ui.closeOverlays(); else if (!open && me) ui.openAid(state, me.id, (key) => acts.push(`aid:${me.id}:${key}`));
+    return;
+  }
+  if (action === 'mindmap') {                                      // (Tab: in the campaign's hub, the desk: sim/scenarios/campaign.js)
+    if (open === 'desk') ui.closeOverlays();
+    else if (!open && state.scenario.kind === 'campaign') ui.openDesk(state, (cmd) => acts.push(`desk:${cmd}`));
     return;
   }
   if (action === 'inventory') { if (open === 'inventory') ui.closeOverlays(); else if (!open) ui.openInventory(state, (cmd) => acts.push(`inv:${cmd}`)); return; }   // (I: what you carry)

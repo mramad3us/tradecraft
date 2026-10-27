@@ -41,9 +41,9 @@ export const TRAINED = { untrained: 0, course: 5, advanced: 10, expert: 15, mast
 /** Language levels, none to native: between them, some words come through. */
 export const LANG_LEVELS = ['none', 'basic', 'working', 'fluent', 'native'];
 
-/** A skill's value on a sheet ({ cls, os, skills: { key: [base, practice] } }). */
+/** A skill's value on a sheet ({ cls, os, skills: { key: [base, practice] }, strain }): strain, what the body's needs cost every skill (sim/campaign.js fatigue()). */
 export function skill(sheet, key) {
   const [base = 0, practice = 0] = sheet.skills?.[key] ?? [];
   const w = CLASSES[sheet.cls]?.weights[key] ?? 0;
-  return Math.round((base + practice) * (1 + w * (sheet.os ?? 0) / 100));
+  return Math.max(0, Math.round((base + practice) * (1 + w * (sheet.os ?? 0) / 100)) + (sheet.strain ?? 0));
 }

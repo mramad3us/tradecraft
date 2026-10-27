@@ -4,6 +4,19 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc2 (2026-10-27)
+
+- **The posting has an arc.** It's done when the station has what it wanted (ten pieces of intelligence: six or seven good operations, two or three weeks done well), and you get the posting's paper. A tail that sees the meeting gives you a lead: the station names the man he met, and he's yours to tail next. An asset who trusts you enough (4) brings twice as much.
+- **Heat costs now.** Meet an asset with a tail on you and in the days after they may be arrested: it's on the evening news, they're gone from your network, and the heat jumps. Let the heat reach the top and you're declared persona non grata: 48 hours to leave, the posting over. Lying low cools it, faster at a safe house (travel there first).
+- **Fatigue.** Sixteen hours awake and every skill is down 1; twenty, down 3, until you sleep. The instinct tells you, and the sheet.
+
+- **The campaign begins** (your ask: character life, posting, assignments). On the title: Campaign.
+  - Pick one of three officers (each a Handler with a background: Army intelligence, Treasury, State, a detective, a Navy corpsman, a correspondent; skills to match), then read the posting: Station Moscow, the subject the station wants, your network (codenamed assets, their roles and motives), the man you're to watch.
+  - You start outside your flat. Tab is the desk: the date, heat, cover standing, intelligence, money; what's ahead (asset meetings and tails, a week planned at a time); the places (the flat, the embassy, two safe houses: go there by metro or taxi, the minutes it takes); and the day's choices: the embassy till six, sleep till seven, lie low for a day.
+  - Assignments are the missions you've tested, now with your officer, your city, your asset's codename and your target's name: an asset meeting is a detection run to his bench (the heat decides who's on you), a tail follows your target to his contact. Their outcomes count: intelligence, heat, an asset's trust, a target turned wary. Miss one and it costs.
+  - The days count: a working day missed shows, pay comes on the 1st, and every Sunday night the week's review.
+  - Your wounds, your blood and what you carry go with you from one scene to the next.
+
 ## v0.1.0-rc1 (2026-10-27)
 
 - **Bleeding out** (your ask: a blood-pressure health stat). You have a blood level (100%), and every wound that bleeds has a rate: a split lip a trickle, a shallow cut through your guard under 1% a minute, a knife that lands clean several, a cut artery 10–15% a minute. Shallow cuts stop on their own; deep ones and arteries don't. Lose blood and it costs: pale under 85% (−1 to everything), in shock under 70% (−3, no running), collapsed under 55%, dead under 45%. Untended, a clean knife wound kills in about ten minutes, an artery in four or five. It comes back slowly once nothing bleeds. The edges of the screen darken as you lose it, the sheet shows it, and the instinct tells you to tend it.
