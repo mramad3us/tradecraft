@@ -8,7 +8,8 @@
 //
 // Each frame:
 //   - sections are built and freed as the sim reports them ('section+' / 'section-' on the bus), a
-//     section spread over a few frames (BUILD_MS of building a frame; flush() builds all at once);
+//     section spread over a few frames (BUILD_MS of building a frame; flush() builds all at once),
+//     in the clock's month (`month()`: the trees in leaf or bare, the hedges', the fallen leaves);
 //     a change of map ('map-': the player has gone on to the next street) frees them all;
 //   - the light is the clock's (sim/light.js sky()): the sun and the sky fill take its colours and
 //     strengths, the sun's shadows fade at sunset, windows light house by house through dusk, the
@@ -62,7 +63,7 @@ const FOG_IN_S = 0.08, FOG_OUT_S = 0.4;
 const LAMP_Y = 2.7;
 const CAMERA_Z = [Z.north + 8, Z.edge - 8];                        // the camera's centre stays within these (at RES)
 
-export function createView({ parent, bus }) {
+export function createView({ parent, bus, month = () => 11 }) {
   finish.fine = true;
   const stage = pixelStage({ res: RES, palette: FINE_PALETTE, grade: 1, background: 0x1a1214, parent, autoFit: false });
   let halfW = RES[0] / PX_PER_M / 2, camZ = CAMERA_Z;
@@ -82,7 +83,7 @@ export function createView({ parent, bus }) {
   const building = new Map();                                     // i → a section's build, under way
   const off = [
     bus.on('map-', () => clear()),                                // another street: its sections share the old one's indices
-    bus.on('section+', (S) => { if (!sections.has(S.i) && !building.has(S.i)) building.set(S.i, S.kind === 'dojo' ? buildDojo(S) : buildSection(S)); }),
+    bus.on('section+', (S) => { if (!sections.has(S.i) && !building.has(S.i)) building.set(S.i, S.kind === 'dojo' ? buildDojo(S) : buildSection(S, { month: month() })); }),
     bus.on('section-', (S) => {
       const b = building.get(S.i);
       if (b) { building.delete(S.i); const r = b.return(); r.value?.dispose(); }

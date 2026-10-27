@@ -30,6 +30,10 @@
 // brick, or a Stalinist block with a heavy base; shops on the ground floor, signs in Cyrillic, arches
 // through to the courtyards. A building's facade is a list of paint operations (ops) for the art's
 // facade painter (src/art/pixeltown.js): data here, so the sim knows the doors and shops it paints.
+// Each wears a dress of its style (pediments, rustication, pilasters, an Art Nouveau frieze, a
+// constructivist's ribbon windows; brick dressed in white, yellow, arched or painted over; a
+// Stalinist block ornate or tiled, or in its place a panel block or a white-brick one of the
+// seventies), and so does everything else on the street: see the looks, below.
 // Lengths are chosen so patterns repeat in whole periods across a section (SECTION_M = 45 m: 720
 // pixels, a whole number of slabs, kerb stones and lane dashes), so sections join seamlessly.
 //
@@ -37,7 +41,8 @@
 // walk), `doors` (a shop's has its window's glass: pane { x0, x1, z }, west of the door), `crossings` (zebras over the street, with a gap in the railing), `crossingsS` (the
 // way from the boulevard's path to the far pavement: a zebra over the far road, or a park path),
 // `lamps` (light, sim/light.js), `exits` (where the map leads off: { dir 'n' | 's', x0, x1, kind,
-// name }), `band` ('boulevard' | 'park').
+// name }), `band` ('boulevard' | 'park'). The looks (S.look, a prop's `look`, a tree's `species`, a
+// building's dress) are paint: the sim never reads them.
 import { stream, int, range, pick, chance, weighted, hash } from '../rng.js';
 import { LAMP } from '../light.js';
 
@@ -201,6 +206,7 @@ export function section(seed, i, row = 0) {
   for (const g of S.gapsS) {                                       // the gap's sides, out to the edge
     block(g.x0 - 0.3, Z.hedge, g.x0, Z.edge + 1, 'hedge'); block(g.x1, Z.hedge, g.x1 + 0.3, Z.edge + 1, 'hedge');
   }
+  dress(S, seed, row, zx, sx);
   return S;
 }
 
@@ -364,6 +370,239 @@ function toneOf(hex, steps) {
   const ch = (s) => Math.max(0, Math.min(255, Math.round(((hex >> s) & 255) * k)));
   return (ch(16) << 16) | (ch(8) << 8) | ch(0);
 }
+
+// ---------- the looks: what each thing is drawn as ----------
+//
+// Paint, never geometry. What a thing is (a lamp here, a bench there, a building this wide with these
+// doors) is drawn from the section's own stream above; what it looks like (which lamp, which bench,
+// which dress on the facade) is drawn here from streams of their own, so not one of the sim's picks
+// moves, and it's added as keys the sim doesn't read: S.look, a prop's `look` (a lamp's `reach` too:
+// where its head hangs, over its light), a tree's `species`, a building's `look`, `roofColor` and
+// the paint ops of its dress, a park feature's `look`.
+//   - Per stretch of STRETCH sections, a scheme (scheme()): the pavements, kerbs, road and its lane
+//     marks, the lamps of each line, railings, benches, bins, the boulevard's trees. A street is laid
+//     and furnished a stretch at a time. The change comes at a natural break, never mid-pavement: in a
+//     stretch's first section, at the zebra's line (breakN: the main street, its kerb lamps and
+//     railing, the boulevard's north half and a park) or the far road's crossing (breakS: the
+//     boulevard's south half, the far road and its pavement). lookAt() says which scheme rules where.
+//   - Per crossing, its zebra; per lane north or south, its surfaces and lamps (laneLook(): from the
+//     lane's own row and place, so the two rows a lane joins agree); per run of hedge between two
+//     gaps, its plants; per building, its dress; per tree in a park, its species; per car, its make;
+//     per park feature, its version.
+export const LOOKS = {
+  pave: [['slabs', 4], ['squares', 2.2], ['granite', 1.6], ['pavers', 2.2], ['asphalt', 1.6]],
+  kerb: [['granite', 3], ['concrete', 2.5], ['worn', 2], ['painted', 1]],
+  road: [['worn', 3], ['fresh', 1.5], ['patched', 2], ['grey', 2]],
+  lanes: [['dashed', 4], ['solid', 1.5], ['double', 1.5], ['long', 1.5], ['combo', 1.2]],
+  zebra: [['white', 3], ['yellow', 3], ['faded', 2], ['fresh', 1.5], ['raised', 1.2]],
+  lamp: [['lantern', 3], ['crook', 2.5], ['twin', 1.5], ['modern', 2]],
+  pathLamp: [['lantern', 2], ['globe', 2.5], ['twin', 1.5], ['torch', 2]],
+  sideLamp: [['crook', 2], ['lantern', 2], ['modern', 1.5], ['globe', 1]],
+  railing: [['spears', 3], ['hoops', 2], ['cast', 2], ['pipe', 1.5], ['mesh', 1.2]],
+  bench: [['slats', 3], ['moscow', 2.5], ['backless', 1.5], ['sofa', 1.5], ['granite', 1]],
+  bin: [['green', 2.5], ['urn', 2.5], ['basket', 2], ['tulip', 2], ['box', 1.5]],
+  hedge: [['privet', 3], ['thuja', 2], ['hawthorn', 2], ['twigs', 1.5]],
+  // Trees: a boulevard's rows are planted alike (limes most of all); a park is mixed.
+  rowTree: [['lime', 5], ['maple', 2], ['poplar', 2], ['birch', 1.2], ['oak', 1]],
+  parkTree: [['lime', 3], ['maple', 2.5], ['birch', 2.5], ['oak', 1.5], ['poplar', 1.5], ['spruce', 1.8]],
+  lane: [['asphalt', 3], ['setts', 2], ['patched', 2], ['slabs', 1.5]],
+  alley: [['setts', 3], ['asphalt', 2], ['concrete', 2], ['dirt', 1.5]],
+  car: [['sedan', 3], ['boxy', 2.5], ['hatch', 2], ['estate', 1.5], ['van', 1], ['suv', 1.2]],
+  postbox: [['blue', 3], ['soviet', 2], ['red', 1], ['pillar', 1.5]],
+  pond: [['stone', 2], ['granite', 1.5], ['reeds', 1.5], ['fenced', 1.2]],
+  fountain: [['basin', 2], ['vase', 1.5], ['boxed', 1.5], ['tiers', 1.5]],
+  monument: [['statue', 2], ['poet', 1.5], ['seated', 1.5], ['bust', 1.5], ['soldier', 1]],
+  kiosk: [['plaster', 2], ['news', 2], ['glass', 1.5], ['cabin', 1.5]],
+  beds: [['box', 1.5], ['kale', 2], ['boughs', 1.5], ['stalks', 1]],
+  // A building's dress, by its style: plaster's orders, brick's bonds and dressings, the Soviet blocks.
+  merchant: [['classic', 3], ['pediment', 2], ['rustic', 2], ['pilaster', 1.5], ['moderne', 1.2], ['constructivist', 0.8]],
+  brick: [['red', 2.5], ['dressed', 2], ['yellow', 1.5], ['arched', 1.5], ['painted', 1]],
+  stalin: [['classic', 2], ['ornate', 2], ['tiled', 1.2], ['panel', 1.5], ['silicate', 1]],
+};
+const CONSTRUCTIVIST = [0xdfe2e8, 0xc4bba9, 0xe2dac6, 0xb8bdc8];
+const YELLOW_BRICK = [0xd6ad7a, 0xe0c38a, 0xc9a46a];
+const PAINTED_BRICK = [0xa9bf9c, 0xd8b56c, 0xb7c3cc, 0xd9a48a];
+const PANEL = [0xb8bdc8, 0xc4bba9, 0xdfe2e8, 0xa8a49c];
+const ROOFS = [[0x6a7182, 3], [0x356f42, 2], [0x6e2a2e, 1.5], [0x8f96a6, 1.5]];
+
+/** The scheme a street is laid and furnished with, stretch k of a row (see the looks, above). Made once (a few kept). */
+const schemes = new Map();
+export function scheme(seed, row, k) {
+  const key = `${seed}|${row}|${k}`;
+  if (schemes.has(key)) return schemes.get(key);
+  const L = stream('street-scheme', seed, row, k), w = (key) => weighted(L, LOOKS[key]);
+  const paveN = w('pave');
+  const s = { paveN, paveS: chance(L, 0.55) ? paveN : w('pave'), kerb: w('kerb'), road: w('road'), lanes: w('lanes'), zebra: w('zebra'),
+    lamp: w('lamp'), pathLamp: w('pathLamp'), farLamp: chance(L, 0.5) ? null : w('lamp'), railN: w('railing'), railS: w('railing'),
+    bench: w('bench'), bin: w('bin'), treesN: w('rowTree'), treesS: chance(L, 0.5) ? null : w('rowTree'), farPave: w('pave'), farRoad: w('road') };
+  schemes.set(key, s);
+  if (schemes.size > 400) schemes.delete(schemes.keys().next().value);
+  return s;
+}
+
+/** The scheme in force at (x, z) of section S (`band`: a boulevard's or a park's furniture). */
+export function lookAt(S, x, z, band = false) {
+  const L = S.look;
+  if (band && S.west !== S.band) return L.b;                       // (a band begun at this section's edge is the new stretch's)
+  return x < (z > Z.pathS && S.band === 'boulevard' ? L.breakS : L.breakN) ? L.a : L.b;
+}
+
+/** A lane's look ({ ground, walks, lamp }), from its own row (the terrace it runs through) and place. */
+export function laneLook(seed, row, g) {
+  const L = stream('street-lane', seed, row, Math.round(g.x0));
+  if (g.kind === 'alley') return { ground: weighted(L, LOOKS.alley), lamp: null };
+  return { ground: weighted(L, LOOKS.lane), walks: weighted(L, LOOKS.pave), lamp: weighted(L, LOOKS.sideLamp) };
+}
+
+/** The hedge's plants on the run that x is on: one kind from one gap south to the next. */
+function hedgeLook(seed, row, x) {
+  let from = -Infinity;
+  for (let i = Math.floor(x / SECTION_M); i > Math.floor(x / SECTION_M) - 4 && from === -Infinity; i--) {
+    for (const g of gapsOf(seed, row + 1, i)) if (g.x1 <= x + 0.01) from = Math.max(from, g.x1);
+  }
+  return weighted(stream('street-hedge', seed, row, Math.round(from === -Infinity ? 0 : from)), LOOKS.hedge);
+}
+
+// Dress a section: its looks (above), on new keys and paint ops only.
+function dress(S, seed, row, zx, sx) {
+  const L = stream('street-look', seed, row, S.i), k = Math.floor(S.i / STRETCH), w = (key) => weighted(L, LOOKS[key]);
+  const b = scheme(seed, row, k), a = S.i % STRETCH === 0 ? scheme(seed, row, k - 1) : b;
+  S.look = { a, b, breakN: zx + 1.5, breakS: sx + 1.5, rowSeed: hash(seed, row, 'paint') % 100000,
+    zebra: chance(L, 0.7) ? b.zebra : w('zebra'), zebraS: chance(L, 0.7) ? b.zebra : w('zebra'),
+    lanesN: S.gapsN.map(g => laneLook(seed, row, g)), lanesS: S.gapsS.map(g => laneLook(seed, row + 1, g)) };
+  const lane = (x, z) => { const k2 = S.gapsN.findIndex(g => x >= g.x0 - 0.01 && x <= g.x1 + 0.01); return z < Z.front && k2 >= 0 ? S.look.lanesN[k2] : null; };
+  for (const p of S.props) {
+    const at = lookAt(S, p.x ?? p.x0, p.z ?? p.z0, (p.z ?? p.z0) > Z.fence);
+    switch (p.kind) {
+      case 'lamp': {
+        const light = S.lamps.find(l => l.x === p.x && Math.abs(l.z - p.z) < 0.8);
+        p.reach = light ? light.z - p.z : 0;
+        const ln = lane(p.x, p.z);
+        p.look = ln ? ln.lamp : p.z < Z.kerbS ? at.lamp : p.z > Z.roadS - 0.5 && p.z < Z.south - 1 && S.band === 'boulevard' ? at.farLamp ?? at.lamp : at.pathLamp;
+        break;
+      }
+      case 'tree': p.species = S.band === 'park' && !(p.z < 12) ? weighted(stream('street-tree', seed, row, Math.round(p.x * 16), Math.round(p.z * 16)), LOOKS.parkTree)
+        : p.z < 12 ? at.treesN : at.treesS ?? at.treesN; break;
+      case 'bench': p.look = at.bench; break;
+      case 'bin': p.look = p.z < Z.front ? (lane(p.x, p.z)?.ground === 'setts' ? 'urn' : 'tulip') : at.bin; break;
+      case 'railing': p.look = p.z === Z.fence ? at.railN : at.railS; break;
+      case 'hedge': p.look = hedgeLook(seed, row, p.x0); break;
+      case 'postbox': p.look = w('postbox'); break;
+      case 'car': p.look = chance(L, 0.08) ? 'taxi' : w('car'); break;
+    }
+  }
+  const f = S.park?.feature;
+  if (f) f.look = w(f.kind);
+  for (const B of S.buildings) dressBuilding(B, L);
+}
+
+// A building's dress: its version of its style, its roof, pipes, a balcony, posters, scaffolding, the
+// make of its doors, arches and shopfronts. Ops are rewritten (windows get heads and surrounds) and
+// added (quoins, pilasters, rustication, friezes, panels, loggias, pipes), never moved: the doors,
+// shops and arches stay where the sim knows them.
+function dressBuilding(B, L) {
+  const w = B.x1 - B.x0, dress = weighted(L, LOOKS[B.style]);
+  const v = { dress, pipes: [], ac: 0, posters: 0, hanging: [] };
+  B.look = v;
+  B.roofColor = weighted(L, ROOFS);
+  v.roofKit = weighted(L, [['ac', 3], ['chimneys', 2], ['hut', 1.5], ['antenna', 1.5], ['none', 1]]);
+  if (dress === 'constructivist') { B.wallColor = pick(L, CONSTRUCTIVIST); B.ops[0][5] = toneOf(B.wallColor, -2); }
+  if (dress === 'yellow') B.wallColor = pick(L, YELLOW_BRICK);
+  if (dress === 'painted') B.wallColor = pick(L, PAINTED_BRICK);
+  if (dress === 'panel') { B.wall = 'concrete'; B.wallColor = pick(L, PANEL); B.roofColor = 0x8f96a6; }
+  if (dress === 'silicate') { B.wall = 'brick'; B.wallColor = 0xcfcac2; B.roofColor = 0x8f96a6; }
+  const soviet = dress === 'panel' || dress === 'silicate';
+  const trim = B.style === 'brick' ? (dress === 'dressed' || dress === 'yellow' ? TRIM : 0xc4bba9) : TRIM;
+  const ground = [], upper = [], rest = [];
+  for (const op of B.ops) (op[0] === 'window' && op[2] >= GROUND_H ? upper : (op[2] ?? 0) < GROUND_H && ['window', 'door', 'shopfront', 'arch', 'sign'].includes(op[0]) ? ground : rest).push(op);
+  const floorOf = (y) => Math.round((y - GROUND_H) / FLOOR_H) + 1;
+  const floors = Math.max(1, ...upper.map(op => floorOf(op[2])));
+  const head = { classic: null, pediment: 'pediment', rustic: 'keystone', pilaster: null, moderne: 'round', constructivist: 'none',
+    red: null, dressed: 'keystone', yellow: 'keystone', arched: 'segment', painted: null,
+    ornate: 'pediment', tiled: null, panel: 'none', silicate: 'none' }[dress];
+  const doorStyle = soviet ? 'metal' : weighted(L, [['panel', 3], ['glazed', 2], ['arched', 1.5], ['metal', 1]]);
+  const canopy = !soviet && chance(L, 0.4);
+  const frame = soviet ? 0x6a7182 : weighted(L, [[0x23252f, 3], [0x47302a, 2], [0xdfe2e8, 1.2], [0x24503a, 1.2], [0x6e2a2e, 1]]);
+  const ac = chance(L, soviet ? 0.5 : 0.3) ? range(L, 0.06, 0.16) : 0;
+  // The ground floor: doors by the building's make, arches each their own, shopfronts in its frame
+  // colour, a sign each its own; windows barred now and then.
+  const bars = chance(L, 0.3);
+  for (const op of ground) {
+    const o = op[op.length - 1];
+    if (op[0] === 'door' && o.frame !== 0x23252f) op[op.length - 1] = { ...o, style: doorStyle, canopy };
+    else if (op[0] === 'door') op[op.length - 1] = { ...o, color: frame, frame, style: 'shop' };
+    else if (op[0] === 'shopfront') op[op.length - 1] = { ...o, frame };
+    else if (op[0] === 'sign') {
+      op[op.length - 1] = { ...o, style: weighted(L, [['board', 3], ['letters', 1.5], ['lightbox', 1.5], ['hanging', op[5].length <= 4 ? 2 : 0]]) };
+      if (op[op.length - 1].style === 'hanging') { op[op.length - 1].style = 'board'; v.hanging.push({ x: op[1] + op[3] - 0.55, text: op[5], bg: o.bg, fg: o.fg }); }   // (over its door, beside the board)
+    }
+    else if (op[0] === 'arch') op.push({ kind: weighted(L, [['open', 2], ['gate', 2], ['rect', soviet ? 3 : 1], ['doors', 1.5]]) });
+    else if (op[0] === 'window') op[op.length - 1] = { ...o, bars, head: soviet ? 'none' : head === 'keystone' || head === 'segment' ? head : null };
+  }
+  // Awnings over some shops (cafés, bakeries, flowers most of all), clear of the sign above.
+  v.awnings = [];
+  for (const op of ground) if (op[0] === 'shopfront') {
+    const i = ground.indexOf(op), sign = ground.slice(i).find(o => o[0] === 'sign');
+    const want = /КАФЕ|ХЛЕБ|ЦВЕТЫ|РЕСТОРАН|БАР|ПИВО/.test(sign?.[5] ?? '') ? 0.55 : 0.15;
+    if (chance(L, want) && !v.hanging.some(h => Math.abs(h.x - (op[1] + op[2] + 0.75)) < 1.2)) v.awnings.push({ x0: op[1] - 0.1, x1: op[1] + op[2] + 1.3, color: pick(L, [0x9e3c36, 0x24503a, 0x283f6b, 0x6e2a2e]) });
+  }
+  // Upper floors: heads and surrounds by the dress; balconies; air conditioners.
+  for (const op of upper) {
+    const f = floorOf(op[2]), o = op[op.length - 1];
+    let h = head;
+    if (dress === 'pediment' || dress === 'ornate') h = f === 1 ? 'pediment' : f === 2 ? 'hood' : null;
+    op[op.length - 1] = { ...o, head: h, surround: ['rustic', 'dressed', 'yellow', 'tiled', 'ornate'].includes(dress) ? trim : null,
+      lintel: h === 'none' ? null : o.lintel, frame: soviet ? pick(L, [0xf6f4ee, 0xdfe2e8, 0x8f6345]) : o.frame,
+      ac: ac && chance(L, ac) ? pick(L, ['below', 'side']) : null, sat: chance(L, 0.012) };
+  }
+  const extra = [], over = [];
+  const bays = upper.filter(op => floorOf(op[2]) === 1).map(op => [op[1], op[3]]);
+  if (dress === 'constructivist') {                                 // ribbon windows: a floor's bays as one band of glass
+    for (let f = 1; f <= floors; f++) {
+      const row = upper.filter(op => floorOf(op[2]) === f);
+      if (!row.length) continue;
+      const first = row[0], last = row.at(-1);
+      first[3] = last[1] + last[3] - first[1];
+      first[op_(first)] = { ...first[op_(first)], ribbon: true, curtain: null, flowers: null, shutters: null, ac: null };
+      for (const op of row.slice(1)) op[0] = 'skip';
+    }
+    for (const op of rest) if (op[0] === 'cornice') { op[0] = 'parapet'; } else if (op[0] === 'band' && op[1] !== GROUND_H) op[0] = 'skip';
+  }
+  if (dress === 'rustic') extra.push(['rustic', 0.45, GROUND_H, toneOf(B.wallColor, -1)]);
+  if (dress === 'tiled') extra.push(['tiles', GROUND_H + FLOOR_H, B.h - 0.8]);
+  if (['pediment', 'dressed', 'yellow', 'ornate'].includes(dress)) extra.push(['quoins', GROUND_H, B.h - 0.75, trim]);
+  if ((dress === 'pilaster' || dress === 'ornate') && bays.length > 1) {
+    const xs = [];
+    for (let k = 1; k < bays.length; k++) xs.push((bays[k - 1][0] + bays[k - 1][1] + bays[k][0]) / 2);
+    extra.push(['pilasters', dress === 'ornate' ? xs.filter((_, k) => k === 0 || k === xs.length - 1) : xs, GROUND_H + (dress === 'ornate' ? FLOOR_H : 0.1), B.h - 0.75, trim]);
+  }
+  if (dress === 'moderne' || dress === 'ornate' || dress === 'arched') over.push(['frieze', B.h - 0.75 - 0.5, 0.45, dress === 'arched' ? 'corbel' : dress === 'moderne' ? 'tiles' : 'garland', dress === 'moderne' ? pick(L, [0x2f6b62, 0x3b6296, 0x356f42]) : dress === 'arched' ? toneOf(B.wallColor, -1) : trim]);
+  if (soviet) {
+    for (const op of rest) if (op[0] === 'cornice') op[0] = 'parapet'; else if (op[0] === 'band' && op[1] !== GROUND_H) op[0] = 'skip';
+    if (B.style === 'stalin') { B.ops[0][4] = GROUND_H; B.ops[0][5] = toneOf(B.wallColor, -1); B.ops.forEach(op => { if (op[0] === 'rect' && op[4] === 0.06) op[0] = 'skip'; }); }
+    if (dress === 'panel') extra.push(['panels', GROUND_H, B.h - 0.8, bays.length, FLOOR_H]);
+    const cols = bays.length > 3 ? [1, bays.length - 2] : [0];
+    if (chance(L, 0.8)) over.push(['loggias', cols.map(c => bays[c]).filter(Boolean), GROUND_H, floors, pick(L, [0xdfe2e8, 0xa0978a, 0x8f96a6, 0xc4bba9]), FLOOR_H]);
+  } else if (chance(L, 0.35) && bays.length >= 3 && floors >= 2) {  // a balcony on the first floor up, over the middle bays
+    const m = Math.floor(bays.length / 2), span = bays.length >= 5 ? [m - 1, m + 1] : [m, m];
+    over.push(['balcony', bays[span[0]][0] - 0.3, bays[span[1]][0] + bays[span[1]][1] + 0.3, GROUND_H + 0.15, chance(L, 0.5) ? 'iron' : 'stone', trim]);
+  }
+  // Drainpipes down the party walls, now and then; posters on blank wall; scaffolding, rarely.
+  for (const x of [0.18, w - 0.38]) if (!soviet && chance(L, 0.45)) v.pipes.push(x);
+  for (const x of v.pipes) over.push(['pipe', x, B.h - 0.75, pick(L, [0x8f96a6, 0x6a7182, toneOf(B.wallColor, -1)])]);
+  const used = ground.filter(op => ['window', 'door', 'shopfront', 'arch'].includes(op[0])).map(op => op[0] === 'arch' ? [op[1] - 0.2, op[1] + op[2] + 0.2] : op[0] === 'shopfront' ? [op[1], op[1] + op[2]] : [op[1] - 0.15, op[1] + op[op[0] === 'window' ? 3 : 2] + 0.15]).sort((p, q) => p[0] - q[0]);
+  let from = 0.5;
+  for (const [x0, x1] of [...used, [w - 0.5, w]]) {
+    if (x0 - from >= 1.9 && !soviet && chance(L, 0.45)) { over.push(['poster', from + (x0 - from - 1.25) / 2, 0.75, 1.25, 1.6, posterOf(L)]); v.posters++; }
+    from = Math.max(from, x1);
+  }
+  if (!soviet && floors >= 2 && chance(L, 0.05)) over.push(['scaffold', GROUND_H + 0.3, B.h - 0.6, pick(L, [0x356f42, 0x283f6b, 0x6a7182]), FLOOR_H]);
+  B.ops = [...B.ops.slice(0, 1), ...extra, ...B.ops.slice(1), ...over].filter(op => op[0] !== 'skip');
+}
+const op_ = (op) => op.length - 1;
+const POSTERS = [['ТЕАТР', 0xe2dac6, 0x9e3c36, 0x283f6b], ['КИНО', 0x23252f, 0xf8e08a, 0x6e2a2e], ['ДЖАЗ', 0x283f6b, 0xf8e08a, 0x4a2a52],
+  ['ЦИРК', 0xf8e08a, 0x9e3c36, 0x3b6296], ['БАЛЕТ', 0xf6f4ee, 0x4a2a52, 0xc95c45], ['ОПЕРА', 0x6e2a2e, 0xf6f4ee, 0x23252f]];
+function posterOf(L) { const [words, bg, fg, art] = pick(L, POSTERS); return { words, bg, fg, art }; }
 
 /** Which sections a street map spans around x, within its bounds (i0 … i1, either null when endless). */
 export function sectionsAround(map, x, reachM) {

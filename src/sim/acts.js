@@ -46,8 +46,9 @@ export function crossingNear(state, a, m = 6) {
   const S = sectionAt(state, a.x);
   if (!S) return null;
   const close = (c) => Math.abs((c.x0 + c.x1) / 2 - a.x) < m;
-  if (a.z < Z.fence + 0.5) { const c = S.crossings.find(close); return c ? { c, road: 'main' } : null; }
-  if (S.band === 'boulevard' && a.z > Z.pathS - 0.5) { const c = S.crossingsS.find(close); return c ? { c, road: 'far' } : null; }
+  // (from the street it crosses only: not from up a lane, nor from behind the hedge)
+  if (a.z > Z.front - 0.5 && a.z < Z.fence + 0.5) { const c = S.crossings.find(close); return c ? { c, road: 'main' } : null; }
+  if (S.band === 'boulevard' && a.z > Z.pathS - 0.5 && a.z < Z.south + 0.5) { const c = S.crossingsS.find(close); return c ? { c, road: 'far' } : null; }
   return null;
 }
 

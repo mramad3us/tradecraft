@@ -49,6 +49,7 @@ import { skill } from '../skills.js';
 import { opposed, check } from '../checks.js';
 import { range, int, chance, pick, weighted, hash } from '../rng.js';
 import { act, offer, paneNear, seatTaken, crossingAt, crossingNear, say1 } from '../acts.js';
+import { settle, place, onStreet } from '../instinct.js';
 import { Z, SECTION_M } from '../map/street.js';
 import { near, sectionAt } from '../world.js';
 import { planRoute, routeFrom, sectionOf, pointAt, LINE } from '../city.js';
@@ -75,8 +76,6 @@ export const MEET_EAST_M = [150, 550];                             // and how fa
 export const TELL_S = { calm: [1.6, 2.6], wary: [1.0, 1.8] };
 export const SCAN_M = { look: 45, window: 25, exit: 30, cross: 32, double: 22 };
 export const TWINS = 3;
-const RANK = { calm: 0, note: 1, warn: 2, urgent: 3 };
-export const HOLD_S = { calm: 7, note: 5, warn: 3, urgent: 2 };      // the least time the instinct's line holds, by tone
 export const TWIN_CHANCE = 0.02;                                 // a second, for each twin not about
 const TPS = 1000 / TICK_MS;
 
@@ -615,13 +614,10 @@ function second(state, bus, me, t, d) {
   if (sc.marked === t.id && same) sc.farthest = Math.max(sc.farthest, d);
   if (sc.phase === 'meet') meeting(state, bus, me, t, d);
   if (sc.outcome) return;
-  const p = instinct(state, me, t, d, still);
-  if (sc.prompt && p.id === sc.prompt.id) Object.assign(sc.prompt, { text: p.text, act: p.act });
-  else if (!sc.prompt || RANK[p.tone] > RANK[sc.prompt.tone] || state.time.ms - sc.prompt.ms >= HOLD_S[sc.prompt.tone] * 1000) {
-    // (a line holds a while, the calmer the longer, unless something more pressing comes)
-    sc.prompt = { id: p.id, tone: p.tone, text: p.text, act: p.act, ms: state.time.ms };
-    if (p.log) say(state, bus, { kind: 'instinct', text: p.text.replace(/\s*\{[a-z]+\}.*$/, '') });
-  }
+  // (every rule that fires, and the engine's choice: the line up stays while it still applies: sim/instinct.js)
+  const was = sc.prompt?.id;
+  sc.prompt = settle(sc.prompt, [...instinct(state, me, t, d, still)], state.time.ms);
+  if (sc.prompt?.log && sc.prompt.id !== was) say(state, bus, { kind: 'instinct', text: sc.prompt.text.replace(/\s*\{[a-z]+\}.*$/, '') });
 }
 
 /** Lost: the grey coats in view, nearest first, and an Awareness roll on each to tell if it's him. */
@@ -733,95 +729,115 @@ const clockOf = (state) => { const m = Math.floor(state.time.ms / 60000) % 1440;
  * of its own to offer (the engine's: sim/acts.js affordance()), but an urgent one: as he looks,
  * stopping is the thing he'd see.
  */
-function instinct(state, me, t, d, still) {
+function* instinct(state, me, t, d, still) {
   const sc = state.scenario, seen = inView(state, t.id), marked = sc.marked === t.id;
   const L = (id, tone, text, extra = {}) => ({ id, tone, text: Array.isArray(text) ? say1(state, id, text) : text, act: null, ...extra });
   const busy = me.busy?.what ?? me.ai?.cover?.what ?? (me.glass ? 'window' : null);
+  const here = place(state, me), there = place(state, t);
   // The meeting.
   if (sc.phase === 'meet' && sc.contact && seen) {
     const c = actorOf(state, sc.contact), both = c && inView(state, c.id);
-    if (c && Math.hypot(c.x - me.x, c.z - me.z) < CONTACT_M + 1) return L('meet-close', 'urgent', 'Too close to the bench. The other one is a professional.');
-    if (both && d < WITNESS_M) return L('meet-watch', 'note', ['Someone\'s sat down with him. Watch, and don\'t be seen watching.', 'That\'s the meeting. Hold still, eyes on the bench.']);
-    if (!both) return L('meet-see', 'warn', 'He\'s meeting someone. Get them both in view: hold {watch} and look.');
-    return L('meet-near', 'warn', 'He\'s meeting someone. Get closer, but not too close.');
+    if (c && Math.hypot(c.x - me.x, c.z - me.z) < CONTACT_M + 1) yield L('meet-close', 'urgent', 'Too close to the bench. The other one is a professional.');
+    if (both && d < WITNESS_M) yield L('meet-watch', 'note', ['Someone\'s sat down with him. Watch, and don\'t be seen watching.', 'That\'s the meeting. Hold still, eyes on the bench.']);
+    else if (!both) yield L('meet-see', 'warn', 'He\'s meeting someone. Get them both in view: hold {watch} and look.');
+    else yield L('meet-near', 'warn', `He's meeting someone, ${Math.round(d)} m off. Closer, but not too close.`);
+    return;
   }
-  if (sc.phase === 'meet' && !seen && marked) return L('meet-lost', 'warn', 'He\'s sat down somewhere on the boulevard. Find the bench.');
+  if (sc.phase === 'meet' && !seen && marked) { yield L('meet-lost', 'warn', 'He\'s sat down somewhere on the boulevard. Find the bench.'); return; }
   // His tells, read in time; his checks under way.
   if (sc.tell?.read && !sc.scan && state.time.ms - sc.tell.ms < 4000) {
     const o = offer(state, me);
     const what = { turn: 'He\'s slowing at the corner. He\'ll look back before he turns.', look: 'He\'s slowing. He\'s going to look back.', window: 'He\'s drifting to a shop window. He\'ll use the glass.', cross: 'He\'s going to cross. He\'ll look both ways, and that means at you.', double: 'He\'s stopping short. He\'s going to turn round.' }[sc.tell.kind];
-    if (busy) return L(`tell-${sc.tell.kind}`, 'urgent', `${what} Stay at it.`, { log: true });
-    return L(`tell-${sc.tell.kind}`, 'urgent', `${what}${d < 12 ? ' Don\'t be the face behind him.' : ''}${o.text}`, { act: o.act, log: true });
+    if (busy) yield L(`tell-${sc.tell.kind}`, 'urgent', `${what} Stay at it.`, { log: true });
+    else yield L(`tell-${sc.tell.kind}`, 'urgent', `${what}${d < 12 ? ' Don\'t be the face behind him.' : ''}${o.text}`, { act: o.act, log: true });
   }
   if (sc.scan && seen && !busy && d < 25) {                      // (too late for cover: stopping now is the thing he'd see)
-    if (sc.scan.kind === 'double') return L('double', 'urgent', ['He\'s coming back this way. Don\'t meet his eyes. Walk on.', 'He\'s doubling back. Keep walking, look at anything but him.']);
-    return L('scan', 'urgent', ['He\'s looking. Be part of the street. Nothing sudden.', 'His eyes are on the street. Keep doing what you\'re doing.']);
+    if (sc.scan.kind === 'double') yield L('double', 'urgent', ['He\'s coming back this way. Don\'t meet his eyes. Walk on.', 'He\'s doubling back. Keep walking, look at anything but him.']);
+    else yield L('scan', 'urgent', ['He\'s looking. Be part of the street. Nothing sudden.', 'His eyes are on the street. Keep doing what you\'re doing.']);
   }
-  if (me.gait === 'run' && d < 40) return L('run', 'urgent', ['Don\'t run. Running is the one thing everyone sees.', 'Don\'t run. Nobody runs in Moscow in November unless something\'s on fire.']);
-  // Lost, or not in sight.
+  if (me.gait === 'run' && d < 40) yield L('run', 'urgent', ['Don\'t run. Running is the one thing everyone sees.', 'Don\'t run. Nobody runs in Moscow in November unless something\'s on fire.']);
+  // Lost, or someone else taken for him: nothing about the gap (the instinct knows what you know).
   if (!sc.marked) {
-    if (!sc.lastSeen) return L('lost', 'warn', 'You\'ve lost him. Grey coat, grey fedora, a briefcase. Find him.');
-    const ago = Math.round(Math.hypot(sc.lastSeen.x - me.x, sc.lastSeen.z - me.z));
-    return L('lost', 'warn', [`You've lost him. Last seen ${ago} m off, heading east. Look for the grey coat and the briefcase.`,
-      `You have no idea where he went. He was ${ago} m off, heading east, which narrows it down to most of Moscow.`,
-      `Lost him. Grey coat, fedora, briefcase: there can't be more than a few thousand. He was heading east.`]);
+    if (!sc.lastSeen) { yield L('lost', 'warn', 'You\'ve lost him. Grey coat, grey fedora, a briefcase. Find him.'); return; }
+    const ago = Math.round(Math.hypot(sc.lastSeen.x - me.x, sc.lastSeen.z - me.z)), dir = sc.lastSeen.x > me.x ? 'east' : 'west';
+    yield L('lost', 'warn', [`You've lost him. Last seen ${ago} m ${dir} of here. Look for the grey coat and the briefcase.`,
+      `Lost him. He was ${ago} m ${dir} of you; grey coat, fedora, briefcase, like a few thousand others.`]);
+    return;
   }
-  if (!marked) {                                                  // a twin, unbeknown: the instinct is as sure as you are
+  if (!marked) {
     const w = actorOf(state, sc.marked), wd = w ? Math.hypot(w.x - me.x, w.z - me.z) : 99;
-    if (wd < 14) return L('twin-close', 'warn', 'Closer than you\'d like. Is that the briefcase? Hard to say from here.');
-    return L('twin', 'calm', ['Steady. Keep him in sight.', 'Grey coat, a good way on. Keep the pace.']);
+    // (a twin, unbeknown: the instinct is as sure as you are, and says what it would say of him)
+    yield wd < 14 ? L('twin-close', 'warn', 'Closer than you\'d like. Is that the briefcase? Hard to say from here.') : L('status', 'calm', `${Math.round(wd)} m behind him.`);
+    return;
   }
-  // Through a lane to another street: we know it only if we saw him take it.
+  // Through a lane to another street: known only if we saw him take it.
   if (rowOf(state, t) !== rowOf(state, me) && sc.turn?.seen && sc.turn.row === rowOf(state, me)) {
     const w = sc.turn, inLane = me.x > w.x0 - 0.5 && me.x < w.x1 + 0.5 && (w.north ? me.z < Z.front : me.z > Z.south);
     const gd = Math.round(inLane ? (w.north ? me.z - Z.north : Z.edge - me.z) : Math.abs((w.x0 + w.x1) / 2 - me.x) + (Z.front - Z.north));
-    return L('away', 'warn', [`He's gone ${w.north ? 'up' : 'down'} ${w.name}: ${gd} m to the far end. Through it after him, or you've lost him.`, `${cap(w.name)}: he's through it and out the other end by now. Follow, or lose him.`]);
+    yield L('away', 'warn', [`He's gone ${w.north ? 'up' : 'down'} ${w.name}: ${gd} m to the far end. Through it after him, or you've lost him.`, `${cap(w.name)}: he's through it and out the other end by now. Follow, or lose him.`]);
+    return;
   }
-  if (sc.turn?.seen && sc.turn.row === rowOf(state, t) && (t.z < Z.front + 0.5 || t.z > Z.south - 0.5) && seen) return L('turn', 'warn', [`He's turned ${sc.turn.north ? 'up' : 'down'} ${sc.turn.name}. Give him the corner: it's empty in there, and narrow.`, `${cap(sc.turn.name)}. Don't follow him straight in: let him get to the far end.`]);
+  if (sc.turn?.seen && sc.turn.row === rowOf(state, t) && there.at === 'lane' && here.at !== 'lane' && seen) yield L('turn', 'warn', [`He's turned ${sc.turn.north ? 'up' : 'down'} ${sc.turn.name}. Give him the corner: it's empty in there, and narrow.`, `${cap(sc.turn.name)}. Don't follow him straight in: let him get to the far end.`]);
+  // In a lane with him: narrow, empty, nowhere to be but behind him.
+  if (here.at === 'lane' && there.at === 'lane' && seen) {
+    if (d < 25) yield L('lane-close', 'warn', [`In a lane there's nowhere to be but behind him, ${Math.round(d)} m. Hang back till he's out the far end.`, `${Math.round(d)} m, in a lane: he only has to turn his head. Let him clear the far end.`]);
+    else yield L('lane', 'calm', `${Math.round(d)} m behind him in the lane. Good: when he's out the other end, close up.`);
+  }
   if (t.hidden && rowOf(state, t) === rowOf(state, me)) {
     const shop = SHOPS[sc.shop] ?? 'a shop', o = offer(state, me);
-    if (d < 8) return L('shop-door', 'warn', [`He's in ${shop}. Don't hover at the door: walk on, or cross over.`, `He's in ${shop}. Hovering at the door is how you end up in the same queue. Walk on.`]);
-    if (o.act === 'window' && !busy) return L('shop-wait', 'note', `He's in ${shop}. Wait where you can see the door.${o.text}`, { act: o.act });
-    return L('shop', 'note', `He's gone into ${shop}. He'll come out looking: be somewhere you'd be anyway.`);
+    if (d < 8) yield L('shop-door', 'warn', [`He's in ${shop}. Don't hover at the door: walk on, or cross over.`, `He's in ${shop}. Hovering at the door is how you end up in the same queue. Walk on.`]);
+    else if (o.act === 'window' && !busy) yield L('shop-wait', 'note', `He's in ${shop}. Wait where you can see the door.${o.text}`, { act: o.act });
+    else yield L('shop', 'note', `He's gone into ${shop}. He'll come out looking: be somewhere you'd be anyway, with the door in sight.`);
+    return;
   }
-  if (me.glass && !seen && !t.hidden && sc.unseenS >= 2) return L('glass-lost', 'warn', ['He\'s not in the glass. Hold {watch} and slant your eyes along it his way, or walk on.', 'The glass shows you the street, not him. Slant your eyes along it ({watch} held), or move.']);
-  if (me.glass && seen && d >= 9 && state.time.ms - me.glass.since < 6000) return L('glass', 'calm', ['There he is, in the glass. Keep him in it.', 'You have him in the glass, and he has your back. Keep it that way.']);
+  if (me.glass && !seen && sc.unseenS >= 2) yield L('glass-lost', 'warn', ['He\'s not in the glass. Hold {watch} and slant your eyes along it his way, or walk on.', 'The glass shows you the street, not him. Slant your eyes along it ({watch} held), or move.']);
+  if (me.glass && seen && d >= 9 && state.time.ms - me.glass.since < 6000) yield L('glass', 'calm', [`There he is, in the glass, ${Math.round(d)} m off. Keep him in it.`, 'You have him in the glass, and he has your back. Keep it that way.']);
   if (!seen && sc.unseenS >= 3) {
     const ld = sc.lastSeen ? Math.round(Math.hypot(sc.lastSeen.x - me.x, sc.lastSeen.z - me.z)) : null;
     const where = ld === null ? 'ahead' : ld < 5 ? 'right about here' : `${ld} m ${sc.lastSeen.x > me.x ? 'east' : 'west'} of you`;
-    if (sc.unseenS > 20) return L('unseen-long', 'warn', [`You haven't seen him for ${sc.unseenS} seconds. That's generally considered a problem. He was ${where}.`, `Still no sign of him. He was ${where}. Get eyes on him.`]);
-    return L('unseen', 'warn', `You can't see him. ${sc.unseenS > 12 ? 'You\'re losing him: he' : 'He'} was ${where}. Get eyes on him.`);
+    yield sc.unseenS > 20 ? L('unseen-long', 'warn', [`You haven't seen him for ${sc.unseenS} seconds. That's generally considered a problem. He was ${where}.`, `Still no sign of him. He was ${where}. Get eyes on him.`])
+      : L('unseen', 'warn', `You can't see him. ${sc.unseenS > 12 ? 'You\'re losing him: he' : 'He'} was ${where}. Get eyes on him.`);
+    return;                                                         // (out of sight: nothing about the gap)
   }
   // Distance and its trend (m/s; more, he's pulling away).
   const trend = sc.gap.length >= 4 ? (sc.gap[sc.gap.length - 1] - sc.gap[0]) / (sc.gap.length - 1) : 0;
-  if (d < 5) { const o = offer(state, me); return L('far-too-close', 'urgent', `Far too close. Peel off.${o.text}`, { act: o.act }); }
-  if (d < 9 && !busy) return L('too-close', 'warn', ['Too close. Let him get ahead.', 'You\'re on his heels. Drop back.', 'Any closer and you\'ll be carrying his briefcase. Drop back.']);
+  if (d < 5) { const o = offer(state, me); yield L('far-too-close', 'urgent', `Far too close: ${Math.round(d)} m. Peel off.${o.text}`, { act: o.act }); }
+  if (d < 9 && !busy) yield L('too-close', 'warn', [`Too close: ${Math.round(d)} m. Let him get ahead.`, 'You\'re on his heels. Drop back.', 'Any closer and you\'ll be carrying his briefcase. Drop back.']);
   const stopped = Math.hypot(t.vx, t.vz) < 0.05;
-  if (stopped && still && d < 30 && !me.glass) { const o = offer(state, me); return L('mirror', 'warn', `He's stopped. Don't stop with him: walk on, or find a reason.${o.text}`, { act: o.act }); }
-  if (still && sc.stillS >= 3 && d < 35 && !coverNow(state, me)) { const o = offer(state, me); return L('loiter', 'warn', [`Standing about draws the eye. Give yourself a reason.${o.text}`, `Standing in the middle of the pavement. Very natural. Give yourself a reason.${o.text}`], { act: o.act }); }
+  if (stopped && still && d < 30 && !me.glass) { const o = offer(state, me); yield L('mirror', 'warn', `He's stopped. Don't stop with him: walk on, or find a reason.${o.text}`, { act: o.act }); }
+  if (still && sc.stillS >= 3 && d < 35 && !coverNow(state, me)) { const o = offer(state, me); yield L('loiter', 'warn', [`Standing about draws the eye. Give yourself a reason.${o.text}`, `Standing in the middle of the pavement. Very natural. Give yourself a reason.${o.text}`], { act: o.act }); }
   const toHim = Math.abs(wrap(Math.atan2(t.z - me.z, t.x - me.x) - (me.head ?? 0)));
-  if (toHim < 0.5 && still && d < 18 && !busy) return L('stare', 'warn', ['You\'re staring at him. Look at something else.', 'You\'re staring at him. Moscow has other things to look at. Try a lamp post.']);
+  if (toHim < 0.5 && still && d < 18 && !busy) yield L('stare', 'warn', ['You\'re staring at him. Look at something else.', 'You\'re staring at him. Moscow has other things to look at. Try a lamp post.']);
   const air = openAir(state), lampLit = air < 0.3 && lightHere(state, me.x, me.z) > air + 0.2;
-  if (lampLit && d < 28 && !busy) return L('lamp', 'note', ['You\'re in the lamplight. Out of it before he turns.', 'You\'re lit up like a shop window. Out of the lamplight.']);
-  if (sc.alert >= 50 && d < 22) return L('alert', 'warn', 'He\'s on edge, checking more. Give him more room.');
-  if (trend < -0.35 && d < 20) return L('gaining', 'warn', ['You\'re gaining on him. Ease off: {slow} stroll.', 'Too quick. Match his pace: {slow} stroll.']);
-  if (d > 34) return L('too-far', 'warn', 'Too far. You\'ll lose him at this. Close up.');
-  if (trend > 0.3 && d > 22) return L('pulling', 'note', ['He\'s pulling away. Close up.', 'He\'s quickened. Keep up with him.']);
-  // The street round him.
+  if (lampLit && d < 28 && !busy) yield L('lamp', 'note', ['You\'re in the lamplight. Out of it before he turns.', 'You\'re lit up like a shop window. Out of the lamplight.']);
+  if (sc.alert >= 50 && d < 22) yield L('alert', 'warn', `He's on edge, checking more. Give him more room than ${Math.round(d)} m.`);
+  if (trend < -0.35 && d < 20) yield L('gaining', 'warn', ['You\'re gaining on him. Ease off: {slow} stroll.', 'Too quick. Match his pace: {slow} stroll.']);
+  if (d > 34) yield L('too-far', 'warn', `Too far: ${Math.round(d)} m. You'll lose him at this. Close up.`);
+  if (trend > 0.3 && d > 22) yield L('pulling', 'note', ['He\'s pulling away. Close up.', 'He\'s quickened. Keep up with him.']);
+  // The street round him (the street's, not a lane's).
   const twinNear = sc.twins.map(id => actorOf(state, id)).find(o => o && inView(state, o.id) && Math.hypot(o.x - t.x, o.z - t.z) < 8);
-  if (twinNear && d > 12) return L('twin-near', 'note', ['Another grey coat near him. Watch which one you follow.', 'Two grey coats now. His has the briefcase. Probably.']);
+  if (twinNear && d > 12) yield L('twin-near', 'note', ['Another grey coat near him. Watch which one you follow.', 'Two grey coats now. His has the briefcase. Probably.']);
   const crowdT = crowdAround(state, t, 6), crowdMe = crowdAround(state, me, 6);
-  if (crowdT >= 5 && d > 18) return L('crowd-ahead', 'note', 'People round him. Close up a little, or you\'ll lose him in them.');
-  if (crowdMe === 0 && crowdT === 0 && d < 22) return L('empty', 'note', ['The street\'s emptied. Hang back further.', 'The street\'s emptied: just you, him and your conscience. Hang back.']);
-  // The sides of the street.
-  const sameSide = (me.z < Z.kerbN) === (t.z < Z.kerbN);
-  const c = crossingNear(state, me)?.road === 'main';
-  if (sameSide && d < 16 && c && t.z < Z.kerbN && !busy) return L('cross-offer', 'note', 'A crossing. Take the other pavement and keep level with him: {instinct} cross here.', { act: 'cross' });
-  if (!sameSide && d > 26 && c && !busy) return L('cross-back', 'note', 'He\'s pulling ahead across the road. Cross back here: {instinct} cross.', { act: 'cross' });
-  if (!sameSide) return L('parallel', 'calm', ['Good. Across the road and level with him. Hold it.', 'Parallel him. He looks behind, not across.']);
-  if (sc.sightings.length) return L('seen-once', 'note', 'He\'s seen your face once. Distance, the other pavement, people between you.');
-  if (state.time.ms - (sc.lastScanMs ?? sc.began) > 50000 && d < 30) return L('quiet', 'calm', ['He hasn\'t checked behind him in a while. He will.', 'He hasn\'t looked back in a while. They always do, eventually.']);
-  return L('good', 'calm', ['Good. People between you. Hold it.', 'Steady. Keep his pace.', 'Let him lead. You\'re just walking home.', 'Good distance. Keep it.', 'Good. You\'re nobody. Keep being nobody.']);
+  if (crowdT >= 5 && d > 18) yield L('crowd-ahead', 'note', 'People round him. Close up a little, or you\'ll lose him in them.');
+  if (crowdMe === 0 && crowdT === 0 && d < 22 && onStreet(here)) yield L('empty', 'note', ['The street\'s emptied. Hang back further.', 'The street\'s emptied: just you, him and your conscience. Hang back.']);
+  // The sides of the street: only on the street itself, both of you.
+  if (onStreet(here) && onStreet(there)) {
+    const sameSide = (me.z < Z.kerbN) === (t.z < Z.kerbN), c = crossingNear(state, me)?.road === 'main';
+    if (sameSide && d < 16 && c && t.z < Z.kerbN && !busy) yield L('cross-offer', 'note', 'A crossing. Take the other pavement and keep level with him: {instinct} cross here.', { act: 'cross' });
+    if (!sameSide && d > 26 && c && !busy) yield L('cross-back', 'note', 'He\'s pulling ahead across the road. Cross back here: {instinct} cross.', { act: 'cross' });
+    if (!sameSide) yield L('parallel', 'calm', [`Across the road and level with him, ${Math.round(d)} m. Hold it.`, 'Parallel him. He looks behind, not across.']);
+  }
+  if (sc.sightings.length) yield L('seen-once', 'note', 'He\'s seen your face once. Distance, the other pavement, people between you.');
+  if (state.time.ms - (sc.lastScanMs ?? sc.began) > 50000 && d < 30) yield L('quiet', 'calm', ['He hasn\'t checked behind him in a while. He will.', 'He hasn\'t looked back in a while. They always do, eventually.']);
+  // How things stand: the gap, its trend, who's between you.
+  const n = between(state, me, t);
+  yield L('status', 'calm', `${Math.round(d)} m behind him, the gap ${trend < -0.15 ? 'closing' : trend > 0.15 ? 'opening' : 'steady'}. ${n ? `${n === 1 ? 'Someone' : `${n} people`} between you.` : 'Nobody between you.'}`);
+}
+
+/** The people between us and him: in sight, on his line, nearer than he is. */
+function between(state, me, t) {
+  const d = Math.hypot(t.x - me.x, t.z - me.z);
+  return state.actors.filter(a => a !== me && a !== t && !a.hidden && inView(state, a.id) && Math.abs(a.z - t.z) < 3 && Math.sign(a.x - me.x) === Math.sign(t.x - me.x) && Math.hypot(a.x - me.x, a.z - me.z) < d).length;
 }
 
 function end(state, bus, outcome, text) {

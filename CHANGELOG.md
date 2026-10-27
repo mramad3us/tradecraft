@@ -4,6 +4,20 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.0.46 (2026-10-27)
+
+- **The instinct, overhauled** (your report: mostly useless, advice that doesn't apply).
+  - Every line is now a rule checked every tick against where you actually are: the line shown stays only while it still applies, and goes the moment it doesn't (it used to hang on for up to 7 seconds).
+  - No more crossing offered from up a lane (the zebra was found by looking along the street only); T no longer offers one there either. In a lane with him, it says what matters in a lane: "In a lane there's nowhere to be but behind him, 21 m. Hang back till he's out the far end."
+  - The filler is gone: instead of "Good. Keep it.", how things stand: "19 m behind him, the gap steady. 3 people between you." Distances in the warnings ("Too close: 7 m").
+  - Lost him, or out of sight: no talk of a gap it can't know. Following the wrong grey coat: it's as sure as you are, as before.
+  - The free walk's instinct names the place and the way, or says nothing; the rotating lessons are gone (there and in being tailed).
+- **No more copy-paste streets** (your ask; the round's numbers: 640 street sections checked identical in everything the game reads, only the look differs).
+  - Every stretch of Moscow is laid and furnished its own way: five pavements, four kerbs, five zebras (Moscow's white-and-yellow, raised, faded, fresh), six lamp posts, five railings, benches and bins, seven cars (a yellow taxi now and then), lanes and alleys in setts, slabs, patched tarmac or dirt. Surfaces change only at a zebra or a stretch's end, never mid-pavement.
+  - Every building wears a dress: pediments, rustication, Art Nouveau, constructivist ribbon windows, dressed or yellow or painted brick, ornate or tiled Stalinist blocks, panel blocks, 1970s white brick; gates and carriage doors in the arches, awnings, hanging signs, letters on the wall, posters, drainpipes, air conditioners, satellite dishes, scaffolding, varied roofs.
+  - It's November: limes, maples, poplars and birches are bare, oaks hang on to their brown leaves, spruces stay green, leaves lie in the gutters, hedges have turned. Parks get new ponds, fountains boxed up for the winter, busts and seated bronzes, newsstands, cabbage beds.
+  - Faster, too: a quarter fewer draw calls (a prop's plain parts are one mesh now).
+
 ## v0.0.45 (2026-10-26)
 
 - **Knives and what's to hand** (your round). Nineteen weapons: six knives (penknife, box cutter, switchblade, kitchen knife, finka, combat knife) and what lies about (a screwdriver, a bottle, half a brick, a hammer, a spanner, a length of pipe, a crowbar, a stick, an umbrella, a snow shovel, a bike lock, a chain).

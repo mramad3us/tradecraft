@@ -120,6 +120,15 @@ export function noise(x, y, seed = 1) {
   return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
 }
 
+/** noise(), but repeating every `period` cells in x and y: for tiles (x / k over a tile of period · k pixels). */
+export function tnoise(x, y, period, seed = 1) {
+  const hash = (i, j) => { i = ((i % period) + period) % period; j = ((j % period) + period) % period; let h = (i * 374761393 + j * 668265263 + seed * 2246822519) >>> 0; h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  const a = hash(ix, iy), b = hash(ix + 1, iy), c = hash(ix, iy + 1), d = hash(ix + 1, iy + 1);
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+}
+
 export const FINE_PALETTE = [
   ...FAMILIES.flatMap(([h, c]) => STEPS.map(L => fromOklch(L, c * (1 - 0.9 * Math.abs(L - 0.55)), shiftHue(h, L - 0.55)))),
   0x1a1214, 0xf4efe6, 0xe7b84a, 0xf8e08a,
@@ -471,7 +480,11 @@ export function paint(w, h, draw, { repeat = false, glows = null } = {}) {
   return t;
 }
 
-/** A repeating pixel texture of m metres square, by kind: grass, cobble, asphalt, brick, plaster, roof, planks, leaves, gravel, water, awning. */
+/**
+ * A repeating pixel texture of m metres square, by kind: grass, cobble, asphalt, brick, plaster, roof, planks, leaves, gravel, water,
+ * awning; in the fine finish also the pavements (slabs, squares, granite, pavers, tarmac), the lanes' (patched, roadslabs,
+ * concrete, dirt) and the winter's flower beds (kale, boughs, stalks).
+ */
 export function tile(kind, m = 1) {
   const n = PX_PER_M * m;
   const r = rng(kind.length * 977 + m * 131);
@@ -610,7 +623,75 @@ const FINE_TILES = {
     }
     for (let i = 0; i < n * n / 30; i++) { const x = Math.floor(r() * n), y = 1 + Math.floor(r() * (n - 2)); px(x, y + 1, 1, 1, tone(0x4f8f45, -0.12)); px(x, y, 1, 1, tone(0x4f8f45, 0.08)); }
   },
+  // Pavements as tiles (a side street's walks: the street's own makes, sim LOOKS.pave), and the
+  // lanes' and alleys' surfaces; each in whole periods of its tile.
+  slabs: (px, n, r) => stones(px, n, 12, 10, 6, 0xc4bba9, r),     // (3.75 m: 5 slabs by 6 rows)
+  squares: (px, n, r) => stones(px, n, 8, 8, 0, 0xb8b0a4, r),
+  granite: (px, n, r) => stones(px, n, 16, 12, 8, 0xb4a296, r, true),
+  pavers: (px, n, r) => stones(px, n, 8, 4, 4, 0xa8a49c, r),
+  roadslabs: (px, n, r) => stones(px, n, 24, 24, 12, 0x8f96a6, r),   // a road of concrete slabs, 1.5 m
+  concrete(px, n, r) {                                           // concrete slabs, grass in the joints
+    stones(px, n, 24, 24, 0, 0xa8a49c, r);
+    for (let i = 0; i < n; i += 24) for (let k = 0; k < n; k++) if (r() < 0.35) { px(i + 23, k, 1, 1, tone(0x4f8f45, -0.05)); px(k, i + 23, 1, 1, tone(0x4f8f45, r() < 0.5 ? -0.05 : 0.03)); }
+  },
+  tarmac(px, n, r) {                                             // a pavement's tarmac: warmer than a road's, patched
+    const base = 0x5f5e63;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const k = r(); px(x, y, 1, 1, k < 0.08 ? tone(base, -0.05) : k > 0.95 ? tone(base, 0.04) : base); }
+    for (let i = 0; i < 2; i++) { const w = 8 + Math.floor(r() * 12), h = 4 + Math.floor(r() * 5), x = Math.floor(r() * (n - w)), y = Math.floor(r() * (n - h)); px(x, y, w, h, tone(base, -0.04)); px(x, y, w, 1, tone(base, 0.03)); }
+  },
+  patched(px, n, r) {                                            // a lane's asphalt, patch on patch (a 6 m tile: the patches don't beat)
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const k = r(); px(x, y, 1, 1, k < 0.07 ? tone(0x4c5262, -0.05) : k > 0.95 ? tone(0x4c5262, 0.04) : 0x4c5262); }
+    for (let i = 0; i < 6; i++) {
+      const w = 10 + Math.floor(r() * 24), h = 6 + Math.floor(r() * 18), x = Math.floor(r() * (n - w)), y = Math.floor(r() * (n - h)), d = r() < 0.5 ? -0.045 : 0.035;
+      px(x, y, w, h, tone(0x4c5262, d)); if (r() < 0.6) { px(x, y, w, 1, tone(0x4c5262, d + 0.05)); px(x, y + h - 1, w, 1, tone(0x4c5262, d - 0.05)); }
+      for (let k = 0; k < (w * h) / 30; k++) px(x + Math.floor(r() * w), y + Math.floor(r() * h), 1, 1, tone(0x4c5262, d - 0.04));
+    }
+    for (let k = 0; k < 4; k++) { let cx = Math.floor(r() * n), cy = Math.floor(r() * n); for (let i = 0; i < 12 + r() * 14; i++) { px(cx % n, cy % n, 1, 1, tone(0x4c5262, -0.1)); cx++; cy += r() < 0.35 ? (r() < 0.5 ? n - 1 : 1) : 0; } }
+  },
+  dirt(px, n, r) {                                               // packed earth, gravel in it, a puddle's dark
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const v = tnoise(x / 4, y / 4, n / 4, 17) * 0.7 + tnoise(x / 2, y / 2, n / 2, 18) * 0.3; px(x, y, 1, 1, v < 0.28 ? tone(0x6b4636, -0.04) : v > 0.7 ? tone(0x8f6345, 0.02) : tone(0x7d6450, 0)); }
+    for (let i = 0; i < n * n / 14; i++) { const x = Math.floor(r() * n), y = Math.floor(r() * n); px(x, y, 1, 1, r() < 0.6 ? 0xa0978a : 0x5c5650); }
+  },
+  kale(px, n, r) {                                               // ornamental cabbages, November's bed: rosettes on dark soil
+    px(0, 0, n, n, 0x47302a);
+    for (let i = 0; i < n * n / 6; i++) px(Math.floor(r() * n), Math.floor(r() * n), 1, 1, 0x2a1c18);
+    for (let y = 0; y < n; y += 8) for (let x = (y / 8) % 2 * 4; x < n; x += 8) {
+      const heart = r() < 0.5 ? [0x7a4a86, 0xc95c8a] : [0xe2dac6, 0xf6f4ee];
+      for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) {
+        const d = Math.hypot(i, j * 1.2);
+        if (d > 3.4) continue;
+        px((x + i + n) % n, (y + j + n) % n, 1, 1, d < 1.3 ? heart[1] : d < 2.2 ? heart[0] : (i + j) % 2 ? 0x2f6b62 : 0x76a08a);
+      }
+    }
+  },
+  boughs(px, n, r) {                                             // spruce boughs laid over a bed for the winter
+    px(0, 0, n, n, 0x47302a);
+    for (let k = 0; k < 9; k++) {
+      const x0 = Math.floor(r() * n), y0 = Math.floor(r() * n), len = 7 + Math.floor(r() * 6), dir = r() < 0.5 ? 1 : -1;
+      for (let t = 0; t < len; t++) { const x = (x0 + t + n) % n, y = (y0 + Math.round(t * 0.5 * dir) + n) % n; px(x, y, 1, 1, 0x47302a); px(x, (y + 1) % n, 1, 1, 0x24503a); px(x, (y + n - 1) % n, 1, 1, t % 2 ? 0x356f42 : 0x173327); }
+    }
+  },
+  stalks(px, n, r) {                                             // a bed cut back: straw, dead stalks
+    px(0, 0, n, n, 0x47302a);
+    for (let i = 0; i < n * n / 5; i++) { const x = Math.floor(r() * n), y = Math.floor(r() * n); px(x, y, 2, 1, r() < 0.6 ? 0xb48459 : 0x8f6345); }
+    for (let i = 0; i < n * n / 30; i++) { const x = Math.floor(r() * n), y = Math.floor(r() * n); px(x, y, 1, 2, 0x6b4636); }
+  },
 };
+/** Stones (slabs, setts, pavers) pw × ph in courses shifted by `shift`, bevelled, over a tile n square. */
+function stones(px, n, pw, ph, shift, base, r, grain = false) {
+  px(0, 0, n, n, tone(base, -0.15));                             // the joints
+  for (let j = 0, row = 0; j < n; j += ph, row++) for (let i = -((row % 2) * shift); i < n; i += pw) {
+    const d = (r() - 0.5) * 0.07 + (r() < 0.05 ? -0.05 : 0), w = pw - 1, h = ph - 1;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const xx = (i + x + n) % n, v = noise(xx / 3, (j + y) / 3, 41);
+      px(xx, j + y, 1, 1, tone(base, d + (v < 0.25 ? -0.03 : v > 0.8 ? 0.02 : 0)));
+    }
+    for (let x = 0; x < w; x++) { px((i + x + n) % n, j, 1, 1, tone(base, d + 0.05)); px((i + x + n) % n, j + h - 1, 1, 1, tone(base, d - 0.06)); }
+    px((i + n) % n, j, 1, h, tone(base, d + 0.03));
+    if (grain) for (let k = 0; k < 6; k++) px((i + 1 + Math.floor(r() * (w - 2)) + n) % n, j + 1 + Math.floor(r() * (h - 2)), 1, 1, tone(base, k % 3 ? -0.08 : 0.06));
+    if (r() < 0.25) px((i + w + n) % n, j + Math.floor(r() * h), 1, 1, tone(0x356f42, -0.06));   // moss in a joint
+  }
+}
 
 // ---------- shapes ----------
 

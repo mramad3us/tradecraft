@@ -45,23 +45,18 @@ export const walk = {
     if (state.tick % TPS !== 0) return;
     const me = state.actors.find(a => a.who === state.player);
     if (!me) return;
-    const p = instinct(state, me), q = state.scenario.prompt;
-    if (!q || q.id !== p.id || q.text !== p.text) state.scenario.prompt = { ...p, ms: state.time.ms };
+    const p = instinct(state, me), q = state.scenario.prompt;      // (nothing to say: nothing said, and the line shows only what's at hand)
+    if (!p) state.scenario.prompt = null;
+    else if (!q || q.id !== p.id || q.text !== p.text) state.scenario.prompt = { ...p, ms: state.time.ms };
   },
 };
 
-const LESSONS = {
-  day: ['Nothing on you. Walk, look, get the feel of it.', 'Shop windows make mirrors. Remember that.', 'Count the exits wherever you stand. It becomes a habit, then a reflex.',
-    'Same face twice is a coincidence. Three times is a tail.', 'Walk like you live here. Most of these people do.'],
-  dusk: ['The light\'s going. Lit windows show you who\'s inside; lamps show who\'s outside.', 'Dusk is a tradecraft hour: faces go first, coats last.'],
-  night: ['Between the lamps you\'re a shape. Under them, a face.', 'At night the street is islands of light. Cross between them, not through them.', 'Quiet streets at night: you hear a tail before you see one.'],
-};
 
 /** The walk's instinct: { id, text, tone, act }. */
 function instinct(state, me) {
   const L = (id, text, act = null, tone = 'calm') => ({ id, tone, text: Array.isArray(text) ? say1(state, id, text) : text, act });
   const S = sectionAt(state, me.x), seed = state.map.seed, row = state.map.row ?? 0;
-  if (!S) return L('none', 'Walk.');
+  if (!S) return null;
   if (me.glass) return L('glass', ['In the glass, the street behind you, all but the middle of it: that\'s your own back.', 'Straight in, the glass shows the road behind you. Hold {watch} and slant your eyes along it: the pavement behind.',
     'A shop window is a mirror with goods in it. Nobody minds anyone looking at the goods.']);
   if (me.busy) return L('busy', { window: 'To the shop window.', bench: 'A bench is a good seat for the street. Moving gets you up.',
@@ -92,8 +87,7 @@ function instinct(state, me) {
       monument: 'A bronze somebody on a plinth. Every square has one; nobody looks at it, which makes it a fine place to wait.', kiosk: 'A kiosk. Coffee, papers, cigarettes, and a man who sees everyone who passes.',
       beds: 'Flower beds, put to bed for the winter.' }[f.kind]);
   }
-  const h = hourOfDay(state.time.ms), light = openAir(state);
-  return L('lesson', LESSONS[light > 0.6 ? 'day' : light > 0.25 || (h > 6 && h < 18) ? 'dusk' : 'night']);
+  return null;
 }
 
 const cap = (s) => s[0].toUpperCase() + s.slice(1);

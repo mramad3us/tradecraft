@@ -37,6 +37,7 @@ import { at, TICK_MS, clockText } from '../clock.js';
 import { handler, sheet, streetLook, describe, passerby } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
 import { say } from '../log.js';
+import { settle } from '../instinct.js';
 import { skill } from '../skills.js';
 import { opposed, check } from '../checks.js';
 import { range, int, chance, pick, weighted, stream } from '../rng.js';
@@ -542,12 +543,8 @@ function second(state, bus, me) {
   // SOLOVEY, on his bench from meet.from to meet.to, if we're on his street.
   meeting(state, bus, me);
   if (sc.outcome) return;
-  const p = instinct(state, me, still);
-  if (sc.prompt && p.id === sc.prompt.id) Object.assign(sc.prompt, { text: p.text, act: p.act });
-  else if (!sc.prompt || RANK[p.tone] > RANK[sc.prompt.tone] || now - sc.prompt.ms >= HOLD_S[sc.prompt.tone] * 1000) sc.prompt = { ...p, ms: now };
+  sc.prompt = settle(sc.prompt, [instinct(state, me, still)], now);   // (the line that applies now: sim/instinct.js)
 }
-const RANK = { calm: 0, note: 1, warn: 2, urgent: 3 };
-const HOLD_S = { calm: 7, note: 5, warn: 3, urgent: 2 };
 
 function meeting(state, bus, me) {
   const sc = state.scenario, g = sc.meet, now = state.time.ms;
@@ -625,9 +622,6 @@ function end(state, bus, outcome, text) {
 
 // ---------- the instinct ----------
 
-const LESSONS = ['Check without looking like you\'re checking: shop glass, a crossing, a reason to turn round.', 'Same face twice is a coincidence. Three times, through your turns and stops, is a tail.',
-  'If they\'re on you, don\'t take them to him. A boring walk home is a win.', 'Lose them where they can\'t see you do it: a lane they didn\'t see you take.',
-  'They write down what a professional would do. So don\'t do it where they can see.', 'Nobody behind you is also an answer. Don\'t invent a tail.'];
 
 /** The way to SOLOVEY from here, in words. */
 function wayText(state, me) {
@@ -663,7 +657,7 @@ function instinct(state, me, still) {
     : ['Long enough at one window and it\'s not the goods you\'re looking at. Walk on when you\'ve seen what you need.', 'Slant your eyes along the glass ({watch} held) for the pavement behind you; straight in, it\'s the road.']);
   if (now < g.from - 30000) {
     if (paneNear(state, me)) return L('early', 'calm', 'A shop window: the glass shows who\'s behind you.');
-    return L('early', 'calm', [`SOLOVEY from ${clockText(g.from)}: ${wayText(state, me)} Time to check your back on the way.`, ...LESSONS]);
+    return L('early', 'calm', `SOLOVEY from ${clockText(g.from)}: ${wayText(state, me)} Time to check your back on the way.`);
   }
   if (now < g.to) {
     if (state.map.row === g.row && Math.abs(g.x - me.x) < 30) return A(L('near', 'warn', `He's there, on the bench${s && inView(state, s.id) ? '' : ' somewhere ahead'}. Last chance to check your back before you sit down with him.`));

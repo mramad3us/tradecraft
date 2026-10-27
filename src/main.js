@@ -15,7 +15,7 @@
 import { newGame, start, step, skip } from './sim/game.js';
 import { createBus } from './sim/bus.js';
 import { toJSON, fromJSON } from './sim/state.js';
-import { TICK_MS, HOUR, MIN, stampText, hourOfDay } from './sim/clock.js';
+import { TICK_MS, HOUR, MIN, stampText, hourOfDay, calendar } from './sim/clock.js';
 import { SCENARIOS } from './sim/scenarios/index.js';
 import { createView } from './render/view.js';
 import { createInput } from './ui/input.js';
@@ -70,7 +70,7 @@ function launch(s, { hour = null } = {}) {
   stop();
   state = s;
   bus = createBus();
-  view = createView({ parent: ui.frame, bus });
+  view = createView({ parent: ui.frame, bus, month: () => calendar(s.time.ms).month });   // (the season: the trees' leaves, the hedges', the fallen ones)
   ui.frame.prepend(view.canvas);
   ui.fit();                                                        // (the picture to the window)
   bus.on('log', (e) => ui.toast(e));
