@@ -23,5 +23,6 @@ import { sdr } from './sdr.js';
 import { dojoScenario } from './dojo.js';
 import { campaignHub } from './campaign.js';
 import { hunted } from './hunted.js';
+import { watchTest } from './watch.js';
 
-export const SCENARIOS = { walk, dojo: dojoScenario, tail, sdr, hunted, campaign: campaignHub };
+export const SCENARIOS = { walk, dojo: dojoScenario, tail, sdr, watch: watchTest, hunted, campaign: campaignHub };

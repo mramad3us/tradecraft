@@ -11,7 +11,7 @@
 // Most people on a map are throwaway: passers-by generated from a seed of their own (passerby()),
 // the same every time for that seed and city, never saved beyond the seed. Their sheets sit around
 // 0–8. Their names, languages and dress are their city's (its profile's people: sim/cities/).
-import { stream, int, pick, chance, weighted, next } from './rng.js';
+import { stream, int, pick, chance, weighted, next, hash } from './rng.js';
 import { DAY } from './clock.js';
 import { cityById } from './cities/index.js';
 
@@ -75,13 +75,26 @@ const BRIGHT = [0x9e3c36, 0xc95c45, 0xe7b84a, 0x3b6296, 0x5d8fc2, 0x7a4a86, 0x35
 const LEGS = [0x23252f, 0x353947, 0x283f6b, 0x1b2541, 0x47302a, 0x4c5262, 0x2a1c18];
 const SHOES = [0x14151c, 0x2a1c18, 0x47302a, 0x23252f];
 
+/**
+ * The cut, finer: of the long and the short, some are a bob or a ponytail, a crew cut or a side part
+ * (the user, 2026-10-27: "more haircuts"). From a hash of the look, no die cast, so who's about
+ * doesn't change: only how their hair's cut. Women's and men's cuts stay apart.
+ */
+export function cutOf(style, sex, ...keys) {
+  const v = hash('cut', style, sex, ...keys) % 100;
+  if (sex === 'f' && style === 'long') return v < 22 ? 'bob' : v < 44 ? 'ponytail' : style;
+  if (sex !== 'f' && style === 'short') return v < 25 ? 'crew' : v < 45 ? 'side' : style;
+  return style;
+}
+
 /** A look for someone on the street. */
 export function streetLook(r, sex, age = 40) {
   const grey = age > 55 && chance(r, 0.7);
   const hairColor = grey ? pick(r, [0x8f96a6, 0xdfe2e8, 0xb8bdc8]) : pick(r, HAIR.slice(0, 6));
   // (women's hair and men's never the same cut, so who's who reads at a glance: the user, 2026-10-26)
   const style = sex === 'f' ? weighted(r, [['long', 4], ['bun', 3]]) : weighted(r, [['short', 8], ['bald', age > 45 ? 2 : 0.3]]);
-  const look = { skin: weighted(r, SKINS), hair: { style, color: hairColor } };
+  const skin = weighted(r, SKINS);
+  const look = { skin, hair: { style: cutOf(style, sex, hairColor, age, skin), color: hairColor } };
   const top = sex === 'f' ? weighted(r, [['coat', 6], ['sweater', 2], ['dress', 1.2], ['suit', 0.6]]) : weighted(r, [['coat', 6], ['sweater', 2], ['suit', 1.5], ['tee', 0.3]]);
   const color = top === 'coat' || top === 'suit' ? pick(r, COATS) : chance(r, 0.5) ? pick(r, BRIGHT) : pick(r, COATS);
   look.top = { kind: top, color };

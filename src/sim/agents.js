@@ -40,6 +40,7 @@ export const LEAN = 0.04;                                          // how fast a
 export const ROUTE_EVERY = 10;                                     // a follower re-reads the trail every this many ticks
 export const SEARCH_S = 8;                                         // out of sight at the end of what it knows: how long it looks about
 export const KEEP_SIGHT = 0.6;                                     // a follower keeps back at most this much of the eye's reach
+export const START_CONTACT_S = 20;                                // (a chase's first seconds: eyes on him leaving the door: follow())
 export const DOOR_WAIT_S = 120;                                    // seen going in at a door (or guessed to): how long they're waited for
 export const LANE_HEAD_M = 11;                                     // walking straight at a lane's mouth this close (over the road): gone up it
 export const LOOP_M = 2;                                           // a later stretch of trail this much further off still wins
@@ -229,7 +230,9 @@ function faceFor(ux, uz, was) {
  * planned way from the follower to where the target is now (they know where to pick them up).
  */
 export function follow(state, a, target, keep) {
-  a.ai.follow = { id: target.id, keep, trail: [], seenMs: state.time.ms, lost: false, search: 0 };
+  // (a chase begins with eyes on him: for START_CONTACT_S the follower has him as if seen, whatever the
+  // dark, as a team that had the door does; without it, at night from 25 m he was lost leaving his door)
+  a.ai.follow = { id: target.id, keep, trail: [], seenMs: state.time.ms, lost: false, search: 0, contactUntil: state.time.ms + START_CONTACT_S * 1000 };
   const way = routeFrom(townOf(state.map), { row: rowOf(state, a), x: a.x, z: a.z }, { row: rowOf(state, target), x: target.x, z: target.z });
   a.ai.follow.trail = way.pts.map(p => ({ row: p.row, x: p.x, z: p.z, jump: p.jump }));
 }
@@ -241,6 +244,9 @@ export function watchTarget(state, a) {
   const both = onMap(state, a) && onMap(state, t);
   // (two agents both off the loaded street: abstractly, near on the same street is in sight)
   const sees = both ? seesActor(state, a, t) : !onMap(state, a) && !onMap(state, t) && rowOf(state, a) === rowOf(state, t) && !t.hidden && Math.hypot(t.x - a.x, t.z - a.z) < fo.keep * 2 + 8;
+  // (the chase's first seconds: their way known, as the team that had the door knows it; but not in
+  // sight, so none of a watcher's reflexes (walking on past them, looking away): the trail only)
+  const contact = !sees && state.time.ms < (fo.contactUntil ?? 0) && rowOf(state, a) === rowOf(state, t) && !t.hidden;
   // Stopped to check (stop.check: a look back, a glance from a kerb, the glass of a window) where they
   // can see us: eyes elsewhere, as anyone's would be. (We know where they're standing.)
   const toUs = both && !t.hidden && t.ai?.waiting?.check && state.time.ms - fo.seenMs < 2000 && seesActor(state, t, a);
@@ -260,8 +266,9 @@ export function watchTarget(state, a) {
   } else if (fo.door) { a.ai.eyesOn = true; a.head = Math.atan2(Z.front - a.z, fo.door.x - a.x); }   // the door they went in by
   else if (fo.search > 0) { a.ai.eyesOn = true; a.head += 2 * Math.PI / (3 * TPS); }   // looking about: a turn of the head every 3 s
   else a.ai.eyesOn = false;
-  if (!sees) return;
-  fo.seenMs = state.time.ms; fo.search = 0; fo.door = fo.inside = null; fo.triedDoor = false;
+  if (!sees && !contact) return;
+  if (sees) fo.seenMs = state.time.ms;
+  fo.search = 0; fo.door = fo.inside = null; fo.triedDoor = false;
   if (Math.hypot(t.vx, t.vz) > 0.3) fo.v = { vx: t.vx, vz: t.vz };   // (which way they were going when last seen)
   const here = { row: rowOf(state, t), x: t.x, z: t.z };
   if (fo.trail.at(-1)?.guess) { unguess(fo.trail, here); fo.rev = (fo.rev ?? 0) + 1; }   // (the trail's been revised)

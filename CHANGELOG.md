@@ -4,6 +4,15 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc11 (2026-10-27)
+
+- **More haircuts** (your ask). Women: a bob, a ponytail (seen from the front by its knot and its end past the neck). Men: a crew cut, a side part. Of the long and the short, about a third take the new cuts; women's and men's still never the same. Who's about doesn't change, only how their hair's cut.
+- **Mechanic test 3: watching and photographing** (the design's next test). A man from the defence ministry meets someone outside a café on this street, some time in the next quarter of an hour; you have a camera (P). The FSB's minder across the road looks at faces: stand about in the open, stare, or raise a camera where he can see it, and he may make you, and the meeting walks on past. Find a reason to be where you are (a shop window, a kiosk, a café's table), watch (E held), and when they're together, the photograph: both faces, steady, close enough for the light. The result paper shows your print: the frame you took.
+- **Night chases hold** (the losses the cities' check found). A follower starts with eyes on the man for its first 20 seconds, as a team that had his door does: at night from 25 m back, a man who went from his door straight into a lane used to be lost before he was ever seen (7 chases in 108); now 1, and that one mid-chase.
+- **Who the instinct means.** When its line names someone in sight ("the woman in the brown coat: seen before"; in Blown, the hunter who has you), a small white mark bobs over their head.
+- **The last lines are read.** The result paper quotes the scene's last lines, which it used to cover as it came up.
+- **The HUD scales with the screen** (from the UI review). The picture already did; now the words do too: the log's lines, the instinct, the keys, the watch, the sheets and the papers are half as big again at 1920×1080 as at 1280×720, and a little smaller at 1024 wide, where they used to crowd the picture.
+
 ## v0.1.0-rc10 (2026-10-27)
 
 - **Money, and a coat to change into** (your asks: clothes shops for a change of clothes when tailed, and money). Cash on you, shown in the city's money (roubles, pounds, dollars in Beirut, Egyptian pounds), on the sheet (C): about $300 to start. A bite costs, a taxi's fare too (shown on the card: 650 ₽ for two streets), and short of it, no ride. A clothes shop sells a coat off the rail (about $120: 11 400 ₽ in Moscow), worn out of the shop in a colour you weren't wearing, the stained one left behind. Being tailed: watching the door for the old coat, they look straight past you half the time (overt; a covert team 3 times in 10), or they see the change and write it down. In Blown, the description they carry no longer fits.

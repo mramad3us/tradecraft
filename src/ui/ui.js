@@ -67,6 +67,7 @@ export function createUI({ input, cb }) {
   const bubble = el('div', { className: 'bubble', hidden: true });   // what a character's just become aware of: ? or !
   const speech = el('div', { className: 'speech' });                // what's said aloud, in balloons over whoever said it
   const you = el('div', { className: 'you', hidden: true });         // which one is you, when someone's at arm's length
+  const pointed = el('div', { className: 'you pointed', hidden: true });   // whom the instinct's line names (prompt.at)
   const intent = el('div', { className: 'intent', hidden: true });   // in a fight: what they're about to do, if we read it
   const bout = el('div', { className: 'bout', hidden: true });       // in a fight: the two of them, the score, the edges
   const moves = el('div', { className: 'moves', hidden: true });    // in a fight: the three moves and their keys, while we choose
@@ -78,7 +79,7 @@ export function createUI({ input, cb }) {
   const goal = el('div', { className: 'goal', hidden: true });      // where you're going, when it's off the picture
   const prompt = el('div', { className: 'prompt', hidden: true });
   const veil = el('div', { className: 'bloodveil' });                 // (the blood lost: the world dims and reddens at the edges)
-  const hud = el('div', { id: 'hud' }, veil, tags, marker, bubble, intent, ...states, you, speech, reach, ask, talkbox, bout, moves, goal, prompt, watch, toasts, keys, banner);
+  const hud = el('div', { id: 'hud' }, veil, tags, marker, bubble, intent, ...states, you, pointed, speech, reach, ask, talkbox, bout, moves, goal, prompt, watch, toasts, keys, banner);
   const menu = el('div', { className: 'overlay', hidden: true });
   const log = el('div', { className: 'overlay', hidden: true });
   const paper = el('div', { className: 'overlay', hidden: true });     // a brief, a result
@@ -93,6 +94,8 @@ export function createUI({ input, cb }) {
     let w = RES_BASE[0], h = RES_BASE[1];
     if (ww * h > wh * w) w = Math.min(RES_MAX[0], Math.round(h * ww / wh)); else h = Math.min(RES_MAX[1], Math.round(w * wh / ww));
     const s = Math.min(ww / w, wh / h), fw = Math.round(w * s), fh = Math.round(h * s);
+    // (the HUD's type and panels scale with the picture: 1 at 1280 wide (2× the art), 1.5 at 1920, 0.85 at 1024)
+    document.documentElement.style.setProperty('--ui', String(Math.round(Math.max(0.85, Math.min(1.5, s / 2)) * 100) / 100));
     RES[0] = w; RES[1] = h;
     Object.assign(frame.style, { width: `${fw}px`, height: `${fh}px`, left: `${Math.floor((ww - fw) / 2)}px`, top: `${Math.floor((wh - fh) / 2)}px` });
     cb.fit?.(w, h, Math.round(fw * dpr), Math.round(fh * dpr));
@@ -150,7 +153,7 @@ export function createUI({ input, cb }) {
         el('div', { className: 'col' },
           el('h3', { className: 'section', textContent: 'Mechanic tests' }),
           el('p', { className: 'note', textContent: 'One mechanic each, to play and score before they\'re joined into the game.' }),
-          ...[...Object.entries(SCENARIOS).filter(([, s]) => s.test), ['watch', { name: '3. Watching and photographing', about: 'Next: watch someone without being caught at it, and catch a meeting on film.', soon: true }]]
+          ...Object.entries(SCENARIOS).filter(([, s]) => s.test)
             .sort(([, a], [, b]) => a.name.localeCompare(b.name))
             .map(([key, s]) => el('button', { className: 'item', disabled: !!s.soon, onclick: () => cb.newGame(key) }, s.name, el('small', { textContent: s.about }))),
           el('hr'),
@@ -364,6 +367,10 @@ export function createUI({ input, cb }) {
     const meA = state.actors.find(a => a.who === state.player), meAt = meA && view?.posOf(meA.id), camY = view?.camera;
     const crowded = meA && !state.fight && state.actors.some(o => o !== meA && !o.hidden && (o.row ?? state.map.row) === (meA.row ?? state.map.row) && Math.hypot(o.x - meA.x, o.z - meA.z) < 1.3);
     you.hidden = !(crowded && meAt && camY);
+    // (the one the instinct's line names, over their head while it's said and they're in sight)
+    const atP = !sc.outcome && sc.prompt?.at && view?.posOf(sc.prompt.at);
+    pointed.hidden = !(atP && camY);
+    if (!pointed.hidden) pointed.style.transform = `translate(${Math.round((RES[0] / 2 + (atP[0] - camY.x) * 16) * (fw / RES[0]))}px, ${Math.round((RES[1] / 2 + (atP[1] - camY.z) * 16 - 2.4 * 16) * (fw / RES[0]))}px)`;
     if (!you.hidden) you.style.transform = `translate(${Math.round((RES[0] / 2 + (meAt[0] - camY.x) * 16) * (fw / RES[0]))}px, ${Math.round((RES[1] / 2 + (meAt[1] - camY.z) * 16 - 2.15 * 16) * (fw / RES[0]))}px)`;
   }
   // A line with {key} placeholders, the keys as this player has them (a prompt, a toast, the log).
@@ -732,7 +739,7 @@ export function createUI({ input, cb }) {
   // (his sightings of you that you saw happen; the rest you can only suspect)
   const seenText = (sc) => { const n = sc.sightings.filter(x => x.seen !== false).length; return `you saw him spot you ${n} time${n === 1 ? '' : 's'}`; };
   const stampOf = (sc) => (sc.outcome === 'made' && sc.madeSeen === false ? 'SPOOKED' : OUTCOMES[sc.outcome] ?? sc.outcome);
-  function showResult(state, { again, same, title, back = null }, { debug = false } = {}) {
+  function showResult(state, { again, same, title, back = null, photo = null }, { debug = false } = {}) {
     const sc = state.scenario, secs = Math.round((sc.ended - sc.began) / 1000);
     const go = (fn) => () => { paper.hidden = true; paper.dataset.kind = ''; fn(); };
     // (the scene's own words for going again: an evening, a lesson, a walk; the score asked for only in a mechanic test)
@@ -748,10 +755,15 @@ export function createUI({ input, cb }) {
       el('button', { className: 'item', onclick: go(title) }, 'Back to the title'),
     ];
     const own = sc.outcome === 'dead' ? deathPaper(state) : SCENARIOS[sc.kind].result?.(state, { debug });   // (killed: the engine's paper, whatever the scene)
+    // (the last lines before it, which the paper covers: quoted, so they're read)
+    const ends = [own?.text, sc.endText].filter(Boolean), lastLines = state.log.filter(e => !e.hidden && e.kind !== 'roll' && e.ms >= (sc.ended ?? 0) - 20000 && !ends.includes(e.text)).slice(-2);
+    const last = lastLines.length ? el('p', { className: 'note last' }, ...lastLines.flatMap((e, i) => [i ? ' ' : '', ...keyed(e.text)])) : null;
     if (own) {                                                     // a scenario that writes its own paper
       paper.replaceChildren(el('div', { className: 'sheet result' },
         el('span', { className: `stamp ${own.good ? 'good' : ''}`, textContent: own.stamp }),
         el('h2', { textContent: own.title }), el('hr'),
+        last,
+        photo ? el('img', { className: 'photo', src: photo, alt: 'your photograph' }) : null,   // (the frame you took: src/main.js snap())
         el('p', { textContent: localize(state.map?.city, own.text) }),
         own.lead ? el('p', { className: 'lead', textContent: `Lead. ${own.lead}` }) : null,
         ...own.notes.map(t => el('p', { className: 'truth', textContent: localize(state.map?.city, t) })),
@@ -760,6 +772,7 @@ export function createUI({ input, cb }) {
     } else paper.replaceChildren(el('div', { className: 'sheet result' },
       el('span', { className: `stamp ${sc.outcome === 'seen' ? 'good' : ''}`, textContent: stampOf(sc) }),
       el('h2', { textContent: (state.campaign && sc.kind === 'tail' ? `Tailing: ${state.people.orlov?.name ?? ''}` : S.name.replace(/^\d+\.\s*/, '')).toUpperCase() }), el('hr'),
+      last,
       el('p', { textContent: localize(state.map?.city, sc.endText) }),
       sc.lead ? el('p', { className: 'lead', textContent: `Lead. ${sc.lead}` }) : null,
       ...(debug ? unseenOf(state) : []),

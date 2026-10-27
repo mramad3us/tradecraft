@@ -24,7 +24,7 @@ import { shopWord } from './sim/shops.js';
 import { price } from './sim/money.js';
 import { createView } from './render/view.js';
 import { createInput } from './ui/input.js';
-import { createUI } from './ui/ui.js';
+import { createUI, RES } from './ui/ui.js';
 import { putSave, getSave, exportFile, importFile } from './ui/store.js';
 
 const VERSION = (await fetch('VERSION').then(r => (r.ok ? r.text() : '?')).catch(() => '?')).trim();
@@ -83,6 +83,7 @@ function stop() {
 function launch(s, { hour = null } = {}) {
   stop();
   state = s;
+  lastPhoto = null; snapWanted = null;
   bus = createBus();
   view = createView({ parent: ui.frame, bus, month: () => calendar(s.time.ms).month });   // (the season: the trees' leaves, the hedges', the fallen ones)
   ui.frame.prepend(view.canvas);
@@ -94,6 +95,7 @@ function launch(s, { hour = null } = {}) {
   // (the campaign: an assignment taken at the desk, launched after this tick; papers the days bring, one after another)
   bus.on('assignment', (id) => setTimeout(() => launchAssignment(s, id), 0));
   bus.on('papers', (list) => showPapers(list));
+  bus.on('photo', (w) => { snapWanted = w; });                    // (sim/scenarios/watch.js: the frame, at the next draw)
   bus.on('shop', ({ shop, ways }) => ui.openChoices('SHOP', shopWord(shop).replace(/^the /, '').toUpperCase(), ways.map(w => ({ key: w.id, label: w.label })), (key) => acts.push(`shop:${key}`)));   // (sim/shops.js)
   bus.on('taxi', (list) => ui.openChoices('TAXI', 'WHERE TO?', list.map(d => ({ key: d.id, label: `${d.label.charAt(0).toUpperCase() + d.label.slice(1)} · ${price(state, d.fare)}` })), (key) => acts.push(`taxi:${key}`)));   // (sim/taxi.js; the fare, sim/money.js)
   bus.on('scenario-end', () => {
@@ -119,8 +121,9 @@ function launch(s, { hour = null } = {}) {
 /** A test's result paper, with the ways on. */
 function result() {
   const kind = state.scenario.kind, seed = state.seed, chapter = state.scenario.chapter ?? null, city = state.map?.city ?? null;
-  if (state.campaign) return ui.showResult(state, { back: () => backToPosting(state), title: async () => { await autosave(); stop(); showTitle(); } }, settings);
+  if (state.campaign) return ui.showResult(state, { back: () => backToPosting(state), title: async () => { await autosave(); stop(); showTitle(); }, photo: lastPhoto?.url }, settings);
   ui.showResult(state, {
+    photo: lastPhoto?.url,
     again: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city })),
     same: () => launch(newGame({ seed, scenario: kind, version: VERSION, chapter, city })),
     title: async () => { await autosave(); stop(); showTitle(); },
@@ -200,7 +203,7 @@ input.onAction((action) => {
   if (action === 'inventory') { if (open === 'inventory') ui.closeOverlays(); else if (!open) ui.openInventory(state, (cmd) => acts.push(`inv:${cmd}`)); return; }   // (I: what you carry)
   if (action === 'gun' && !open && !paused) acts.push('draw');     // (G: draw the next weapon carried, or put it away: sim/items.js)
   if (action === 'pause' && !open) paused = !paused;
-  if ((action === 'instinct' || action === 'glance') && !open && !paused) acts.push(action);
+  if ((action === 'instinct' || action === 'glance' || action === 'camera') && !open && !paused) acts.push(action);   // (P: a photograph, where a scene has a camera: sim/scenarios/watch.js)
   if ((action === 'hit' || action === 'grapple' || action === 'guard') && !open && !paused) acts.push(input.poll().run ? `${action}+` : action);   // (Shift held: an edge spent)
 });
 addEventListener('keydown', (e) => {                               // debug mode: the clock moves on
@@ -220,6 +223,23 @@ function broke(e) {
   ui.toast({ kind: 'note', text: `Something in the game broke (${e.message}). It carries on; Esc → Save to a file, to report it.` });
 }
 
+// A photograph (sim/scenarios/watch.js, bus 'photo'): the frame as it's drawn, cropped round them,
+// kept (the best of the evening) for the result paper.
+let snapWanted = null, lastPhoto = null;
+function snap() {
+  const w = snapWanted; snapWanted = null;
+  const cam = view?.camera, pts = w.ids.map(id => view.posOf(id)).filter(Boolean);
+  if (!cam || !pts.length || (lastPhoto && lastPhoto.rank > w.rank)) return;
+  const cv = view.canvas, k = cv.width / RES[0], cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cz = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+  const PW = 200, PH = 112, sx = RES[0] / 2 + (cx - cam.x) * 16, sy = RES[1] / 2 + (cz - cam.z) * 16 - 1.4 * 16;
+  if (sx < 0 || sx > RES[0] || sy < 0 || sy > RES[1]) return;      // (off the picture: nothing of them to keep)
+  // (the frame round them, kept inside the picture)
+  const x0 = Math.max(0, Math.min(RES[0] - PW, sx - PW / 2)) * k, y0 = Math.max(0, Math.min(RES[1] - PH, sy - PH / 2)) * k;
+  const out = document.createElement('canvas'); out.width = PW * 2; out.height = PH * 2;
+  const g = out.getContext('2d'); g.imageSmoothingEnabled = false;
+  try { g.drawImage(cv, x0, y0, PW * k, PH * k, 0, 0, out.width, out.height); lastPhoto = { url: out.toDataURL('image/png'), rank: w.rank }; } catch {}
+}
+
 function frame(now) {
   const dt = Math.min(0.25, (now - last) / 1000);
   last = now;
@@ -235,6 +255,7 @@ function frame(now) {
       }
     }
     view.frame(state, prev, live ? acc / (TICK_MS / 1000) : 1, state.time.ms / 1000);
+    if (snapWanted) snap();                                        // (right after the draw, while the buffer holds the frame)
     ui.update(state, paused, view);
     if (++frames === 3) window.__ready = true;
   }

@@ -273,7 +273,7 @@ function* instinct(state, me, now) {
   const sc = state.scenario, L = (id, tone, text, act = null) => ({ id, tone, text, act });
   const near = sc.hunters.map(id => actorOf(state, id)).filter(a => a && rowOf(state, a) === state.map.row && inView(state, a.id)).map(a => [a, Math.hypot(a.x - me.x, a.z - me.z)]).sort((p, q) => p[1] - q[1]);
   const knows = near.find(([a]) => sc.known[a.id]);
-  if (knows) yield L('known', 'urgent', `${cap(state.people[knows[0].who].seen)} has you, ${Math.round(knows[1])} m back, closing. Lose him: people, a lane, a door. Or turn and fight.`);
+  if (knows) yield { ...L('known', 'urgent', `${cap(state.people[knows[0].who].seen)} has you, ${Math.round(knows[1])} m back, closing. Lose him: people, a lane, a door. Or turn and fight.`), at: knows[0].id };
   if (me.gait === 'run' && near.length) yield L('run', 'urgent', 'Don\'t run. A running man is the one they\'re looking for.');
   const e = sc.extract, left = Math.round((sc.deadline - now) / MIN), dr = e.row - state.map.row;
   if (dr === 0 && Math.abs(e.x - me.x) < 2.5) yield L('car', 'warn', 'The driver. {instinct} go.', 'go');

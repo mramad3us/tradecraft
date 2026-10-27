@@ -7,6 +7,7 @@
 // coats and raincoats; Beirut's and Cairo's lighter November, jackets and shirts. Headscarves: some
 // women in London and Beirut, most in Cairo; in Cairo some older men in a galabeya and a skullcap.
 import { int, pick, chance, weighted } from '../rng.js';
+import { cutOf } from '../people.js';
 
 const HAIR = [0x14151c, 0x2a1c18, 0x47302a, 0x6b4636, 0x8f6345, 0xb9862e];
 const GREY = [0x8f96a6, 0xdfe2e8, 0xb8bdc8];
@@ -75,7 +76,7 @@ function cityLook(r, sex, age, { climate = 'cold', scarf = 0, robe = 0, shades =
   const dark = skin === 'brown' || skin === 'dark' || bgd?.bg === 'muslim' || bgd?.bg === 'arab' || bgd?.bg === 'southasian' || bgd?.bg === 'coptic';
   const hairColor = grey ? pick(r, GREY) : dark ? pick(r, HAIR.slice(0, 3)) : pick(r, HAIR);
   const style = sex === 'f' ? weighted(r, [['long', 4], ['bun', 3]]) : weighted(r, [['short', 8], ['bald', age > 45 ? 2 : 0.3]]);
-  const look = { skin, hair: { style, color: hairColor } };
+  const look = { skin, hair: { style: cutOf(style, sex, hairColor, age, skin), color: hairColor } };   // (the finer cut: sim/people.js)
   const cold = climate === 'cold';
   if (sex === 'm' && age > 45 && chance(r, robe)) {                // a galabeya, and often a skullcap
     look.top = { kind: 'robe', color: pick(r, [0xe2dac6, 0xc4bba9, 0x8f96a6, 0x6a7182, 0x47302a, 0x283f6b, 0xf6f4ee]), trim: 0x23252f };

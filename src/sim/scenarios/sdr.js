@@ -527,11 +527,12 @@ function sighting(state, bus, a, roll) {
   const p = a.who ? state.people[a.who] : null, look = p?.look ?? null;
   const f = sc.faces[key] ??= { n: 0, look: a.who ? describe(look, p.sex) : null, crew: !!a.who?.startsWith('fsb'), last: null, rows: [], places: [] };
   if (!f.look) f.look = describeSeed(a.seed, state.map.city);
+  f.id = a.id;                                                      // (who, as they're drawn now: the instinct's pointer, src/ui/ui.js)
   const row = state.map.row, place = placeName(townOf(state.map), row, me.x, me.z);
   // A first look at a face behind you, going your way, is worth a word: it may be nothing.
   if (f.n === 0 && roll.ours && sc.lastCheck !== 'passive') {
     const behind = (a.x - me.x) * sc.heading.dir < -3, along = Math.sign(a.vx) === sc.heading.dir && Math.abs(a.vx) > 0.4;
-    if (behind && along && Math.hypot(a.x - me.x, a.z - me.z) < 28) sc.lead = { look: f.look, ms: state.time.ms };
+    if (behind && along && Math.hypot(a.x - me.x, a.z - me.z) < 28) sc.lead = { look: f.look, ms: state.time.ms, id: a.id };
   }
   // Evidence is following, not merely going the same way (the crowd goes places too, by the same
   // lanes): a face counts again when it's copied a move of ours it had no reason to copy (moving when
@@ -777,8 +778,8 @@ function instinct(state, me, still) {
     return A(L('lane-out', 'note', 'Out of the lane. Stop somewhere natural and watch the mouth of it: whoever comes out after you, see what they do when you don\'t move.'));
   }
   // (a face seen before is enough to call it off, if you'd rather be safe: the reviewer found one sighting left you wandering till you'd missed him)
-  if (familiar.length && !me.glass) return L('familiar', 'note', `${cap(familiar[0].look)}: seen before. Could be nothing: check again somewhere else, or {instinct} call it off, to be safe.`, 'abort');
-  if (sc.lead && now - sc.lead.ms < 12000) return A(L(`lead-${sc.lead.ms}`, 'note', [`Behind you, going your way: ${sc.lead.look}. You'll know that face again.`, `${cap(sc.lead.look)}, a way back, walking your way. Probably nothing. Remember the face.`]));
+  if (familiar.length && !me.glass) return { ...L('familiar', 'note', `${cap(familiar[0].look)}: seen before. Could be nothing: check again somewhere else, or {instinct} call it off, to be safe.`, 'abort'), at: familiar[0].id };
+  if (sc.lead && now - sc.lead.ms < 12000) return A({ at: sc.lead.id, ...L(`lead-${sc.lead.ms}`, 'note', [`Behind you, going your way: ${sc.lead.look}. You'll know that face again.`, `${cap(sc.lead.look)}, a way back, walking your way. Probably nothing. Remember the face.`]) });
   // At a shop window: what it shows, and how to use it.
   if (me.glass && now < g.to) return L(sc.glassS < 7 ? 'glass' : 'glass-stay', 'calm', sc.glassS < 7
     ? ['In the glass, the street behind you, all but the middle of it: that\'s your own back. Who stops when you stop?', 'The glass shows the road behind you. Hold {watch} and slant your eyes along it for the pavement.']
