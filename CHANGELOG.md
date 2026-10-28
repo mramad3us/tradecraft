@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc29 (2026-10-28)
+
+- **R: what's at hand.** T did two jobs: what the instinct's line offered (call off the meeting, the pass, sit with him) and, when the line offered nothing, whatever was at hand (a shop window, a bench, a shop's counter). When the scene had something of its own, the thing at hand couldn't be reached at all: a brush pass you could call off left you no way to look in a window. Now they're two keys. T is the instinct's line; R uses what's at hand, shown after the line as its own chip whatever the line offers. R covers the shop windows, benches, zebras, kiosks, phone boxes, bus shelters, taxis, metro doors, a shop's counter, window ledge, basin and back door, and anything lying within reach. (R was set aside for reloading guns, which aren't in yet; reloading will get a key of its own.) Hale's lessons say R where they mean it.
+- Tests: the ones that used what was at hand press R; perception (R works beside the scene's own offer on T).
+
 ## v0.1.0-rc28 (2026-10-28)
 
 - **The way out of the flat, marked.** A plaque on the wall over the front door (FRONT DOOR, an arrow), the same pixel plaques as the places on the street; the embassy's street door has one too (THE STREET). In the corridor flat a standing mirror had been put in front of the front door, and in two layouts a shoe rack overlapped it, so the door read as a wardrobe: the door's clear now in every flat. By the door the instinct says it's the way down to the street, and on a working morning it says to go out by the front door in the hall (it used to say "its door", meaning the embassy's).

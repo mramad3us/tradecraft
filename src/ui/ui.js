@@ -129,7 +129,7 @@ export function createUI({ input, cb }) {
     if (!keysOpen) { keys.innerHTML = '<kbd>?</kbd> keys'; return; }
     keys.innerHTML = mode === 'fight' ? `${k('hit')} hit · ${k('grapple')} grab · ${k('guard')} cover · ${k('run')} held: spend an edge · ${k('gun')} draw · ${k('interact')} your read · ${k('log')} log · ${k('pause')} pause`
       : mode === 'talk' ? `<kbd>1</kbd>–<kbd>4</kbd> say · ${k('menu')} leave it there`
-      : `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look (tap: glance) · ${k('instinct')} instinct · ${k('interact')} people · ${k('aid')} first aid · ${k('inventory')} carry · ${k('gun')} draw · ${k('sheet')} sheet · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
+      : `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look (tap: glance) · ${k('instinct')} instinct · ${k('use')} use what's at hand · ${k('interact')} people · ${k('aid')} first aid · ${k('inventory')} carry · ${k('gun')} draw · ${k('sheet')} sheet · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
   };
   keyHints();
   setTimeout(() => keyHints(), 300);                               // once the keyboard's layout is known
@@ -390,7 +390,7 @@ export function createUI({ input, cb }) {
           el('kbd', { textContent: input.label('run') }), el('span', { textContent: `+ a key: an edge (${fi.adv.a}); with a cover, hit back` }))] : []));
     }
     // The instinct: always a line, its tone in its border; {key} in the text shows as that key.
-    // What's at hand (the engine's: sim/acts.js affordance()) ends a line that offers nothing itself.
+    // What's at hand (the engine's: sim/acts.js affordance(), on R) ends the line, whatever it offers on T.
     // (in a fight, someone stunned, dazed or staggered: the engine's line on it comes first: sim/fight.js)
     // (in a fight, how things stand; then your own body, if it's more pressing than the scene's line: sim/aid.js)
     // (in a shop: where you are, in place of the scene's line, unless it's urgent: sim/shops.js)
@@ -398,7 +398,7 @@ export function createUI({ input, cb }) {
     const shopLine = inShop && { id: 'inside', tone: 'calm', text: { back: 'Across the yard, between the bins, to the gate: out in the lane beside in a moment.', wash: `In ${shopW}'s toilet, the bolt across, cleaning up.`, eat: `In ${shopW}, eating, your back to the wall.`, coat: `In ${shopW}, the coat on, the tags off.`, sit: `At ${shopW}'s window, a coffee, the street outside: who stops when you do? Move, and you've had enough of it.`, read: `At ${shopW}'s window, the book open, the street at the edge of the page.` }[inShop.way] ?? `In ${shopW}, at the counter.` };
     const sceneP = shopLine && sc.prompt?.tone !== 'urgent' ? shopLine : sc.prompt;
     const body = bodyLine(state), scene = sceneP && body && RANKS[body.tone] <= RANKS[sceneP.tone] ? sceneP : body ?? sceneP;
-    const sp = !sc.outcome && ((state.fight?.phase === 'choose' && statusLine(state)) || scene), off = !sc.outcome && !sp?.act && sp?.tone !== 'urgent' && state.$offer;
+    const sp = !sc.outcome && ((state.fight?.phase === 'choose' && statusLine(state)) || scene), off = !sc.outcome && state.$offer && state.$offer.act !== sp?.act ? state.$offer : null;
     // (the offer a chip of its own after the line, not run on into its sentence)
     const p = sp || off ? { tone: sp?.tone ?? 'calm', text: (sp?.text ?? '').trim(), offer: off ? off.text.trim() : '' } : null;
     prompt.hidden = !p;
@@ -828,7 +828,7 @@ export function createUI({ input, cb }) {
       ...brief.body.map(t => el('p', { textContent: localize(city, t) })),
       el('p', { className: 'note', textContent: brief.footer }), el('hr'),
       brief.keys ? el('ul', { className: 'keylist' }, brief.keys.map(([k, what]) => el('li', {}, el('kbd', { textContent: input.label(k) }), ` ${what}`))) : null,
-      el('button', { className: 'item go', onclick: begin }, 'Begin', el('small', { textContent: `${input.label('instinct')} does what your instinct offers; ${input.label('log')} is the log.` })),
+      el('button', { className: 'item go', onclick: begin }, 'Begin', el('small', { textContent: `${input.label('instinct')} does what your instinct offers; ${input.label('use')} uses what's at hand (a window, a bench, a kiosk); ${input.label('log')} is the log.` })),
     ));
     paper.hidden = false;
     paper.dataset.kind = 'brief';

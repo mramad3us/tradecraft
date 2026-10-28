@@ -33,7 +33,7 @@ export const tailed = {
     { id: 'glance', now: true, when: (s) => s.scenario.glances >= 1,
       say: '"That look over your shoulder: if anyone\'s there, they wrote it down. A look behind you wants a reason. A shop window. A crossing. A turn."' },
     { id: 'window', when: (s) => secs(s) > 30 && !(s.scenario.windows) && paneNear(s, me(s)),
-      say: '"A shop window. Stand at it, {instinct}, and look at the street behind you in the glass. Who stops when you stop?"' },
+      say: '"A shop window. Stand at it, {use}, and look at the street behind you in the glass. Who stops when you stop?"' },
     { id: 'glass', when: (s) => !!me(s)?.glass, say: '"Don\'t stare into it. A few seconds, like a man choosing boots. Faces, coats, who\'s in no hurry. Hold {watch}, and left or right slants your eyes along it: the pavement behind you, that side."' },
     { id: 'face1', when: (s) => faces(s).some(f => f.n === 1),
       say: '"You\'ve marked a face. Hold on to it. If it turns up again somewhere it has no business being, that\'s not a small town, that\'s a team."' },

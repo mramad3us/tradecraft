@@ -34,7 +34,7 @@ export default [
         const c = sendOne(g);
         let hailedAt = null;
         for (let t = 0; t < 600 && !asked.length; t++) {
-          if (hailedAt === null && taxiComing(g, me)) { assert(affordance(g, me)?.act === 'taxi', `${seed}: offered`); step(g, { act: ['instinct'] }, bus); hailedAt = (me.x - c.x) * c.dir; assert(me.gait === 'hail', `${seed}: the arm up`); }
+          if (hailedAt === null && taxiComing(g, me)) { assert(affordance(g, me)?.act === 'taxi', `${seed}: offered`); step(g, { act: ['use'] }, bus); hailedAt = (me.x - c.x) * c.dir; assert(me.gait === 'hail', `${seed}: the arm up`); }
           else step(g, {}, bus);
         }
         assert(asked.length && c.taxi.stopped && Math.abs(c.x - me.x) < 2.5 && c.v === 0, `${seed}: stopped by you, and asked where`);
@@ -52,7 +52,7 @@ export default [
         hail(g); for (let t = 0; t < 10; t++) step(g, {}, bus);
         const c2 = sendOne(g);
         for (let t = 0; t < 600 && !taxiComing(g, me); t++) step(g, {}, bus);
-        step(g, { act: ['instinct'] }, bus);
+        step(g, { act: ['use'] }, bus);
         me.busy = null; me.x += 8 * -c2.dir;
         for (let t = 0; t < 5; t++) step(g, {}, bus);
         assert(!c2.taxi.hail, `${seed}: walked off, it goes`);
@@ -72,7 +72,7 @@ export default [
       for (let t = 0; t < 25; t++) step(g, {}, bus);
       const c = sendOne(g);
       for (let t = 0; t < 600 && !taxiComing(g, me); t++) step(g, {}, bus);
-      step(g, { act: ['instinct'] }, bus);
+      step(g, { act: ['use'] }, bus);
       for (let t = 0; t < 600 && !asked.length; t++) step(g, {}, bus);
       const list = asked[0], t0 = g.time.ms;
       step(g, { act: [`taxi:${list.find(d => d.label === 'four streets south').id}`] }, bus);

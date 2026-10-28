@@ -1,7 +1,9 @@
-// TRADECRAFT sim: what the player can do on a street with T, whatever the scene. It's the engine's,
+// TRADECRAFT sim: what the player can do on a street with R, whatever the scene. It's the engine's,
 // not a scenario's (the user, 2026-10-26: "it's a game engine thing"): affordance() is what's at hand
-// (a shop window, a free seat, a zebra), shown at the end of the instinct's line whenever the scene's
-// own line offers nothing (and isn't urgent), and T does it (sim/game.js). A scene may still offer a
+// (a shop window, a free seat, a zebra), shown after the instinct's line, and R does it (sim/game.js),
+// whatever that line offers on T (the user, 2026-10-28: "'T' as a universal key interferes when
+// several things can be done with it ... when the option to call of the meeting for a brush pass is
+// available, we can't look in a shop"). A scene may still offer a
 // cover of its own (a shoelace, a window as he looks), and acts of its own (sit with him, call it off).
 // act() does it:
 //   - 'window': step to a shop window's glass and look in it (it shows the street behind:
@@ -137,20 +139,20 @@ const COVER = { window: 'look in the window', bench: 'sit on the bench', lace: '
 export function affordance(state, me) {
   if (!me || me.ai || me.busy || me.inside || me.glass || me.gait === 'sit') return null;
   const it = itemNear(state, me);
-  if (it) return { act: 'pickup', text: ` {instinct} pick up ${weaponOf(it.kind)?.name ?? 'it'}.` };
+  if (it) return { act: 'pickup', text: ` {use} pick up ${weaponOf(it.kind)?.name ?? 'it'}.` };
   if (state.map.kind !== 'street' || !sectionAt(state, me.x)) return null;
   // (at the kerb: the zebra if it's there, else a taxi; the window behind you is for the pavement)
   const kerb = atKerb(state, me), cross = crossingNear(state, me, 4);
   // (in a shop: its counter, its window ledge, its basin, its back door; sim/shops.js)
   if (me.within) {
     const sp = spotIn(state, me), w = sp && ways(state, sp.door, sp.kind);
-    return w?.length ? { act: IN_SHOP[sp.kind], text: ` {instinct} ${SHOP_COVER[sp.kind](sp.door.shop)}.` } : null;
+    return w?.length ? { act: IN_SHOP[sp.kind], text: ` {use} ${SHOP_COVER[sp.kind](sp.door.shop)}.` } : null;
   }
   const station = !kerb && stationNear(state, me);                  // (at a station's door: down; sim/metro.js)
   const spot = !station && spotNear(state, me);                      // (a kiosk, a phone box: somewhere to watch from)
-  if (station) return { act: 'metro', text: ` {instinct} down into the ${metroName(state) === 'Underground' ? 'Underground' : 'metro'}.` };
+  if (station) return { act: 'metro', text: ` {use} down into the ${metroName(state) === 'Underground' ? 'Underground' : 'metro'}.` };
   const act = kerb && cross ? 'cross' : spot ? spot.kind : kerb && taxiComing(state, me) ? 'taxi' : paneNear(state, me) ? 'window' : benchNear(state, me) !== null ? 'bench' : cross ? 'cross' : null;
-  return act && { act, text: ` {instinct} ${COVER[act]}.` };
+  return act && { act, text: ` {use} ${COVER[act]}.` };
 }
 /** What T would do here, for the end of an instinct's line: { act, text } (only: the covers allowed). */
 export function offer(state, me, only = null) {

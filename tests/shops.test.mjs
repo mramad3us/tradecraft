@@ -31,7 +31,7 @@ export default [
         const c = spotOf(u, 'counter'), atC = walk(g, c.x, c.z, bus);
         step(g, {}, bus);
         const offer = g.$offer?.text;
-        step(g, { act: ['instinct'] }, bus);
+        step(g, { act: ['use'] }, bus);
         const t0 = g.time.ms;
         step(g, { act: ['shop:browse'] }, bus);
         const browse = (g.time.ms - t0) / 1000, free = !me.inside && !me.hidden && !!me.within;   // (skipped: the minute gone, still in the shop, free to walk)
@@ -39,7 +39,7 @@ export default [
         step(g, {}, bus);
         const offerB = g.$offer?.text;
         const t1 = g.time.ms;
-        step(g, { act: ['instinct'] }, bus);
+        step(g, { act: ['use'] }, bus);
         const yard = (g.time.ms - t1) / 1000;
         console.log(`      ${u.shop} (${fmt(u.x1 - u.x0, 1)} m wide): in at the door ${inside}; at the counter ${atC}, "${offer}", asked: ${asked[0]?.ways.map(w => w.id).join(', ')}; a browse ${fmt(browse, 0)} s of the clock, free at once ${free}; at the back door ${atB}, "${offerB}"; the yard ${fmt(yard, 0)} s of the clock; now ${fmt(u.door - me.x, 1)} m along, ${fmt(Z.front - me.z, 1)} m up the lane; the scene heard ${heard.join(', ')}`);
         assert(inside && atC && atB, 'walked in, to the counter, to the back door');
@@ -165,7 +165,7 @@ export default [
       const w = spotOf(u, 'wash'), there = walk(g, w.x, w.z);
       step(g, {}, null);
       const offer = g.$offer?.text;
-      step(g, { act: ['instinct'] }, null);
+      step(g, { act: ['use'] }, null);
       for (let t = 0; t < 20 * (WASH_S + 5) && me.inside; t++) step(g, {}, null);
       console.log(`      two minutes walking bloody at lunchtime: heat ${heat0} → ${heat1}; the instinct: "${line}"; to a watcher: ${mod}; at ${u.shop}'s basin ${there}: "${offer}"; after it: ${p.bloody ? JSON.stringify(p.bloody) : 'clean'}`);
       assert(heat1 > heat0 && /face/.test(line) && there && /basin/.test(offer) && !p.bloody?.face, 'noticed, said, washed');

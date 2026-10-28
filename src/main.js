@@ -298,7 +298,7 @@ input.onAction((action) => {
   if (action === 'gun' && !open && !paused) acts.push('draw');     // (G: draw the next weapon carried, or put it away: sim/items.js)
   if (action === 'pause' && !open) paused = !paused;
   if (action === 'help') ui.toggleKeys();                           // ("?": the keys, shown or folded)
-  if ((action === 'instinct' || action === 'glance' || action === 'camera') && !open && !paused) acts.push(action);   // (P: a photograph, where a scene has a camera: sim/scenarios/watch.js)
+  if ((action === 'instinct' || action === 'use' || action === 'glance' || action === 'camera') && !open && !paused) acts.push(action);   // (P: a photograph, where a scene has a camera: sim/scenarios/watch.js)
   if ((action === 'hit' || action === 'grapple' || action === 'guard') && !open && !paused) acts.push(input.poll().run ? `${action}+` : action);   // (Shift held: an edge spent)
 });
 addEventListener('keydown', (e) => {                               // debug mode: the clock moves on

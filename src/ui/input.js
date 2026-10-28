@@ -7,12 +7,16 @@
 // poll() is what the sim gets each tick: { mx, mz, run, slow, look }, from the keys held: Shift runs,
 // Alt (Option on a Mac) strolls, E held (longer than TAP_MS) stands still and looks, the move keys
 // turning the eyes. E tapped is the action 'glance': a look over the shoulder, walking on.
+// T is the instinct (what its line offers: sit with him, call it off, answer the telephone); R is what's
+// at hand (a shop window, a counter, a bench, a kiosk, a taxi, something lying there: sim/acts.js), apart,
+// so neither hides the other (the user, 2026-10-28: "'T' as a universal key interferes when several
+// things can be done with it").
 // Everything else is an action fired once on the key going down (pause, the log, the menu…), for the
 // UI to route; and "?", read by the character it types (the user: "put the keybinds behind '?'"), 'help'.
 export const KEYS = {
   up: 'KeyW', left: 'KeyA', down: 'KeyS', right: 'KeyD', run: 'ShiftLeft', slow: 'AltLeft',
   interact: 'KeyF', inventory: 'KeyI', aid: 'KeyH', instinct: 'KeyT', watch: 'KeyE', sheet: 'KeyC', camera: 'KeyP',
-  hit: 'KeyK', grapple: 'KeyL', guard: 'Semicolon', gun: 'KeyG', reload: 'KeyR',
+  hit: 'KeyK', grapple: 'KeyL', guard: 'Semicolon', gun: 'KeyG', use: 'KeyR',
   mindmap: 'Tab', log: 'KeyJ', pause: 'Space', menu: 'Escape',
 };
 const MOVE = { KeyW: [0, -1], ArrowUp: [0, -1], KeyS: [0, 1], ArrowDown: [0, 1], KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0] };

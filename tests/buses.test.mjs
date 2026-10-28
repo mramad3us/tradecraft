@@ -27,7 +27,7 @@ function takeBus(g, which = 'bus0', bus = null) {
   let t = 0;
   for (; t < 25 * 60 * 6 && !(playerActor(g).busy?.what === 'shelter'); t++) {
     const me = playerActor(g);
-    const input = Math.abs(me.x - st.x) < 1.2 && me.z > -2.8 && me.z < -1.6 ? { act: ['instinct'] } : goTo(g, me, g.map.row ?? 0, st.x + 0.6, -2.3);
+    const input = Math.abs(me.x - st.x) < 1.2 && me.z > -2.8 && me.z < -1.6 ? { act: ['use'] } : goTo(g, me, g.map.row ?? 0, st.x + 0.6, -2.3);
     step(g, input, bus);
     if (sc.outcome) return null;
   }

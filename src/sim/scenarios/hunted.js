@@ -69,7 +69,7 @@ export const hunted = {
         'Two safe houses on the way: in and out, a different coat, a minute to breathe. If one of them gets hold of you, fight, or that\'s the end.',
       ],
       footer: `${dateText(sc.began)} · ${clockText(sc.began)}`,
-      keys: [['instinct', 'at a safe house door: in and out; by the driver: go'], ['slow', 'held: stroll'], ['watch', 'held: stop and look'], ['hit', 'in a fight: hit (L grab, M cover)']],
+      keys: [['instinct', 'at a safe house door: in and out; by the driver: go'], ['use', 'what\'s at hand: a window, a taxi, a shop\'s back door'], ['slow', 'held: stroll'], ['watch', 'held: stop and look'], ['hit', 'in a fight: hit (L grab, M cover)']],
     };
   },
 

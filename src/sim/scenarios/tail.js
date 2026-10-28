@@ -149,7 +149,7 @@ export const tail = {
         `${ev.light} You'll see which man he is as he comes out. After that it's your eyes and your training: keep him in sight, keep people between you, keep his pace, and don't stop when he stops. Your instinct will talk you through it.`,
       ],
       footer: `Station Moscow · Tuesday 3 November 2026 · ${hhmm(ev.h, ev.m)}`,
-      keys: [['instinct', 'does what your instinct offers'], ['slow', 'held: stroll, to keep his pace'], ['watch', 'held: stop and look, the move keys turning your eyes (at a shop window, along its glass); on a grey coat, a close look'], ['log', 'the log']],
+      keys: [['instinct', 'does what your instinct offers'], ['use', 'what\'s at hand (a window, a bench, a zebra)'], ['slow', 'held: stroll, to keep his pace'], ['watch', 'held: stop and look, the move keys turning your eyes (at a shop window, along its glass); on a grey coat, a close look'], ['log', 'the log']],
     });
   },
 
@@ -1000,7 +1000,7 @@ export const umbrellaTest = {
         `Be sure it's him: grey coat, grey fedora, a briefcase, like a lot of men in Moscow. ${ev.light}${rainy(state) ? ' It\'s raining: everyone has an umbrella.' : ' It\'s dry: an umbrella will be noticed, a little.'}`,
       ],
       footer: `Station Moscow · Wednesday 4 November 2026 · ${hhmm(ev.h, ev.m)}`,
-      keys: [['instinct', 'what your instinct offers; at arm\'s length, the umbrella; calling it off'], ['watch', 'held: stop and look; on a grey coat, a close look'], ['slow', 'held: stroll'], ['log', 'the log']],
+      keys: [['instinct', 'what your instinct offers; at arm\'s length, the umbrella; calling it off'], ['use', 'what\'s at hand: a shelter, a window'], ['watch', 'held: stop and look; on a grey coat, a close look'], ['slow', 'held: stroll'], ['log', 'the log']],
     };
   },
 

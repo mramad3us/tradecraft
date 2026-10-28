@@ -197,9 +197,12 @@ export function step(state, input = {}, bus) {
     if (act === 'draw') { if (state.fight) fight.drawMove(state, bus, scenario); else if (me) items.use(state, bus, me, 'draw'); continue; }   // (G: sim/items.js; in a fight, it costs the exchange)
     if (String(act).startsWith('inv:')) { if (me && !state.fight) items.use(state, bus, me, act.slice(4)); continue; }   // (the inventory's buttons)
     if (act === 'glance' && me && !me.glance) me.glance = Math.round(GLANCE_S * TICKS_PER_S);
-    // T, when the scene's line offers nothing of its own: what's at hand (sim/acts.js affordance()).
-    const here = act === 'instinct' && !state.fight && !scenario.holds?.(state) && !state.scenario.prompt?.act && state.scenario.prompt?.tone !== 'urgent' && affordance(state, me);
-    if (here) { doAct(state, bus, me, here.act, { toward: scenario.toward?.(state, me), scenario }); continue; }
+    // R: what's at hand (sim/acts.js affordance()), whatever the scene's line offers; T is the line's own.
+    if (act === 'use') {
+      const here = !state.fight && !scenario.holds?.(state) && affordance(state, me);
+      if (here) doAct(state, bus, me, here.act, { toward: scenario.toward?.(state, me), scenario });
+      continue;
+    }
     scenario.act?.(state, bus, act);
   }
   // A fight waiting for a choice, a conversation: time stands still (sim/fight.js, sim/talk.js).

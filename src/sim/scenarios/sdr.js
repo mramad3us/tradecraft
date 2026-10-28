@@ -89,7 +89,7 @@ export const sdr = {
         'If they\'re on you, lose them where they can\'t see you do it, or don\'t go. Walking them to him ends him. Running, doubling back, crossing anywhere: they write it all down, and then they know what you are.',
       ],
       footer: `Station Moscow · Thursday 5 November 2026 · ${clockText(sc.began)}`,
-      keys: [['watch', 'tapped: glance back; held: stop and look'], ['instinct', 'does what your instinct offers (a window, a bench, cross, sit with him, call it off)'], ['slow', 'held: stroll'], ['log', 'the log']],
+      keys: [['watch', 'tapped: glance back; held: stop and look'], ['instinct', 'does what your instinct offers (sit with him, call it off)'], ['use', 'what\'s at hand (a window, a bench, a zebra)'], ['slow', 'held: stroll'], ['log', 'the log']],
     });
   },
 
@@ -785,7 +785,7 @@ export const brushTest = {
         'The FSB may be on you, as on any evening: nobody, an overt pair, a covert team. Check your back on the way. If they\'re on you, don\'t go near him: a pass they see ends him.',
       ],
       footer: `Station Moscow · Thursday 5 November 2026 · ${clockText(sc.began)}`,
-      keys: [['watch', 'tapped: glance back; held: stop and look'], ['instinct', 'does what your instinct offers (a window, cross, the pass, call it off)'], ['slow', 'held: stroll'], ['log', 'the log']],
+      keys: [['watch', 'tapped: glance back; held: stop and look'], ['instinct', 'does what your instinct offers (the pass, call it off)'], ['use', 'what\'s at hand (a window, a zebra)'], ['slow', 'held: stroll'], ['log', 'the log']],
     });
   },
   setup(state, opts) {
@@ -888,7 +888,7 @@ export const dropTest = {
         'The FSB may be on you, as on any evening. Check your back on the way. A drop they see is a trap they sit on, and he walks into it. If they\'re on you, call it off.',
       ],
       footer: `Station Moscow · Thursday 5 November 2026 · ${clockText(sc.began)}`,
-      keys: [['watch', 'tapped: glance back; held: stop and look'], ['instinct', 'does what your instinct offers (a window, cross, load the drop, the chalk, call it off)'], ['slow', 'held: stroll'], ['log', 'the log']],
+      keys: [['watch', 'tapped: glance back; held: stop and look'], ['instinct', 'does what your instinct offers (load the drop, the chalk, call it off)'], ['use', 'what\'s at hand (a window, a zebra)'], ['slow', 'held: stroll'], ['log', 'the log']],
     });
   },
   setup(state, opts) {

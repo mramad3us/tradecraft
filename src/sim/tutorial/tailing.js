@@ -39,7 +39,7 @@ export const tailing = {
     { id: 'who', when: (s) => secs(s) >= 7 && !s.scenario.markGone, say: '"Lisowski\'s coming out now, under my marker: grey coat, grey fedora, briefcase. Let him get twenty metres on before you go."' },
     { id: 'wrong', now: true, when: (s) => s.scenario.marked && s.scenario.marked !== s.scenario.target, say: '"That\'s not him. I can see you both from here. Look for the briefcase."' },
     { id: 'tell', now: true, when: (s) => s.scenario.tell?.read && s.scenario.tell.kind !== 'cross',
-      say: '"See him slow? That\'s a tell: he\'s going to look back. When he does, be doing something: a shop window, {instinct}. Not stopping dead, not staring."' },
+      say: '"See him slow? That\'s a tell: he\'s going to look back. When he does, be doing something: a shop window, {use}. Not stopping dead, not staring."' },
     { id: 'seen-once', now: true, when: (s) => s.scenario.sightings.length === 1,
       say: '"He saw you. Once is nothing: Moscow\'s a small town. Twice and he\'s made you, and we all go home. Drop back, cross over, put people between you."' },
     { id: 'markgone', when: (s) => s.scenario.markGone, say: '"Marker\'s off. From now he\'s what you know of him: the fedora, the briefcase, the walk. Moscow\'s full of grey coats; that\'s what they\'re for."' },

@@ -86,7 +86,7 @@ export default [
         const me = playerActor(g), st = nearestStop(g);
         Object.assign(me, { x: st.x + 0.4, z: -2.2 });
         for (let t = 0; t < 30; t++) step(g, {}, null);
-        step(g, { act: ['instinct'] }, null);
+        step(g, { act: ['use'] }, null);
         let t = 0;
         for (; t < 25 * 60 * 30 && !me.busy?.bus; t++) step(g, {}, null);
         const id = me.busy?.sent, b = g.traffic.cars.find(c => c.id === id);

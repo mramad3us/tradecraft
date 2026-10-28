@@ -120,10 +120,10 @@ export default [
           for (let t = 0; t < 20 * 2; t++) step(g, {}, null);
           const offer = g.$offer, own = g.scenario.prompt;
           assert(offer?.act === want, `${scenario}: ${want} at hand (${JSON.stringify(offer)})`);
-          if (own?.act || own?.tone === 'urgent') { out.push(`${scenario} ${want}: the scene's own "${own.text}" first`); continue; }
-          step(g, { act: ['instinct'] }, null);
+          if (own?.act || own?.tone === 'urgent') out.push(`${scenario} ${want}: R beside the scene's own "${own.text}" on T`);   // (both at once: R's apart from T)
+          step(g, { act: ['use'] }, null);
           for (let t = 0; t < 20 * 5; t++) step(g, {}, null);
-          assert(want === 'window' ? me.glass : me.gait === 'sit', `${scenario}: T ${want === 'window' ? 'looks in the window' : 'sits'}`);
+          assert(want === 'window' ? me.glass : me.gait === 'sit', `${scenario}: R ${want === 'window' ? 'looks in the window' : 'sits'}`);
           out.push(`${scenario} ${want}: "${(own?.text ?? '')}${offer.text}"`.replace('{instinct}', 'T'));
         }
       }

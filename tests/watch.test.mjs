@@ -23,7 +23,7 @@ function run(seed, how) {
     else {
       const dx = sc.cafe.x - me.x, dz = sc.cafe.z - me.z, n = Math.hypot(dx, dz) || 1;
       input = how === 'open' ? { look: true, mx: dx / n, mz: dz / n } : {};   // (the open: staring; the window: just waiting)
-      if (how === 'window' && !me.busy && !me.glass && t % 20 === 0) input = { act: ['instinct'] };
+      if (how === 'window' && !me.busy && !me.glass && t % 20 === 0) input = { act: ['use'] };
     }
     if (sc.phase === 'meet' && t % 40 === 0) input = { ...input, act: ['camera'] };
     step(g, input, null);

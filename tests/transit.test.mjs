@@ -47,8 +47,8 @@ export default [
         if (row !== (g.map.row ?? 0)) loadRow(g, null, row, door.x, { quiet: true });
         Object.assign(me, { row, x: door.x, z: Z.front + 0.8, busy: null });
         for (let t = 0; t < 10; t++) step(g, {}, bus);
-        assert(stationNear(g, me) && affordance(g, me)?.act === 'metro', `${city}: at the station's door, T offers it`);
-        step(g, { act: ['instinct'] }, bus);
+        assert(stationNear(g, me) && affordance(g, me)?.act === 'metro', `${city}: at the station's door, R offers it`);
+        step(g, { act: ['use'] }, bus);
         const list = asked[0]?.list ?? [];
         assert(list.length === network(town).stations.size - 1 && list.every((d, k) => !k || d.minutes >= list[k - 1].minutes), `${city}: every other station, the nearest first`);
         const to = list[list.length - 1], t0 = g.time.ms, cash = cashOf(g.people[g.player]);

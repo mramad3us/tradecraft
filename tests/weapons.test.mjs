@@ -151,12 +151,12 @@ export default [
       const me = playerActor(g), p = g.people[g.player];
       g.items = { taken: {}, dropped: [{ id: 'd1', kind: 'penknife', row: 0, map: 'street', x: me.x + 0.4, z: me.z }, { id: 'd2', kind: 'pipe', row: 0, map: 'street', x: me.x - 0.4, z: me.z }] };
       assert(itemNear(g, me), 'something within reach');
-      step(g, { act: ['instinct'] }, null);
+      step(g, { act: ['use'] }, null);
       const first = p.hand;
       step(g, { act: ['draw'] }, null);
       const stowed = !p.hand && p.items?.includes(first);
       for (let t = 0; t < 30; t++) step(g, {}, null);
-      step(g, { act: ['instinct'] }, null);
+      step(g, { act: ['use'] }, null);
       const second = p.hand;
       step(g, { act: ['draw'] }, null);
       console.log(`      picked up ${first}, put away: ${stowed}; then ${second}, and G: in hand ${p.hand}, carried ${p.items} (${placed(p).out.map(o => o.label).join(', ')})`);

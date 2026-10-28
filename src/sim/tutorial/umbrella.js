@@ -28,7 +28,7 @@ export const umbrella = {
   beats: [
     { id: 'hello', when: (s) => secs(s) >= 1, say: '"Hale. Two ways to do this. Follow him from his door, as on the first night. Or go to his stop, it\'s on the brief, and be there first, waiting like everyone else."' },
     { id: 'rain', when: (s) => secs(s) >= 14, say: '"It\'s raining: everyone has an umbrella, and nobody looks twice at yours. On a dry night, it\'s the one thing they\'d remember."' },
-    { id: 'stop', when: (s) => atStop(s) && !s.scenario.hit.waiting, say: '"His stop. Wait like the others; sit in the shelter if you like, {instinct}, and let the buses go. When he comes, pick him out: there are grey coats here too."' },
+    { id: 'stop', when: (s) => atStop(s) && !s.scenario.hit.waiting, say: '"His stop. Wait like the others; sit in the shelter if you like, {use}, and let the buses go. When he comes, pick him out: there are grey coats here too."' },
     { id: 'him', when: (s) => { const t = him(s); return t && sees(s, t) && s.scenario.hit.waiting; }, say: '"That\'s him, waiting, Ruiz a pace off. Close in among the people waiting. Behind him, not in front."' },
     { id: 'eyes', now: true, when: (s) => s.scenario.hit.eyesSeen, say: '"Ruiz is watching you. Drop back, let him forget you, or call it off, {instinct}."' },
     { id: 'doors', now: true, when: (s) => s.scenario.hit.boarding && !s.scenario.hit.done, say: '"The bus. They\'re crowding to the doors: now or never."' },

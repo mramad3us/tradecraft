@@ -74,7 +74,7 @@ export const watchTest = {
         'He won\'t be alone. The FSB minds its procurement officers, and the minder will be looking at faces round the café before Volkov comes. Don\'t stand about in the open, don\'t stare, and don\'t let him see a camera. A shop window, a kiosk, a café\'s window across the way: reasons to be where you are.',
       ].map(t => sub(state, t)),
       footer: `Station Moscow · ${dateText(sc.began)} · ${clockText(sc.began)}`,
-      keys: [['camera', 'a photograph (both of them in sight)'], ['watch', 'held: stop and watch'], ['instinct', 'does what your instinct offers (a window, a kiosk, a café)'], ['log', 'the log']],
+      keys: [['camera', 'a photograph (both of them in sight)'], ['watch', 'held: stop and watch'], ['instinct', 'does what your instinct offers'], ['use', 'what\'s at hand: a window, a kiosk, a café\'s ledge'], ['log', 'the log']],
     };
   },
 
