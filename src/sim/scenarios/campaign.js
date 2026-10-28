@@ -23,7 +23,7 @@ import { say } from '../log.js';
 import { Z, streetName } from '../map/street.js';
 import { townOf, cityById } from '../cities/index.js';
 import { skip, newMap } from '../game.js';
-import { eat } from '../needs.js';
+import { eat, soothe } from '../needs.js';
 import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, KINDS, WORK } from '../campaign.js';
 import { signOf } from '../places.js';
 import { reading, bookOf, readAnHour } from '../training.js';
@@ -84,7 +84,7 @@ export const campaignHub = {
       if (here) { const me = state.actors.find(a => a.who === state.player), d = spotOf(state, 'desk'); if (me && d) Object.assign(me, { x: d.x, z: d.z, face: 'left', head: headOf('left'), gait: 'idle' }); say(state, bus, { kind: 'note', text: 'Six o\'clock: the cables read, the safe locked, your coat off the back of the chair.' }); }
       else goTo(state, bus, c.posting.embassy, `Six o'clock, and out of the embassy onto ${streetName(townOf({ seed: c.posting.mapSeed, city: c.posting.city }), c.posting.embassy.row)}.`);
     } else if (what === 'sleep') {                                  // (a night's sleep, and breakfast: sim/needs.js; you wake in the flat)
-      until(rest(c, now), state.map.place === 'home' ? 'To bed.' : 'Home, and to bed.'); eat(state.people.me, state.time.ms, 60);
+      until(rest(c, now), state.map.place === 'home' ? 'To bed.' : 'Home, and to bed.'); soothe(state.people.me, 60);   // (rested, calmer: not fed; sim/needs.js)
       if (state.map.place !== 'home' && !state.scenario.outcome) enterHome(state, bus, 'sleep');
     }
     else if (what === 'dress') {                                    // (the wardrobe's way, chosen: sim/clothes.js; a change of clothes takes a few minutes)

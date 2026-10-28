@@ -4,8 +4,9 @@
 // their sheet (p.needs: { ate, stress }); tired is the campaign's (sim/campaign.js fatigue()), hurt the
 // body's (sim/health.js).
 //   - **Hungry:** hours since you ate (p.needs.ate). HUNGRY_H on, −1 to everything; STARVING_H, −2. A
-//     bite in a café, a bakery, a shawarma place (T at its door: sim/shops.js 'eat', EAT_S), a rest
-//     (sim/aid.js), the campaign's days (lunch at the embassy, breakfast and dinner at home) feed you.
+//     bite in a café, a bakery, a shawarma place (sim/shops.js 'eat', EAT_S), a rest (sim/aid.js), the
+//     campaign's days (lunch at the embassy; at home, the kitchen table) feed you; sleep doesn't (soothe()).
+//     Asleep, the hours go on: you wake as long from your last meal as it's been.
 //   - **Stress,** 0–100: up with danger (strain(): a fight begun, a wound, being seen by the man you're
 //     following, a hunter who knows you, a watcher catching you at it), down by itself (CALM_PER_MIN a
 //     minute; SIT_CALM_PER_MIN sitting on a bench, inside, at a table), and with a meal, a rest, a
@@ -38,6 +39,16 @@ export function mods(p, skill) {
   if (s >= FRAYED && EDGY.includes(skill)) out.push({ why: 'frayed nerves', v: -2 });
   else if (s >= ON_EDGE && EDGY.includes(skill)) out.push({ why: 'on edge', v: -1 });
   return out;
+}
+
+/**
+ * Calmer, not fed: a night's sleep (the user, 2026-10-28: "when sleeping, the hunger meter is frozen":
+ * a night used to end in breakfast, so you always woke fed; now you wake as many hours from your last
+ * meal as there were, and the kitchen's there for it).
+ */
+export function soothe(p, calm) {
+  const n = (p.needs ??= { stress: 0 });
+  n.stress = Math.max(0, (n.stress ?? 0) - calm);
 }
 
 /** Fed, now. */

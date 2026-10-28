@@ -4,6 +4,10 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc32 (2026-10-28)
+
+- **Fixed: hunger stood still overnight.** A night's sleep ended in an automatic breakfast, so you always woke fed and the hunger meter looked frozen through the night. Now sleep calms you but doesn't feed you: you wake as many hours from your last meal as it's been (dinner at seven, up at seven: hungry), and the kitchen table at home, a café or a bakery is where breakfast comes from.
+
 ## v0.1.0-rc31 (2026-10-28)
 
 - **A wardrobe at home.** Every flat has its wardrobe (in the studio, its drawers). T there: put on a coat, a jacket, a jumper, a hat or glasses you own, take off a hat or glasses, leave something you're carrying in the drawer, or take it back out. A change of clothes takes four minutes.
