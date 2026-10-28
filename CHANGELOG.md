@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc25 (2026-10-28)
+
+- **The embassy, inside.** At its door, T, and you're in past the Marine: the lobby with his desk (dress blues, the white cover), the arch of the metal detector, the X-ray's belt, the flags; the consular waiting room off it, its rows of chairs and the visa window; through the arch, the corridor, and off it the chief's office, the station behind its vault door, and the tank. People at their places: the Marine, the consular officer, applicants waiting, colleagues at their desks, the chief at his.
+- **Your desk.** One of the station's four is yours. T at it on a working day: sat down, the day's cables, and it's six o'clock, and you're still there; walk out when you like. T in front of the chief's desk: what's on (the desk and its assignments). Out by the street door, onto the embassy's street. Any day, at any hour, the Marine lets you in; only a working day has work in it.
+- Tests: interiors (the embassy in every city: every spot reached from the street door round the furniture and the people; the campaign's: in from its door, to the desk and the day's work there till six, the chief's office, out onto its street).
+
 ## v0.1.0-rc24 (2026-10-27)
 
 - **Shops you walk into.** Every shop along the street has its ground floor now, and you walk in at its door: the building opens like a dollhouse round you (the shop's slot cut out of it from the pavement to the roof; either side, the building as it stood), and there's the shop. A grocer's shelves, fridges and aisle; a bakery's display case and bread racks, its oven in the back; a café's counter and espresso machine, a ledge along its window, the kitchen and the toilet at the back; a clothes shop's rails, fitting room and mirror; a bookshop's shelves; a florist's buckets. Someone's behind every counter. A stock room or a kitchen behind a staff door, and in many, a back door.

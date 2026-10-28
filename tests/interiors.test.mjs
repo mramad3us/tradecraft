@@ -8,10 +8,11 @@ import { NAP_MIN } from '../src/sim/scenarios/campaign.js';
 import { toJSON, fromJSON } from '../src/sim/state.js';
 import { candidates, newCampaign, CALL_S } from '../src/sim/campaign.js';
 import { sectionFor } from '../src/sim/world.js';
+import { interior } from '../src/sim/map/interior.js';
 import { wayAcross } from '../src/sim/interiors/path.js';
 import { walls, wallRect } from '../src/sim/interiors/plan.js';
 import { exitHere } from '../src/sim/interiors/use.js';
-import { calendar, HOUR, MIN, DAY } from '../src/sim/clock.js';
+import { calendar, clockText, HOUR, MIN, DAY } from '../src/sim/clock.js';
 import { createBus } from '../src/sim/bus.js';
 import { assert } from './helpers.mjs';
 
@@ -81,6 +82,58 @@ export default [
         assert(Math.abs((s2.time.ms - t0) / MIN - NAP_MIN) < 1 && up1 < up0 - 2, `${city} ${seed}: a nap: an hour, and less tired (${up0.toFixed(1)} → ${up1.toFixed(1)} h up)`);
         step(s2, { act: ['desk:sleep'] }, bus);
         assert(calendar(s2.time.ms).hour === 7 && Math.floor(s2.time.ms / DAY) === day0 + 1 && s2.map.place === 'home', `${city} ${seed}: to bed, up at seven next day, in the flat`);
+      }
+    },
+  },
+  {
+    name: 'interiors: the embassy in every city: rooms closed but for their doors, your desk and the chief\'s office reached from the street door, round the furniture and the people at their places',
+    fn() {
+      let n = 0;
+      const desks = new Set();
+      for (const city of ['moscow', 'london', 'cairo', 'beirut']) for (let seed = 1; seed <= 12; seed++) {
+        const S = interior({ kind: 'interior', plan: 'embassy', seed, city }), p = S.plan, e = p.exits[0];
+        for (const t of p.spots) {
+          assert(wayAcross(S, (e.x0 + e.x1) / 2, e.z0 - 0.4, t.x, t.z), `${city} ${seed}: ${t.kind} reached from the street door`);
+          n++;
+        }
+        const d = p.spots.find(t => t.kind === 'desk'); desks.add(`${d.seat.x}|${d.seat.z}`);
+        // (closed: a step outside any wall but the doors' is blocked)
+        assert(S.blockers.some(b => b.what === 'building' && b.z0 <= p.z1 && b.z1 >= p.z1 && b.x0 <= p.x0 + 2 && b.x1 >= p.x0 + 2), `${city} ${seed}: the street side walled`);
+        assert(p.staff.some(t => t.who === 'marine') && p.staff.some(t => t.who === 'chief'), `${city} ${seed}: the Marine on the desk, the chief at his`);
+      }
+      console.log(`      48 embassies: ${n} spots reached from the street door; your desk at ${desks.size} of the station's four`);
+    },
+  },
+  {
+    name: 'interiors: the campaign\'s embassy: in from the street past the Marine, to your desk and the day\'s work there till six; the chief\'s office opens the desk; out by the street door onto its street',
+    fn() {
+      for (const city of ['moscow', 'london']) {
+        const seed = 4, c = newCampaign(seed, candidates(seed, city)[0], city), s = newGame({ seed, scenario: 'campaign', campaign: c }), bus = createBus(), opened = [];
+        c.calls = [];
+        bus.on('desk-open', () => opened.push(true));
+        start(s, bus);
+        const me = () => playerActor(s), day = Math.floor(s.time.ms / DAY);
+        step(s, { act: ['desk:travel:embassy'] }, bus);
+        for (let i = 0; i < 25; i++) step(s, {}, bus);
+        assert(s.map.kind === 'street' && s.scenario.prompt?.act === 'embassy', `${city}: at the embassy's door, the way in (${s.scenario.prompt?.text})`);
+        step(s, { act: ['instinct'] }, bus);
+        assert(s.map.place === 'embassy', `${city}: in, the lobby`);
+        const t0 = s.time.ms;
+        s.scenario.prompt = { act: 'work' };
+        step(s, { act: ['instinct'] }, bus);
+        for (let i = 0; i < 1200 && !c.worked[day]; i++) step(s, {}, bus);
+        const desk = s.$world.sections.get(0).plan.spots.find(t => t.kind === 'desk');
+        assert(c.worked[day] && calendar(s.time.ms).hour === 18 && s.map.place === 'embassy' && Math.hypot(me().x - desk.x, me().z - desk.z) < 0.5, `${city}: walked to the desk, worked there till six, still there`);
+        const walked = (s.time.ms - t0) / 1000;
+        s.scenario.prompt = { act: 'chief' };
+        step(s, { act: ['instinct'] }, bus);
+        for (let i = 0; i < 1200 && !opened.length; i++) step(s, {}, bus);
+        assert(opened.length === 1, `${city}: the chief's office: the desk opened`);
+        const e = s.$world.sections.get(0).plan.exits[0];
+        Object.assign(me(), { x: (e.x0 + e.x1) / 2, z: e.z0 + 0.05 });
+        for (let i = 0; i < 25 && s.map.kind === 'interior'; i++) step(s, {}, bus);
+        assert(s.map.kind === 'street' && s.map.row === c.posting.embassy.row && Math.abs(me().x - c.posting.embassy.x) < 0.01, `${city}: out by the street door, onto its street`);
+        console.log(`      ${city}: in at ${clockText(t0)}, at the desk till six (${Math.round(walked / 360) / 10} h), the chief's desk opened, out onto the street at ${clockText(s.time.ms)}`);
       }
     },
   },

@@ -456,10 +456,14 @@ export function createView({ parent, bus, month = () => 11 }) {
       const key = bl || hand || rain ? `${a.who ?? a.seed}~${bl ? Object.keys(bl).sort().join('') : ''}~${hand ?? ''}~${rain ?? ''}` : a.who ?? a.seed;
       people.push({ key, look: bl || hand || rain ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}), ...(rain ? { rainwear: rain } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S) });
     }
-    // (in a shop: whoever's behind each counter of the building, cut away; the view's, not the sim's people)
-    for (const u of opened?.units ?? []) {
-      const key = 7e6 + u.look.seed;
-      people.push({ key, look: lookOf(key), x: u.staff.x, z: u.staff.z, face: 'down', gait: 'idle', stride: 0, phase: 0, tint: lightAt(lamps, u.staff.x, u.staff.z, ms, S) });
+    // (indoors, the view's own people at their places, not the sim's: whoever's behind the counter of the
+    // shop you're in; an interior's staff (the embassy's Marine, its officers, the applicants waiting). Their
+    // looks a passer-by's, the hat and the bag left at the door, unless the plan dresses them)
+    const staff = [...(opened?.units ?? []).map(u => ({ ...u.staff, key: 7e6 + u.look.seed, face: 'down' })),
+      ...(state.map.kind === 'interior' ? state.$world.sections.get(0)?.plan?.staff ?? [] : []).map(p => ({ ...p, key: 8e6 + Math.round(p.x * 10) * 1000 + Math.round(p.z * 10) }))];
+    for (const p of staff) {
+      const lk = p.look ?? indoors(lookOf(p.key));
+      people.push({ key: p.look ? `staff-${p.key}` : p.key, look: lk, x: p.x, z: p.z, face: p.face ?? 'down', gait: p.gait ?? 'idle', stride: 0, phase: 0, tint: lightAt(lamps, p.x, p.z, ms, S) });
     }
     for (const id in aware ? {} : seen) {                          // (and as remembered, those out of sight)
       const r = seen[id];
@@ -518,6 +522,12 @@ export function createView({ parent, bus, month = () => 11 }) {
     });
   }
 
+  // (a look for indoors: no hat but a headscarf or a skullcap, nothing carried)
+  function indoors(look) {
+    if (!look || (!look.carry && (!look.hat || ['hijab', 'skullcap'].includes(look.hat.kind)))) return look;
+    const { carry, hat, ...rest } = look;
+    return hat && ['hijab', 'skullcap'].includes(hat.kind) ? { ...rest, hat } : rest;
+  }
   function lookOf(seed) {
     if (!looks.has(seed)) { looks.set(seed, passerby(seed, city).look); if (looks.size > 600) looks.delete(looks.keys().next().value); }
     return looks.get(seed);

@@ -10,6 +10,10 @@
 //   - 'desk:go:<id>': an assignment: wait (the clock skipped) until its start if it's later today, and
 //     go: the game tells the bus ('assignment'), and the UI launches it (src/main.js) with the
 //     campaign's context (sim/campaign.js context()).
+// Two places are walked into: the flat (up from your door: its bed, its telephone, its window) and the
+// embassy (in at its door, past the Marine and through the arch: your desk, where T is the day's work,
+// till six, and you're still at it when it's done; the chief's office, where T opens the desk; the
+// street door to leave by: sim/interiors/embassy.js).
 // Every skip of the clock is the engine's (sim/game.js skip(): what bleeds bleeds, what heals heals),
 // and the calendar's consequences are the campaign's (pass(): days worked or missed, pay, the week's
 // review), told as papers on the bus ('papers').
@@ -44,10 +48,10 @@ export const campaignHub = {
     state.heat[heatKey('embassy', p.country)] = p.heat;
     state.people.me = structuredClone(c.character);
     state.player = 'me';
-    const row = c.where?.row ?? p.home.row, flat = !c.where || c.where.inside === 'home';
-    // (day one, and whenever the last of the day left you there: the flat; else wherever the last
-    // assignment left you, on its street)
-    state.map = flat ? homeMap(c) : { kind: 'street', seed: p.mapSeed, row, i0: null, i1: null, crowd: 1, city: p.city };
+    const row = c.where?.row ?? p.home.row, flat = !c.where || c.where.inside === 'home', inEmbassy = c.where?.inside === 'embassy';
+    // (day one, and whenever the last of the day left you there: the flat; at work, the embassy; else
+    // wherever the last assignment left you, on its street)
+    state.map = flat ? homeMap(c) : inEmbassy ? embassyMap(c) : { kind: 'street', seed: p.mapSeed, row, i0: null, i1: null, crowd: 1, city: p.city };
     const bed = flat && planOf(state.map).spots.find(s => s.kind === 'sleep');
     const x = c.where?.x ?? (flat ? bed.x : p.home.x ?? 12), z = c.where?.z ?? (flat ? bed.z : -2.6);
     state.actors.push({ id: 'a0', who: 'me', seed: null, row, x, z, vx: 0, vz: 0, face: flat ? 'left' : 'down', head: flat ? Math.PI : Math.PI / 2, gait: 'idle', stride: 0, stuck: 0, ai: null });
@@ -70,11 +74,14 @@ export const campaignHub = {
       if (c.over && !state.scenario.outcome) { Object.assign(state.scenario, { outcome: c.over.why, ended: state.time.ms }); bus?.emit('scenario-end', c.over.why); }
     };
     if (what === 'work') {
-      const to = work(c, now);
+      const to = work(c, now), here = state.map.place === 'embassy';
       if (to === now) return say(state, bus, { kind: 'instinct', text: 'Not a working day, or it\'s over: nobody at the embassy wants you now.' });
-      until(to, 'The metro to the embassy, the guard\'s nod, the day\'s cables.');
+      until(to, here ? 'The day\'s cables, a meeting about the meetings, the canteen at one.' : 'The metro to the embassy, the guard\'s nod, the day\'s cables.');
       eat(state.people.me, state.time.ms - 4 * HOUR, 5);             // (lunch in the canteen: sim/needs.js)
-      if (!state.scenario.outcome) goTo(state, bus, c.posting.embassy, `Six o'clock, and out of the embassy onto ${streetName(townOf({ seed: c.posting.mapSeed, city: c.posting.city }), c.posting.embassy.row)}.`);
+      if (state.scenario.outcome) return;
+      // (at your desk: still there at six, up from it; from anywhere else, the day worked and out of its door)
+      if (here) { const me = state.actors.find(a => a.who === state.player), d = spotOf(state, 'desk'); if (me && d) Object.assign(me, { x: d.x, z: d.z, face: 'left', head: headOf('left'), gait: 'idle' }); say(state, bus, { kind: 'note', text: 'Six o\'clock: the cables read, the safe locked, your coat off the back of the chair.' }); }
+      else goTo(state, bus, c.posting.embassy, `Six o'clock, and out of the embassy onto ${streetName(townOf({ seed: c.posting.mapSeed, city: c.posting.city }), c.posting.embassy.row)}.`);
     } else if (what === 'sleep') {                                  // (a night's sleep, and breakfast: sim/needs.js; you wake in the flat)
       until(rest(c, now), state.map.place === 'home' ? 'To bed.' : 'Home, and to bed.'); eat(state.people.me, state.time.ms, 60);
       if (state.map.place !== 'home' && !state.scenario.outcome) enterHome(state, bus, 'sleep');
@@ -117,6 +124,7 @@ export const campaignHub = {
     // (in the flat: out by its front door, down the stairs, onto the street at your door)
     const me = state.actors.find(a => a.who === state.player);
     if (state.map.place === 'home' && me && !me.busy && exitHere(state, me)) return leaveHome(state, bus);
+    if (state.map.place === 'embassy' && me && !me.busy && exitHere(state, me)) return leaveEmbassy(state, bus);   // (out by the street door)
     // (a spot walked to: what you went there for)
     if (state.scenario.using && me && !me.busy) { const u = state.scenario.using; state.scenario.using = null; if (spotNear(state, me)?.kind === u.spot) use(state, bus, u.act, true); }
     // (a call: the telephone rings in the flat, when it's due and you're there)
@@ -174,6 +182,25 @@ export const homeMap = (c, ms = c.now ?? c.posting.startMs) => ({ kind: 'interio
   boxes: ms < c.posting.startMs + UNPACKED_DAYS * DAY });   // (the first days, the moving boxes not yet unpacked)
 export const UNPACKED_DAYS = 3;
 
+/** The embassy's ground floor, as a map (sim/interiors/embassy.js): its plan from the posting's seed. */
+export const embassyMap = (c) => ({ kind: 'interior', plan: 'embassy', place: 'embassy', seed: hash(c.posting.mapSeed, 'embassy') % 1e9, i0: 0, i1: 0, crowd: 0, row: c.posting.embassy.row, city: c.posting.city });
+
+/** In at the embassy's door, past the Marine: the lobby, a step in from the street. */
+function enterEmbassy(state, bus) {
+  const c = state.campaign, me = state.actors.find(a => a.who === state.player), map = embassyMap(c), plan = planOf(map), e = plan.exits[0];
+  const s = { x: (e.x0 + e.x1) / 2, z: e.z0 - 0.8 };
+  Object.assign(me, { x: s.x, z: s.z, vx: 0, vz: 0, busy: null, face: 'up', head: headOf('up'), hidden: false });
+  newMap(state, bus, map, s.x);
+  c.where = { inside: 'embassy', row: c.posting.embassy.row, x: s.x, z: s.z };
+  say(state, bus, { kind: 'note', text: 'In off the street, your pass to the Marine behind the glass, a nod: the lobby, and the arch of the metal detector.' });
+}
+
+/** Out of the embassy by its street door, onto its street. */
+function leaveEmbassy(state, bus) {
+  const p = state.campaign.posting;
+  goTo(state, bus, p.embassy, `Out past the Marine, onto ${streetName(townOf({ seed: p.mapSeed, city: p.city }), p.embassy.row)}.`, (p.embassy.z ?? Z.front) + 0.8);
+}
+
 /** Into the flat: up the stairs from your door (at 'door'), straight to bed (at 'sleep', the desk's), or back from its window (at 'window'). */
 function enterHome(state, bus, at = 'door') {
   const c = state.campaign, me = state.actors.find(a => a.who === state.player), map = homeMap(c, state.time.ms), plan = planOf(map);
@@ -221,8 +248,8 @@ function use(state, bus, act, here = false) {
   if (!act || !me || state.fight) return;
   if (act === 'home') return enterHome(state, bus, 'door');
   if (act === 'unwindow') return backFromWindow(state, bus);
-  if (act === 'work') return campaignHub.act(state, bus, 'desk:work');   // (in at the embassy's door, and the day's work: out at six)
-  const kind = { phone: 'phone', call: 'phone', sleep: 'sleep', wash: 'wash', eat: 'eat', window: 'window', read: 'read' }[act], s = kind && spotOf(state, kind);
+  if (act === 'embassy') return enterEmbassy(state, bus);
+  const kind = { phone: 'phone', call: 'phone', sleep: 'sleep', wash: 'wash', eat: 'eat', window: 'window', read: 'read', work: 'desk', chief: 'chief' }[act], s = kind && spotOf(state, kind);
   if (!s) return;
   if (!here && Math.hypot(me.x - s.x, me.z - s.z) > SPOT_REACH_M) { walkTo(state, me, s); state.scenario.using = { act, spot: kind }; return; }
   if (act === 'phone') {
@@ -239,6 +266,14 @@ function use(state, bus, act, here = false) {
     else bus?.emit('bed', [{ key: 'sleep', label: 'Sleep till seven tomorrow' }, { key: 'rest:nap', label: `A nap: an hour, and ${NAP_EASES_H} hours' tiredness gone` }, { key: 'rest:lie', label: 'Lie down half an hour: the nerves settle' }]);
   }
   else if (act === 'window') lookOut(state, bus);
+  else if (act === 'work') {                                        // (sat at your desk, and the day's work: sim/campaign.js work())
+    const k = calendar(state.time.ms);
+    if (k.weekday >= 5 || k.hour >= WORK.to || c.worked[Math.floor(state.time.ms / DAY)]) return say(state, bus, { kind: 'instinct', text: 'Not a working day, or it\'s over: nothing in the tray that won\'t keep.' });
+    const seat = s.seat ?? s;
+    Object.assign(me, { x: seat.x, z: seat.z, vx: 0, vz: 0, face: seat.face ?? 'down', head: headOf(seat.face ?? 'down'), gait: 'sit' });
+    campaignHub.act(state, bus, 'desk:work');
+  }
+  else if (act === 'chief') { say(state, bus, { kind: 'note', text: 'The chief looks up from a cable, takes his glasses off: "What have we got?"' }); bus?.emit('desk-open'); }   // (the desk: what's on, src/ui/ui.js)
   else if (act === 'read') {                                       // (an hour with the book on the go: sim/training.js)
     const p = state.people.me, lang = c.posting.city === 'london' ? 'ru' : cityById(c.posting.city).lang ?? 'ru';
     skip(state, bus, 60 * MIN);
@@ -261,6 +296,8 @@ const SPOT_LINE = {
   eat: () => ['The kitchen table. {instinct}: something to eat.', 'eat'],
   cook: () => ['The cooker. {instinct}: something to eat.', 'eat'],
   window: () => ['The window, over the street. {instinct}: look out, from behind the curtain.', 'window'],
+  desk: (state) => { const c = state.campaign, k = calendar(state.time.ms); return k.weekday < 5 && !c.worked[Math.floor(state.time.ms / DAY)] && k.hour < WORK.to ? [`Your desk, the in-tray. {instinct}: the day's cables, till six.`, 'work'] : ['Your desk: nothing in the tray that won\'t keep till tomorrow.', null]; },
+  chief: () => ['The chief\'s office. {instinct}: what\'s on.', 'chief'],
   read: (state) => { const b = reading(state.people.me); return b ? [`The armchair. {instinct}: an hour with ${bookOf(b.id).title}.`, 'read'] : ['The armchair, and nothing to read but the takeaway menus. A bookshop would help.', null]; },
 };
 
@@ -286,10 +323,10 @@ function instinct(state, c, now) {
   } else if (me && state.map.kind === 'street' && state.map.row === p.home.row && p.home.x !== undefined && Math.abs(me.x - p.home.x) < 1.2 && me.z < (p.home.z ?? Z.front) + DOORSTEP_M) {
     return L('home-door', 'calm', 'Your building. {instinct}: up to the flat.', 'home');
   } else if (me && state.map.kind === 'street' && state.map.row === p.embassy.row && p.embassy.x !== undefined && Math.abs(me.x - p.embassy.x) < 1.6 && me.z < (p.embassy.z ?? Z.front) + DOORSTEP_M) {
-    // (at the embassy's door: in to work, on a working day not yet worked; early, the day starts when you do)
+    // (at the embassy's door: in, to your desk on a working day not yet worked; any other time, in all the same)
     const k0 = calendar(now);
-    if (k0.weekday < 5 && !c.worked[Math.floor(now / DAY)] && k0.hour < WORK.to) return L('work-door', 'note', `The embassy. {instinct}: in to work, till six${k0.hour < WORK.from ? ' (early: the coffee\'s on)' : ''}.`, 'work');
-    return L('work-shut', 'calm', k0.weekday >= 5 ? 'The embassy: the weekend. The Marine at the desk wouldn\'t thank you.' : 'The embassy: your day\'s done here.');
+    if (k0.weekday < 5 && !c.worked[Math.floor(now / DAY)] && k0.hour < WORK.to) return L('work-door', 'note', `The embassy. {instinct}: in, to your desk${k0.hour < WORK.from ? ' (early: the coffee\'s on)' : ''}.`, 'embassy');
+    return L('work-shut', 'calm', `The embassy${k0.weekday >= 5 ? ': the weekend, the Marine and the flag' : ': your day\'s done here'}. {instinct}: in all the same.`, 'embassy');
   }
   const next = agenda(c, now)[0];
   const k = calendar(now), today = Math.floor(now / DAY), worked = c.worked[today];
@@ -300,9 +337,10 @@ function instinct(state, c, now) {
   }
   const tired = fatigue(c, now);
   if (tired.v) return L(`tired-${tired.word}`, tired.v <= -3 ? 'warn' : 'note', `${Math.floor(tired.h)} hours awake: ${tired.word}, ${tired.v} to everything. ${state.map.place === 'home' ? '{instinct}: to bed.' : '{mindmap}: the desk, and sleep.'}`, state.map.place === 'home' ? 'sleep' : null);
-  // (in the flat, what's at hand: the bed, the telephone, the basin, the kitchen)
-  const s = state.map.place === 'home' && me && !me.busy && spotNear(state, me), line = s && SPOT_LINE[s.kind]?.(state);
+  // (in the flat, what's at hand: the bed, the telephone, the basin, the kitchen; at the embassy, your desk, the chief's)
+  const s = (state.map.place === 'home' || state.map.place === 'embassy') && me && !me.busy && spotNear(state, me), line = s && SPOT_LINE[s.kind]?.(state);
   if (line) return L(`spot-${s.kind}`, 'calm', line[0], line[1]);
+  if (state.map.place === 'embassy') return k.weekday < 5 && !worked && k.hour < WORK.to ? L('work-in', 'note', 'The station: through the arch, behind the vault door off the corridor. Your desk\'s in there.') : null;
   if (k.weekday < 5 && !worked && k.hour >= 7 && k.hour < WORK.to - 2) return L('work', 'note', `A working day: the embassy expects you${k.hour < WORK.from ? ' at nine' : ''}. Its door, {instinct}; or {mindmap}: the desk.`);
   if (k.hour >= 23 || k.hour < 5) return L('late', 'calm', `${clockText(now)}. Bed, sooner or later: {mindmap}.`);
   return next ? L(`later-${next.a.id}`, 'calm', `Next: ${KINDS[next.a.kind].name.toLowerCase()}, ${dayWord(next.a.from, now)} at ${clockText(next.a.from)}. Heat: ${heatWord(c.posting.heat)}.`) : null;
