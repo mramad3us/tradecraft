@@ -14,13 +14,16 @@
 //     looks past you as you come out; a book (a bookshop's shelf: sim/training.js); the gym's, the
 //     club's, the school's hours (sim/training.js; the hours skipped, as an action that takes time);
 //   - the ledge in the window (a café's, a bar's, a kebab shop's: WINDOW_TABLES): a coffee stood at it,
-//     watching the street through the glass (SIT_S), or an hour there with the book on the go;
+//     watching the street through the glass (SIT_S, lived through: move, and you've had enough of it),
+//     or an hour there with the book on the go;
 //   - the basin (a café's toilet: TOILETS), the blood off your face (sim/notice.js);
 //   - the back door (where the shop has one: sim/backways.js): the yard behind and its gate, out of
 //     sight (YARD_S), and out in the lane beside the building (BACK_IN_M up it). Whoever waited at the
 //     front waits for nothing (sim/agents.js: two minutes at the door, then lost). The yard itself, and a
 //     lane across the backs, wait for the blocks' insides (DESIGN.md, Next).
-// What's done takes its time with your feet the shop's (me.inside: { way, until }), seen through the
+// What's done takes its time (me.inside: { way, until }), skipped as any action that takes time is
+// (sim/game.js skip()): the clock moves on, and you're free at once, where you stood. Only the window's
+// coffee is lived through (LIVED), your feet the window's till it's drunk or you move. Seen through the
 // window if you're in sight of it; only the yard has you out of sight (a.hidden).
 import { Z } from './map/street.js';
 import { backLaneAt, backWayAt, BACK_REACH_M, BACK_IN_M, BACKWAYS } from './backways.js';
@@ -37,7 +40,11 @@ import { unitAt, SPOT_REACH_M } from './interiors/use.js';
 import { floorKind } from './interiors/shop.js';
 
 export const BROWSE_S = 40;
-export const YARD_S = 20, LONG_S = 10 * 60;                       // (the yard and its gate; a way that long has its time skipped)
+export const YARD_S = 20;                                          // (the yard and its gate)
+// (what's done in a shop is an action that takes time: the clock skips it, and your feet are yours again at
+// once; the user, 2026-10-28: "went to buy a book in a bookstore, never came out even after 3 minutes".
+// Only the window's coffee is lived through, the street watched in real time, and moving ends it)
+export const LIVED = new Set(['sit']);
 export const WASH_S = 90;
 export const COAT_S = 150;
 export const SIT_S = 180;
@@ -140,7 +147,7 @@ export function doWay(state, bus, me, way, scenario) {
   if (cost && !pay(state, bus, ...cost)) return false;
   if (book && !pay(state, bus, book.usd, 'the book')) return false;
   const secs = { back: YARD_S, wash: WASH_S, eat: EAT_S, coat: COAT_S, sit: SIT_S, train: GYM_S, class: CLASS_S, lesson: LESSON_S, read: READ_S }[way] ?? (book ? BUY_S : BROWSE_S);
-  me.inside = { x: d.x, shop: d.shop, way, book: book?.id, until: state.time.ms + secs * 1000, row: state.map.row ?? 0, long: secs >= LONG_S };
+  me.inside = { x: d.x, shop: d.shop, way, book: book?.id, until: state.time.ms + secs * 1000, row: state.map.row ?? 0, long: !LIVED.has(way) };
   Object.assign(me, { x: sp.x, z: sp.z, vx: 0, vz: 0, busy: null, glass: false, gait: 'idle', face: sp.face ?? 'up' });
   me.head = { up: -Math.PI / 2, down: Math.PI / 2, left: Math.PI, right: 0 }[me.face] ?? -Math.PI / 2;
   if (way === 'back') me.hidden = true;                             // (the yard: out of everyone's sight)
@@ -193,7 +200,7 @@ export function insideTick(state, bus, me, scenario) {
     (p.books ??= []).push({ id: ins.book, read: 0 });
     say(state, bus, { kind: 'note', text: `${bookLine(bookOf(ins.book))}: paid for, and in your pocket.` });
   } else if (ins.way === 'read') { eat(p, state.time.ms, 6); say(state, bus, { kind: 'note', text: readAnHour(p, langHere(state)) ?? 'Nothing left to read.' }); }
-  else if (ins.way === 'sit') { eat(p, state.time.ms, 12); say(state, bus, { kind: 'note', text: 'The coffee drunk, the street watched: whoever was out there for three minutes, you\'ve seen.' }); }
+  else if (ins.way === 'sit') { eat(p, state.time.ms, ins.cut ? 6 : 12); say(state, bus, { kind: 'note', text: ins.cut ? 'Half the coffee left on the ledge: you\'ve seen enough of the street.' : 'The coffee drunk, the street watched: whoever was out there for three minutes, you\'ve seen.' }); }
   else if (ins.way === 'eat') { eat(p, state.time.ms, 8); say(state, bus, { kind: 'note', text: 'Something hot, eaten standing up, and a minute of nobody looking at you. Better.' }); }
   else if (ins.way === 'wash' && p?.bloody) {
     // (the face comes clean in cold water; a coat doesn't: darker, smaller, still there)

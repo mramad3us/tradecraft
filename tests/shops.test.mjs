@@ -18,7 +18,7 @@ import { assert, fmt } from './helpers.mjs';
 
 export default [
   {
-    name: 'shops: walked in at the door (the scene hears); T at the counter, a minute there, in sight; out the back door: the yard, out in the lane beside',
+    name: 'shops: walked in at the door (the scene hears); T at the counter, a minute\'s browse (the clock skips it, the feet free at once); out the back door: the yard, out in the lane beside',
     fn() {
       const g = newGame({ seed: 4, scenario: 'walk' });
       start(g, null);
@@ -34,22 +34,51 @@ export default [
         step(g, { act: ['instinct'] }, bus);
         const t0 = g.time.ms;
         step(g, { act: ['shop:browse'] }, bus);
-        const seen = !me.hidden && !!me.inside;
-        for (let t = 0; t < 20 * (BROWSE_S + 2) && me.inside; t++) step(g, { mx: 1 }, bus);   // (pushing to walk: the feet are the shop's)
-        const browse = (g.time.ms - t0) / 1000;
+        const browse = (g.time.ms - t0) / 1000, free = !me.inside && !me.hidden && !!me.within;   // (skipped: the minute gone, still in the shop, free to walk)
         const b = spotOf(u, 'back'), atB = walk(g, b.x, b.z, bus);
         step(g, {}, bus);
         const offerB = g.$offer?.text;
         const t1 = g.time.ms;
         step(g, { act: ['instinct'] }, bus);
-        const hidden = me.hidden;
-        for (let t = 0; t < 20 * (YARD_S + 2) && me.inside; t++) step(g, {}, bus);
-        console.log(`      ${u.shop} (${fmt(u.x1 - u.x0, 1)} m wide): in at the door ${inside}; at the counter ${atC}, "${offer}", asked: ${asked[0]?.ways.map(w => w.id).join(', ')}; a browse ${fmt(browse, 0)} s, in sight ${seen}; at the back door ${atB}, "${offerB}"; the yard ${fmt((g.time.ms - t1) / 1000, 0)} s, out of sight ${hidden}; now ${fmt(u.door - me.x, 1)} m along, ${fmt(Z.front - me.z, 1)} m up the lane; the scene heard ${heard.join(', ')}`);
+        const yard = (g.time.ms - t1) / 1000;
+        console.log(`      ${u.shop} (${fmt(u.x1 - u.x0, 1)} m wide): in at the door ${inside}; at the counter ${atC}, "${offer}", asked: ${asked[0]?.ways.map(w => w.id).join(', ')}; a browse ${fmt(browse, 0)} s of the clock, free at once ${free}; at the back door ${atB}, "${offerB}"; the yard ${fmt(yard, 0)} s of the clock; now ${fmt(u.door - me.x, 1)} m along, ${fmt(Z.front - me.z, 1)} m up the lane; the scene heard ${heard.join(', ')}`);
         assert(inside && atC && atB, 'walked in, to the counter, to the back door');
-        assert(/counter/.test(offer) && asked[0]?.ways.some(w => w.id === 'browse') && seen && browse >= BROWSE_S, 'the counter offered; a minute there, in sight');
-        assert(/back door/.test(offerB) && hidden && !me.hidden && !me.within && g.map.row === 0 && me.z < Z.front - 3 && Math.abs(me.x - u.door) < BACK_REACH_M, 'out the back, out of sight, up the lane beside');
+        assert(/counter/.test(offer) && asked[0]?.ways.some(w => w.id === 'browse') && free && browse >= BROWSE_S, 'the counter offered; a minute of the clock, free at once');
+        assert(/back door/.test(offerB) && yard >= YARD_S && !me.hidden && !me.within && g.map.row === 0 && me.z < Z.front - 3 && Math.abs(me.x - u.door) < BACK_REACH_M, 'out the back, out of sight, up the lane beside');
         assert(heard.join() === 'in:front,out:back', 'the scene heard in at the front, out at the back');
       } finally { delete SCENARIOS.walk.onShop; }
+    },
+  },
+  {
+    name: 'shops: what\'s bought is skipped (a book: the clock three minutes on, the feet free at once); the window\'s coffee is lived, the street watched, and moving ends it',
+    fn() {
+      const g = newGame({ seed: 6, scenario: 'walk' });
+      start(g, null);
+      const me = playerActor(g), p = g.people[g.player];
+      p.cash = 5000;
+      for (let t = 0; t < 10; t++) step(g, {}, null);
+      const b = atDoor(g, (o) => o.shop === 'books');
+      walkIn(g, b);
+      const c = spotOf(b, 'counter');
+      walk(g, c.x, c.z);
+      const t0 = g.time.ms, tick0 = g.tick;
+      step(g, { act: ['shop:book:grammar'] }, null);
+      const book = { mins: (g.time.ms - t0) / 60000, ticks: g.tick - tick0, free: !me.inside, got: p.books?.some(x => x.id === 'grammar') };
+      walk(g, b.door, Z.front + 0.8);
+      const u = atDoor(g, (o) => o.spots.some(s => s.kind === 'sit'));
+      walkIn(g, u);
+      const w = spotOf(u, 'sit');
+      walk(g, w.x, w.z);
+      step(g, {}, null);
+      step(g, { act: ['shop:sit'] }, null);                              // (the coffee, of the two the window offers now: a book's on the go)
+      const way = me.inside?.way, t1 = g.time.ms;
+      for (let t = 0; t < 20 * 20; t++) step(g, {}, null);
+      const still = me.inside?.way === 'sit';
+      step(g, { mx: 1 }, null);
+      const lived = (g.time.ms - t1) / 1000;
+      console.log(`      a grammar: ${fmt(book.mins, 1)} min of the clock in ${book.ticks} tick, free at once ${book.free}, in the pocket ${book.got}; at ${u.shop}'s window: "${way}", 20 s in still at it ${still}, moved: done after ${fmt(lived, 0)} s lived (${g.log.at(-1).text})`);
+      assert(book.mins >= 3 && book.ticks <= 1 && book.free && book.got, 'the book: skipped, bought');
+      assert(way === 'sit' && still && !me.inside && lived < 25, 'the coffee: lived, ended by moving');
     },
   },
   {
@@ -73,6 +102,7 @@ export default [
         walk(g, c.x, c.z);
         step(g, { act: ['shop:browse'] }, null);
         for (let t = 0; t < 20 * (BROWSE_S + 2) && playerActor(g).inside; t++) step(g, {}, null);
+        for (let t = 0; t < 20 * 15; t++) step(g, {}, null);              // (a while in there, lived: the browse itself is skipped)
         // (one of them where the door can be seen, out on the street: not in after you)
         waited += sc.crew.some(c => { const a = c.id && g.actors.find(o => o.id === c.id); return a && Math.abs(a.x - u.door) < 15 && a.z > Z.front && !a.within; });
         if (back) {

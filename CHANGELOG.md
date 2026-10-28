@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc27 (2026-10-28)
+
+- **Fixed: stuck at the counter.** Buying something in a shop (a book, a coat, a bite), a minute's browse, the basin, the yard out the back: each held your feet for its full time in real time, minutes of nothing with no way out, and buying a book looked like never coming out. Now each is an action that takes time: the clock jumps on (three minutes for a book) and you can walk at once. The coffee at a café's window is still lived through, since watching the street is the point of it, and now you can walk away from it whenever you like, leaving half the coffee.
+- Tests: shops (a book bought: three minutes of the clock in a tick, free at once; the window's coffee lived, and moving ends it; a browse and the yard skipped).
+
 ## v0.1.0-rc26 (2026-10-28)
 
 - **A first tour.** New officers start at the bottom now: a junior fresh from the Farm (24 to 29, a little greener on the street), Station London, under cover in the embassy's Office of the Legal Attaché: on paper the FBI's, in fact the station's liaison with MI5. No network of your own: with MI5's watchers you follow two of the Russian residency's officers to whoever they meet, and photograph them at it.
