@@ -137,7 +137,7 @@ export function bodyLine(state) {
   // (the needs: sim/needs.js)
   const nw = needsWords(p, state.time.ms);
   if (nw.edgy && (p.needs?.stress ?? 0) >= 75) return { id: 'need-frayed', tone: 'warn', text: 'Frayed: your eyes keep going over your shoulder on their own. Somewhere to sit, a hot drink, and it passes.' };
-  if (nw.hungry) return { id: 'need-hungry', tone: 'calm', text: `Hungry: ${nw.fed.replace(/^hungry \(|^starving \(/, '').replace(/\)$/, '')} since you ate. A café, a bakery (T at its door): two minutes.` };
+  if (nw.hungry) return { id: 'need-hungry', tone: 'calm', text: `Hungry: ${nw.fed.replace(/^hungry \(|^starving \(/, '').replace(/\)$/, '')} since you ate. A café, a bakery: in, and {use} at the counter: two minutes.` };
   if (nw.edgy) return { id: 'need-edge', tone: 'calm', text: 'On edge. It shows in the little things: a bench, a café, a few minutes, and it eases.' };
   // (nothing bleeding, but it shows: sim/notice.js; a café's toilet washes it off, sim/shops.js)
   if (p.bloody?.face !== undefined) return { id: 'body-bloody', tone: 'note', text: 'Blood on your face: people remember a face like that. A café\'s or a bar\'s toilet will wash it off.' };

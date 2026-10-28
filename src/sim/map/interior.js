@@ -23,7 +23,11 @@ export function planOf(map) {
     windows: p.windows.map(o => (o.axis === 'x' ? { ...o, a: o.a + ox, b: o.b + ox } : { ...o, at: o.at + ox })),
     windowsS: (p.windowsS ?? []).map(o => ({ ...o, a: o.a + ox, b: o.b + ox })),
     items: p.items.map(it => ({ ...it, x: it.x + ox })), spots: p.spots.map(s => ({ ...s, x: s.x + ox, ...(s.seat ? { seat: { ...s.seat, x: s.seat.x + ox } } : {}) })), lights: p.lights.map(l => ({ ...l, x: l.x + ox })),
-    decor: (p.decor ?? []).map(d => ({ ...d, x: d.x + ox })), staff: (p.staff ?? []).map(s => ({ ...s, x: s.x + ox })),
+    decor: (p.decor ?? []).map(d => ({ ...d, x: d.x + ox })),
+    // (an embassy's people's places: sim/interiors/staffing.js)
+    staff: (p.staff ?? []).map(s => ({ ...s, x: s.x + ox, ...(s.approach ? { approach: { ...s.approach, x: s.approach.x + ox } } : {}) })),
+    seats: (p.seats ?? []).map(s => ({ ...s, x: s.x + ox, approach: { ...s.approach, x: s.approach.x + ox } })), window: p.window && { ...p.window, x: p.window.x + ox },
+    errands: (p.errands ?? []).map(e => ({ ...e, x: e.x + ox })),
   };
 }
 
@@ -36,8 +40,6 @@ export function interior(map) {
   for (const w of W) block(wallRect(w), 'building');
   // (beyond a door out: a step into it, no further; the dark round the plan, solid. A door in the back wall, or in the street side's)
   for (const e of plan.exits) block(e.side === 's' ? { x0: e.x0 - 0.3, z0: e.z1 + 0.4, x1: e.x1 + 0.3, z1: e.z1 + 1.2 } : { x0: e.x0 - 0.3, z0: e.z0 - 1.2, x1: e.x1 + 0.3, z1: e.z0 - 0.4 }, 'building');
-  // (whoever's at their place in it, at it: src/render/view.js draws them)
-  for (const s of plan.staff ?? []) block({ x0: s.x - 0.22, z0: s.z - 0.22, x1: s.x + 0.22, z1: s.z + 0.22 }, 'furniture');
   for (const it of plan.items) if (FURNITURE[it.kind]?.block !== false) block(footprint(it), 'furniture');
   // The lights: one a room, over its middle (sim/light.js reads them as the street's lamps).
   for (const l of plan.lights) S.lamps.push({ r: l.r, color: l.color ?? 0xf8e8c0, core: 0.3, ring: 0.1, x: l.x, z: l.z });

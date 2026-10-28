@@ -28,6 +28,8 @@ import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, KIND
 import { signOf } from '../places.js';
 import { reading, bookOf, readAnHour } from '../training.js';
 import { dress, wardrobeWays, unpack, DRESS_S } from '../clothes.js';
+import { staffTick, think as staffThink } from '../interiors/staffing.js';
+import { follow } from '../crowd.js';
 import { planOf } from '../map/interior.js';
 import { spotNear, spotOf, exitHere, walkTo, SPOT_REACH_M } from '../interiors/use.js';
 import { hash } from '../rng.js';
@@ -140,7 +142,13 @@ export const campaignHub = {
     if (call && state.map.place === 'home' && !call.rang) { call.rang = now; say(state, bus, { kind: 'note', text: 'The telephone rings.' }); }
     // (let ring, it stops: Hale, most likely; his number's on the pad by it, and he'll be glad to hear from you)
     if (call?.rang && now - call.rang > RING_S * 1000) { call.done = now; call.missed = true; say(state, bus, { kind: 'note', text: 'The telephone stops. Hale, most likely: his number\'s on the pad by it.' }); }
+    if (state.map.place === 'embassy') staffTick(state, bus, state.$world.sections.get(0));   // (its people through the day: sim/interiors/staffing.js)
     state.scenario.prompt = instinct(state, c, now);
+  },
+
+  /** The embassy's people, walking their day (sim/interiors/staffing.js). */
+  think(state, a) {
+    if (a.ai?.kind === 'staff' || a.ai?.kind === 'applicant') staffThink(state, state.$world.sections.get(0), a, follow);
   },
 
   /** At the window, your feet are the window's: nothing but T takes you from it. */
@@ -223,6 +231,7 @@ function enterEmbassy(state, bus) {
 /** Out of the embassy by its street door, onto its street. */
 function leaveEmbassy(state, bus) {
   const p = state.campaign.posting;
+  state.scenario.life = null;                                       // (its people as they'll be when you're next in: sim/interiors/staffing.js)
   goTo(state, bus, p.embassy, `Out past the Marine, onto ${streetName(townOf({ seed: p.mapSeed, city: p.city }), p.embassy.row)}.`, (p.embassy.z ?? Z.front) + 0.8);
 }
 

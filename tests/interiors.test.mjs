@@ -91,7 +91,7 @@ export default [
     },
   },
   {
-    name: 'interiors: the embassy in every city: rooms closed but for their doors, your desk and the chief\'s office reached from the street door, round the furniture and the people at their places',
+    name: 'interiors: the embassy in every city: rooms closed but for their doors, your desk and the chief\'s office reached from the street door round the furniture; every post, seat and errand reached too',
     fn() {
       let n = 0;
       const desks = new Set();
@@ -104,9 +104,39 @@ export default [
         const d = p.spots.find(t => t.kind === 'desk'); desks.add(`${d.seat.x}|${d.seat.z}`);
         // (closed: a step outside any wall but the doors' is blocked)
         assert(S.blockers.some(b => b.what === 'building' && b.z0 <= p.z1 && b.z1 >= p.z1 && b.x0 <= p.x0 + 2 && b.x1 >= p.x0 + 2), `${city} ${seed}: the street side walled`);
-        assert(p.staff.some(t => t.who === 'marine') && p.staff.some(t => t.who === 'chief'), `${city} ${seed}: the Marine on the desk, the chief at his`);
+        assert(p.staff.some(t => t.who === 'marine') && p.staff.some(t => t.who === 'chief'), `${city} ${seed}: the Marine's post, the chief's`);
+        // (where its people go: each post, from the street door, each seat and the window, each errand)
+        for (const t of [...p.staff.map(x => x.approach ?? x), ...p.seats.map(x => x.approach), p.window, ...p.errands]) assert(wayAcross(S, (e.x0 + e.x1) / 2, e.z0 - 0.4, t.x, t.z), `${city} ${seed}: (${t.x.toFixed(1)}, ${t.z.toFixed(1)}) reached from the street door`);
       }
       console.log(`      48 embassies: ${n} spots reached from the street door; your desk at ${desks.size} of the station's four`);
+    },
+  },
+  {
+    name: 'interiors: the embassy\'s day: in by nine, applicants in and out of the visa room till one and nobody there after, most gone by half past six; the weekend, the Marine alone',
+    heavy: true,
+    fn() {
+      const c = newCampaign(4, candidates(4, 'london', 'junior')[0], 'london', 'junior'), s = newGame({ seed: 4, scenario: 'campaign', campaign: c }), bus = createBus();
+      c.calls = [];
+      start(s, bus);
+      step(s, { act: ['desk:travel:embassy'] }, bus);
+      for (let i = 0; i < 25; i++) step(s, {}, bus);
+      skip(s, bus, 90 * MIN);
+      s.scenario.prompt = { act: 'embassy' };
+      step(s, { act: ['instinct'] }, bus);
+      const staff = () => s.actors.filter(a => a.ai?.kind === 'staff'), apps = () => s.actors.filter(a => a.ai?.kind === 'applicant');
+      const at = {}, seen = new Set(), walked = new Set();
+      const until = (h, m = 0) => { while (calendar(s.time.ms).hour * 60 + calendar(s.time.ms).minute < h * 60 + m) { for (let i = 0; i < 20; i++) step(s, {}, bus); for (const a of apps()) seen.add(a.id); for (const a of staff()) if (a.vx || a.vz) walked.add(a.ai.sid); } };
+      until(10, 30); at.morning = staff().length;
+      until(13, 45); at.afternoon = { staff: staff().map(a => a.ai.sid), apps: apps().length };
+      until(18, 30); at.evening = staff().map(a => a.ai.sid);
+      console.log(`      10:30: ${at.morning} at work; by 13:45 ${seen.size} applicants had been and gone, ${at.afternoon.apps} left, the consular officer ${at.afternoon.staff.includes('consular') ? 'still in' : 'gone'}; walked about: ${[...walked].join(', ')}; 18:30: ${at.evening.join(', ')}`);
+      assert(at.morning >= 5 && seen.size >= 10 && walked.size >= 3, 'all in by half past ten; applicants in and out; people moving about');
+      assert(!at.afternoon.apps && !at.afternoon.staff.includes('consular'), 'the visa room shut and empty after one');
+      assert(at.evening.length <= 3 && at.evening.includes('marine'), 'most gone by half past six');
+      // (Saturday: the Marine, and nobody else)
+      skip(s, bus, (5 - calendar(s.time.ms).weekday) * DAY + 3 * HOUR);
+      for (let i = 0; i < 40; i++) step(s, {}, bus);
+      assert(staff().map(a => a.ai.sid).join() === 'marine' && !apps().length, `the weekend: the Marine alone (${staff().map(a => a.ai.sid)})`);
     },
   },
   {

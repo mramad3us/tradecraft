@@ -64,7 +64,7 @@ export const hunted = {
       title: 'BLOWN',
       body: [
         `${state.people[state.player].name}: under a legend, no immunity. At ${clockText(sc.began)} the phone in the flat rang twice and stopped. That's the signal: the network's rolled up, and they have your face.`,
-        `The station has a car for you, ${rowsText(e.row)} and a way along, by ${streetName(townOf(state.map), e.row)}: a driver in a dark cap, until ${clockText(sc.deadline)}. After that he's gone, and so are you.`,
+        `The station has a car for you, ${rowsText(e.row)} and a way along, by ${streetName(townOf(state.map), e.row)}: a driver in a dark cap${e.car ? ', at the back door of a parked car' : ''}, until ${clockText(sc.deadline)}. After that he's gone, and so are you.`,
         `They'll be looking: men in plain clothes with your description, ${sc.hunters.length} of them on the streets round here, and they talk to each other. Don't run, don't look at them, keep to people and the dark.`,
         'Two safe houses on the way: in and out, a different coat, a minute to breathe. If one of them gets hold of you, fight, or that\'s the end.',
       ],
@@ -91,8 +91,13 @@ export const hunted = {
     const dir = chance(r, 0.5) ? -1 : 1, erow = dir * (EXTRACT_ROWS[0] + int(r, EXTRACT_ROWS[1] - EXTRACT_ROWS[0] + 1));
     const ex = home.x + (chance(r, 0.5) ? 1 : -1) * range(r, 60, 160);
     state.people.driver = sheet({ id: 'driver', name: 'the driver', sex: 'm', look: { skin: 'light', hair: { style: 'short', color: 0x14151c }, hat: { kind: 'cap', color: 0x23252f }, top: { kind: 'coat', color: 0x23252f, trim: 0x14151c }, legs: 0x23252f, shoes: 0x14151c } });
-    const extract = { row: erow, x: Math.round(ex * 10) / 10, z: LINE.N ?? 8.5 };
-    state.actors.push({ id: `a${state.nextActor++}`, who: 'driver', seed: null, row: erow, x: extract.x, z: extract.z, vx: 0, vz: 0, face: 'up', head: -Math.PI / 2, gait: 'idle', stride: 0, stuck: 0, ai: { kind: 'stand', steps: [], wait: 0 } });
+    // (by a car: the street's parked car nearest there, he at its back door on the pavement; the user, 2026-10-28:
+    // "where is the car ?" when he stood alone. A street with none near: him alone, on the far pavement)
+    const cars = [];
+    for (let i = Math.floor((ex - 40) / SECTION_M); i <= Math.floor((ex + 40) / SECTION_M); i++) for (const p of sectionOf(town, erow, i).props) if (p.kind === 'car' && p.z < Z.fence) cars.push(p);
+    const car = cars.sort((a, b) => Math.abs(a.x - ex) - Math.abs(b.x - ex))[0];
+    const extract = car ? { row: erow, x: Math.round((car.x - 1.2) * 10) / 10, z: Z.kerbN - 0.75, car: { x: car.x, z: car.z } } : { row: erow, x: Math.round(ex * 10) / 10, z: LINE.N ?? 8.5 };
+    state.actors.push({ id: `a${state.nextActor++}`, who: 'driver', seed: null, row: erow, x: extract.x, z: extract.z, vx: 0, vz: 0, face: car ? 'down' : 'up', head: car ? Math.PI / 2 : -Math.PI / 2, gait: 'idle', stride: 0, stuck: 0, ai: { kind: 'stand', steps: [], wait: 0 } });
     // Two safe houses on the way: a block's entrance on a street between, roughly on the line there.
     const safehouses = [1, 2].map(k => {
       const row = Math.round(erow * k / 3) || dir, along = home.x + (ex - home.x) * k / 3;

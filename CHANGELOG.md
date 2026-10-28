@@ -4,6 +4,13 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc33 (2026-10-28)
+
+- **The embassy keeps its day.** Its people come and go now. The Marine is on the desk round the clock. On working days the chief is in from about eight till after six, and your colleagues arrive between half past eight and a quarter past nine and leave around six (now and then one stays late). Between times they get up from their desks: the water cooler, the cabinets, a word at the chief's door. The visa section is open nine till one: applicants come in off the street, sit, wait to be called, stand at the window a few minutes and go; after one the room's empty, the consular officer gone. At six, after your day's work, the station empties round you. Weekends, only the Marine.
+- **Blown: the car is there.** The station's driver used to stand alone on a pavement, so "reach the car" left you looking for a car that wasn't drawn. He now waits at the back door of a parked car on his street.
+- **Fixed:** the hunger line still sent you to a shop's door (T); it now says to go in and use the counter (R).
+- Tests: interiors (the embassy's day: everyone in by half past ten, applicants in and out, the visa room shut and empty after one, most gone by half past six, the Marine alone at the weekend; every post, seat and errand reachable from the street door).
+
 ## v0.1.0-rc32 (2026-10-28)
 
 - **Fixed: hunger stood still overnight.** A night's sleep ended in an automatic breakfast, so you always woke fed and the hunger meter looked frozen through the night. Now sleep calms you but doesn't feed you: you wake as many hours from your last meal as it's been (dinner at seven, up at seven: hungry), and the kitchen table at home, a café or a bakery is where breakfast comes from.
