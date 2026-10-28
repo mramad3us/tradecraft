@@ -33,7 +33,7 @@ import { shortName, statusLine } from '../sim/fight.js';
 import { weaponOf, bare } from '../sim/weapons.js';
 import { placed, fits } from '../sim/items.js';
 import { options as aidOptions, bodyLine } from '../sim/aid.js';
-import { agenda as agendaOf, heatWord as heatWordOf, places as placesOf, KINDS as KINDS_ } from '../sim/campaign.js';
+import { agenda as agendaOf, heatWord as heatWordOf, places as placesOf, KINDS as KINDS_, goalOf } from '../sim/campaign.js';
 import { streetName as streetNameOf } from '../sim/map/street.js';
 import { calendar as calendarOf, DAY as DAY_MS } from '../sim/clock.js';
 import { bleedRate, bloodOf, bandOf, BLOOD } from '../sim/health.js';
@@ -734,8 +734,11 @@ export function createUI({ input, cb }) {
 
   // ---------- a test's papers: the brief, the result ----------
   /** The campaign's three candidates (sim/campaign.js candidates()): pick one. */
-  function showCandidates(list, onPick, city = 'moscow', { cities = null, back = null } = {}) {
-    const C = cityById(city), lang = C.lang ?? 'ru';
+  function showCandidates(list, onPick, city = 'moscow', { cities = null, back = null, level = 'handler', levels = null, levelTo = null } = {}) {
+    const C = cityById(city), lang = C.lang ?? 'ru', junior = level === 'junior';
+    // (the career's rung to start at: a first tour, or a posting of your own once it's open: src/main.js)
+    const rungs = levels && levels.length > 1 && el('div', { className: 'cities' }, el('span', { className: 'note', textContent: 'Start as: ' }),
+      ...levels.map(L => el('button', { className: `small${L.id === level ? ' on' : ''}`, disabled: !L.open, title: L.open ? '' : L.why ?? '', onclick: () => { if (L.open && L.id !== level) levelTo?.(L.id); } }, L.open ? L.name : `${L.name} (locked)`)));
     // (the posting's city: another one, three other officers)
     const tabs = cities && el('div', { className: 'cities' }, el('span', { className: 'note', textContent: 'Posted to: ' }),
       ...[['moscow', 'Moscow'], ['london', 'London'], ['beirut', 'Beirut'], ['cairo', 'Cairo']].map(([c, name]) =>
@@ -744,7 +747,7 @@ export function createUI({ input, cb }) {
     paper.replaceChildren(el('div', { className: 'sheet brief candidates' },
       el('span', { className: 'stamp', textContent: 'PERSONNEL' }),
       el('h2', { textContent: 'WHO GOES' }),
-      el('p', { className: 'note', textContent: `Station ${C.name} needs a Handler under official cover. Three files on the desk.` }), tabs, el('hr'),
+      el('p', { className: 'note', textContent: junior ? 'Station London needs a junior officer for the MI5 liaison: fresh from the Farm, a first tour. Three files on the desk.' : `Station ${C.name} needs a Handler under official cover. Three files on the desk.` }), rungs, tabs, el('hr'),
       ...list.map((p, i) => el('button', { className: 'item cand', onclick: () => { paper.hidden = true; paper.dataset.kind = ''; onPick(i); } },
         `${p.name}, ${p.age}`, el('small', { textContent: `${p.background} ${p.bg ? `From it: ${Object.entries(p.bg.points).map(([k, v]) => `${SKILLS[k]?.name ?? k} +${v}`).join(', ')}. ` : ''}Best at: ${top(p)}. ${LANGS[lang] ?? lang}: ${p.langs[lang] ?? 'none'}. Tradecraft ${p.os}.` })))));
     if (back) paper.firstChild.append(el('hr'), el('button', { className: 'item', onclick: () => { paper.hidden = true; paper.dataset.kind = ''; back(); } }, 'Back to the title'));
@@ -785,7 +788,8 @@ export function createUI({ input, cb }) {
     const c = state.campaign, p = c.posting, now = state.time.ms, k = calendarOf(now), go = (cmd) => () => { closeOverlays(); act(cmd); };
     const items = agendaOf(c, now).slice(0, 6), today = Math.floor(now / DAY_MS);
     const row = (a, when) => {
-      const name = a.kind === 'sdr' ? p.assets.find(s => s.id === a.who)?.codename : p.targets.find(t => t.id === a.who)?.name;
+      const T = a.trip && p.trips?.find(t => t.id === a.who);       // (a first tour's trip abroad: its city, its man)
+      const name = T ? `${cityById(T.city).name}, ${T.asset?.codename ?? T.target?.name}` : a.kind === 'sdr' ? p.assets.find(s => s.id === a.who)?.codename : p.targets.find(t => t.id === a.who)?.name;
       const sameDay = Math.floor(a.start / DAY_MS) === today;
       return el('tr', {}, el('td', { textContent: `${dateText(a.from).slice(0, -5)}, ${clockText(a.from)}` }), el('td', { textContent: `${KINDS_[a.kind].name}: ${name}` }),
         el('td', {}, sameDay ? el('button', { className: 'small', onclick: go(`go:${a.id}`), title: a.brief }, when === 'now' ? 'go now' : `go (at ${clockText(a.start)})`) : el('span', { className: 'where', textContent: 'later' })));
@@ -795,8 +799,9 @@ export function createUI({ input, cb }) {
       el('span', { className: 'stamp', textContent: 'STATION' }),
       el('h2', { textContent: `${dateText(now)}, ${clockText(now)}` }),
       el('p', { className: 'note', textContent: `${state.people.me.name}, ${p.job}. The posting: ${p.subject} (${p.goal}).` }), el('hr'),
-      el('p', { textContent: `Heat: ${heatWordOf(p.heat)}. Cover standing: ${p.cover}/100. Intelligence: ${p.intelligence}. In the bank: $${p.money.bank ?? 0}; the operational fund: $${p.money.fundLeft ?? p.money.fund}.` }),
-      el('p', { textContent: `The network: ${p.assets.map(s => `${s.codename} (${s.role}, trust ${s.trust}${s.burned ? ', compromised' : ''})`).join('; ')}. Watched: ${p.targets.map(t => `${t.name}${t.wary ? ' (wary)' : ''}`).join('; ')}.` }),
+      el('p', { textContent: `Heat: ${heatWordOf(p.heat)}. Cover standing: ${p.cover}/100. Intelligence: ${p.intelligence} of the ${goalOf(p)} wanted. In the bank: $${p.money.bank ?? 0}; the operational fund: $${p.money.fundLeft ?? p.money.fund}.` }),
+      el('p', { textContent: p.level === 'junior' ? `No network of your own: you're MI5's liaison. Watched with MI5's people: ${p.targets.map(t => `${t.name}${t.wary ? ' (wary)' : ''}`).join('; ')}. Abroad: ${p.trips.map(t => `${cityById(t.city).name}${t.planned ? '' : ', later in the tour'}`).join('; ')}.`
+        : `The network: ${p.assets.map(s => `${s.codename} (${s.role}, trust ${s.trust}${s.burned ? ', compromised' : ''})`).join('; ')}. Watched: ${p.targets.map(t => `${t.name}${t.wary ? ' (wary)' : ''}`).join('; ')}.` }),
       el('h3', { className: 'section', textContent: 'Ahead' }),
       items.length ? el('table', { className: 'skills' }, el('tbody', {}, items.map(({ a, when }) => row(a, when)))) : el('p', { textContent: 'Nothing planned. Days like this are for the cover job.' }),
       items[0] ? el('p', { className: 'note', textContent: items[0].a.brief }) : null,
@@ -841,7 +846,7 @@ export function createUI({ input, cb }) {
   // (his sightings of you that you saw happen; the rest you can only suspect)
   const seenText = (sc) => { const n = sc.sightings.filter(x => x.seen !== false).length; return `you saw him spot you ${n} time${n === 1 ? '' : 's'}`; };
   const stampOf = (sc) => (sc.outcome === 'made' && sc.madeSeen === false ? 'SPOOKED' : OUTCOMES[sc.outcome] ?? sc.outcome);
-  function showResult(state, { again, same, title, back = null, photo = null, lesson = null, home = false }, { debug = false } = {}) {
+  function showResult(state, { again, same, title, back = null, photo = null, lesson = null, home = false, next: stations = null }, { debug = false } = {}) {
     const sc = state.scenario, secs = Math.round((sc.ended - sc.began) / 1000);
     const go = (fn) => () => { paper.hidden = true; paper.dataset.kind = ''; fn(); };
     // (the scene's own words for going again: an evening, a lesson, a walk; the score asked for only in a mechanic test)
@@ -860,7 +865,12 @@ export function createUI({ input, cb }) {
       el('button', { className: 'item', onclick: go(lesson.tutorial) }, 'The tutorial', el('small', { textContent: 'The lessons, all of them.' })),
       el('button', { className: 'item', onclick: go(title) }, home ? 'Back to the flat' : 'Back to the title')]
       : state.campaign ? [el('hr'),
-      back && !state.people[state.player]?.dead ? el('button', { className: 'item', onclick: go(back) }, 'Back to the posting', el('small', { textContent: 'The debrief, and on with it.' })) : null,
+      // (promoted: a station of your own, chosen here: sim/campaign.js promote())
+      ...(stations ? [el('p', { className: 'note', textContent: 'A posting of your own: which station do you ask for?' }),
+        ...[['moscow', 'Moscow', 'The FSB on every corner: the hardest street there is.'], ['london', 'London', 'Home ground of a kind: the residency, and the money it watches.'],
+          ['beirut', 'Beirut', 'Hezbollah\'s security, and everyone else\'s.'], ['cairo', 'Cairo', 'The GIS, patient and everywhere.']].map(([c, name, about]) =>
+          el('button', { className: 'item', onclick: go(() => stations(c)) }, `Station ${name}`, el('small', { textContent: about })))] : []),
+      back && !stations && !state.people[state.player]?.dead ? el('button', { className: 'item', onclick: go(back) }, 'Back to the posting', el('small', { textContent: 'The debrief, and on with it.' })) : null,
       el('button', { className: 'item', onclick: go(title) }, home ? 'Back to the flat' : 'Back to the title')] : [
       el('hr'),
       S.test ? el('p', { className: 'note', textContent: 'How did it play? A score out of 100, and what felt off, in the chat: that\'s what this test is for.' }) : null,

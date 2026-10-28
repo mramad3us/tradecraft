@@ -9,9 +9,15 @@
 // tested mission run with the campaign's context: sim/scenarios/sdr.js, tail.js); when an assignment
 // ends, fold() takes its outcome back into the campaign.
 //
-// **The character** (candidates()): three generated officers to pick from, each a Handler (the first
-// playable's rank: an embassy job, official cover, a network to run), with a background, skills by it,
-// a language level in the posting's tongue, a look.
+// **The character** (candidates()): three generated officers to pick from at a level of the career
+// (LEVELS): a junior officer's first tour (Station London, the liaison with MI5, no network of their
+// own: the user, 2026-10-27, "characters that are getting out of spy school ... started with easy
+// counter-intelligence assignments"), or a Handler's posting (an embassy job, official cover, a network
+// to run). Each with a background, skills by it, a language level in the posting's tongue, a look.
+// **The first tour** (level 'junior'): the residency's officers followed and photographed with MI5's
+// watchers in London, and two team trips abroad (TRIPS: a couple of days with another station's team,
+// flown out and back: an asset met for Moscow, a photograph in Beirut, a tail in Cairo). Its goal met
+// (GOAL_JUNIOR), you're promoted: a posting of your own (promote()).
 // **The posting** (posting()): a city, its country, the cover (Second Secretary at the embassy), a
 // goal (a subject the agency wants intelligence on: SUBJECTS by city), the flat and the embassy (doors
 // on the city's streets), safe houses, the network (ASSETS: codenamed, each with a yield and a trust),
@@ -58,6 +64,20 @@ export const ARREST_PER_DAY = 0.25;
 export const EXPEL_HEAT = 95;
 export const GOAL_INTEL = 10;                                  // (six or seven good operations: two or three weeks, done well)
 export const TRUSTED = 4;
+export const GOAL_JUNIOR = 6;                                      // (a first tour: four or five good evenings, a trip done well)
+// The career's rungs, lowest first (DESIGN.md, Next: the ladder to an illegal; built so far, these two).
+export const LEVELS = [
+  { id: 'junior', name: 'A first tour', rank: 'Junior officer', about: 'Station London, fresh from the Farm: MI5\'s liaison, the residency to watch, a team trip or two abroad.' },
+  { id: 'handler', name: 'A posting of your own', rank: 'Handler', about: 'A station of your choosing under official cover: a network to run, a man to watch, the heat to keep down.' },
+];
+export const levelOf = (id) => Math.max(0, LEVELS.findIndex(l => l.id === id));
+// (a first tour's trips: the city, what the team wants of you there)
+export const TRIPS = [
+  { city: 'moscow', kind: 'sdr', station: 'Moscow station', why: 'their own officers are watched too closely to go near him this month' },
+  { city: 'beirut', kind: 'watch', station: 'Beirut station', why: 'a new face nobody\'s seen yet is what they need behind the camera' },
+  { city: 'cairo', kind: 'tail', station: 'Cairo station', why: 'their team is a man short for the week' },
+];
+const RESIDENCY = ['Viktor Lazarev', 'Oleg Sorokin', 'Pavel Rudnev', 'Denis Arkhipov', 'Igor Shatalov'];
 const CONTACTS = ['Kirill Belov', 'Arkady Shubin', 'Yuri Golovin', 'Stanislav Vetrov', 'Mikhail Danilov'];
 export const SALARY = 7200;
 export const TRAVEL = { waitMin: 6, perRowMin: 4 };                 // (the metro or a taxi: a wait, and minutes a street away)                                        // ($ a month, after tax: a GS-12)
@@ -98,20 +118,20 @@ export const BACKGROUNDS = [
 const US = { f: ['Rebecca', 'Laura', 'Megan', 'Claire', 'Diane', 'Hannah', 'Julia', 'Sarah'], m: ['Daniel', 'Michael', 'Thomas', 'Andrew', 'Mark', 'Peter', 'James', 'Robert'],
   family: ['Price', 'Walker', 'Brennan', 'Hollis', 'Mercer', 'Dalton', 'Keane', 'Whitlock', 'Sutton', 'Garrett'] };
 
-/** Three officers to pick from, from the campaign's seed. */
-export function candidates(seed, city = 'moscow') {
-  const r = stream('candidates', seed), used = new Set();
+/** Three officers to pick from, from the campaign's seed, at a level (LEVELS: a junior's younger, two points under on the street). */
+export function candidates(seed, city = 'moscow', level = 'handler') {
+  const r = level === 'handler' ? stream('candidates', seed) : stream('candidates', seed, level), used = new Set(), junior = level === 'junior', core = junior ? 8 : 10;
   return [0, 1, 2].map(i => {
     const sex = i === 0 ? 'f' : i === 1 ? 'm' : chance(r, 0.5) ? 'f' : 'm';
     let bg; do bg = pick(r, BACKGROUNDS); while (used.has(bg.id)); used.add(bg.id);
-    const age = 29 + int(r, 14);
-    const base = { deception: [10, int(r, 3)], tracking: [10, int(r, 3)], pathfinding: [10, int(r, 3)], awareness: [10, int(r, 3)], social: [10, int(r, 3)],
+    const age = junior ? 24 + int(r, 6) : 29 + int(r, 14);
+    const base = { deception: [core, int(r, 3)], tracking: [core, int(r, 3)], pathfinding: [core, int(r, 3)], awareness: [core, int(r, 3)], social: [core, int(r, 3)],
       analysis: [5, int(r, 3)], tech: [5, int(r, 2)], medicine: [5, 0], cqc: [5, 1 + int(r, 2)], weapons: [5, int(r, 2)], fitness: [5, 1 + int(r, 3)] };
     const points = Object.fromEntries(Object.entries(bg.skills).map(([k, v]) => [k, Math.min(BG_MAX, v)]));
     for (const [k, v] of Object.entries(points)) base[k] = [base[k][0], Math.min(9, base[k][1] + v)];
     const lang = CITY[city]?.lang ?? 'ru';
     const p = sheet({ id: 'me', name: `${pick(r, US[sex])} ${pick(r, US.family)}`, sex, cls: 'spook', os: 30 + int(r, 16), skills: base,
-      langs: { en: 'native', ...(lang !== 'en' ? { [lang]: pick(r, ['working', 'working', 'fluent']) } : {}) }, persistent: true });
+      langs: { en: 'native', ...(lang !== 'en' ? { [lang]: pick(r, ['working', 'working', 'fluent']) } : junior ? { ru: pick(r, ['basic', 'basic', 'working']) } : {}) }, persistent: true });
     p.age = age;
     p.background = bg.text;
     p.bg = { id: bg.id, points };                                   // (of the dots, these are the background's: the sheet shows them apart)
@@ -121,8 +141,12 @@ export function candidates(seed, city = 'moscow') {
   });
 }
 
-/** The posting: city, cover, goal, the network and the targets, the flat, the embassy, safe houses, gauges. startMs: day one, morning. */
-export function posting(seed, city = 'moscow', startMs = at(2026, 11, 2, WAKE_H)) {
+/**
+ * The posting: city, cover, goal, the network and the targets, the flat, the embassy, safe houses, gauges.
+ * startMs: day one, morning. level: a Handler's (this), or a first tour's (juniorPosting(): London).
+ */
+export function posting(seed, city = 'moscow', startMs = at(2026, 11, 2, WAKE_H), level = 'handler') {
+  if (level === 'junior') return juniorPosting(seed, startMs);
   const r = stream('posting', seed, city), C = CITY[city] ?? CITY.moscow;
   const [subject, goal] = pick(r, SUBJECTS[city] ?? SUBJECTS.moscow);
   const mapSeed = Math.floor(range(r, 0, 4294967296));
@@ -133,7 +157,7 @@ export function posting(seed, city = 'moscow', startMs = at(2026, 11, 2, WAKE_H)
   });
   const targets = [{ id: 'target0', name: pick(r, ['Gennady Orlov', 'Viktor Lazarev', 'Oleg Sorokin', 'Pavel Rudnev']), what: `an officer of ${C.service}, under commercial cover`, wary: chance(r, 0.3), followed: 0, last: null, contact: null }];
   return {
-    city, country: C.country, agency: 'CIA', rank: 'Handler', job: C.cover, legend: 'embassy', subject, goal,
+    city, country: C.country, agency: 'CIA', rank: 'Handler', level: 'handler', job: C.cover, legend: 'embassy', subject, goal,
     // (the embassy on the street the missions start from, "out of the embassy"; the flat a few streets off)
     mapSeed, home: { id: 'home', row: 2 + int(r, 2), label: 'the flat' }, embassy: { id: 'embassy', row: 0, label: C.embassy },
     safehouses: [{ id: 'sh0', row: 1 + int(r, 2), label: 'a flat above a pharmacy', known: true, burned: false }, { id: 'sh1', row: -3 - int(r, 2), label: 'a garage in a courtyard', known: true, burned: false }],
@@ -142,9 +166,41 @@ export function posting(seed, city = 'moscow', startMs = at(2026, 11, 2, WAKE_H)
   };
 }
 
-/** A new campaign: the chosen character, the posting, day one. */
-export function newCampaign(seed, character, city = 'moscow') {
-  const p = posting(seed, city);
+/**
+ * A first tour: Station London, under cover in the embassy's Office of the Legal Attaché (the FBI's
+ * people, for whom you're the station's liaison with MI5); no network of your own; two of the
+ * residency's officers to follow and photograph with MI5's watchers, and two team trips abroad (TRIPS),
+ * a week or so apart, each on its own day.
+ */
+function juniorPosting(seed, startMs) {
+  const r = stream('posting', seed, 'junior'), C = CITY.london, day0 = dayOf(startMs);
+  const mapSeed = Math.floor(range(r, 0, 4294967296)), names = RESIDENCY.slice();
+  const targets = [0, 1].map(i => ({ id: `target${i}`, name: names.splice(int(r, names.length), 1)[0], what: 'an officer of the Russian residency, under diplomatic cover', wary: false, followed: 0, last: null, contact: null }));
+  const order = TRIPS.slice();
+  const trips = [0, 1].map(i => {
+    const T = order.splice(int(r, order.length), 1)[0];
+    const trip = { id: `trip${i}`, city: T.city, kind: T.kind, station: T.station, why: T.why, day: day0 + (i ? 15 + int(r, 4) : 6 + int(r, 3)), mapSeed: Math.floor(range(r, 0, 4294967296)), planned: false };
+    if (T.kind === 'sdr') trip.asset = { codename: pick(r, CODENAMES), sex: 'm', role: pick(r, ROLES), look: streetLook(r, 'm', 35 + int(r, 25)) };
+    else trip.target = { name: pick(r, TRIP_TARGETS[T.city]), what: TRIP_WHAT[T.city] };
+    return trip;
+  });
+  return {
+    city: 'london', country: C.country, agency: 'CIA', rank: 'Junior officer', level: 'junior', job: 'Attaché, Office of the Legal Attaché, US Embassy', legend: 'embassy',
+    subject: 'the residency', goal: 'the Russian intelligence officers under diplomatic cover in London, and whom they run',
+    mapSeed, home: { id: 'home', row: 2 + int(r, 2), label: 'the flat' }, embassy: { id: 'embassy', row: 0, label: C.embassy },
+    safehouses: [{ id: 'sh0', row: 1 + int(r, 2), label: 'MI5\'s flat over a launderette', known: true, burned: false }],
+    assets: [], targets, trips, startMs,
+    heat: 20, cover: 70, intelligence: 0, money: { salary: SALARY_JUNIOR, fund: 0, paid: calendar(startMs).month },
+  };
+}
+const TRIP_TARGETS = { beirut: ['Ali Haidar', 'Hussein Kassem', 'Mahmoud Zein'], cairo: ['Tarek Mansour', 'Sherif Ghoneim', 'Hany Lotfy'], moscow: ['Gennady Orlov'] };
+const TRIP_WHAT = { beirut: 'a courier for Hezbollah\'s security', cairo: 'a GIS officer who meets the wrong people', moscow: 'an FSB officer' };
+export const SALARY_JUNIOR = 5400;                                 // ($ a month, after tax: a GS-10)
+export const goalOf = (p) => (p.level === 'junior' ? GOAL_JUNIOR : GOAL_INTEL);
+
+/** A new campaign: the chosen character, the posting (at a level: LEVELS), day one. */
+export function newCampaign(seed, character, city = 'moscow', level = 'handler', startMs = undefined) {
+  const p = posting(seed, city, startMs, level);
   const c = { seed, character, posting: p, day: dayOf(p.startMs), assignments: [], done: [], plannedTo: dayOf(p.startMs) - 1, worked: {}, log: [], reviews: [], awake: p.startMs, next: { },
     calls: [{ id: 'hale', at: p.startMs + CALL_S * 1000 }] };   // (day one: Hale on the telephone, the exercises or straight in: src/main.js)
   plan(c, p.startMs);
@@ -189,6 +245,19 @@ export function plan(c, ms) {
         brief: `${t.name}, ${t.what}, leaves his office at ${hm(from)}. Follow him to whoever he meets. Don't be seen.` });
       t.nextDay = d + CADENCE.tail[0] + int(r, CADENCE.tail[1] - CADENCE.tail[0] + 1);
     }
+    // (a first tour's trips: on their day, or the next free one; the evening there, flown out that morning)
+    for (const t of p.trips ?? []) {
+      if (t.planned || d < t.day) continue;
+      if (taken()) { t.day = d + 1; continue; }
+      const from = slot(...(isWorkday(dayMs) ? [18.5, 20.5] : [15, 19]));
+      if (from === null) { t.day = d + 1; continue; }
+      const len = t.kind === 'tail' ? 20 : 15, place = CITY_NAME[t.city];
+      c.assignments.push({ id: `a${hash(c.seed, d, t.id) % 1e7}`, kind: t.kind, who: t.id, trip: t.city, from, to: from + len * MIN, start: t.kind === 'sdr' ? from - 30 * MIN : t.kind === 'watch' ? from - 10 * MIN : from, status: 'open',
+        brief: t.kind === 'sdr' ? `${place}, with the ${t.station}'s team, flown out that morning. Meet ${t.asset.codename} (${t.asset.role}) on a boulevard bench between ${hm(from)} and ${hm(from + len * MIN)}, for the station: ${t.why}. Clean, or not at all.`
+          : t.kind === 'watch' ? `${place}, with the ${t.station}'s team, flown out that morning. ${t.target.name}, ${t.target.what}, meets someone outside a café between ${hm(from)} and ${hm(from + len * MIN)}. A photograph of the two of them: ${t.why}.`
+          : `${place}, with the ${t.station}'s team, flown out that morning. ${t.target.name}, ${t.target.what}, leaves his office at ${hm(from)}. Follow him to whoever he meets: ${t.why}.` });
+      t.planned = true;
+    }
     // (a target seen meeting someone: the station knows where he meets now, and wants the photograph)
     for (const t of p.targets) {
       if (!t.contact || d < (t.photoDay ??= d + 2 + int(r, 2))) continue;
@@ -203,6 +272,7 @@ export function plan(c, ms) {
   c.plannedTo = Math.max(c.plannedTo, to);
   c.assignments.sort((a, b) => a.from - b.from);
 }
+const CITY_NAME = { moscow: 'Moscow', london: 'London', beirut: 'Beirut', cairo: 'Cairo' };
 const hm = (ms) => { const k = calendar(ms); return `${String(k.hour).padStart(2, '0')}:${String(k.minute).padStart(2, '0')}`; };
 
 /** The open assignments at time ms: [{ a, state: 'later' | 'now' | 'missed' }]; the missed are marked (and cost), once. */
@@ -215,11 +285,12 @@ export function agenda(c, ms) {
 function miss(c, a) {
   a.status = 'missed';
   const p = c.posting;
-  if (a.kind === 'sdr') { const s = p.assets.find(x => x.id === a.who); if (s) s.trust = Math.max(-5, s.trust - 1); }
+  if (a.kind === 'sdr' && !a.trip) { const s = p.assets.find(x => x.id === a.who); if (s) s.trust = Math.max(-5, s.trust - 1); }
+  if (a.trip) { p.cover = Math.max(0, p.cover - COVER_MISSED); c.log.push({ ms: a.to, text: `Missed: the ${CITY_NAME[a.trip]} trip. The station there noticed, and so did yours.` }); c.done.push(a); return; }
   c.log.push({ ms: a.to, text: a.kind === 'sdr' ? `Missed: ${who(c, a)} waited on the bench for nothing. Trust down.` : `Missed: ${who(c, a)}'s evening, unwatched.` });
   c.done.push(a);
 }
-const who = (c, a) => (a.kind === 'sdr' ? c.posting.assets.find(x => x.id === a.who)?.codename : c.posting.targets.find(x => x.id === a.who)?.name) ?? 'someone';
+const who = (c, a) => { const T = a.trip && c.posting.trips?.find(t => t.id === a.who); return (T ? T.asset?.codename ?? T.target?.name : a.kind === 'sdr' ? c.posting.assets.find(x => x.id === a.who)?.codename : c.posting.targets.find(x => x.id === a.who)?.name) ?? 'someone'; };
 
 /**
  * Time passes in the campaign, from `from` to `to` (ms): the working days missed or worked (worked:
@@ -313,19 +384,22 @@ export const heatWord = (h) => (h < 30 ? 'quiet' : h < 45 ? 'noticed' : h < 60 ?
  * by the heat; a target's name and wariness.
  */
 export function context(c, a) {
-  const p = c.posting, r = stream('ctx', c.seed, a.id);
-  const ctx = { campaign: true, player: structuredClone(c.character), mapSeed: p.mapSeed, startMs: a.start, assignment: a.id, city: p.city, country: p.country };
+  const p = c.posting, r = stream('ctx', c.seed, a.id), T = a.trip ? p.trips.find(t => t.id === a.who) : null;
+  // (a trip's in its own city, on its own streets; the opposition there knows you only as a visitor: TRIP_HEAT)
+  const city = T?.city ?? p.city, heat = T ? TRIP_HEAT : p.heat;
+  const ctx = { campaign: true, player: structuredClone(c.character), mapSeed: T?.mapSeed ?? p.mapSeed, startMs: a.start, assignment: a.id, city, country: CITY[city]?.country ?? p.country };
   if (a.kind === 'sdr') {
-    const s = p.assets.find(x => x.id === a.who);
+    const s = T ? T.asset : p.assets.find(x => x.id === a.who);
     // (the heat says how hard they're on you: nobody, an overt pair, a covert team)
-    const team = weighted(r, [['none', Math.max(1, 70 - p.heat)], ['overt', 20 + p.heat * 0.3], ['covert', Math.max(0, p.heat - 25)]]);
-    Object.assign(ctx, { asset: { codename: s.codename, look: s.look, sex: s.sex, role: s.role }, meetFrom: a.from, team, heat: p.heat });
+    const team = weighted(r, [['none', Math.max(1, 70 - heat)], ['overt', 20 + heat * 0.3], ['covert', Math.max(0, heat - 25)]]);
+    Object.assign(ctx, { asset: { codename: s.codename, look: s.look, sex: s.sex, role: s.role }, meetFrom: a.from, team, heat });
   } else if (a.kind === 'tail' || a.kind === 'watch') {
-    const t = p.targets.find(x => x.id === a.who);
-    Object.assign(ctx, { target: { name: t.name, what: t.what }, wary: t.wary || t.followed > 2, heat: p.heat, meetFrom: a.from, meetTo: a.to });
+    const t = T ? T.target : p.targets.find(x => x.id === a.who);
+    Object.assign(ctx, { target: { name: t.name, what: t.what }, wary: !T && (t.wary || t.followed > 2), heat, meetFrom: a.from, meetTo: a.to });
   }
   return ctx;
 }
+export const TRIP_HEAT = 35;                                       // (a visitor's heat in a trip's city: the opposition there has a file, and not much in it)
 
 /**
  * An assignment's scene is over: its outcome (state.scenario.outcome) into the campaign: intelligence,
@@ -338,6 +412,7 @@ export function fold(c, a, sc, player, endMs, heatNow) {
   c.done.push(a);
   c.character = { ...structuredClone(player), id: 'me' };
   const lines = [];
+  if (a.trip) return foldTrip(c, a, sc, endMs, heatNow, lines);
   if (heatNow !== undefined) p.heat = Math.max(20, Math.min(100, heatNow));
   if (a.kind === 'sdr') {
     const s = p.assets.find(x => x.id === a.who);
@@ -379,7 +454,50 @@ export function fold(c, a, sc, player, endMs, heatNow) {
     else if (sc.outcome === 'blown') { t.wary = true; p.heat = Math.min(100, p.heat + 8); lines.push(`His minder made you. ${t.name} will meet somewhere else now, and someone will hear of a man with a camera.`); }
     else lines.push(`${t.name}'s meeting happened where you weren't looking.`);
   }
-  if (p.intelligence >= GOAL_INTEL && !c.over) { c.over = { ms: endMs, why: 'completed' }; lines.push(`That's what the station needed on ${p.subject}. The cable home is a short one: done.`); }
+  goalMet(c, endMs, lines);
   plan(c, endMs);
   return { title: `${KINDS[a.kind].name.toUpperCase()}: ${String(sc.outcome ?? 'over').toUpperCase()}`, lines };
+}
+
+/** The posting's goal met: done (a Handler's), or promoted (a first tour's: promote()). */
+function goalMet(c, ms, lines) {
+  const p = c.posting;
+  if (p.intelligence < goalOf(p) || c.over) return;
+  if (p.level === 'junior') { c.over = { ms, why: 'promoted' }; lines.push('That\'s a first tour done well. The chief\'s cable to Langley has the word "ready" in it.'); }
+  else { c.over = { ms, why: 'completed' }; lines.push(`That's what the station needed on ${p.subject}. The cable home is a short one: done.`); }
+}
+
+/**
+ * A trip's evening over (a first tour's: TRIPS): what it brought the station there, credited to you; a
+ * cable about you if they made you; the flight home, and the flat in London the morning after (a.home),
+ * the days away worked.
+ */
+function foldTrip(c, a, sc, endMs, heatNow, lines) {
+  const p = c.posting, T = p.trips.find(t => t.id === a.who), place = CITY_NAME[T.city], o = sc.outcome;
+  const intel = { sdr: { clean: 2, burned: 1 }, tail: { seen: 2 }, watch: { photo: 2, soft: 1, seen: 1 } }[a.kind][o] ?? 0;
+  if (intel) { a.intel = intel; p.intelligence += intel; }
+  // (made there: their service files a face, and a cable says so; your own heat in London a little up)
+  const made = (a.kind === 'sdr' && o === 'burned') || o === 'made' || o === 'blown';
+  if (made || (heatNow ?? 0) > TRIP_HEAT + 15) p.heat = Math.min(100, p.heat + 5);
+  lines.push(a.kind === 'sdr' ? (o === 'clean' ? `${T.asset.codename} handed it over, and nobody saw: the ${T.station} is grateful, and says so to yours. Intelligence +2.` : o === 'burned' ? `You met ${T.asset.codename} with a tail on you. The ${T.station} has his package, and a worry. Intelligence +1.` : o === 'right' ? `You called it off, and you were right: they were on you. ${T.asset.codename} will be met another month, by someone else.` : `${T.asset.codename} waited for nothing. The ${T.station} isn't pleased.`)
+    : a.kind === 'tail' ? (o === 'seen' ? `You saw ${T.target.name} meet his contact: the ${T.station} has a name to chase. Intelligence +2.` : made ? `${T.target.name} made you. The ${T.station} will use someone else next time.` : `${T.target.name} got away from you.`)
+    : (o === 'photo' ? `A sharp print of ${T.target.name} and the man he met: intelligence +2.` : o === 'soft' ? `A soft print, but it's ${T.target.name} and someone: intelligence +1.` : o === 'seen' ? `No photograph, but you saw the meeting: intelligence +1.` : made ? `His people made you. ${place} won't be sending for you again soon.` : `The meeting happened where you weren't looking.`));
+  const home = (dayOf(endMs) + 1) * DAY + WAKE_H * HOUR;
+  for (let d = dayOf(a.start); d < dayOf(home); d++) if (isWorkday(d * DAY)) c.worked[d] = true;
+  a.home = home;
+  lines.push(`The night flight back, and the flat in London by ${WAKE_H} in the morning.`);
+  goalMet(c, endMs, lines);
+  plan(c, home);
+  return { title: `${place.toUpperCase()}: ${String(o ?? 'over').toUpperCase()}`, lines };
+}
+
+/**
+ * Promoted from a first tour: the same officer's posting of their own (a Handler's) at `city`, from
+ * the Monday a fortnight on. Their sheet as the tour left it; a new seed for the posting.
+ */
+export function promote(c, city) {
+  const from = dayOf(c.over?.ms ?? c.now ?? c.posting.startMs) + 14, monday = from + ((7 - calendar(from * DAY).weekday) % 7);
+  const next = newCampaign(hash(c.seed, 'promoted') % 1e9, { ...structuredClone(c.character), id: 'me' }, city, 'handler', monday * DAY + WAKE_H * HOUR);
+  next.career = [...(c.career ?? []), { level: c.posting.level, city: c.posting.city, until: c.over?.ms ?? c.now }];
+  return next;
 }

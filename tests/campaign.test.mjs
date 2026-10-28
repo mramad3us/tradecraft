@@ -3,7 +3,7 @@
 // week's review), and assignments run with the campaign's context and folded back: a meeting by way of
 // a detection run, a tail; the character's body carried through.
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
-import { candidates, newCampaign, plan, pass, context, fold, agenda, lieLow, KINDS, CADENCE } from '../src/sim/campaign.js';
+import { candidates, newCampaign, plan, pass, context, fold, agenda, lieLow, promote, KINDS, CADENCE } from '../src/sim/campaign.js';
 import { DAY, HOUR, calendar } from '../src/sim/clock.js';
 import { injure, bloodOf } from '../src/sim/health.js';
 import { oblivious } from './bots.mjs';
@@ -154,6 +154,41 @@ export default [
       console.log(`      ${a.brief} | the subject: ${named}; "${said.slice(0, 80)}…" | ${paper.title}: ${paper.lines.join(' ')}`);
       assert(a && named === t.name && said.includes(t.name.split(' ').slice(-1)[0]), 'his name, in the scene');
       assert(paper.title.startsWith('A PHOTOGRAPH'), 'folded back');
+    },
+  },
+  {
+    name: 'campaign: a first tour: juniors (younger, two under on the street), Station London, no network, the residency to watch; two trips abroad, each scene in its own city; a trip credited, home the morning after, the days away worked; the goal met, promoted to a posting of your own, the same officer',
+    fn() {
+      const out = [];
+      for (const seed of [21, 22, 23]) {
+        const js = candidates(seed, 'london', 'junior'), hs = candidates(seed, 'london');
+        assert(js.every(p => p.age >= 24 && p.age <= 29) && js.every(p => p.skills.tracking[0] === 8) && hs[0].skills.tracking[0] === 10, `${seed}: juniors younger, two under`);
+        const c = newCampaign(seed, js[0], 'london', 'junior'), p = c.posting;
+        assert(p.level === 'junior' && p.city === 'london' && !p.assets.length && p.targets.length === 2 && p.trips.length === 2 && new Set(p.trips.map(t => t.city)).size === 2, `${seed}: Station London, no network, two to watch, two trips`);
+        // (three weeks planned: both trips on the schedule, in their cities, an evening each)
+        plan(c, p.startMs + 21 * DAY);
+        const trips = c.assignments.filter(a => a.trip);
+        assert(trips.length === 2 && trips.every(a => !c.assignments.some(b => b !== a && Math.floor(b.from / DAY) === Math.floor(a.from / DAY))), `${seed}: both trips planned, a day each to themselves`);
+        const a = trips[0], T = p.trips.find(t => t.id === a.who), ctx = context(c, a);
+        const g = newGame({ seed, scenario: KINDS[a.kind].scenario, campaign: c, context: ctx });
+        start(g, null);
+        assert(g.map.seed === T.mapSeed && g.map.city === T.city && g.time.ms === a.start && g.people.me.name === c.character.name, `${seed}: the ${T.city} scene on its own streets, its time, our officer`);
+        // (it went well: credited; the flight home; the days away worked)
+        const intel0 = p.intelligence, ok = { sdr: 'clean', tail: 'seen', watch: 'photo' }[a.kind];
+        const paper = fold(c, a, { outcome: ok }, g.people.me, a.to + 30 * 60000, 35);
+        assert(p.intelligence === intel0 + 2 && a.home === (Math.floor(a.to / DAY) + 1) * DAY + 7 * HOUR, `${seed}: credited, home the morning after (${paper.lines.join(' ')})`);
+        const away = [Math.floor(a.start / DAY)].filter(d => calendar(d * DAY).weekday < 5);
+        assert(away.every(d => c.worked[d]), `${seed}: the day away worked`);
+        // (the goal: promoted, and a posting of one's own, the same officer)
+        p.intelligence = 5;
+        const b = c.assignments.find(x => x.status === 'open' && x.kind === 'tail' && !x.trip);
+        fold(c, b, { outcome: 'seen' }, g.people.me, b.to + 600000, 30);
+        assert(c.over?.why === 'promoted', `${seed}: the goal met, promoted`);
+        const n = promote(c, 'moscow');
+        assert(n.posting.level === 'handler' && n.posting.city === 'moscow' && n.character.name === c.character.name && n.posting.startMs > c.over.ms && calendar(n.posting.startMs).weekday === 0 && n.career.length === 1 && n.posting.assets.length >= 1, `${seed}: a posting of one's own in Moscow, the same officer, a Monday after`);
+        out.push(`${js[0].name}, ${js[0].age}: trips ${p.trips.map(t => `${t.city} (${t.kind}, day ${t.day - Math.floor(p.startMs / DAY)})`).join(', ')}; ${T.city}: "${paper.lines[0].slice(0, 70)}…"; promoted to Moscow from ${calendar(n.posting.startMs).day}/${calendar(n.posting.startMs).month}`);
+      }
+      for (const o of out) console.log(`      ${o}`);
     },
   },
 ];

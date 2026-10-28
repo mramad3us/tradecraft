@@ -29,7 +29,7 @@ async function withGame(fn) {
 
 export default [
   {
-    name: 'the campaign from the title: three officers, day one in the flat, Hale on the telephone, straight in, the desk, a day at the embassy, no errors',
+    name: 'the campaign from the title: a first tour (a posting of your own locked), three juniors, day one in the flat, Hale on the telephone, straight in, the desk, a day at the embassy, no errors',
     heavy: true,
     async fn() {
       await withGame(async (page, errors) => {
@@ -37,12 +37,12 @@ export default [
         await page.waitForFunction("!document.getElementById('title').hidden", null, { timeout: 30000 });
         await page.locator('#title .campaign').click();                      // (the way in: pick your officer)
         await page.waitForSelector('.candidates', { timeout: 30000 });
-        await page.locator('.candidates .cities button', { hasText: 'London' }).click();   // (another posting: three other officers)
-        await page.waitForSelector('.candidates', { timeout: 30000 });
+        // (a new career starts at the bottom: a first tour, Station London; a posting of your own locked till a game reaches above it)
+        const rungs = await page.evaluate(() => [...document.querySelectorAll('.candidates .cities button')].map(b => `${b.textContent}${b.classList.contains('on') ? '*' : ''}${b.disabled ? '!' : ''}`));
         const names = await page.locator('.cand').count();
         await page.locator('.cand').first().click();
         await page.waitForFunction('window.__ready === true && window.__tradecraft.state?.scenario.kind === "campaign"', null, { timeout: 30000 });
-        const flat = await page.evaluate(() => window.__tradecraft.state.map.place);
+        const flat = await page.evaluate(() => window.__tradecraft.state.map.place), level = await page.evaluate(() => window.__tradecraft.state.campaign.posting.level);
         await page.evaluate(() => window.__tradecraft.step(300));            // (the telephone rings, twelve seconds in)
         await page.keyboard.press('KeyT');                                   // (to the telephone, round the furniture, and pick up)
         await page.waitForSelector('.sheet.call', { timeout: 30000 });
@@ -54,8 +54,9 @@ export default [
         await page.evaluate(() => [...document.querySelectorAll('.desk button')].find(b => /Go to work/.test(b.textContent))?.click());
         await page.waitForTimeout(1500);
         const s = await page.evaluate(() => { const st = window.__tradecraft.state; return { hour: new Date(st.time.ms).getUTCHours(), cover: st.campaign.posting.cover, log: st.log.at(-1)?.text, map: st.map.kind }; });
-        console.log(`      ${names} officers; day one in the ${flat === 'home' ? 'flat' : flat}; ${ahead} assignments ahead on the desk; after work: cover ${s.cover}, on the ${s.map}; ${s.log}`);
-        assert(names === 3 && flat === 'home' && ahead >= 2 && s.cover > 70 && s.map === 'street', 'picked, in the flat, the call, at the desk, a day worked, out of the embassy');
+        console.log(`      start as: ${rungs.join(', ')}; ${names} officers, a ${level}; day one in the ${flat === 'home' ? 'flat' : flat}; ${ahead} assignments ahead on the desk; after work: cover ${s.cover}, on the ${s.map}; ${s.log}`);
+        assert(rungs[0] === 'A first tour*' && /locked/.test(rungs[1]) && rungs[1].endsWith('!'), 'a first tour, the posting of your own locked');
+        assert(names === 3 && level === 'junior' && flat === 'home' && ahead >= 2 && s.cover > 70 && s.map === 'street', 'picked, in the flat, the call, at the desk, a day worked, out of the embassy');
         assert(errors.length === 0, errors.join('\n'));
       });
     },

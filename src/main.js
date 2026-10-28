@@ -20,7 +20,7 @@ import { createBus } from './sim/bus.js';
 import { toJSON, fromJSON } from './sim/state.js';
 import { TICK_MS, HOUR, MIN, stampText, hourOfDay, calendar } from './sim/clock.js';
 import { SCENARIOS } from './sim/scenarios/index.js';
-import { candidates, newCampaign, context, fold, heatWord, KINDS } from './sim/campaign.js';
+import { candidates, newCampaign, context, fold, heatWord, KINDS, LEVELS, levelOf, promote, goalOf } from './sim/campaign.js';
 import { cityById } from './sim/cities/index.js';
 import { shopWord } from './sim/shops.js';
 import { price } from './sim/money.js';
@@ -69,13 +69,27 @@ const ui = createUI({ input, cb: {
 } });
 
 /** The way into the game: three officers for a posting (another city: three others), one picked, and day one in their flat. */
-function pickOfficer(city = 'moscow') {
-  const seed = randomSeed(), list = candidates(seed, city);
+/**
+ * New game: the officers to pick from, at a rung of the career (sim/campaign.js LEVELS): a first tour
+ * always; a posting of your own once you've reached the rung above it in some game (CAREER_KEY, the
+ * user: "reaching a level unlocks starting at the one below it"), or in debug mode.
+ */
+function pickOfficer(city = 'moscow', level = null) {
+  const best = careerBest(), open = (k) => k === 0 || k <= best - 1 || settings.debug;
+  level ??= open(1) ? 'handler' : 'junior';
+  if (level === 'junior') city = 'london';
+  const seed = randomSeed(), list = candidates(seed, city, level);
   home = null;
   ui.hideTitle();
-  ui.showCandidates(list, (i) => launch(newGame({ seed, scenario: 'campaign', version: VERSION, campaign: newCampaign(seed, list[i], city), weather: WEATHER })),
-    city, { cities: (c) => pickOfficer(c), back: () => showTitle() });
+  ui.showCandidates(list, (i) => launch(newGame({ seed, scenario: 'campaign', version: VERSION, campaign: newCampaign(seed, list[i], city, level), weather: WEATHER })),
+    city, { cities: level === 'junior' ? null : (c) => pickOfficer(c, level), back: () => showTitle(), level,
+      levels: LEVELS.map((L, k) => ({ id: L.id, name: L.name, open: open(k), why: k ? `Opens when a game of yours reaches the rung above it${settings.debug ? ' (open: debug mode)' : ''}.` : null })), levelTo: (id) => pickOfficer(id === 'junior' ? 'london' : 'moscow', id) });
 }
+
+// The career's record across games (sim/campaign.js LEVELS): the highest rung any game reached.
+const CAREER_KEY = 'tradecraft.career';
+function careerBest() { try { return JSON.parse(localStorage.getItem(CAREER_KEY) ?? '{}').best ?? 0; } catch { return 0; } }
+function reached(k) { try { if (k > careerBest()) localStorage.setItem(CAREER_KEY, JSON.stringify({ best: k, at: Date.now() })); } catch {} }
 
 /**
  * The flat's telephone (sim/scenarios/campaign.js): Hale. Day one he offers the exercises (the tutorial,
@@ -176,7 +190,13 @@ function launch(s, { hour = null } = {}) {
 /** A test's result paper, with the ways on. */
 function result() {
   const kind = state.scenario.kind, seed = state.seed, chapter = state.scenario.chapter ?? null, city = state.map?.city ?? null;
-  if (state.campaign) return ui.showResult(state, { back: () => backToPosting(state), title: async () => { await autosave(); stop(); showTitle(); }, photo: lastPhoto?.url }, settings);
+  if (state.campaign) {
+    // (the hub's own end, the posting over: the career's record kept (CAREER_KEY); promoted, the station of your own chosen here)
+    const c = state.campaign, over = kind === 'campaign' && state.scenario.outcome;
+    if (over) reached(levelOf(c.posting.level) + (over === 'promoted' || over === 'completed' ? 1 : 0));
+    const next = over === 'promoted' ? (city) => launch(newGame({ seed: randomSeed(), scenario: 'campaign', version: VERSION, campaign: promote(c, city), weather: WEATHER })) : null;
+    return ui.showResult(state, { back: () => backToPosting(state), title: async () => { await autosave(); stop(); showTitle(); }, photo: lastPhoto?.url, next }, settings);
+  }
   // (a lesson of the tutorial: again with Hale, on your own, the next one, the directory: sim/tutorial/)
   // (from the flat's telephone, `home`: the campaign's officer plays on, and the way out is back to the flat)
   const character = home?.character;
@@ -208,8 +228,9 @@ function backToPosting(s) {
   const c = s.campaign, a = c.assignments.find(x => x.id === s.assignment);
   const me = s.actors.find(x => x.who === s.player);
   const paper = a ? fold(c, a, s.scenario, s.people[s.player], s.time.ms, Object.values(s.heat)[0]) : { title: 'BACK', lines: [] };
-  c.where = me ? { row: me.row ?? s.map.row, x: me.x, z: me.z } : null;
-  c.now = s.time.ms;
+  // (from a trip abroad: the flight home, the flat in London next morning: sim/campaign.js foldTrip())
+  c.where = me && !a?.trip ? { row: me.row ?? s.map.row, x: me.x, z: me.z } : null;
+  c.now = a?.home ?? s.time.ms;
   ui.showPaper({ stamp: 'DEBRIEF', title: paper.title, lines: paper.lines, note: `Heat: ${heatWord(c.posting.heat)}. Intelligence: ${c.posting.intelligence}.` },
     () => launch(newGame({ seed: randomSeed(), scenario: 'campaign', version: VERSION, campaign: c, weather: WEATHER })));
 }
@@ -223,6 +244,13 @@ function showPapers(list) {
 /** The posting's brief, the paper before day one. */
 function postingPaper(c) {
   const p = c.posting, me = c.character;
+  if (p.level === 'junior') return { stamp: 'FIRST TOUR', title: 'STATION LONDON', go: 'Begin the tour', lines: [
+    `${me.name}: ${p.job}. On paper you work for the FBI's people in London; in fact you're the station's liaison with MI5, and its most junior officer.`,
+    `The station wants ${p.goal}. With MI5's watchers, you'll follow the residency's people and photograph whom they meet: ${p.targets.map(t => t.name).join(' and ')}.`,
+    `Twice in the tour another station will borrow you for a couple of days: ${p.trips.map(t => `${cityById(t.city).name}`).join(', then ')}. Flown out the morning of it, home the morning after.`,
+    `Do it well (intelligence ${goalOf(p)}), keep the heat down, and the next posting is a station of your own.`,
+    'The embassy expects you nine to six on weekdays: the work is in the evenings. Tab is the desk: what\'s ahead, the day\'s choices.',
+  ] };
   return { stamp: 'POSTING', title: `STATION ${cityById(p.city).name.toUpperCase()}`, go: 'Begin the posting', lines: [
     `${me.name}: ${p.job}. Diplomatic immunity: caught, you'd be expelled. The people you run wouldn't be so lucky.`,
     `The station wants ${p.goal}. Every meeting, every tail, is a step toward it.`,

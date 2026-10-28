@@ -4,6 +4,14 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc26 (2026-10-28)
+
+- **A first tour.** New officers start at the bottom now: a junior fresh from the Farm (24 to 29, a little greener on the street), Station London, under cover in the embassy's Office of the Legal Attaché: on paper the FBI's, in fact the station's liaison with MI5. No network of your own: with MI5's watchers you follow two of the Russian residency's officers to whoever they meet, and photograph them at it.
+- **Trips abroad.** Twice in the tour another station borrows you for an evening, flown out that morning: Moscow (meet one of their assets for them, clean), Beirut (a photograph), Cairo (a tail), each on that city's own streets, the opposition there treating you as a visitor. The night flight home, and you wake in your London flat; the days away count as worked.
+- **Promoted.** Get the tour's work done (intelligence 6) and you're promoted: the paper asks which station you want, Moscow, London, Beirut or Cairo, and the same officer starts a posting of their own as a Handler a fortnight later, a network to run.
+- **Starting higher.** The new-game screen asks where to start: a first tour, or a posting of your own once one of your games has completed a posting (the record is kept in the browser). Till then a posting of your own is reached by promotion. Debug mode opens both.
+- Tests: campaign (a first tour: juniors, Station London, two trips planned abroad, a trip's scene on its own city's streets, credited, home the morning after; promoted, and a posting of one's own for the same officer); browser (the campaign from the title starts a first tour, a posting of your own locked).
+
 ## v0.1.0-rc25 (2026-10-28)
 
 - **The embassy, inside.** At its door, T, and you're in past the Marine: the lobby with his desk (dress blues, the white cover), the arch of the metal detector, the X-ray's belt, the flags; the consular waiting room off it, its rows of chairs and the visa window; through the arch, the corridor, and off it the chief's office, the station behind its vault door, and the tank. People at their places: the Marine, the consular officer, applicants waiting, colleagues at their desks, the chief at his.
