@@ -39,8 +39,8 @@ import { PX_PER_M } from './pixelart.js';
 export const PAD = 2;
 export const CELL = [24 + 2 * PAD, 34];
 export const FRAMES = ['idle0', 'idle1', 'walk0', 'walk1', 'walk2', 'walk3', 'run0', 'run1', 'run2', 'run3', 'sit', 'guard', 'punch', 'grab', 'reel',
-  'chamber', 'swing', 'hook', 'elbow', 'knee', 'kick', 'highkick', 'lowkick', 'throw', 'sweep', 'parry', 'slip', 'stagger', 'stun'];
-/** The fight's frames (sim/cqcshow.js poses): a gait of one of these is drawn as that frame. */
+  'chamber', 'swing', 'hook', 'elbow', 'knee', 'kick', 'highkick', 'lowkick', 'throw', 'sweep', 'parry', 'slip', 'stagger', 'stun', 'hail'];
+/** The posed frames (a fight's, sim/cqcshow.js; an arm up for a taxi, sim/taxi.js): a gait of one of these is drawn as that frame. */
 export const FIGHT_FRAMES = FRAMES.slice(11);
 export const DIRS = ['down', 'up', 'right', 'left'];
 export const FPS = 8;
@@ -738,6 +738,11 @@ function torsoFront(kind, back) {
 // A front arm at column x0 (2 wide): the sleeve to the wrist (a tee's stops short), then the hand.
 // reach: 0 hanging, 1 forward (the hand a pixel lower), -1 back (a pixel higher).
 function armFront(x0, kind, reach, side) {
+  // (an arm up, out from the shoulder past the head: a taxi hailed)
+  if (reach === 'up') {
+    const up = ['......ss', '......ss', '.....tt.', '....tt..', '...tt...', '..tt....', '.tt.....', 'tt......', 'tt......', 't.......'];
+    return side > 0 ? [x0, 10, up] : [x0 - 6, 10, up.map(r => [...r].reverse().join(''))];
+  }
   const len = 5 + reach, rows = [];
   rows.push(side < 0 ? '.t' : 't.');
   for (let i = 0; i < len; i++) rows.push(kind === 'tee' && i >= 2 || kind === 'dress' && i >= 1 ? 'ss' : 'tt');
@@ -793,6 +798,8 @@ function armSide(kind, swing, far) {
     hook: [10, 14, [`.......${hand}${hand}${hand}.`, `.......${hand}${hand}${hand}.`, `........${sl(2)}${sl(2)}`, `.......${sl(2)}${sl(2)}.`, `....${sl(1)}${sl(1)}${sl(1)}${sl(1)}..`, `${sl(0)}${sl(0)}${sl(1)}${sl(1)}......`]],
     elbow: [10, 15, [`..${hand}${hand}${sl(2)}${sl(2)}${sl(2)}${sl(2)}${sl(1)}.`, `...${sl(1)}${sl(1)}${sl(1)}${sl(1)}${sl(1)}${sl(1)}${sl(1)}`, `..${sl(1)}${sl(1)}${sl(1)}......`, `${sl(0)}${sl(0)}${sl(0)}.......`]],
     parry: [10, 19, [`${sl(0)}${sl(0)}......`, `.${sl(1)}${sl(1)}${sl(1)}....`, `....${sl(2)}${sl(2)}${hand}${hand}`, `......${hand}${hand}`]],
+    // An arm up for a taxi: forward and high, the hand over the head's front.
+    hail: [11, 11, [`..........${hand}${hand}`, `.........${hand}${hand}${hand}`, `........${sl(1)}${sl(1)}..`, `.......${sl(1)}${sl(1)}...`, `.....${sl(0)}${sl(0)}${sl(0)}....`, `...${sl(0)}${sl(0)}${sl(0)}......`, `.${sl(0)}${sl(0)}${sl(0)}........`, `${sl(0)}${sl(0)}..........`]],
   };
   const s = shapes[swing];
   return far && ['punch', 'grab', 'swing', 'hook', 'elbow', 'parry', 'chamber'].includes(swing) ? [s[0] - 2, s[1] + 1, s[2]] : s;   // (the far arm a little behind and below)
@@ -854,6 +861,7 @@ const POSES = {
   slip: { bob: 2, reach: [-1, -1], swing: ['guard', 'guard'], front: 0, side: ['stand', 'back'], lean: -2, over: true },
   stagger: { bob: 1, reach: [-1, 1], swing: [-1, 1], front: 0, side: ['back', 'stand'], lean: -2 },
   stun: { bob: 2, reach: [0, 0], swing: [0, 0], front: 0, side: ['stand', 'stand'], lean: -1 },
+  hail: { bob: 0, reach: [0, 'up'], swing: ['hail', 0], front: 0, side: ['stand', 'stand'], over: true, armOver: true },
 };
 
 function compose(spec, dir, frame) {
@@ -894,9 +902,10 @@ function compose(spec, dir, frame) {
     draw(legsFront(view === 'up' ? -P.front : P.front, P.sit));
     draw(torsoFront(kind, view === 'up'), 0, bob);
     const [l, r] = view === 'up' ? [P.reach[1], P.reach[0]] : P.reach;
-    draw(armFront(5, kind, l, -1), 0, bob);
+    // (an arm up, drawn after the head, over it where they cross: below)
+    if (l !== 'up') draw(armFront(5, kind, l, -1), 0, bob);
     hand = part;
-    draw(armFront(16, kind, r, 1), 0, bob);
+    if (r !== 'up') draw(armFront(16, kind, r, 1), 0, bob);
   }
   if (spec.carry && view !== 'up') {                              // in the hand nearest the camera's left
     const item = spec.carry === 'briefcase'
@@ -926,6 +935,11 @@ function compose(spec, dir, frame) {
   else if (hat) draw(hat[view] ?? hat.down, lean, hb);
   if (rain === 'umbrella') draw(T.umbrella.canopy, view === 'right' ? lean : 0, hb);
   if (P.over && view === 'right') { draw(armSide(kind, P.swing[0], false), lean, bob); hand = part; }   // (a fist before the face)
+  if (P.armOver && view !== 'right') {                             // (an arm up past the head: a taxi hailed)
+    const [l, r] = view === 'up' ? [P.reach[1], P.reach[0]] : P.reach;
+    if (l === 'up') draw(armFront(5, kind, 'up', -1), 0, bob);
+    if (r === 'up') draw(armFront(16, kind, 'up', 1), 0, bob);
+  }
   if (spec.hand && view !== 'up' && HELD[spec.hand]) held(cells, W, H, hand, ++part, HELD[spec.hand], view === 'right' ? (HOLD[frame] ?? [0, 1]) : [0, 1]);
   return cells;
 }

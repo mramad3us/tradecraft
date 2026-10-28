@@ -22,6 +22,7 @@ import { skip, newMap } from '../game.js';
 import { eat } from '../needs.js';
 import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, KINDS, WORK } from '../campaign.js';
 import { signOf } from '../places.js';
+import { reading, bookOf, readAnHour } from '../training.js';
 import { planOf } from '../map/interior.js';
 import { spotNear, spotOf, exitHere, walkTo, SPOT_REACH_M } from '../interiors/use.js';
 import { hash } from '../rng.js';
@@ -126,6 +127,9 @@ export const campaignHub = {
     state.scenario.prompt = instinct(state, c, now);
   },
 
+  /** At the window, your feet are the window's: nothing but T takes you from it. */
+  holds(state) { return !!state.scenario.window; },
+
   /** In the flat, the whole of it is taken in: no fog (src/render/view.js). */
   aware(state) { return state.map.kind === 'interior'; },
 
@@ -137,7 +141,7 @@ export const campaignHub = {
 
   /** Where you'd want to be: the embassy on a working morning not yet worked; the flat late at night. */
   goal(state) {
-    if (state.map.kind !== 'street') return null;                   // (in the flat, the way out's the door)
+    if (state.map.kind !== 'street' || state.scenario.window) return null;   // (in the flat, the way out's the door; at its window, nowhere)
     const c = state.campaign, p = c.posting, now = state.time.ms, k = calendar(now);
     const pl = k.weekday < 5 && !c.worked[Math.floor(now / DAY)] && k.hour >= 7 && k.hour < WORK.to - 2 ? p.embassy : k.hour >= 22 || k.hour < 5 || fatigue(c, now).v ? p.home : null;
     const me = state.actors.find(a => a.who === state.player);
@@ -170,14 +174,33 @@ export const homeMap = (c, ms = c.now ?? c.posting.startMs) => ({ kind: 'interio
   boxes: ms < c.posting.startMs + UNPACKED_DAYS * DAY });   // (the first days, the moving boxes not yet unpacked)
 export const UNPACKED_DAYS = 3;
 
-/** Into the flat: up the stairs from your door (at 'door'), or straight to bed (at 'sleep', the desk's). */
+/** Into the flat: up the stairs from your door (at 'door'), straight to bed (at 'sleep', the desk's), or back from its window (at 'window'). */
 function enterHome(state, bus, at = 'door') {
   const c = state.campaign, me = state.actors.find(a => a.who === state.player), map = homeMap(c, state.time.ms), plan = planOf(map);
-  const e = plan.exits[0], s = at === 'sleep' ? plan.spots.find(x => x.kind === 'sleep') : { x: (e.x0 + e.x1) / 2, z: e.z1 + 0.7, face: 'down' };
+  const e = plan.exits[0], s = at === 'sleep' || at === 'window' ? plan.spots.find(x => x.kind === (at === 'sleep' ? 'sleep' : 'window')) : { x: (e.x0 + e.x1) / 2, z: e.z1 + 0.7, face: 'down' };
   Object.assign(me, { x: s.x, z: s.z, vx: 0, vz: 0, busy: null, face: s.face, head: headOf(s.face), hidden: false });
   newMap(state, bus, map, s.x);
   c.where = { inside: 'home', row: c.posting.home.row, x: s.x, z: s.z };
   if (at === 'door') say(state, bus, { kind: 'note', text: 'Up the stairs, the key in the lock: the flat.' });
+}
+
+/**
+ * At the flat's window: the street below, from up behind the curtain (the user, 2026-10-27: "getting
+ * close to the windows would allow us to get the outside of flat view"). The street's map, your eyes
+ * at the front over your door, out of sight (hidden): who's there, who's waiting, who keeps looking up.
+ * Your feet the window's (holds()); T, and you're back in the room.
+ */
+function lookOut(state, bus) {
+  const c = state.campaign, p = c.posting, me = state.actors.find(a => a.who === state.player);
+  Object.assign(me, { x: (p.home.x ?? 12) + 1.2, z: (p.home.z ?? Z.front) + 0.1, vx: 0, vz: 0, busy: null, face: 'down', head: Math.PI / 2, hidden: true });
+  newMap(state, bus, { kind: 'street', seed: p.mapSeed, row: p.home.row, i0: null, i1: null, crowd: 1, city: p.city }, me.x);
+  state.scenario.window = true;
+  say(state, bus, { kind: 'note', text: 'The curtain an inch aside: the street below, and nobody looking up.' });
+}
+function backFromWindow(state, bus) {
+  state.scenario.window = false;
+  state.actors.find(a => a.who === state.player).hidden = false;
+  enterHome(state, bus, 'window');
 }
 
 /** Out of the flat by its front door: down the stairs, and onto the street at your door. */
@@ -197,8 +220,9 @@ function use(state, bus, act, here = false) {
   const c = state.campaign, me = state.actors.find(a => a.who === state.player);
   if (!act || !me || state.fight) return;
   if (act === 'home') return enterHome(state, bus, 'door');
+  if (act === 'unwindow') return backFromWindow(state, bus);
   if (act === 'work') return campaignHub.act(state, bus, 'desk:work');   // (in at the embassy's door, and the day's work: out at six)
-  const kind = { phone: 'phone', call: 'phone', sleep: 'sleep', wash: 'wash', eat: 'eat' }[act], s = kind && spotOf(state, kind);
+  const kind = { phone: 'phone', call: 'phone', sleep: 'sleep', wash: 'wash', eat: 'eat', window: 'window', read: 'read' }[act], s = kind && spotOf(state, kind);
   if (!s) return;
   if (!here && Math.hypot(me.x - s.x, me.z - s.z) > SPOT_REACH_M) { walkTo(state, me, s); state.scenario.using = { act, spot: kind }; return; }
   if (act === 'phone') {
@@ -213,6 +237,12 @@ function use(state, bus, act, here = false) {
     const k = calendar(state.time.ms);
     if (k.hour >= 20 || k.hour < 5 || fatigue(c, state.time.ms).v <= -3) campaignHub.act(state, bus, 'desk:sleep');
     else bus?.emit('bed', [{ key: 'sleep', label: 'Sleep till seven tomorrow' }, { key: 'rest:nap', label: `A nap: an hour, and ${NAP_EASES_H} hours' tiredness gone` }, { key: 'rest:lie', label: 'Lie down half an hour: the nerves settle' }]);
+  }
+  else if (act === 'window') lookOut(state, bus);
+  else if (act === 'read') {                                       // (an hour with the book on the go: sim/training.js)
+    const p = state.people.me, lang = c.posting.city === 'london' ? 'ru' : cityById(c.posting.city).lang ?? 'ru';
+    skip(state, bus, 60 * MIN);
+    say(state, bus, { kind: 'note', text: readAnHour(p, lang) ?? 'Nothing left to read.' });
   }
   else if (act === 'eat') { say(state, bus, { kind: 'note', text: 'Bread, cheese, the kettle, the radio low: twenty minutes.' }); skip(state, bus, 20 * MIN); eat(state.people.me, state.time.ms, 20); }
   else if (act === 'wash') {
@@ -230,6 +260,8 @@ const SPOT_LINE = {
   wash: (state) => [state.people.me.bloody ? 'The basin. {instinct}: wash the blood off, a clean shirt.' : 'The basin. {instinct}: wash, a clean shirt.', 'wash'],
   eat: () => ['The kitchen table. {instinct}: something to eat.', 'eat'],
   cook: () => ['The cooker. {instinct}: something to eat.', 'eat'],
+  window: () => ['The window, over the street. {instinct}: look out, from behind the curtain.', 'window'],
+  read: (state) => { const b = reading(state.people.me); return b ? [`The armchair. {instinct}: an hour with ${bookOf(b.id).title}.`, 'read'] : ['The armchair, and nothing to read but the takeaway menus. A bookshop would help.', null]; },
 };
 
 /** Arrive at a place: its street loaded, the player at its door (sim/game.js newMap()). */
@@ -247,7 +279,8 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 function instinct(state, c, now) {
   const L = (id, tone, text, act = null) => ({ id, tone, text, act, ms: now });
   const me = state.actors.find(a => a.who === state.player), p = c.posting;
-  // In the flat: the telephone, ringing, before anything. At your door: up to it.
+  // At the window: back from it. In the flat: the telephone, ringing, before anything. At your door: up to it.
+  if (state.scenario.window) return L('window-out', 'calm', 'From the window: the street below. {instinct}: back into the room.', 'unwindow');
   if (state.map.place === 'home') {
     if ((c.calls ?? []).some(k => k.rang && !k.done)) return L('ring', 'warn', 'The telephone is ringing. {instinct}: answer it.', 'phone');
   } else if (me && state.map.kind === 'street' && state.map.row === p.home.row && p.home.x !== undefined && Math.abs(me.x - p.home.x) < 1.2 && me.z < (p.home.z ?? Z.front) + DOORSTEP_M) {

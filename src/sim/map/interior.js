@@ -20,6 +20,7 @@ export function planOf(map) {
     rooms: p.rooms.map(sx), exits: p.exits.map(sx),
     openings: p.openings.map(o => (o.axis === 'x' ? { ...o, a: o.a + ox, b: o.b + ox } : { ...o, at: o.at + ox })),
     windows: p.windows.map(o => (o.axis === 'x' ? { ...o, a: o.a + ox, b: o.b + ox } : { ...o, at: o.at + ox })),
+    windowsS: (p.windowsS ?? []).map(o => ({ ...o, a: o.a + ox, b: o.b + ox })),
     items: p.items.map(it => ({ ...it, x: it.x + ox })), spots: p.spots.map(s => ({ ...s, x: s.x + ox })), lights: p.lights.map(l => ({ ...l, x: l.x + ox })),
     decor: (p.decor ?? []).map(d => ({ ...d, x: d.x + ox })),
   };

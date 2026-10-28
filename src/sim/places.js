@@ -33,7 +33,7 @@ function choose(c, town) {
   const p = c.posting;
   // The embassy: the widest building on the front of its street's first two sections (no mosque, no church).
   const lots = [0, 1].flatMap(i => sectionOf(town, p.embassy.row, i).buildings.map((B, b) => ({ i, b, B })))
-    .filter(o => o.B.z === Z.front && !o.B.minaret && !o.B.dome && !o.B.spire);
+    .filter(o => o.B.z === Z.front && !o.B.minaret && !o.B.dome && !o.B.spire && o.B.style !== 'station');
   const best = lots.sort((a, b) => (b.B.x1 - b.B.x0) - (a.B.x1 - a.B.x0))[0];
   if (best) Object.assign(p.embassy, { i: best.i, b: best.b, x: (best.B.x0 + best.B.x1) / 2, z: best.B.z });
   else p.embassy.x = 12;

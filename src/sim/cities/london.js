@@ -83,10 +83,11 @@ const SHOPS = {
   shoes: ['SHOES', 'SHOE REPAIRS'], watches: ['JEWELLER'], phones: ['MOBILE'], kebab: ['KEBAB'], beer: ['OFF LICENCE', 'WINES'],
   deli: ['DELI'], restaurant: ['TANDOORI', 'TRATTORIA', 'BISTRO'], chips: ['FISH & CHIPS'], laundry: ['LAUNDERETTE', 'DRY CLEANERS'],
   estate: ['ESTATE AGENTS'], barber: ['BARBER'], bookie: ['BETTING'],
+  gym: ['GYM', 'FITNESS'], club: ['JUDO CLUB', 'BOXING CLUB', 'KARATE'], school: ['LANGUAGES', 'LANGUAGE SCHOOL'],
 };
 const SHOP_WEIGHTS = [['grocery', 3], ['cafe', 3.5], ['pharmacy', 1.5], ['estate', 2], ['clothes', 1.5], ['flowers', 1], ['bakery', 1.2],
   ['books', 0.8], ['optician', 0.8], ['bank', 0.8], ['tobacco', 1.5], ['exchange', 0.5], ['shoes', 0.6], ['watches', 0.5], ['phones', 1],
-  ['kebab', 0.8], ['beer', 1], ['deli', 1], ['restaurant', 1.5], ['chips', 0.8], ['laundry', 1], ['barber', 1], ['bookie', 0.6]];
+  ['kebab', 0.8], ['beer', 1], ['deli', 1], ['restaurant', 1.5], ['chips', 0.8], ['laundry', 1], ['barber', 1], ['bookie', 0.6], ['gym', 0.6], ['club', 0.4], ['school', 0.4]];
 // Fascias: [ground, letters, border] — London's: dark grounds and gold, black and white, cream.
 const FASCIAS = [[0x173327, 0xe7b84a, 0x0e1f18], [0x23252f, 0xf6f4ee, 0x14151c], [0x1b2541, 0xf8e08a, 0x14151c], [0x6e2a2e, 0xf8e08a, 0x3f1a22],
   [0xf4efe6, 0x23252f, 0x8f96a6], [0x283f6b, 0xf6f4ee, 0x1b2541], [0x4c5262, 0xf6f4ee, 0x23252f], [0x9e3c36, 0xf6f4ee, 0x6e2a2e]];

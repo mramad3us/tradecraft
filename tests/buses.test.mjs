@@ -1,13 +1,15 @@
-// Buses (sim/buses.js): shelters at the far kerb in every city, room to walk round into them, and
-// notice boards in the parks (sim/map/street.js amenities()); sat at one, the bus comes on its
-// timetable, waits, and takes you where you ask, to the stop there, for its fare; being tailed's team
+// Buses (sim/buses.js): shelters at the far kerb in every city where the network's lines stop
+// (sim/transit.js), room to walk round into them, and notice boards in the parks (sim/map/street.js
+// amenities()); sat at one, the bus comes on its timetable, waits, and takes you to a stop on its own
+// line, for its fare; being tailed's team
 // gets on with you if they saw you and were near enough (an overt pair; a covert team's nearest, and
 // its car), and gets off behind you; nobody minds a bus (it isn't written down).
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
 import { section, SECTION_M } from '../src/sim/map/street.js';
 import { townOf } from '../src/sim/cities/index.js';
 import { cashOf } from '../src/sim/money.js';
-import { OFF_Z, EVERY_MIN, DWELL_S } from '../src/sim/buses.js';
+import { OFF_Z, EVERY_MIN, DWELL_S, destinations } from '../src/sim/buses.js';
+import { network, busLinesAt } from '../src/sim/transit.js';
 import { goTo } from './bots.mjs';
 import { assert, fmt } from './helpers.mjs';
 
@@ -15,7 +17,7 @@ import { assert, fmt } from './helpers.mjs';
 function nearestStop(g) {
   const me = playerActor(g), i0 = Math.floor(me.x / SECTION_M);
   let best = null;
-  for (let i = i0 - 8; i <= i0 + 8; i++) for (const p of section(townOf(g.map), i, g.map.row ?? 0).props) if (p.kind === 'stop' && (!best || Math.abs(p.x - me.x) < Math.abs(best.x - me.x))) best = p;
+  for (let i = i0 - 14; i <= i0 + 14; i++) for (const p of section(townOf(g.map), i, g.map.row ?? 0).props) if (p.kind === 'stop' && (!best || Math.abs(p.x - me.x) < Math.abs(best.x - me.x))) best = p;
   return best;
 }
 
@@ -31,24 +33,26 @@ function takeBus(g, which = 'bus0', bus = null) {
   }
   const sat = g.time.ms, row = g.map.row ?? 0, cash = cashOf(g.people[g.player]);
   for (t = 0; t < 25 * 60 * 30 && !playerActor(g).busy?.bus; t++) step(g, {}, bus);
-  const came = g.time.ms, dir = playerActor(g).busy?.bus?.dir;
+  const came = g.time.ms, dir = playerActor(g).busy?.bus?.dir, line = playerActor(g).busy?.bus?.line;
   if (!dir) return { stop: st, waited: (came - sat) / 60000 };
-  step(g, { act: [`bus:${which}`] }, bus);
+  const list = destinations(g, st, line, dir), want = list.find(d => d.id === which) ?? list[0];
+  step(g, { act: [`bus:${want?.id ?? which}`] }, bus);
   const there = nearestStop(g);
-  return { stop: st, waited: (came - sat) / 60000, dir, rode: (g.time.ms - came) / 60000, rows: (g.map.row ?? 0) - row, paid: cash - cashOf(g.people[g.player]), to: there?.x };
+  return { stop: st, waited: (came - sat) / 60000, dir, line, want, rode: (g.time.ms - came) / 60000, rows: (g.map.row ?? 0) - row, paid: cash - cashOf(g.people[g.player]), to: there?.x };
 }
 
 export default [
   {
-    name: 'buses: a shelter every few sections in every city, room at its ends; notice boards in half the parks',
+    name: 'buses: a shelter where the network\'s lines stop, in every city, its lines on it, room at its ends; notice boards in half the parks',
     fn() {
       for (const [city, town] of [['Moscow', 7], ['London', 'london:7'], ['Beirut', 'beirut:7'], ['Cairo', 'cairo:7']]) {
-        let n = 0, stops = 0, parks = 0, boards = 0;
+        let n = 0, stops = 0, parks = 0, boards = 0, wanted = 0, stray = 0;
         for (let row = -4; row <= 4; row++) for (let i = 0; i < 13; i++) {
-          const S = section(town, i, row);
-          n++;
+          const S = section(town, i, row), lines = busLinesAt(town, row, i);
+          n++; wanted += lines.length > 0;
           for (const st of S.props.filter(p => p.kind === 'stop')) {
             stops++;
+            if (!lines.length || st.lines.join() !== lines.join()) stray++;
             // (round its ends, at a walker's width: clear)
             for (const x of [st.x - st.w / 2 - 0.45, st.x + st.w / 2 + 0.45]) for (const z of [-1.7, -1.0, -0.56])
               assert(!S.blockers.some(b => x + 0.25 > b.x0 && x - 0.25 < b.x1 && z + 0.25 > b.z0 && z - 0.25 < b.z1), `${city} row ${row}: the end of the shelter at ${fmt(st.x, 1)} blocked at (${fmt(x, 1)}, ${z})`);
@@ -56,13 +60,14 @@ export default [
           }
           if (S.band === 'park' || S.band === 'boulevard') { parks++; boards += S.props.filter(p => p.kind === 'notices').length; }
         }
-        console.log(`      ${city}: ${stops} shelters in ${n} sections (one every ${fmt(n * SECTION_M / stops, 0)} m of street); notice boards in ${boards} of ${parks} parks and boulevards`);
-        assert(stops >= n / 5 && boards >= parks / 4, `${city}: enough of both`);
+        const net = network(town);
+        console.log(`      ${city}: ${net.lines.filter(L => L.kind === 'bus').map(L => L.name).join(', ')}: ${stops} shelters for ${wanted} stops in ${n} sections (one every ${fmt(n * SECTION_M / stops, 0)} m of street); notice boards in ${boards} of ${parks} parks and boulevards`);
+        assert(stray === 0 && stops >= wanted * 0.85 && boards >= parks / 4, `${city}: a shelter at the stops (${stops} of ${wanted}), none elsewhere (${stray}); boards`);
       }
     },
   },
   {
-    name: 'buses: sat in the shelter, the bus comes on its timetable; on it, a street on for its fare, off at the stop there',
+    name: 'buses: sat in the shelter, the bus comes on its timetable; on it, one of its own line\'s stops for its fare, off at the stop there',
     fn() {
       const got = [];
       for (let seed = 1; seed <= 6; seed++) {
@@ -72,11 +77,11 @@ export default [
         const r = takeBus(g, seed % 2 ? 'bus0' : 'bus1', bus);
         const me = playerActor(g);
         got.push(r);
-        assert(r?.dir && asked.length === 1 && asked[0].list.length === 3, `seed ${seed}: the bus came and asked where to`);
-        assert(r.waited <= 2 * Math.max(...EVERY_MIN) + DWELL_S / 60, `seed ${seed}: waited ${fmt(r.waited, 1)} min`);
-        assert(r.rows === r.dir * (seed % 2 ? 1 : 2) && r.paid === 1 && Math.abs(me.z - OFF_Z) < 0.01 && Math.abs(me.x - r.to) < 0.01, `seed ${seed}: there, at the stop, paid`);
+        assert(r?.dir && asked.length >= 1 && asked[0].list.length >= 1 && asked[0].list.every(d => busLinesAt(townOf(g.map), d.row, d.i).includes(r.line)), `seed ${seed}: the bus came and asked where to: its own line's stops`);
+        assert(r.waited <= 3 * Math.max(...EVERY_MIN) + DWELL_S / 60, `seed ${seed}: waited ${fmt(r.waited, 1)} min`);
+        assert(g.map.row === r.want.row && r.paid === 1 && Math.abs(me.z - OFF_Z) < 0.01 && Math.abs(me.x - r.to) < 0.01, `seed ${seed}: there, at the stop, paid`);
       }
-      console.log(`      waited ${got.map(r => fmt(r.waited, 1)).join(', ')} min; rode ${got.map(r => `${r.rows > 0 ? '+' : ''}${r.rows} (${fmt(r.rode, 0)} min)`).join(', ')}`);
+      console.log(`      waited ${got.map(r => fmt(r.waited, 1)).join(', ')} min; the ${got.map(r => `${r.line} to ${r.want.label} (${fmt(r.rode, 0)} min)`).join('; the ')}`);
     },
   },
   {

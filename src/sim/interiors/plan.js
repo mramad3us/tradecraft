@@ -11,7 +11,7 @@
 //   - rooms: [{ id, kind ('living', 'bedroom', 'kitchen', 'bath', 'hall'…), x0, z0, x1, z1, floor, paint }];
 //   - openings: [{ axis, at, a, b, kind: 'doorway' | 'door' | 'front' }]: a gap in the wall on the line
 //     `at` (axis 'x': a wall running east–west at z = at, from x a to b; axis 'z': north–south at x = at);
-//   - windows: [{ axis, at, a, b }]: glass in an outer wall;
+//   - windows: [{ axis, at, a, b }]: glass in the back wall; windowsS: [{ a, b }], in the street side's (cut low);
 //   - items: the furniture, [{ kind, x, z, face, look }] (x, z its middle);
 //   - exits: [{ id, x0, z0, x1, z1, to }]: step into one and you leave by it;
 //   - spots: [{ kind ('sleep', 'phone'…), x, z, face, item }]: what's done where (sim/interiors/use.js).
@@ -59,6 +59,7 @@ export function mirror(plan) {
     rooms: plan.rooms.map(flip),
     openings: plan.openings.map(o => (o.axis === 'x' ? { ...o, a: m(o.b), b: m(o.a) } : { ...o, at: m(o.at) })),
     windows: plan.windows.map(o => (o.axis === 'x' ? { ...o, a: m(o.b), b: m(o.a) } : { ...o, at: m(o.at) })),
+    windowsS: (plan.windowsS ?? []).map(o => ({ ...o, a: m(o.b), b: m(o.a) })),
     items: plan.items.map(it => ({ ...it, x: m(it.x), face: face[it.face] ?? it.face })),
     exits: plan.exits.map(flip),
     spots: plan.spots.map(s => ({ ...s, x: m(s.x), face: face[s.face] ?? s.face })),

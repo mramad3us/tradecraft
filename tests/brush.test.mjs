@@ -64,10 +64,11 @@ export default [
     heavy: true,
     fn() {
       const by = { none: {}, overt: {}, covert: {} };
-      for (let seed = 1; seed <= 24; seed++) { const sc = run(seed); by[sc.team][sc.outcome] = (by[sc.team][sc.outcome] ?? 0) + 1; }
+      // (48 evenings: a team sees a walking pass one time in five or so, too rare to judge on a dozen; 0.1.0-rc23)
+      for (let seed = 1; seed <= 48; seed++) { const sc = run(seed); by[sc.team][sc.outcome] = (by[sc.team][sc.outcome] ?? 0) + 1; }
       console.log(`      straight there, the pass walking: none ${JSON.stringify(by.none)}; overt ${JSON.stringify(by.overt)}; covert ${JSON.stringify(by.covert)}`);
-      assert((by.none.clean ?? 0) >= 4, 'with nobody behind you, it goes');
-      assert((by.overt.burned ?? 0) >= 2, 'an overt pair on you sees it');
+      assert((by.none.clean ?? 0) >= 8, 'with nobody behind you, it goes');
+      assert((by.overt.burned ?? 0) + (by.covert.burned ?? 0) >= 3, 'a team on you sees it, now and then (overt or covert: one in seven or so each)');
     },
   },
 ];

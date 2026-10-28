@@ -1705,7 +1705,7 @@ const CARS = {
  * rack, a van, an SUV with a spare wheel; 'taxi' a yellow sedan with its chequered band and roof
  * sign). Its painted faces are made once a make and colour.
  */
-export function car(color = 0x3b6296, { taxi = false, seed = 5, kind = 'sedan' } = {}) {
+export function car(color = 0x3b6296, { taxi = false, seed = 5, kind = 'sedan', free = true } = {}) {
   if (kind === 'taxi') { taxi = true; kind = 'sedan'; color = 0xe7b84a; }
   const city = kind === 'cairotaxi' ? 'cairo' : kind === 'servis' ? 'beirut' : null;     // Cairo's white taxi with its chequered band; Beirut's service taxi, an old Mercedes, its red plate
   if (city === 'cairo') { kind = 'sedan'; color = 0xf6f4ee; taxi = true; }
@@ -1769,8 +1769,9 @@ export function car(color = 0x3b6296, { taxi = false, seed = 5, kind = 'sedan' }
   }
   if (taxi) {
     const word = city === 'beirut' ? 'TAXI' : city === 'cairo' ? 'تاكسي' : 'TAXI';
-    const sign = keep(`taxi-sign-${city}`, () => mat(0, paint(city === 'cairo' ? 20 : 16, 7, (px, W) => { px(0, 0, W, 7, city === 'beirut' ? 0xf6f4ee : 0xf8e08a); text(px, Math.floor((W - textWidth(word)) / 2), 1, word, city === 'beirut' ? 0x9e3c36 : INK); }, { glows: [0xf8e08a] })));
-    const t = box(1.0, 0.44, 0.3, { sides: mat(0xf8e08a), front: sign, back: sign });
+    // (its light: lit when it's free, a glow after dark; dark when it's taken: sim/traffic.js)
+    const sign = keep(`taxi-sign-${city}-${free}`, () => mat(0, paint(city === 'cairo' ? 20 : 16, 7, (px, W) => { px(0, 0, W, 7, !free ? 0x8f8a80 : city === 'beirut' ? 0xf6f4ee : 0xf8e08a); text(px, Math.floor((W - textWidth(word)) / 2), 1, word, !free ? 0x5c5650 : city === 'beirut' ? 0x9e3c36 : INK); }, { glows: [0xf8e08a] })));
+    const t = box(1.0, 0.44, 0.3, { sides: mat(free ? 0xf8e08a : 0x8f8a80), front: sign, back: sign });
     t.position.set(K.at, K.ride + K.body + K.cabH - 0.06, 0);
     g.add(part(t));
   }

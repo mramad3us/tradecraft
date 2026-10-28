@@ -19,6 +19,12 @@
 // player's stress up). Nobody's hit: they're city drivers at 40 km/h.
 // The bus you're waiting for (sim/buses.js) is sent for: it comes in time to pull in at the minute,
 // and stays (held) until it's taken or let go.
+// A taxi (the city's make, TAXI_SHARE of cars) has its light lit when it's free (freeShare(), by the
+// hour: fewer at the rushes) and dark when it's taken; a free one hailed (sim/taxi.js hail(): the user,
+// 2026-10-27, "hailing a taxi should be fully animated, and only available when a taxi is close ? and
+// they could be already busy and ignore us") brakes, eases toward the kerb, and stops with its back
+// door by whoever hailed it (c.taxi.stopped), and waits there (TAXI_WAIT_S) until they get in or go;
+// a taken one drives by.
 import { Z } from './map/street.js';
 import { townOf, cityOf } from './cities/index.js';
 import { TICK_MS, hourOfDay, SEC } from './clock.js';
@@ -35,6 +41,7 @@ export const ACCEL_MS2 = 2.2, BRAKE_MS2 = 4.5, HARD_MS2 = 9;
 export const GAP_M = 2;
 export const BUS_SHARE = 0.07, TAXI_SHARE = 0.12;
 export const BUS_DWELL_S = 6;
+export const TAXI_WAIT_S = 25, TAXI_KERB_M = 0.7, DROP_S = 3;                 // (a hailed taxi waits this long; eased this far from its lane's middle toward the kerb)
 export const HOLD_S = 22;                                          // (the one sent for: its doors open while you choose, sim/buses.js DWELL_S, and a little)
 export const NEAR_MISS_S = 20;
 export const ZEBRA_STOP_M = 1.2;                                   // (the car's front this far short of the stripes)
@@ -42,6 +49,12 @@ export const DOOR_M = 1.4;                                         // (a bus's f
 export const TOUCH_M = 0.2;
 export const SWERVE_M = 0.5, SWERVE_AFTER_S = 2;                   // (round someone stood in its way: no further, or it's in the other lane)                                        // (beside it, closer than this: touching; people stop a body's radius off it, 0.25: sim/world.js)
 const DT = TICK_MS / 1000;
+
+/** The share of taxis that are free at this hour: fewer at the rushes, more in the small hours. */
+export function freeShare(ms) {
+  const h = hourOfDay(ms);
+  return (h >= 7 && h < 10) || (h >= 17 && h < 20) ? 0.35 : h >= 10 && h < 17 ? 0.55 : h >= 20 ? 0.5 : 0.7;
+}
 
 /** Seconds between cars, each way, at this hour (busy by day, a trickle at night). */
 export function gapS(ms) {
@@ -69,10 +82,12 @@ export function resetTraffic(state) {
 function spawn(state, dir, x, opts = {}) {
   const t = T(state), P = cityOf(townOf(state.map)), r = stream('traffic', state.map.seed, t.row, t.n);
   const bus = opts.bus ?? (chance(r, BUS_SHARE) && dir === busDir(state));
-  const kind = bus ? 'bus' : chance(r, TAXI_SHARE) ? P.taxi : weighted(r, P.LOOKS.car);
+  const kind = opts.kind ?? (bus ? 'bus' : chance(r, TAXI_SHARE) ? P.taxi : weighted(r, P.LOOKS.car));
   const len = bus ? (P.bus?.len ?? 11) : kind === 'van' ? 4.8 : 4.2, w = bus ? (P.bus?.kind === 'van' ? 1.95 : 2.5) : 1.8;
   const c = { id: `v${t.n++}`, kind, color: pick(r, P.carColours), seed: int(r, 1000), dir, x, z: laneOf(state, dir), len, w, v: bus ? BUS_MS : range(r, VMAX_MS[0], VMAX_MS[1]),
     vmax: bus ? BUS_MS : range(r, VMAX_MS[0], VMAX_MS[1]), px: x, pz: laneOf(state, dir), ...(bus ? { bus: { served: [] } } : {}), ...opts.extra };
+  // (a taxi: its light lit or not, from a stream of its own, so nothing else on the road moves)
+  if (kind === P.taxi && !c.taxi) c.taxi = { free: chance(stream('taxi-light', state.map.seed, t.row, c.id), freeShare(state.time.ms)) };
   t.cars.push(c);
   return c;
 }
@@ -87,6 +102,26 @@ export function sendBus(state, stop, at) {
   if (onZebra(state, stop, { dir, len: cityOf(townOf(state.map)).bus?.len ?? 11 })) return null;   // (it couldn't pull in there: the clock alone)
   const c = spawn(state, dir, from, { bus: true, extra: { bus: { served: [], hold: stop.x, at } } });
   return c.id;
+}
+
+/** A free taxi sent along the lane toward x, from the upstream edge (the scenes', and the tests'): the car, or null if there's no room. */
+export function sendTaxi(state, dir = 1) {
+  const t = T(state);
+  if (!t || state.map.kind !== 'street') return null;
+  const [x0, x1] = state.$world.bx, from = dir > 0 ? x0 + 2 : x1 - 2;
+  if (t.cars.some(c => c.dir === dir && Math.abs(c.x - from) < 14)) return null;
+  return spawn(state, dir, from, { bus: false, kind: cityOf(townOf(state.map)).taxi, extra: { taxi: { free: true } } });
+}
+
+/** The taxi you've just got out of, stopped at the south kerb by x, its light dark; it goes in a moment, free again. */
+export function dropTaxi(state, x) {
+  if (state.map.kind !== 'street' || !state.$world) return null;
+  if (!T(state) || T(state).row !== (state.map.row ?? 0)) resetTraffic(state);
+  const dir = laneOf(state, 1) === LANE_Z.south ? 1 : -1, t = T(state);
+  t.cars = t.cars.filter(o => !(o.dir === dir && Math.abs(o.x - x) < 7));   // (room for it at the kerb)
+  const c = spawn(state, dir, x + dir * 0.6, { bus: false, kind: cityOf(townOf(state.map)).taxi, extra: { taxi: { free: false, drop: state.time.ms + DROP_S * SEC } } });
+  Object.assign(c, { v: 0, z: LANE_Z.south + TAXI_KERB_M, pz: LANE_Z.south + TAXI_KERB_M });
+  return c;
 }
 
 /** How long a bus sent from its edge takes to the stop, in ms. */
@@ -196,6 +231,8 @@ export function trafficTick(state, bus) {
     for (const o of t.cars) if (o.bus?.leaving && o.dir === c.dir && !c.bus) { const d = ahead(o.x - o.dir * o.len / 2); if (d > 0.5 && d < 15) hold(d - 3, `out:${o.id}`); }   // (well back: room for it to pull out; one already alongside goes by)
     // A bus: in at each stop it passes (the one sent for: held there till let go).
     if (c.bus) busStops(state, t, c, ahead, (d) => hold(d, 'stop'));
+    if (c.taxi?.hail) taxiStop(state, c, ahead, (d) => hold(d, 'hail'));
+    if (c.taxi?.drop) { if (now < c.taxi.drop) hold(-1, 'drop'); else c.taxi = { free: true }; }   // (you out, it goes, its light lit)
     c.held = why;                                                  // (what holds it, if anything: a car's id, zebra:<id>, someone's id, out:<bus>, stop)
     // (held a while by someone stood still in its way: it eases round them, within its lane)
     const holder = why && people.find(a => a.id === why);
@@ -208,7 +245,8 @@ export function trafficTick(state, bus) {
     c.x += c.dir * c.v * DT;
     // (a bus eases into the bay for its stop, and out again; a car passing one in its bay, out a little toward the middle)
     const lane = laneOf(state, c.dir), byBus = !c.bus && lane === LANE_Z.north && t.cars.some(o => o.bus && o.z < LANE_Z.north - 0.5 && Math.abs(o.x - c.x) < (o.len + c.len) / 2 + 3);
-    const zWant = c.bus?.bayX !== undefined && Math.abs(c.bus.bayX - c.x) < 18 ? BAY_Z : byBus ? lane + PASS_NUDGE_M : lane + (c.swerve ?? 0);
+    const kerbward = lane === LANE_Z.north ? -TAXI_KERB_M : TAXI_KERB_M;   // (a hailed taxi pulls over toward its kerb)
+    const zWant = c.bus?.bayX !== undefined && Math.abs(c.bus.bayX - c.x) < 18 ? BAY_Z : (c.taxi?.hail && Math.abs(c.taxi.hail.x - c.x) < 25) || c.taxi?.drop ? lane + kerbward : byBus ? lane + PASS_NUDGE_M : lane + (c.swerve ?? 0);
     c.z += Math.sign(zWant - c.z) * Math.min(Math.abs(zWant - c.z), 1.1 * DT);
     if (shaken && now - t.nearMiss > NEAR_MISS_S * SEC) {
       t.nearMiss = now;
@@ -218,6 +256,22 @@ export function trafficTick(state, bus) {
   }
   // Out at the downstream edges.
   t.cars = t.cars.filter(c => (c.dir > 0 ? c.x - c.len < x1 + 4 : c.x + c.len > x0 - 4));
+}
+
+/**
+ * A hailed taxi: its back door by whoever hailed it (its middle a little past them), braking for it, and
+ * stopped there (c.taxi.stopped) until TAXI_WAIT_S is up or it's let go (sim/taxi.js). One too close to
+ * stop in time, or past them already, drives on.
+ */
+function taxiStop(state, c, ahead, stopAt) {
+  const h = c.taxi.hail, now = state.time.ms, d = ahead(h.x + c.dir * (c.len / 2 - 0.9));
+  if (c.taxi.stopped) {
+    if (now - c.taxi.stopped < TAXI_WAIT_S * SEC) return stopAt(-1);
+    c.taxi.hail = null; c.taxi.stopped = 0; return;
+  }
+  if (d < -0.5 || (d < c.v * c.v / (2 * HARD_MS2) && c.v > 2)) { c.taxi.hail = null; return; }   // (too late to stop: on it goes)
+  stopAt(d);
+  if (d < 0.3 && c.v < 0.3) c.taxi.stopped = now;
 }
 
 /** A bus's stops: the next one ahead on its kerb, pulled in at for BUS_DWELL_S (or held, if it's the one sent for). */

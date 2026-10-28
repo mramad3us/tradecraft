@@ -29,12 +29,23 @@ import { hash } from './rng.js';
 import { say } from './log.js';
 import { eat, EAT_S } from './needs.js';
 import { price, pay, BITE_USD, COAT_USD } from './money.js';
+import { train, learn, shelf, reading, readAnHour, bookOf, bookLine } from './training.js';
+import { cityById } from './cities/index.js';
+import { HOUR } from './clock.js';
 
 export const BROWSE_S = 40;
 export const BACKWAY_S = 55;
 export const WASH_S = 90;
 export const COAT_S = 150;
 export const SIT_S = 180;
+// (time put into yourself, the user, 2026-10-27: "time should feel like a currency, meaning gym (trains fitness),
+// karate class or other martial arts ... read a book (can buy books in bookstores to learn specific things),
+// take a language class": hours in, points out, sim/training.js)
+export const GYM_S = 90 * 60, CLASS_S = 120 * 60, LESSON_S = 90 * 60, READ_S = 60 * 60, BUY_S = 180;
+export const GYM_USD = 8, CLASS_USD = 12, LESSON_USD = 15, GYM_UP_TO = 14, CLUB_UP_TO = 14;
+const LANG_NAME = { ru: 'Russian', en: 'English', ar: 'Arabic' };
+// (the language a city's school teaches: its own; London's, the opposition's, since you have the English)
+const langHere = (state) => (state.map.city === 'london' ? 'ru' : cityById(state.map.city ?? 'moscow')?.lang ?? 'ru');
 // (a table by the window, a coffee: the street watched from inside, out of its sight)
 export const WINDOW_TABLES = new Set(['cafe', 'restaurant', 'bar']);
 // (coats on the rail: [colour, trim]; one you weren't wearing)
@@ -49,7 +60,7 @@ export const BACK_REACH_M = 30, BACK_IN_M = 7;
 export const BACKWAYS = { cafe: 0.85, restaurant: 0.9, bar: 0.8, shawarma: 0.8, grocery: 0.7, deli: 0.7, bakery: 0.75, beer: 0.7, clothes: 0.5, books: 0.4, shoes: 0.4, flowers: 0.5, tobacco: 0.3, phones: 0.3 };
 const WORDS = { cafe: 'the café', restaurant: 'the restaurant', bar: 'the bar', shawarma: 'the shawarma place', grocery: 'the grocer\'s', deli: 'the food hall', bakery: 'the bakery', beer: 'the beer shop',
   clothes: 'the clothes shop', books: 'the bookshop', shoes: 'the shoe shop', flowers: 'the florist\'s', tobacco: 'the tobacconist\'s', phones: 'the phone shop', pharmacy: 'the pharmacy', bank: 'the bank',
-  exchange: 'the exchange booth', optician: 'the optician\'s', watches: 'the watchmaker\'s' };
+  exchange: 'the exchange booth', optician: 'the optician\'s', watches: 'the watchmaker\'s', gym: 'the gym', club: 'the club', school: 'the language school' };
 export const shopWord = (kind) => WORDS[kind] ?? 'the shop';
 
 /** The shop door actor a stands at (on the street, on the pavement by it), or null. */
@@ -80,6 +91,12 @@ export function ways(state, d) {
   const p = state.people[state.player];
   if (FOOD.has(d.shop)) out.push({ id: 'eat', label: `${d.shop === 'grocery' || d.shop === 'bakery' || d.shop === 'deli' ? 'Something to eat: bread, cheese, eaten by the window' : 'A bite and a hot drink at the counter'} (two minutes, ${price(state, BITE_USD)})` });
   if (WINDOW_TABLES.has(d.shop)) out.push({ id: 'sit', label: `A coffee at the window table: three minutes, watching the street from inside (${price(state, BITE_USD)})` });
+  // (time put into yourself: the gym, a class, a lesson; a book off the shelf; an hour with one over a coffee)
+  if (d.shop === 'gym') out.push({ id: 'train', label: `An hour and a half on the weights and the bag: fitness (${price(state, GYM_USD)})` });
+  if (d.shop === 'club') out.push({ id: 'class', label: `A class, two hours on the mat: throws, falls, holds: close combat (${price(state, CLASS_USD)})` });
+  if (d.shop === 'school') out.push({ id: 'lesson', label: `A lesson, ninety minutes of ${LANG_NAME[langHere(state)] ?? 'the language'} (${price(state, LESSON_USD)})` });
+  if (d.shop === 'books') for (const b of shelf(state.map.seed, state.map.row ?? 0, d.x)) if (!(p?.books ?? []).some(o => o.id === b.id)) out.push({ id: `book:${b.id}`, label: `${b.lang ? `A grammar of ${LANG_NAME[langHere(state)] ?? 'the language'}` : b.title}: ${b.hours} hours' reading (${price(state, b.usd)})` });
+  if (WINDOW_TABLES.has(d.shop) && p && reading(p)) out.push({ id: 'read', label: `An hour with ${bookOf(reading(p).id).title} and a coffee (${price(state, BITE_USD)})` });
   if (d.shop === 'clothes') out.push({ id: 'coat', label: `A coat off the rail, worn out of the shop (${price(state, COAT_USD)})` });
   if (TOILETS.has(d.shop) && p?.bloody) out.push({ id: 'wash', label: p.bloody.face ? 'The toilet: wash the blood off your face' : 'The toilet: scrub at the stain on your coat' });
   return out;
@@ -92,7 +109,18 @@ export function goIn(state, bus, me, d, way, scenario) {
   if (way === 'eat' && !(FOOD.has(d.shop) && pay(state, bus, BITE_USD, 'a bite'))) way = 'front';
   if (way === 'coat' && !(d.shop === 'clothes' && pay(state, bus, COAT_USD, 'a coat'))) way = 'front';
   if (way === 'sit' && !(WINDOW_TABLES.has(d.shop) && pay(state, bus, BITE_USD, 'a coffee'))) way = 'front';
-  me.inside = { x: d.x, shop: d.shop, way, until: state.time.ms + (way === 'back' ? BACKWAY_S : way === 'wash' ? WASH_S : way === 'eat' ? EAT_S : way === 'coat' ? COAT_S : way === 'sit' ? SIT_S : BROWSE_S) * 1000, row: state.map.row ?? 0 };
+  const p = state.people[state.player];
+  if (way === 'train' && !(d.shop === 'gym' && pay(state, bus, GYM_USD, 'a day at the gym'))) way = 'front';
+  if (way === 'class' && !(d.shop === 'club' && pay(state, bus, CLASS_USD, 'the class'))) way = 'front';
+  if (way === 'lesson' && !(d.shop === 'school' && pay(state, bus, LESSON_USD, 'the lesson'))) way = 'front';
+  if (way === 'read' && !(WINDOW_TABLES.has(d.shop) && p && reading(p) && pay(state, bus, BITE_USD, 'a coffee'))) way = 'front';
+  let book = null;
+  if (way.startsWith('book:')) {
+    book = d.shop === 'books' && shelf(state.map.seed, state.map.row ?? 0, d.x).find(b => `book:${b.id}` === way);
+    if (!book || !pay(state, bus, book.usd, 'the book')) { way = 'front'; book = null; }
+  }
+  const secs = { back: BACKWAY_S, wash: WASH_S, eat: EAT_S, coat: COAT_S, sit: SIT_S, train: GYM_S, class: CLASS_S, lesson: LESSON_S, read: READ_S }[way] ?? (book ? BUY_S : BROWSE_S);
+  me.inside = { x: d.x, shop: d.shop, way, book: book?.id, until: state.time.ms + secs * 1000, row: state.map.row ?? 0 };
   Object.assign(me, { hidden: true, vx: 0, vz: 0, busy: null, glass: false, gait: 'idle' });
   if (way === 'sit') Object.assign(me, { face: 'down', head: Math.PI / 2 });   // (looking out through the window at the street)
   say(state, bus, { kind: 'note', text: way === 'back' ? `Into ${shopWord(d.shop)}, past the counter, a nod as if you belong, and through the door at the back.` : way === 'wash' ? `Into ${shopWord(d.shop)}, head down, straight to the toilet at the back, and the bolt across.` : `Into ${shopWord(d.shop)}. You take your time over the shelves.` });
@@ -118,7 +146,19 @@ export function insideTick(state, bus, me, scenario, { loadRow }) {
       p.look = { ...p.look, top: { ...(p.look?.top ?? {}), kind: 'coat', color, trim } };
       if (p.bloody?.clothes !== undefined) { delete p.bloody.clothes; if (!Object.keys(p.bloody).length) delete p.bloody; }
       say(state, bus, { kind: 'note', text: 'A coat off the rail, the tags off at the till, and the old one left over a chair. Out you go, in a colour you weren\'t wearing.' });
-    } else if (ins.way === 'sit') { eat(p, state.time.ms, 12); say(state, bus, { kind: 'note', text: 'The coffee drunk, the street watched: whoever was out there for three minutes, you\'ve seen.' }); }
+    } else if (ins.way === 'train' || ins.way === 'class') {
+      // (the gym: fitness; the club: close combat; hungry after, as you would be)
+      const g = ins.way === 'train' ? train(p, 'fitness', GYM_S / 3600, GYM_UP_TO) : train(p, 'cqc', CLASS_S / 3600, CLUB_UP_TO), what = ins.way === 'train' ? 'Fitness' : 'CQC';
+      if (p.needs) p.needs.ate = Math.min(p.needs.ate ?? state.time.ms, state.time.ms - 3 * HOUR);
+      say(state, bus, { kind: 'note', text: `${ins.way === 'train' ? 'The weights, the bag, the bike to nowhere: an hour and a half, and a shower.' : 'Two hours of throws and falls, and holds you can\'t get out of until you can.'} ${g.gained ? `${what} up a point: ${g.base}.` : g.toNext === null ? `${ins.way === 'train' ? 'The gym' : 'The club'} has taught you all it can.` : `${Math.ceil(g.toNext)} hours more to the next point.`}` });
+    } else if (ins.way === 'lesson') {
+      const lang = langHere(state), g = learn(p, lang, LESSON_S / 3600, 'fluent');
+      say(state, bus, { kind: 'note', text: `Ninety minutes of ${LANG_NAME[lang] ?? 'the language'}: verbs, a newspaper read aloud, the teacher's patience. ${g.gained ? `Your ${LANG_NAME[lang]} is ${g.level} now.` : g.toNext === null ? 'There\'s nothing more the school can teach you.' : `${Math.ceil(g.toNext)} hours more to the next level.`}` });
+    } else if (ins.book) {
+      (p.books ??= []).push({ id: ins.book, read: 0 });
+      say(state, bus, { kind: 'note', text: `${bookLine(bookOf(ins.book))}: paid for, and in your pocket.` });
+    } else if (ins.way === 'read') { eat(p, state.time.ms, 6); say(state, bus, { kind: 'note', text: readAnHour(p, langHere(state)) ?? 'Nothing left to read.' }); }
+    else if (ins.way === 'sit') { eat(p, state.time.ms, 12); say(state, bus, { kind: 'note', text: 'The coffee drunk, the street watched: whoever was out there for three minutes, you\'ve seen.' }); }
     else if (ins.way === 'eat') { eat(p, state.time.ms, 8); say(state, bus, { kind: 'note', text: 'Something hot, eaten standing up, and a minute of nobody looking at you. Better.' }); }
     else if (ins.way === 'wash' && p?.bloody) {
       // (the face comes clean in cold water; a coat doesn't: darker, smaller, still there)

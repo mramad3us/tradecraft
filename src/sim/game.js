@@ -38,9 +38,11 @@ import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } fr
 import { drift } from './people.js';
 import { heal, bleeding, bloodTick, bandOf, canStand, kill, BLOOD, COME_ROUND_S } from './health.js';
 import { PRESSURE_K, treat } from './aid.js';
-import { atKerb, destinations, ride } from './taxi.js';
+import { atKerb, destinations, ride, cabFor, hailedBy, board, rideTick, WALK_OFF_M } from './taxi.js';
 import { shopNear, goIn, insideTick } from './shops.js';
 import * as buses from './buses.js';
+import * as metro from './metro.js';
+import { stationNear, destinations as metroWays } from './metro.js';
 import { lessonOf } from './tutorial/index.js';
 import { startTutor, tutorTick } from './tutorial/earpiece.js';
 import * as traffic from './traffic.js';
@@ -159,13 +161,23 @@ export function step(state, input = {}, bus) {
       if (done?.rest) skip(state, bus, done.rest);                  // (a rest: the hours go by: sim/aid.js)
       continue;
     }
+    if (String(act).startsWith('metro:')) {                        // (down the steps, the station chosen: sim/metro.js)
+      const d = me && !state.fight && stationNear(state, me), to = d && metroWays(state, d).find(o => o.id === act.slice(6));
+      if (to) {
+        say(state, bus, { kind: 'note', text: `Down the steps, through the barrier, the platform: ${to.lines.join(', then ')}.` });
+        const m = metro.ride(state, bus, to, { scenario, skip, loadRow });
+        if (m) say(state, bus, { kind: 'note', text: `${Math.round(m)} minutes later, up the steps into ${placeName(townOf(state.map), state.map.row ?? 0, playerActor(state).x, Z.front + 1)}.` });
+      }
+      continue;
+    }
     if (String(act).startsWith('shop:')) {                         // (into a shop, the way chosen: sim/shops.js)
       const d = me && !state.fight && !me.inside && shopNear(state, me);
       if (d) goIn(state, bus, me, d, act.slice(5), scenario);
       continue;
     }
     if (String(act).startsWith('taxi:')) {                         // (a taxi, where to chosen: sim/taxi.js)
-      const to = destinations(state, scenario).find(d => d.id === act.slice(5));
+      const to = destinations(state, scenario).find(d => d.id === act.slice(5)), cab = me && cabFor(state, me);
+      if (to && me && !state.fight && cab) { board(state, bus, me, cab, to); continue; }   // (the taxi stopped for you: in, and off: rideTick())
       if (to && me && !state.fight && atKerb(state, me)) {
         say(state, bus, { kind: 'note', text: `A taxi pulls in. ${cap(to.label)}, you tell him, and he grunts.` });
         const m = ride(state, bus, to, { scenario, skip, loadRow });
@@ -175,7 +187,7 @@ export function step(state, input = {}, bus) {
     }
     if (String(act).startsWith('bus:')) {                          // (on the bus at the stop, where to chosen: sim/buses.js)
       const b = me?.busy?.what === 'shelter' && me.busy.bus && !state.fight ? me.busy : null;
-      const to = b && buses.destinations(state, b.stop, b.bus.dir).find(d => d.id === act.slice(4));
+      const to = b && buses.destinations(state, b.stop, b.bus.line, b.bus.dir).find(d => d.id === act.slice(4));
       if (to) {
         say(state, bus, { kind: 'note', text: `On, a coin for the driver, a seat by the window. ${cap(to.label)}.` });
         const m = buses.ride(state, bus, to, { scenario, skip, loadRow });
@@ -193,9 +205,19 @@ export function step(state, input = {}, bus) {
   }
   // A fight waiting for a choice, a conversation: time stands still (sim/fight.js, sim/talk.js).
   if (state.fight?.phase === 'choose' || state.talk) return;
-  if (state.fight || scenario.holds?.(state) || me?.inside) input = { act: input.act };   // (a fight, the scenario, or a shop has the player's feet)
+  if (state.fight || scenario.holds?.(state) || me?.inside || me?.cab) input = { act: me?.cab ? [] : input.act };   // (a fight, the scenario, a shop or a taxi has the player's feet)
   if (me?.inside) insideTick(state, bus, me, scenario, { loadRow });
   traffic.trafficTick(state, bus);                                 // (the cars on the road: sim/traffic.js)
+  // A taxi hailed: stopped for you, it asks where to; walk off, and it goes. In one: with it, then the ride (sim/taxi.js).
+  if (me?.cab) {
+    const m = rideTick(state, bus, me, { scenario, skip, loadRow });
+    if (m) say(state, bus, { kind: 'note', text: `${Math.round(m)} minutes later, ${placeName(townOf(state.map), state.map.row ?? 0, me.x, 0)}: you pay, and get out.` });
+  } else if (me) {
+    const cab = cabFor(state, me), h = !cab && hailedBy(state, me);
+    if (cab && !cab.taxi.offered) { cab.taxi.offered = state.time.ms; if (me.busy?.what === 'hail') me.busy = null; bus?.emit('taxi', destinations(state, scenario)); }
+    if (h && me.busy?.what === 'hail' && Math.abs(h.x - me.x) > 18) me.busy.wait = 0;   // (the arm stays up till it's close)
+    if ((cab ?? h) && Math.abs((cab ?? h).taxi.hail.x - me.x) > WALK_OFF_M) { (cab ?? h).taxi.hail = null; (cab ?? h).taxi.stopped = 0; }
+  }
   buses.waitTick(state, bus, me);                                  // (sat at a stop: the bus comes, waits, goes: sim/buses.js)
   const mine = me && state.people[me.who], fallen = mine && (mine.dead || !canStand(mine));
   if (fallen) input = { act: [] };                                 // (collapsed, out cold or dead: nothing answers)

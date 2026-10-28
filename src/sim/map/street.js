@@ -55,6 +55,8 @@ import { SECTION_M, Z, LANES, GAP_M, STRETCH, ROW_M } from './layout.js';
 import { cityOf } from '../cities/index.js';
 import { marksAt } from './marks.js';
 import { embassyBuilding } from '../cities/embassy.js';
+import { stationBuilding } from '../cities/station.js';
+import { stationAt, busLinesAt } from '../transit.js';
 
 export { SECTION_M, Z, LANES, GAP_M, STRETCH, ROW_M };
 export const PARK_SHARE = 0.35;                                    // (Moscow's; a city's own is its profile's parkShare)
@@ -183,6 +185,20 @@ export function section(seed, i, row = 0) {
       S.doors.push({ x: (B.x0 + B.x1) / 2, z: B.z, w: 1.6, kind: 'embassy', place: 'embassy' });
     } else if (m.kind === 'door') { const d = S.doors.find(o => o.kind === 'entrance' && Math.abs(o.x - m.x) < 0.01); if (d) d.place = m.place; }
   }
+  // A metro station, where the city's network has one in this section (sim/transit.js): the widest
+  // building on the front (never the embassy, a mosque, a church) is the station, its one wide door the way down.
+  const lines = stationAt(seed, row, i);
+  if (lines) {
+    // (the widest on the front, 9 m or more; else the widest there is, set back round a square or narrow)
+    const score = (B) => (B.style === 'embassy' || B.minaret || B.dome ? -1 : (B.x1 - B.x0) + (B.z === Z.front && B.x1 - B.x0 >= 9 ? 100 : 0));
+    const k = S.buildings.reduce((best, B, j) => (score(B) > 0 && (best < 0 || score(B) > score(S.buildings[best])) ? j : best), -1);
+    if (k >= 0) {
+      const B = S.buildings[k];
+      S.doors = S.doors.filter(d => !(d.x > B.x0 && d.x < B.x1 && Math.abs(d.z - B.z) < 1));
+      S.buildings[k] = stationBuilding(B, P.id, lines);
+      S.doors.push({ x: (B.x0 + B.x1) / 2, z: B.z, w: 3, kind: 'metro', lines });
+    }
+  }
   // The ways north: a side street has its lamps and a bin; an alley is dark, with a bin.
   for (const g of S.gapsN) {
     if (g.kind === 'side') {
@@ -240,28 +256,31 @@ export function section(seed, i, row = 0) {
   // What else stands on this city's streets (none in Moscow): from a stream of its own.
   P.furnish?.(S, { seed, row, r: stream('street-city', seed, row, i), block, lamp, inGap, inMouth: (x, m = 0) => inGap(mouths, x, m) || inGap(S.courts ?? [], x, m) || inGap(S.squares ?? [], x, m), near, zx, sx });
   dress(S, seed, row, zx, sx, P);
-  amenities(S, stream('amenities', seed, row, i), lineNumber(seed, row), P, zx, block, near, (x, m = 0) => inGap(mouths, x, m) || inGap(S.courts ?? [], x, m) || inGap(S.squares ?? [], x, m));
+  amenities(S, stream('amenities', seed, row, i), busLinesAt(seed, row, i), P, zx, block, near, (x, m = 0) => inGap(mouths, x, m) || inGap(S.courts ?? [], x, m) || inGap(S.squares ?? [], x, m));
   return S;
 }
 
-// A bus shelter at the far kerb, now and then (STOP_SHARE of sections, where its bay is clear of
-// parked cars, and a bus pulled in there keeps off the zebra): its back to the shops, clear of the walkers' lane, its sides, a bench along its back
+// A bus shelter at the far kerb where the city's bus lines stop (sim/transit.js: the section has a stop;
+// its place in it where its bay is clear of parked cars, and a bus pulled in there keeps off the zebra), its lines on its sign: its back to the shops, clear of the walkers' lane, its sides, a bench along its back
 // (sat at, sim/buses.js). A notice board at the park path's edge, in some parks and boulevards (NOTICES_SHARE): read
 // standing on the path (sim/acts.js). From a stream of their own, so nothing else on the street moves.
-export const STOP_SHARE = 0.45, NOTICES_SHARE = 0.5, STOP_W = 3.2;
+export const NOTICES_SHARE = 0.5, STOP_W = 3.2;
 /** The street's bus line: a number, the same at every stop on it (sim/buses.js). */
 export const lineNumber = (seed, row) => 3 + hash(seed, row, 'line') % 89;
-function amenities(S, r, line, P, zx, block, near, inMouth) {
+function amenities(S, r, lines, P, zx, block, near, inMouth) {
   // (a bus pulled in, its front doors at the shelter: its body from DOOR_M ahead of it to its length behind, the way the
   // buses go along this kerb, the city's side of the road: sim/traffic.js)
   const way = P.drive === 'left' ? 1 : -1, len = P.bus?.len ?? 11, body = (x) => way > 0 ? [x - (len - 1.4) - 1, x + 1.4 + 1] : [x - 1.4 - 1, x + (len - 1.4) + 1];
   const clear = (ax, az, bx, bz) => !S.blockers.some(b => b.x1 > ax && b.x0 < bx && b.z1 > az && b.z0 < bz);
-  if (chance(r, STOP_SHARE)) for (let k = 0; k < 8; k++) {
+  // (room at its ends to walk round into it; and the bus's bay, which nobody may park in: a car that's there isn't)
+  if (lines.length) for (let k = 0; k < 24; k++) {
     const x = S.x0 + 3 + range(r, 0, SECTION_M - 6), h = STOP_W / 2;
-    // (room at its ends to walk round into it; and the bus's bay, where nobody's parked)
     const [b0, b1] = body(x);
-    if (near(x, zx, h + 1) || (b1 > zx && b0 < zx + 3) || inMouth(x, h + 0.6) || !clear(x - h - 0.8, -1.5, x + h + 0.8, -0.4) || S.blockers.some(b => b.what === 'car' && b.z1 < 5 && Math.abs((b.x0 + b.x1) / 2 - x) < 4.6)) continue;
-    S.props.push({ kind: 'stop', x, z: -0.825, w: STOP_W, line });       // (0.65 m deep, the kerb's strip: its back a walker's width off the passers-by's lane, its roof out over the kerb)
+    if (near(x, zx, h + 1) || (b1 > zx && b0 < zx + 3) || inMouth(x, h + 0.6) || !clear(x - h - 0.8, -1.5, x + h + 0.8, -0.4)) continue;
+    const bay = (o) => o.z1 < 5 && Math.max(b0, o.x0) < Math.min(b1, o.x1);
+    for (let j = S.blockers.length - 1; j >= 0; j--) if (S.blockers[j].what === 'car' && bay(S.blockers[j])) S.blockers.splice(j, 1);
+    S.props = S.props.filter(p => !(p.kind === 'car' && p.z < 5 && p.x + 2.1 > b0 && p.x - 2.1 < b1));
+    S.props.push({ kind: 'stop', x, z: -0.825, w: STOP_W, line: lines.join(' '), lines });       // (0.65 m deep, the kerb's strip: its back a walker's width off the passers-by's lane, its roof out over the kerb)
     block(x - h, -1.15, x + h, -1.08, 'stop'); block(x - h, -1.15, x - h + 0.08, -0.85, 'stop'); block(x + h - 0.08, -1.15, x + h, -0.85, 'stop');   // (its roof held from the back: the front open)
     break;
   }
@@ -541,7 +560,7 @@ function dress(S, seed, row, zx, sx, P) {
   const f = S.park?.feature;
   if (f) f.look = w(f.kind);
   if (S.square && LOOKS[S.square.kind]) S.square.look = w(S.square.kind);
-  for (const B of S.buildings) if (B.style !== 'embassy') P.dress(B, L, S);   // (the embassy wears its own: sim/cities/embassy.js)
+  for (const B of S.buildings) if (B.style !== 'embassy' && B.style !== 'station') P.dress(B, L, S);   // (the embassy and a station wear their own: sim/cities/)
 }
 
 

@@ -67,10 +67,11 @@ const SHOPS = {
   optician: ['نظارات|OPTIQUE', 'OPTIQUE'], flowers: ['زهور|FLEURISTE', 'FLEURS'], butcher: ['لحوم|BOUCHERIE', 'لحوم'],
   clothes: ['BOUTIQUE', 'ملابس'], shoes: ['أحذية|CHAUSSURES', 'CHAUSSURES'], phones: ['خليوي|CELLULAR', 'خليوي'], restaurant: ['مطعم|RESTAURANT', 'مطعم'],
   bar: ['BAR', 'PUB', 'CAVE'], shawarma: ['شاورما', 'شاورما|SHAWARMA'], barber: ['حلاق|COIFFEUR', 'COIFFEUR'], laundry: ['PRESSING', 'كوي'],
+  gym: ['نادي|GYM', 'GYM'], club: ['كاراتيه|KARATE', 'KARATE'], school: ['لغات|LANGUES', 'LANGUES'],
 };
 const SHOP_WEIGHTS = [['grocery', 2.5], ['cafe', 3], ['bakery', 1.5], ['manakish', 1.5], ['sweets', 1.2], ['pharmacy', 2], ['vegetables', 1],
   ['books', 0.8], ['exchange', 0.8], ['bank', 0.8], ['optician', 0.7], ['flowers', 0.8], ['butcher', 0.8], ['clothes', 1.5], ['shoes', 0.8],
-  ['phones', 1.5], ['restaurant', 1.5], ['bar', 1.2], ['shawarma', 1], ['barber', 1], ['laundry', 0.8]];
+  ['phones', 1.5], ['restaurant', 1.5], ['bar', 1.2], ['shawarma', 1], ['barber', 1], ['laundry', 0.8], ['gym', 0.6], ['club', 0.4], ['school', 0.4]];
 const BOARDS = [[0x24503a, 0xf6f4ee, 0x173327], [0x23252f, 0xf6f4ee, 0x14151c], [0xf6f4ee, 0x9e3c36, 0x6a7182], [0x6e2a2e, 0xf8e08a, 0x3f1a22],
   [0x283f6b, 0xf6f4ee, 0x1b2541], [0x9e3c36, 0xf6f4ee, 0x6e2a2e], [0xe7b84a, 0x23252f, 0xb9862e]];
 

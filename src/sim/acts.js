@@ -28,9 +28,10 @@ import { sectionOf } from './city.js';
 import { sectionAt } from './world.js';
 import { say } from './log.js';
 import { GLASS_REACH_M, intoGlass } from './perception.js';
-import { stopNear, nextBus, lineOf, STOP_Z } from './buses.js';
+import { stopNear, nextBus, linesOf, STOP_Z } from './buses.js';
 import { itemNear, pickUp } from './items.js';
-import { atKerb, destinations } from './taxi.js';
+import { atKerb, taxiComing, hail } from './taxi.js';
+import { stationNear, metroName, destinations as metroWays } from './metro.js';
 import { shopNear, ways, shopWord } from './shops.js';
 import { pay } from './money.js';
 import { weaponOf } from './weapons.js';
@@ -136,8 +137,10 @@ export function affordance(state, me) {
   // (at the kerb: the zebra if it's there, else a taxi; the window behind you is for the pavement)
   const kerb = atKerb(state, me), cross = crossingNear(state, me, 4);
   const door = !kerb && shopNear(state, me);                        // (at a shop's door: in; sim/shops.js)
-  const spot = !door && spotNear(state, me);                         // (a kiosk, a phone box: somewhere to watch from)
-  const act = kerb && cross ? 'cross' : spot ? spot.kind : kerb ? 'taxi' : door ? 'shop' : paneNear(state, me) ? 'window' : benchNear(state, me) !== null ? 'bench' : cross ? 'cross' : null;
+  const station = !kerb && !door && stationNear(state, me);          // (at a station's door: down; sim/metro.js)
+  const spot = !door && !station && spotNear(state, me);             // (a kiosk, a phone box: somewhere to watch from)
+  if (station) return { act: 'metro', text: ` {instinct} down into the ${metroName(state) === 'Underground' ? 'Underground' : 'metro'}.` };
+  const act = kerb && cross ? 'cross' : spot ? spot.kind : kerb && taxiComing(state, me) ? 'taxi' : door ? 'shop' : paneNear(state, me) ? 'window' : benchNear(state, me) !== null ? 'bench' : cross ? 'cross' : null;
   return act && { act, text: ` {instinct} ${act === 'shop' ? `go into ${shopWord(door.shop)}` : COVER[act]}.` };
 }
 /** What T would do here, for the end of an instinct's line: { act, text } (only: the covers allowed). */
@@ -153,8 +156,9 @@ export function act(state, bus, me, what, opts = {}) {
 }
 
 function act1(state, bus, me, what, { toward = Math.cos(me.head ?? 0) >= 0 ? -1 : 1, scenario = null } = {}) {
-  if (what === 'taxi') { if (atKerb(state, me)) bus?.emit('taxi', destinations(state, scenario)); return; }
+  if (what === 'taxi') { if (atKerb(state, me)) hail(state, bus, me); return; }   // (an arm up: it stops, and asks where: sim/game.js)
   if (what === 'shop') { const d = shopNear(state, me); if (d) bus?.emit('shop', { shop: d.shop, ways: ways(state, d) }); return; }
+  if (what === 'metro') { const d = stationNear(state, me); if (d) bus?.emit('metro', { name: metroName(state), list: metroWays(state, d) }); return; }   // (where to: sim/metro.js)
   if (what === 'pickup') {
     const it = itemNear(state, me), p = state.people[me.who];
     if (!it || !p) return;
@@ -181,7 +185,8 @@ function act1(state, bus, me, what, { toward = Math.cos(me.head ?? 0) >= 0 ? -1 
     const ex = st.x + (me.x >= st.x ? 1 : -1) * (h + 0.45), round = me.z < -1.1 ? [['go', ex, Math.min(me.z, -1.7)], ['go', ex, -0.56], ['go', sp.x, -0.56]] : [];
     me.busy = { what, steps: [...round, ['go', sp.x, sp.z], ['wait', 12 * 3600 * TPS, 'down', 'sit']], wait: 0, since: state.time.ms, stop: st, due };
     const m = Math.max(1, Math.round((due.at - state.time.ms) / 60000));
-    say(state, bus, { kind: 'instinct', text: `You sit in the shelter. The ${lineOf(state)}, says the board, every few minutes; the next in ${m === 1 ? 'a minute' : `${m} minutes`} or so. The street goes by in front of you.` });
+    const ls = linesOf(st), board = ls.length > 1 ? `the ${ls.slice(0, -1).join(', the ')} and the ${ls[ls.length - 1]}` : `the ${ls[0] ?? 'bus'}`;
+    say(state, bus, { kind: 'instinct', text: `You sit in the shelter. ${board.charAt(0).toUpperCase() + board.slice(1)} stop here, says the board; the next, the ${due.line}, in ${m === 1 ? 'a minute' : `${m} minutes`} or so. The street goes by in front of you.` });
     return;
   }
   if (what === 'notices') {

@@ -140,6 +140,13 @@ export function* buildInterior(S) {
     b.position.set((q.x0 + q.x1) / 2, 0, (q.z0 + q.z1) / 2);
     g.add(part(b));
   }
+  // The street side's windows: glass along the top of its cut wall, a sill in front.
+  for (const w of plan.windowsS ?? []) {
+    const glass = box(w.b - w.a, 0.06, OUTER_T * 0.6, { sides: mat(0xb8c4cc), top: mat(0xc8d4dc) });
+    glass.position.set((w.a + w.b) / 2, CUT_H, plan.z1 + OUTER_T / 2);
+    g.add(part(glass));
+    g.add(ground(w.a, plan.z1 - 0.12, w.b, plan.z1, mat(0xe2dac6), 0.012));
+  }
   // A threshold in each doorway.
   for (const o of plan.openings.filter(o => o.kind !== 'front')) {
     g.add(o.axis === 'x' ? ground(o.a, o.at - 0.08, o.b, o.at + 0.08, mat(0x8f6345), 0.01) : ground(o.at - 0.08, o.a, o.at + 0.08, o.b, mat(0x8f6345), 0.01));

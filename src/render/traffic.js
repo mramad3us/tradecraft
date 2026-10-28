@@ -51,9 +51,11 @@ export function createTraffic(scene) {
     for (const c of cars) {
       live.add(c.id);
       let m = meshes.get(c.id);
+      if (m && c.taxi && m.userData.free !== c.taxi.free) { free(c.id); m = null; }   // (a taxi's light changed: hailed and taken, or let go)
       if (!m) {
         const C = cityById(state.map.city);
-        m = c.kind === 'bus' ? busModel(C.bus, lineNumber(townOf(state.map), state.map.row ?? 0)) : car(c.color, { seed: c.seed, kind: c.kind });
+        m = c.kind === 'bus' ? busModel(C.bus, lineNumber(townOf(state.map), state.map.row ?? 0)) : car(c.color, { seed: c.seed, kind: c.kind, free: c.taxi?.free ?? true });
+        m.userData.free = c.taxi?.free;
         m.traverse(o => { if (o.isMesh) o.castShadow = false; });
         m.rotation.y = c.dir > 0 ? 0 : Math.PI;
         scene.add(m);

@@ -34,8 +34,11 @@ export default [
   {
     name: 'cities: Moscow is generated exactly as it was (sections, routes, passers-by)',
     fn() {
-      // (hashes of v0.0.46's output, before there were other cities: change them only on purpose)
-      const want = { 7: 3473505852, 77: 2440374664, 1234: 4204233180, people: 2649027127 };
+      // (hashes of v0.0.46's output, before there were other cities: change them only on purpose. On purpose
+      // in 0.1.0-rc23: the city's transit network, its metro stations in place of buildings and its bus
+      // stops' bays kept clear of parked cars: sim/transit.js; in 0.1.0-rc24, gyms, clubs and language schools
+      // among the shops: sim/cities/*.js)
+      const want = { 7: 3156895912, 77: 15396036, 1234: 1562388225, people: 2649027127 };
       for (const seed of [7, 77, 1234]) {
         const parts = [];
         // (the bus shelters and notice boards of 0.1.0-rc16, from a stream of their own, left out)
@@ -43,6 +46,7 @@ export default [
         const before = (S) => ({ ...S, props: S.props.filter(o => !amenity(o)), blockers: S.blockers.filter(o => !amenity(o)) });
         for (const row of [-1, 0, 2]) for (let i = -2; i <= 2; i++) parts.push(JSON.stringify(before(section(seed, i, row))));
         parts.push(JSON.stringify(planRoute(seed, { row: 0, x: 5, z: LINE.F }, { row: -6, x: 260, z: LINE.P }, { walker: 3, evasive: true })));
+        if (process.env.PRINT_HASH) { console.log('      hash', seed, hash(...parts)); continue; }   // (PRINT_HASH=1: the hashes, to set them on purpose)
         assert(hash(...parts) === want[seed], `Moscow's streets with seed ${seed} differ from v0.0.46's`);
       }
       // (as v0.0.46 drew them; the CQC added in 0.1.0-rc7, from a stream of its own, left out; the finer

@@ -60,7 +60,7 @@ export default [
       let waited = 0, through = 0;
       for (let t = 0; t < 25 * 30; t++) {
         step(g, {}, null);
-        for (const c of g.traffic.cars) { if (inside(c, me)) through++; if (c.dir < 0 && c.v < 0.3 && c.held === me.id) waited++; }   // (stopped for you, short of you)
+        for (const c of g.traffic.cars) { if (inside(c, me)) through++; if (c.dir < 0 && c.v < 0.3 && (c.held === me.id || c.held === `zebra:${me.id}`)) waited++; }   // (stopped for you, short of you: you in the road, or on its zebra)
       }
       // (out in front of a car that's coming, a few metres off its nose)
       const was = stressOf(g.people[g.player]);
