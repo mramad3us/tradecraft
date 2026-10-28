@@ -653,7 +653,9 @@ export function createUI({ input, cb }) {
       el('h2', { textContent: 'WHAT YOU CARRY' }),
       el('p', { className: 'note', textContent: 'Little, and only where it fits, by its length and its bulk: a pocket, or tucked in the beltline (under a coat, a jacket or a jumper, or it shows). Anything else is held, or put down.' }),
       el('p', { className: 'note', textContent: `Room: ${left.join('; ') || 'none'}.` }), el('hr'),
-      list.length ? el('table', { className: 'skills' }, el('tbody', {}, list)) : el('p', { textContent: 'Nothing to fight with. Things lie about: T picks one up.' }),
+      list.length ? el('table', { className: 'skills' }, el('tbody', {}, list)) : el('p', { textContent: `Nothing to fight with. Things lie about: ${input.label('use')} picks one up.` }),
+      // (a shop's bag, in the other hand: what's in it goes home, into the wardrobe and the drawer: sim/clothes.js)
+      p.bag?.length ? el('p', { textContent: `In a shop's bag, for home: ${p.bag.map(x => x.item ? (weaponOf(x.item)?.name ?? x.item) : x.name).join(', ')}.` }) : null,
       el('p', { className: 'note', textContent: `1–9: the first button on its row. ${input.label('gun')} takes out the next thing, or puts it away; in a fight, drawing costs you the exchange (you can only cover while you do). ${input.label('inventory')} or ${input.label('menu')} to close.` })));
     card.hidden = false;
     card.dataset.kind = 'inventory';

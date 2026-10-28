@@ -4,6 +4,14 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc31 (2026-10-28)
+
+- **A wardrobe at home.** Every flat has its wardrobe (in the studio, its drawers). T there: put on a coat, a jacket, a jumper, a hat or glasses you own, take off a hat or glasses, leave something you're carrying in the drawer, or take it back out. A change of clothes takes four minutes.
+- **Clothes and things to buy.** A clothes shop's counter has its rail (coats in charcoal, camel and navy, a beige trench, an olive parka, black and brown leather jackets, jumpers) and its hats (a flat cap, beanies, a fedora); an optician has reading glasses and sunglasses. You choose the piece, put it on there and then, and what it replaced goes into the shop's bag. A clothes shop sells umbrellas, a tobacconist penknives, a grocer a bottle of wine or a kitchen knife: into your hand, a pocket, or the bag if there's no room.
+- **The bag comes home.** A shop's bag shows in your hand, and the inventory says what's in it. Back in the flat it's unpacked: clothes into the wardrobe, things into the drawer.
+- **Fixed:** buying a coat changed your clothes in the game but not on screen: your sprite was drawn once and kept. A change of clothes now shows at once.
+- Tests: clothes (a coat off the rail worn out, the old one bagged; an umbrella in hand; home, unpacked; the old coat back on at the wardrobe; the umbrella into the drawer and out; an optician's glasses); shops (the coat chosen off the rail).
+
 ## v0.1.0-rc30 (2026-10-28)
 
 - **Hale's lessons are your officer's.** From the flat's telephone, the exercises used to drop you in Moscow whatever your posting, and their first line named a stranger with someone else's job. Now every lesson runs in your posting's city (London for a first tour; Hale's words follow: Moscow, the FSB and Lefortovo read as your city, its service and its prison) and you play your own officer from the first word: their name, face, coat, skills and background, under your posting's cover. The Farm is your own past: this spring for a junior, years back for a Handler. "On your own" from the tutorial page plays the same way.

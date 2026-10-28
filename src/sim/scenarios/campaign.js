@@ -27,6 +27,7 @@ import { eat } from '../needs.js';
 import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, KINDS, WORK } from '../campaign.js';
 import { signOf } from '../places.js';
 import { reading, bookOf, readAnHour } from '../training.js';
+import { dress, wardrobeWays, unpack, DRESS_S } from '../clothes.js';
 import { planOf } from '../map/interior.js';
 import { spotNear, spotOf, exitHere, walkTo, SPOT_REACH_M } from '../interiors/use.js';
 import { hash } from '../rng.js';
@@ -85,6 +86,13 @@ export const campaignHub = {
     } else if (what === 'sleep') {                                  // (a night's sleep, and breakfast: sim/needs.js; you wake in the flat)
       until(rest(c, now), state.map.place === 'home' ? 'To bed.' : 'Home, and to bed.'); eat(state.people.me, state.time.ms, 60);
       if (state.map.place !== 'home' && !state.scenario.outcome) enterHome(state, bus, 'sleep');
+    }
+    else if (what === 'dress') {                                    // (the wardrobe's way, chosen: sim/clothes.js; a change of clothes takes a few minutes)
+      const p = state.people.me, line = dress(p, action.split(':').slice(2).join(':'));
+      if (!line) return;
+      say(state, bus, { kind: 'note', text: line });
+      if (/^(wear|off):/.test(action.split(':').slice(2).join(':'))) skip(state, bus, DRESS_S * 1000);
+      if (state.map.place === 'home') bus?.emit('wardrobe', wardrobeWays(p));   // (and the wardrobe still open: what else)
     }
     else if (what === 'low') { const safe = c.posting.safehouses.some(h => h.row === state.map.row); until(lieLow(c, now, safe), safe ? 'A day in the safe house: the curtains drawn, the kettle, nobody.' : 'A day of being nobody.'); eat(state.people.me, state.time.ms, 40); }
     else if (what === 'rest' && state.map.place === 'home') {      // (the bed, by day: a nap, or lying down a while: sim/needs.js, campaign.js fatigue())
@@ -226,6 +234,8 @@ function enterHome(state, bus, at = 'door') {
   newMap(state, bus, map, s.x);
   c.where = { inside: 'home', row: c.posting.home.row, x: s.x, z: s.z };
   if (at === 'door') say(state, bus, { kind: 'note', text: 'Up the stairs, the key in the lock: the flat.' });
+  const got = unpack(state.people.me);                              // (the shop's bag unpacked: sim/clothes.js)
+  if (got) say(state, bus, { kind: 'note', text: `The bag unpacked: ${got}, put away.` });
 }
 
 /**
@@ -266,7 +276,7 @@ function use(state, bus, act, here = false) {
   if (act === 'home') return enterHome(state, bus, 'door');
   if (act === 'unwindow') return backFromWindow(state, bus);
   if (act === 'embassy') return enterEmbassy(state, bus);
-  const kind = { phone: 'phone', call: 'phone', sleep: 'sleep', wash: 'wash', eat: 'eat', window: 'window', read: 'read', work: 'desk', chief: 'chief' }[act], s = kind && spotOf(state, kind);
+  const kind = { phone: 'phone', call: 'phone', sleep: 'sleep', wash: 'wash', eat: 'eat', window: 'window', read: 'read', work: 'desk', chief: 'chief', dress: 'dress' }[act], s = kind && spotOf(state, kind);
   if (!s) return;
   if (!here && Math.hypot(me.x - s.x, me.z - s.z) > SPOT_REACH_M) { walkTo(state, me, s); state.scenario.using = { act, spot: kind }; return; }
   if (act === 'phone') {
@@ -283,6 +293,7 @@ function use(state, bus, act, here = false) {
     else bus?.emit('bed', [{ key: 'sleep', label: 'Sleep till seven tomorrow' }, { key: 'rest:nap', label: `A nap: an hour, and ${NAP_EASES_H} hours' tiredness gone` }, { key: 'rest:lie', label: 'Lie down half an hour: the nerves settle' }]);
   }
   else if (act === 'window') lookOut(state, bus);
+  else if (act === 'dress') bus?.emit('wardrobe', wardrobeWays(state.people.me));   // (the wardrobe: what to wear, what to keep: sim/clothes.js)
   else if (act === 'work') {                                        // (sat at your desk, and the day's work: sim/campaign.js work())
     const k = calendar(state.time.ms);
     if (k.weekday >= 5 || k.hour >= WORK.to || c.worked[Math.floor(state.time.ms / DAY)]) return say(state, bus, { kind: 'instinct', text: 'Not a working day, or it\'s over: nothing in the tray that won\'t keep.' });
@@ -315,6 +326,7 @@ const SPOT_LINE = {
   window: () => ['The window, over the street. {instinct}: look out, from behind the curtain.', 'window'],
   desk: (state) => { const c = state.campaign, k = calendar(state.time.ms); return k.weekday < 5 && !c.worked[Math.floor(state.time.ms / DAY)] && k.hour < WORK.to ? [`Your desk, the in-tray. {instinct}: the day's cables, till six.`, 'work'] : ['Your desk: nothing in the tray that won\'t keep till tomorrow.', null]; },
   chief: () => ['The chief\'s office. {instinct}: what\'s on.', 'chief'],
+  dress: (state) => [wardrobeWays(state.people.me).length ? 'The wardrobe. {instinct}: what you wear, what you keep here.' : 'The wardrobe: nothing in it but hangers yet. The shops have more.', wardrobeWays(state.people.me).length ? 'dress' : null],
   read: (state) => { const b = reading(state.people.me); return b ? [`The armchair. {instinct}: an hour with ${bookOf(b.id).title}.`, 'read'] : ['The armchair, and nothing to read but the takeaway menus. A bookshop would help.', null]; },
 };
 

@@ -11,7 +11,8 @@ import { SCENARIOS } from '../src/sim/scenarios/index.js';
 import { mods as showsMods } from '../src/sim/notice.js';
 import { bodyLine } from '../src/sim/aid.js';
 import { at } from '../src/sim/clock.js';
-import { cashOf, price, COAT_USD } from '../src/sim/money.js';
+import { cashOf, price } from '../src/sim/money.js';
+import { RAIL } from '../src/sim/clothes.js';
 import { Z } from '../src/sim/map/street.js';
 import { assert, fmt } from './helpers.mjs';
 
@@ -172,7 +173,7 @@ export default [
     },
   },
   {
-    name: 'money: a coat off the rail (another colour, paid for; out the door in it, the scene hears), a taxi\'s fare; short of cash, nothing doing',
+    name: 'money: a coat chosen off the rail (paid for, worn out of the door, the scene hears; the old one in the shop\'s bag), a taxi\'s fare; short of cash, nothing doing',
     fn() {
       const g = newGame({ seed: 7, scenario: 'walk' });
       g.time.ms = at(2026, 11, 2, 13, 0);
@@ -185,8 +186,10 @@ export default [
         walkIn(g, u);
         const c = spotOf(u, 'counter');
         walk(g, c.x, c.z);
-        const cash0 = cashOf(p), coat0 = p.look.top.color;
-        step(g, { act: ['shop:coat'] }, null);
+        const cash0 = cashOf(p), coat0 = p.look.top.color, asked = [], bus = { emit: (k, v) => { if (k === 'shop') asked.push(v); }, on() {} };
+        step(g, { act: ['shop:rail:top'] }, bus);                       // (the rail: which coat, asked)
+        const pick = asked[0]?.ways.find(w => w.id.startsWith('piece:coat')), piece = RAIL.clothes.find(x => `piece:${x.id}` === pick?.id);
+        step(g, { act: [`shop:${pick.id}`] }, null);                   // (as the UI sends it back: src/main.js)
         for (let t = 0; t < 20 * (COAT_S + 2) && me.inside; t++) step(g, {}, null);
         const cash1 = cashOf(p), coat1 = p.look.top.color;
         walk(g, u.door, Z.front + 0.8);
@@ -199,7 +202,7 @@ export default [
         step(g, {}, null);
         step(g, { act: ['taxi:off2'] }, null);
         console.log(`      a coat: ${price(g, cash0 - cash1)} (${coat0.toString(16)} → ${coat1.toString(16)}), the scene heard ${heard.join(', ')}; a taxi two streets: ${price(g, cash1 - cash2)}, now row ${row}; with ${price(g, 1)}: row ${g.map.row}, "${g.log.at(-1).text}"`);
-        assert(cash1 === cash0 - COAT_USD && coat1 !== coat0 && heard.join() === 'in:front,out:coat', 'the coat, paid for, worn out of the door');
+        assert(cash1 === cash0 - piece.usd && coat1 === piece.look.color && coat1 !== coat0 && p.bag?.length === 1 && heard.join() === 'in:front,out:coat', 'the coat chosen off the rail, paid for, worn out of the door, the old one in the bag');
         assert(cash2 < cash1 && row === 2 && g.map.row === 2, 'the fare taken; short, no ride');
       } finally { delete SCENARIOS.walk.onShop; }
     },

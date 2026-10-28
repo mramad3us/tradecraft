@@ -452,9 +452,11 @@ export function createView({ parent, bus, month = () => 11 }) {
       const look = lookFor(a.who ?? a.seed);
       if (!look) continue;
       // (blood worn, what's in the hand, and the rainwear the weather puts on them are part of the look: their own sheet)
-      const P = a.who && state.people[a.who], bl = P?.bloody, hand = P?.hand, rain = rainwearOf(wx, a.who ?? a.seed, hand);
-      const key = bl || hand || rain ? `${a.who ?? a.seed}~${bl ? Object.keys(bl).sort().join('') : ''}~${hand ?? ''}~${rain ?? ''}` : a.who ?? a.seed;
-      people.push({ key, look: bl || hand || rain ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}), ...(rain ? { rainwear: rain } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S) });
+      // (a named person's sheet keyed by their look too, so a change of clothes is drawn: sim/clothes.js; a shop's bag in the hand)
+      const P = a.who && state.people[a.who], bl = P?.bloody, hand = P?.hand, rain = rainwearOf(wx, a.who ?? a.seed, hand), bag = P?.bag?.length ? 'bag' : null;
+      const base = a.who ? `${a.who}#${lookKey(look)}` : a.seed;
+      const key = bl || hand || rain || bag ? `${base}~${bl ? Object.keys(bl).sort().join('') : ''}~${hand ?? ''}~${rain ?? ''}~${bag ?? ''}` : base;
+      people.push({ key, look: bl || hand || rain || bag ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}), ...(rain ? { rainwear: rain } : {}), ...(bag ? { carry: 'bag' } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S) });
     }
     // (indoors, the view's own people at their places, not the sim's: whoever's behind the counter of the
     // shop you're in; an interior's staff (the embassy's Marine, its officers, the applicants waiting). Their
@@ -522,6 +524,14 @@ export function createView({ parent, bus, month = () => 11 }) {
     });
   }
 
+  // (a look's short fingerprint, kept per look object: a look's replaced, not changed, when clothes change)
+  const lookKeys = new WeakMap();
+  function lookKey(look) {
+    if (!look || typeof look !== 'object') return '';
+    let k = lookKeys.get(look);
+    if (k === undefined) { const t = JSON.stringify(look); let h = 5381; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; k = (h >>> 0).toString(36); lookKeys.set(look, k); }
+    return k;
+  }
   // (a look for indoors: no hat but a headscarf or a skullcap, nothing carried)
   function indoors(look) {
     if (!look || (!look.carry && (!look.hat || ['hijab', 'skullcap'].includes(look.hat.kind)))) return look;

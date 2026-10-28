@@ -20,7 +20,8 @@
 // soft, or a kitchen's cool tube). The furniture's own looks (sim/interiors/furniture.js, drawn by
 // src/art/furniture.js) take the flat's woods and fabrics and their own seeds. A flat not yet moved
 // into (`boxes`) has moving boxes about. What's done where (spots): the bed, the telephone, the basin,
-// the table, the cooker, the street-side window (sim/scenarios/campaign.js: out of it, the street below);
+// the table, the cooker, the street-side window (sim/scenarios/campaign.js: out of it, the street below),
+// the wardrobe (the studio's drawers: what you wear and what you keep, sim/clothes.js);
 // the way out (exits): the front door.
 import { stream, int, pick, chance, range } from '../rng.js';
 import { mirror } from './plan.js';
@@ -76,7 +77,7 @@ export const LAYOUTS = {
       it('fridge', kx + 0.4, N + 0.4), it('sink', kx + 1.2, N + 0.38), it('cooker', kx + 2.0, N + 0.38), it('kitchenShelf', kx + 1.2, N + 0.2),
       it('diningTable', kx + 1.35, D - 0.85, 'right', { wood: look.wood }),
     ];
-    const spots = [spot('sleep', bedX, 2.65, 'up'), spot('phone', 4.3, N + 0.85, 'up'), spot('wash', hx - 0.4, 0.95, 'up'), spot('eat', kx + 1.35, D - 1.85, 'down'), spot('cook', kx + 2.0, N + 1.05, 'up'), spot('window', 1.1, D - 0.6, 'down'), spot('read', 1.3, N + 2.0, 'left')];
+    const spots = [spot('dress', 0.7, 1.15, 'up'), spot('sleep', bedX, 2.65, 'up'), spot('phone', 4.3, N + 0.85, 'up'), spot('wash', hx - 0.4, 0.95, 'up'), spot('eat', kx + 1.35, D - 1.85, 'down'), spot('cook', kx + 2.0, N + 1.05, 'up'), spot('window', 1.1, D - 0.6, 'down'), spot('read', 1.3, N + 2.0, 'left')];
     return { x0: 0, z0: 0, x1: W, z1: D, rooms, openings, windows, windowsS: [win(0.6, 1.6)], items, spots, exits: [exit(W - 2.3, W - 1.3)] };
   },
 
@@ -97,7 +98,7 @@ export const LAYOUTS = {
       it('bed', bedX, S + 1.2, 'down', { duvet: look.fabric2 }), it('bedsideTable', bedX - 1.1, S + 0.35, 'down', { on: chance(r, 0.5) }), it('bedsideTable', bedX + 1.1, S + 0.35),
       it('drawers', bedX, D - 0.3, 'up', { wood: look.wood }), it('wardrobe', W - 0.32, D - 1.0, 'left', { wood: look.wood }),
     ];
-    const spots = [spot('sleep', bedX, S + 2.65, 'up'), spot('phone', 0.45, N + 0.85, 'up'), spot('wash', W - 0.4, 0.95, 'up'), spot('eat', 1.6, 2.75, 'up'), spot('cook', 3.2, 1.05, 'up'), spot('window', 3.4, D - 0.6, 'down'), spot('read', lx - 1.45, D - 1.3, 'right')];
+    const spots = [spot('dress', W - 1.15, D - 1.0, 'right'), spot('sleep', bedX, S + 2.65, 'up'), spot('phone', 0.45, N + 0.85, 'up'), spot('wash', W - 0.4, 0.95, 'up'), spot('eat', 1.6, 2.75, 'up'), spot('cook', 3.2, 1.05, 'up'), spot('window', 3.4, D - 0.6, 'down'), spot('read', lx - 1.45, D - 1.3, 'right')];
     return { x0: 0, z0: 0, x1: W, z1: D, rooms, openings, windows, windowsS: [win(2.9, 3.9)], items, spots, exits: [exit(kx + 0.95, kx + 1.9)] };
   },
 
@@ -117,7 +118,7 @@ export const LAYOUTS = {
       it('desk', W - 1.2, D - 0.63, 'up', { wood: look.wood }), it('phoneTable', W - 0.3, N + 1.2, 'left', { phone: look.phone }), it('plant', W - 0.35, D - 1.55),
       it('drawers', bedX + 1.5, D - 0.3, 'up', { wood: look.wood }),
     ];
-    const spots = [spot('sleep', bedX, N + 2.65, 'up'), spot('phone', W - 0.95, N + 1.2, 'right'), spot('wash', kx + 0.85, N - 0.6, 'left'), spot('eat', 1.2, 1.15, 'up'), spot('cook', 2.0, 1.05, 'up'), spot('window', 3.1, D - 0.6, 'down'), spot('read', 3.0, N + 1.5, 'left')];
+    const spots = [spot('dress', bedX + 1.5, D - 1.05, 'down'), spot('sleep', bedX, N + 2.65, 'up'), spot('phone', W - 0.95, N + 1.2, 'right'), spot('wash', kx + 0.85, N - 0.6, 'left'), spot('eat', 1.2, 1.15, 'up'), spot('cook', 2.0, 1.05, 'up'), spot('window', 3.1, D - 0.6, 'down'), spot('read', 3.0, N + 1.5, 'left')];
     return { x0: 0, z0: 0, x1: W, z1: D, rooms, openings, windows, windowsS: [win(2.6, 3.6)], items, spots, exits: [exit(W - 1.8, W - 0.8)] };
   },
 };

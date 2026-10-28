@@ -9,9 +9,11 @@
 // in, and whoever was following, seeing you go in, waits on the door (sim/agents.js). Inside, T at:
 //   - the counter: what the shop sells (ways()): 'browse' (a minute's look and a question, BROWSE_S:
 //     natural, people go into shops); 'eat' (a café, a bakery, a grocer's…: FOOD) a bite, EAT_S
-//     (sim/needs.js), BITE_USD; 'coat' (a clothes shop) a coat off the rail, put on there (COAT_S,
-//     COAT_USD: sim/money.js), a colour you weren't wearing, so that whoever was looking for the old one
-//     looks past you as you come out; a book (a bookshop's shelf: sim/training.js); the gym's, the
+//     (sim/needs.js), BITE_USD; off a rail (sim/clothes.js RAIL: a clothes shop's coats, jackets,
+//     jumpers and hats; an optician's glasses), the one chosen, put on there (COAT_S), what it replaced
+//     into the shop's bag to take home, so that whoever was looking for the old one
+//     looks past you as you come out; a thing (sim/clothes.js GOODS: an umbrella, a penknife, a bottle,
+//     a kitchen knife), into the hand or a pocket or the bag; a book (a bookshop's shelf: sim/training.js); the gym's, the
 //     club's, the school's hours (sim/training.js; the hours skipped, as an action that takes time);
 //   - the ledge in the window (a café's, a bar's, a kebab shop's: WINDOW_TABLES): a coffee stood at it,
 //     watching the street through the glass (SIT_S, lived through: move, and you've had enough of it),
@@ -32,7 +34,9 @@ import { sectionAt } from './world.js';
 import { hash } from './rng.js';
 import { say } from './log.js';
 import { eat, EAT_S } from './needs.js';
-import { price, pay, BITE_USD, COAT_USD } from './money.js';
+import { price, pay, BITE_USD } from './money.js';
+import { RAIL, GOODS, SLOTS, railOf, putOn, carry } from './clothes.js';
+import { weaponOf } from './weapons.js';
 import { train, learn, shelf, reading, readAnHour, bookOf, bookLine } from './training.js';
 import { cityById } from './cities/index.js';
 import { HOUR } from './clock.js';
@@ -60,8 +64,8 @@ const langHere = (state) => (state.map.city === 'london' ? 'ru' : cityById(state
 // watched from inside; a toilet at the back, a customer's to use (sim/notice.js))
 const CAFES = ['cafe', 'restaurant', 'bar', 'pub', 'shawarma', 'kebab', 'chips', 'koshary', 'foul', 'juice'].filter(k => floorKind(k) === 'cafe');
 export const WINDOW_TABLES = new Set(CAFES), TOILETS = new Set(CAFES);
-// (coats on the rail: [colour, trim]; one you weren't wearing)
-export const COATS = [[0x6b4636, 0x47302a], [0x2f6b62, 0x23252f], [0x8f6345, 0x6b4636], [0x4a2a52, 0x23252f], [0x23252f, 0x14151c], [0x6a7182, 0x3a3f4b], [0x9e3c36, 0x47302a]];
+// (a rail's slots, as the counter offers them)
+const RAIL_WORDS = { top: 'Off the rail: a coat, a jacket, a jumper, put on there and then', hat: 'A hat, put on there and then', glasses: 'Glasses, put on there and then' };
 // (the kinds where you can eat something, quickly: sim/needs.js)
 export const FOOD = new Set([...CAFES, 'bakery', 'sweets', 'manakish', 'deli', 'grocery']);
 export { BACK_REACH_M, BACK_IN_M, BACKWAYS };
@@ -115,7 +119,9 @@ export function ways(state, d, spot = 'counter') {
   if (d.shop === 'club') out.push({ id: 'class', label: `A class, two hours on the mat: throws, falls, holds: close combat (${price(state, CLASS_USD)})` });
   if (d.shop === 'school') out.push({ id: 'lesson', label: `A lesson, ninety minutes of ${LANG_NAME[langHere(state)] ?? 'the language'} (${price(state, LESSON_USD)})` });
   if (d.shop === 'books') for (const b of shelf(state.map.seed, state.map.row ?? 0, d.x)) if (!(p?.books ?? []).some(o => o.id === b.id)) out.push({ id: `book:${b.id}`, label: `${b.lang ? `A grammar of ${LANG_NAME[langHere(state)] ?? 'the language'}` : b.title}: ${b.hours} hours' reading (${price(state, b.usd)})` });
-  if (d.shop === 'clothes') out.push({ id: 'coat', label: `A coat off the rail, put on there and then (${price(state, COAT_USD)})` });
+  // (a rail: which piece, asked next (doWay()); what a shop sells to take away)
+  if (RAIL[d.shop]) for (const slot of SLOTS) if (railOf(d.shop, p).some(x => x.slot === slot)) out.push({ id: `rail:${slot}`, label: RAIL_WORDS[slot] });
+  for (const [kind, what, usd] of GOODS[d.shop] ?? []) out.push({ id: `buy:${kind}`, label: `${what.charAt(0).toUpperCase() + what.slice(1)} (${price(state, usd)})` });
   return out;
 }
 
@@ -141,13 +147,22 @@ export function doWay(state, bus, me, way, scenario) {
   const sp = me.within && !me.inside && spotIn(state, me);
   if (!sp) return false;
   const d = sp.door, p = state.people[state.player];
-  if (!ways(state, d, sp.kind).some(w => w.id === way)) return false;
-  const cost = { eat: [BITE_USD, 'a bite'], coat: [COAT_USD, 'a coat'], sit: [BITE_USD, 'a coffee'], read: [BITE_USD, 'a coffee'], train: [GYM_USD, 'a day at the gym'], class: [CLASS_USD, 'the class'], lesson: [LESSON_USD, 'the lesson'] }[way];
+  // (a rail: its pieces in that slot, for the UI to ask which (the bus: 'shop'); chosen, it comes back as piece:<id>)
+  if (way.startsWith('rail:') && ways(state, d, sp.kind).some(w => w.id === way)) {
+    bus?.emit('shop', { shop: d.shop, ways: railOf(d.shop, p).filter(x => x.slot === way.slice(5)).map(x => ({ id: `piece:${x.id}`, label: `${x.name.charAt(0).toUpperCase() + x.name.slice(1)} (${price(state, x.usd)})` })) });
+    return false;
+  }
+  const piece = way.startsWith('piece:') && sp.kind === 'counter' ? railOf(d.shop, p).find(x => `piece:${x.id}` === way) : null;
+  const good = way.startsWith('buy:') && sp.kind === 'counter' ? (GOODS[d.shop] ?? []).find(([k]) => `buy:${k}` === way) : null;
+  if (!piece && !good && !ways(state, d, sp.kind).some(w => w.id === way)) return false;
+  if (piece && !pay(state, bus, piece.usd, piece.name)) return false;
+  if (good && !pay(state, bus, good[2], good[1])) return false;
+  const cost = { eat: [BITE_USD, 'a bite'], sit: [BITE_USD, 'a coffee'], read: [BITE_USD, 'a coffee'], train: [GYM_USD, 'a day at the gym'], class: [CLASS_USD, 'the class'], lesson: [LESSON_USD, 'the lesson'] }[way];
   const book = way.startsWith('book:') ? shelf(state.map.seed, state.map.row ?? 0, d.x).find(b => `book:${b.id}` === way) : null;
   if (cost && !pay(state, bus, ...cost)) return false;
   if (book && !pay(state, bus, book.usd, 'the book')) return false;
-  const secs = { back: YARD_S, wash: WASH_S, eat: EAT_S, coat: COAT_S, sit: SIT_S, train: GYM_S, class: CLASS_S, lesson: LESSON_S, read: READ_S }[way] ?? (book ? BUY_S : BROWSE_S);
-  me.inside = { x: d.x, shop: d.shop, way, book: book?.id, until: state.time.ms + secs * 1000, row: state.map.row ?? 0, long: !LIVED.has(way) };
+  const secs = { back: YARD_S, wash: WASH_S, eat: EAT_S, sit: SIT_S, train: GYM_S, class: CLASS_S, lesson: LESSON_S, read: READ_S }[way] ?? (piece ? COAT_S : book || good ? BUY_S : BROWSE_S);
+  me.inside = { x: d.x, shop: d.shop, way, book: book?.id, ...(piece ? { piece: { id: piece.id, slot: piece.slot, name: piece.name, look: piece.look } } : {}), ...(good ? { good: good[0], what: good[1] } : {}), until: state.time.ms + secs * 1000, row: state.map.row ?? 0, long: !LIVED.has(way) };
   Object.assign(me, { x: sp.x, z: sp.z, vx: 0, vz: 0, busy: null, glass: false, gait: 'idle', face: sp.face ?? 'up' });
   me.head = { up: -Math.PI / 2, down: Math.PI / 2, left: Math.PI, right: 0 }[me.face] ?? -Math.PI / 2;
   if (way === 'back') me.hidden = true;                             // (the yard: out of everyone's sight)
@@ -155,11 +170,10 @@ export function doWay(state, bus, me, way, scenario) {
     back: 'Through the back door, a nod as if you belong: a yard of bins and crates, and its gate.',
     wash: 'The toilet, the bolt across, cold water.',
     eat: `Something from ${shopWord(d.shop)}'s counter, eaten there.`,
-    coat: 'Along the rail, a coat that fits, the tags off at the till.',
     sit: 'A coffee, stood at the ledge in the window: the street goes by on the other side of the glass.',
     read: 'A coffee at the ledge in the window, the book open on it.',
     train: 'The changing room, and the gym floor.', class: 'Into a gi, and on to the mat.', lesson: 'A classroom upstairs, a table, a teacher.',
-  }[way] ?? (book ? 'The book from the shelf, paid for at the counter.' : 'A look along the shelves, and a question at the counter.') });
+  }[way] ?? (piece ? `Along the rail: ${piece.name}, the tags off at the till.` : good ? `${good[1].charAt(0).toUpperCase() + good[1].slice(1)}, paid for at the counter.` : book ? 'The book from the shelf, paid for at the counter.' : 'A look along the shelves, and a question at the counter.') });
   return true;
 }
 
@@ -181,13 +195,16 @@ export function insideTick(state, bus, me, scenario) {
     return;
   }
   const p = state.people[state.player];
-  if (ins.way === 'coat') {
-    // (a colour you weren't wearing; the old one, and whatever was on it, left on the rail)
-    const now = p.look?.top?.color, pickC = COATS.filter(([c]) => c !== now), [color, trim] = pickC[hash(state.time.ms, state.map.seed) % pickC.length];
-    p.look = { ...p.look, top: { ...(p.look?.top ?? {}), kind: 'coat', color, trim } };
-    if (p.bloody?.clothes !== undefined) { delete p.bloody.clothes; if (!Object.keys(p.bloody).length) delete p.bloody; }
-    if (me.within) me.within.coat = true;                      // (out the door in it: the scene hears so)
-    say(state, bus, { kind: 'note', text: 'The new coat on, the old one left over a chair. Out you go, in a colour you weren\'t wearing.' });
+  if (ins.piece) {
+    // (on there and then; what it replaced, and whatever was on it, folded into the shop's bag to take home: sim/clothes.js)
+    const was = putOn(p, ins.piece);
+    if (was) (p.bag ??= []).push(was);
+    if (ins.piece.slot === 'top' && p.bloody?.clothes !== undefined) { delete p.bloody.clothes; if (!Object.keys(p.bloody).length) delete p.bloody; }
+    if (me.within) me.within.coat = true;                      // (out the door changed: the scene hears so)
+    say(state, bus, { kind: 'note', text: `${ins.piece.name.charAt(0).toUpperCase() + ins.piece.name.slice(1)} on, there and then${was ? `; ${was.name} folded into the shop's bag` : ''}. Out you go, not as you came in.` });
+  } else if (ins.good) {
+    const at = carry(p, ins.good);
+    say(state, bus, { kind: 'note', text: `${ins.what.charAt(0).toUpperCase() + ins.what.slice(1)}: ${at === 'hand' ? 'in your hand' : at === 'pocket' ? 'in a pocket' : 'in the shop\'s bag, no room for it about you'}.` });
   } else if (ins.way === 'train' || ins.way === 'class') {
     // (the gym: fitness; the club: close combat; hungry after, as you would be)
     const g = ins.way === 'train' ? train(p, 'fitness', GYM_S / 3600, GYM_UP_TO) : train(p, 'cqc', CLASS_S / 3600, CLUB_UP_TO), what = ins.way === 'train' ? 'Fitness' : 'CQC';
