@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc28 (2026-10-28)
+
+- **The way out of the flat, marked.** A plaque on the wall over the front door (FRONT DOOR, an arrow), the same pixel plaques as the places on the street; the embassy's street door has one too (THE STREET). In the corridor flat a standing mirror had been put in front of the front door, and in two layouts a shoe rack overlapped it, so the door read as a wardrobe: the door's clear now in every flat. By the door the instinct says it's the way down to the street, and on a working morning it says to go out by the front door in the hall (it used to say "its door", meaning the embassy's).
+- Tests: interiors (nothing stands before any flat's front door, in every layout and city).
+
 ## v0.1.0-rc27 (2026-10-28)
 
 - **Fixed: stuck at the counter.** Buying something in a shop (a book, a coat, a bite), a minute's browse, the basin, the yard out the back: each held your feet for its full time in real time, minutes of nothing with no way out, and buying a book looked like never coming out. Now each is an action that takes time: the clock jumps on (three minutes for a book) and you can walk at once. The coffee at a café's window is still lived through, since watching the street is the point of it, and now you can walk away from it whenever you like, leaving half the coffee.

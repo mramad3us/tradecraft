@@ -69,7 +69,7 @@ export const LAYOUTS = {
       it('bed', bedX, 1.2, 'down', { duvet: look.fabric2 }), it('bedsideTable', bedX - 1.1, 0.35), it('bedsideTable', bedX + 1.1, 0.35, 'down', { on: chance(r, 0.5) }),
       it('wardrobe', 0.7, 0.32, 'down', { wood: look.wood }),
       it('bathtub', bx + 0.95, 0.45), it('washbasin', hx - 0.4, 0.25), it('toilet', hx - 0.37, N - 0.55, 'left'),
-      it('coatRack', W - 0.45, 1.2, 'left'), it('shoeRack', hx + 0.7, 0.3),
+      it('coatRack', W - 0.45, 1.2, 'left'), it('shoeRack', hx + 0.5, 0.3),
       it('rug', 2.9, N + L * 0.45, 'down', { pattern: look.rug }), it('sofa', 2.9, N + 0.55, 'down', { fabric: look.fabric }), it('coffeeTable', 2.9, N + 1.75, 'down', { wood: look.wood }),
       it('phoneTable', 4.3, N + 0.3, 'down', { phone: look.phone }), it('floorLamp', 1.62, N + 0.3, 'down', { on: true }), it('bookshelf', kx - 0.55, N + 0.25, 'down', { wood: look.wood }),
       it('armchair', 0.6, N + 2.0, 'right', { fabric: look.fabric }), it('tv', 2.9, D - 0.3, 'up'), it('desk', kx - 1.0, D - 0.63, 'up', { wood: look.wood }), it('plant', 4.3, D - 0.35),
@@ -84,12 +84,12 @@ export const LAYOUTS = {
     const W = pick(r, [11, 11.5, 12, 12.5]), D = pick(r, [8.4, 8.8, 9.2]), N = 3.2, C = 1.4, S = N + C;
     const kx = Math.round(W * 0.38 * 4) / 4, hx = kx + 2.6, lx = Math.round(W * 0.52 * 4) / 4, bedX = lx + 2.9;
     const rooms = [room('kitchen', 0, 0, kx, N), room('hall', kx, 0, hx, N), room('bath', hx, 0, W, N), room('corridor', 0, N, W, S, 'hall'), room('living', 0, S, lx, D), room('bedroom', lx, S, W, D)];
-    const openings = [front(kx + 0.8, kx + 1.8), way('x', N, kx + 0.3, hx - 0.3), door('x', N, kx - 1.3, kx - 0.4), door('x', N, hx + 0.3, hx + 1.2), door('x', S, lx - 1.4, lx - 0.5), door('x', S, lx + 0.5, lx + 1.4)];
+    const openings = [front(kx + 0.95, kx + 1.9), way('x', N, kx + 0.3, hx - 0.3), door('x', N, kx - 1.3, kx - 0.4), door('x', N, hx + 0.3, hx + 1.2), door('x', S, lx - 1.4, lx - 0.5), door('x', S, lx + 0.5, lx + 1.4)];
     const windows = [win(1.2, 2.4), win(hx + 1.6, hx + 2.2)];
     const items = [
       it('fridge', 0.4, 0.4), it('counter', 1.3, 0.38, 'down', { wood: look.wood }), it('sink', 2.4, 0.38), it('cooker', 3.2, 0.38), it('kitchenShelf', 1.3, 0.2),
       it('diningTable', 1.6, 1.75, 'right', { wood: look.wood }),
-      it('coatRack', hx - 0.4, 0.35), it('shoeRack', kx + 0.55, 0.3), it('mirror', hx - 1.0, 0.15),
+      it('coatRack', hx - 0.3, 0.35), it('shoeRack', kx + 0.45, 0.3),   // (either side of the front door, clear of it)
       it('bathtub', hx + 1.1, 0.45), it('washbasin', W - 0.4, 0.25), it('toilet', W - 0.37, N - 0.6, 'left'),
       it('phoneTable', 0.45, N + 0.3, 'down', { phone: look.phone }), it('radiator', W - 1.2, N + 0.1),
       it('rug', 1.7, S + (D - S) * 0.5, 'down', { pattern: look.rug }), it('sofa', 1.7, S + 0.55, 'down', { fabric: look.fabric }), it('coffeeTable', 1.7, S + 1.75, 'down', { wood: look.wood }),
@@ -98,7 +98,7 @@ export const LAYOUTS = {
       it('drawers', bedX, D - 0.3, 'up', { wood: look.wood }), it('wardrobe', W - 0.32, D - 1.0, 'left', { wood: look.wood }),
     ];
     const spots = [spot('sleep', bedX, S + 2.65, 'up'), spot('phone', 0.45, N + 0.85, 'up'), spot('wash', W - 0.4, 0.95, 'up'), spot('eat', 1.6, 2.75, 'up'), spot('cook', 3.2, 1.05, 'up'), spot('window', 3.4, D - 0.6, 'down'), spot('read', lx - 1.45, D - 1.3, 'right')];
-    return { x0: 0, z0: 0, x1: W, z1: D, rooms, openings, windows, windowsS: [win(2.9, 3.9)], items, spots, exits: [exit(kx + 0.8, kx + 1.8)] };
+    return { x0: 0, z0: 0, x1: W, z1: D, rooms, openings, windows, windowsS: [win(2.9, 3.9)], items, spots, exits: [exit(kx + 0.95, kx + 1.9)] };
   },
 
   studio(r, look) {

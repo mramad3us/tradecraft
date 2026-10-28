@@ -266,10 +266,10 @@ export function createUI({ input, cb }) {
     const sgs = (!sc.outcome && cam0 && SCENARIOS[sc.kind]?.signs?.(state)) || [];
     while (signs.children.length < sgs.length) signs.append(el('canvas', { className: 'plaque' }));
     [...signs.children].forEach((t, i) => {
-      const s = sgs[i], sx = s && RES[0] / 2 + (s.x - cam0.x) * 16, sy = s && RES[1] / 2 + (s.z - cam0.z) * 16 - 3.0 * 16;
+      const s = sgs[i], sx = s && RES[0] / 2 + (s.x - cam0.x) * 16, sy = s && RES[1] / 2 + (s.z - cam0.z) * 16 - (s.lift ?? 3.0) * 16;
       t.hidden = !s || sx < -40 || sx > RES[0] + 40 || sy < 0 || sy > RES[1];
       if (t.hidden) return;
-      place(t, plaque({ text: s.label, style: s.kind ?? 'way', icon: PLACE_ICON[s.kind] ?? 'pin' }), sx, sy, k0);
+      place(t, plaque({ text: s.label, style: s.kind ?? 'way', icon: s.icon ?? PLACE_ICON[s.kind] ?? 'pin' }), sx, sy, k0);
     });
     // Where you're going (a scenario's goal(): { row, x, z, label }), at the picture's edge when it's off it.
     const gl = !sc.outcome && SCENARIOS[sc.kind]?.goal?.(state);

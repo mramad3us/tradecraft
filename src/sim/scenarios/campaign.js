@@ -144,8 +144,17 @@ export const campaignHub = {
   /** A taxi (sim/taxi.js) to the posting's places. */
   destinations(state) { return places(state.campaign).map(pl => ({ id: pl.id, label: pl.label, row: pl.row, x: pl.x ?? 12 })); },
 
-  /** The posting's places on this street, named over their doors (sim/places.js). */
-  signs(state) { return state.map.kind !== 'street' ? [] : places(state.campaign).filter(pl => pl.row === state.map.row && pl.x !== undefined).map(pl => ({ x: pl.x, z: pl.z ?? Z.front, label: signOf(pl), kind: pl.id === 'embassy' || pl.id === 'home' ? pl.id : 'safe' })); },
+  /**
+   * The posting's places on this street, named over their doors (sim/places.js); indoors, the way out,
+   * marked over its door (the user, 2026-10-28: "where is the door out of the flat").
+   */
+  signs(state) {
+    if (state.map.kind === 'interior') {
+      const e = state.$world?.sections.get(0)?.plan?.exits[0], south = e?.side === 's';
+      return e ? [{ x: (e.x0 + e.x1) / 2, z: south ? e.z1 : e.z0, lift: south ? 0.6 : 1.65, icon: south ? 'down' : 'up', label: state.map.place === 'embassy' ? 'The street' : 'Front door', kind: 'out' }] : [];
+    }
+    return state.map.kind !== 'street' ? [] : places(state.campaign).filter(pl => pl.row === state.map.row && pl.x !== undefined).map(pl => ({ x: pl.x, z: pl.z ?? Z.front, label: signOf(pl), kind: pl.id === 'embassy' || pl.id === 'home' ? pl.id : 'safe' }));
+  },
 
   /** Where you'd want to be: the embassy on a working morning not yet worked; the flat late at night. */
   goal(state) {
@@ -348,8 +357,10 @@ function instinct(state, c, now) {
   // (in the flat, what's at hand: the bed, the telephone, the basin, the kitchen; at the embassy, your desk, the chief's)
   const s = (state.map.place === 'home' || state.map.place === 'embassy') && me && !me.busy && spotNear(state, me), line = s && SPOT_LINE[s.kind]?.(state);
   if (line) return L(`spot-${s.kind}`, 'calm', line[0], line[1]);
+  const fd = state.map.place === 'home' && me && state.$world?.sections.get(0)?.plan?.exits[0];
+  if (fd && Math.hypot(me.x - (fd.x0 + fd.x1) / 2, me.z - fd.z0) < 1.8) return L('front-door', 'calm', 'The front door. Through it, down the stairs and out onto the street.');
   if (state.map.place === 'embassy') return k.weekday < 5 && !worked && k.hour < WORK.to ? L('work-in', 'note', 'The station: through the arch, behind the vault door off the corridor. Your desk\'s in there.') : null;
-  if (k.weekday < 5 && !worked && k.hour >= 7 && k.hour < WORK.to - 2) return L('work', 'note', `A working day: the embassy expects you${k.hour < WORK.from ? ' at nine' : ''}. Its door, {instinct}; or {mindmap}: the desk.`);
+  if (k.weekday < 5 && !worked && k.hour >= 7 && k.hour < WORK.to - 2) return L('work', 'note', `A working day: the embassy expects you${k.hour < WORK.from ? ' at nine' : ''}. ${state.map.place === 'home' ? 'Out by the front door in the hall, and to its door' : 'Its door, {instinct}'}; or {mindmap}: the desk.`);
   if (k.hour >= 23 || k.hour < 5) return L('late', 'calm', `${clockText(now)}. Bed, sooner or later: {mindmap}.`);
   return next ? L(`later-${next.a.id}`, 'calm', `Next: ${KINDS[next.a.kind].name.toLowerCase()}, ${dayWord(next.a.from, now)} at ${clockText(next.a.from)}. Heat: ${heatWord(c.posting.heat)}.`) : null;
 }

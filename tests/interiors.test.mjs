@@ -11,6 +11,7 @@ import { sectionFor } from '../src/sim/world.js';
 import { interior } from '../src/sim/map/interior.js';
 import { wayAcross } from '../src/sim/interiors/path.js';
 import { walls, wallRect } from '../src/sim/interiors/plan.js';
+import { footprint } from '../src/sim/interiors/furniture.js';
 import { exitHere } from '../src/sim/interiors/use.js';
 import { calendar, clockText, HOUR, MIN, DAY } from '../src/sim/clock.js';
 import { createBus } from '../src/sim/bus.js';
@@ -18,7 +19,7 @@ import { assert } from './helpers.mjs';
 
 export default [
   {
-    name: 'interiors: flats, every layout in every city, with the boxes and without: rooms closed but for their doors, every spot reached from the front door, no two alike',
+    name: 'interiors: flats, every layout in every city, with the boxes and without: rooms closed but for their doors, nothing standing before the front door, every spot reached from it, no two alike',
     fn() {
       let n = 0, reached = 0, sizes = new Set(), looks = new Set(), decor = 0, flats = 0;
       for (const city of ['moscow', 'london', 'cairo', 'beirut']) for (const layout of ['bands', 'corridor', 'studio']) for (const boxes of [false, true]) for (let seed = 1; seed <= 15; seed++) {
@@ -29,7 +30,11 @@ export default [
         // (round the plan: wall all the way, but the front door)
         const W = walls(p), edge = (side) => W.filter(w => w.side === side).reduce((a, w) => a + (w.b - w.a), 0);
         assert(Math.abs(edge('s') - (p.x1 - p.x0)) < 0.01 && Math.abs(edge('w') - (p.z1 - p.z0)) < 0.01 && Math.abs(edge('e') - (p.z1 - p.z0)) < 0.01, `seed ${seed}: closed round`);
-        assert(Math.abs(edge('n') + 1.0 - (p.x1 - p.x0)) < 0.01, `seed ${seed}: the north wall, less the front door`);
+        const fd = p.openings.find(o => o.kind === 'front');
+        assert(Math.abs(edge('n') + (fd.b - fd.a) - (p.x1 - p.x0)) < 0.01, `seed ${seed}: the north wall, less the front door`);
+        // (the way out seen for what it is: nothing stood in front of it; the user, 2026-10-28: "where is the door out of the flat")
+        const before = p.items.filter(it => { const f = footprint(it); return f.z0 < 1.0 && f.x1 > fd.a - 0.1 && f.x0 < fd.b + 0.1; });
+        assert(!before.length, `${city} ${layout} ${seed}: ${before.map(it => it.kind).join(', ')} before the front door`);
         const e = p.exits[0], from = [(e.x0 + e.x1) / 2, e.z1 + 0.7];
         for (const s of p.spots) { n++; if (wayAcross(S, from[0], from[1], s.x, s.z)) reached++; }
         assert(W.every(w => { const q = wallRect(w); return q.x1 > q.x0 && q.z1 > q.z0; }), 'walls with substance');
