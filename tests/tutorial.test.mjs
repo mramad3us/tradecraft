@@ -6,9 +6,34 @@ import { newGame, start, step } from '../src/sim/game.js';
 import { SCENARIOS } from '../src/sim/scenarios/index.js';
 import { LESSONS, briefFor } from '../src/sim/tutorial/index.js';
 import { READ_S } from '../src/sim/tutorial/earpiece.js';
+import { newCampaign, candidates } from '../src/sim/campaign.js';
+import { calendar } from '../src/sim/clock.js';
 import { assert, fmt } from './helpers.mjs';
 
 export default [
+  {
+    name: 'tutorial: from the flat, every lesson is the officer\'s own: in the posting\'s city, their name in its first line, their look and sheet, their cover; Hale the same man',
+    fn() {
+      const out = [];
+      for (const city of ['london', 'cairo']) {
+        const c = newCampaign(31, candidates(31, city, city === 'london' ? 'junior' : 'handler')[0], city, city === 'london' ? 'junior' : 'handler'), me0 = c.character;
+        for (const L of LESSONS) {
+          const g = newGame({ seed: 5, lesson: L.id, character: me0, city, job: c.posting.job });
+          start(g, null);
+          const me = g.people[g.player], first = g.log.find(e => e.kind === 'note')?.text ?? '';
+          const farm = L.scenario === 'dojo';
+          assert(me.name === me0.name && JSON.stringify(me.look) === JSON.stringify(me0.look) && JSON.stringify(me.skills) === JSON.stringify(me0.skills), `${city} ${L.id}: the officer, as they are`);
+          assert(first.includes(me0.name) || !/^[A-Z][a-z]+ [A-Z][a-z]+[,.]/.test(first), `${city} ${L.id}: the first line names them ("${first.slice(0, 60)}")`);
+          if (!farm) assert(g.map.city === city && (g.legend?.id !== 'embassy' || g.legend.name === c.posting.job),   // (an exercise with a cover of its own keeps it: Blown's)
+             `${city} ${L.id}: in ${city} (${g.map.city}), as ${c.posting.job} (${g.legend?.name})`);
+          else assert(calendar(g.time.ms).year >= 2018, `${city} ${L.id}: the Farm in their own past (${calendar(g.time.ms).year})`);
+          out.push(`${L.id}${farm ? '' : '@' + g.map.city}`);
+        }
+        out.push(`(${me0.name}, ${me0.age})`);
+      }
+      console.log(`      ${out.join(' ')}`);
+    },
+  },
   {
     name: 'tutorial: every lesson, Hale greets you first, his lines each given their time, no slips in the scripts; the brief an exercise',
     fn() {

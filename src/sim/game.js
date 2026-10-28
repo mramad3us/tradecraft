@@ -35,7 +35,7 @@ import { say } from './log.js';
 import { populate, think, walk, facing, isPasserby, noticeAgent } from './crowd.js';
 import { look, headOf, faceOf, GLASS_MAX_DEG } from './perception.js';
 import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } from './agents.js';
-import { drift } from './people.js';
+import { drift, asOfficer } from './people.js';
 import { heal, bleeding, bloodTick, bandOf, canStand, kill, BLOOD, COME_ROUND_S } from './health.js';
 import { PRESSURE_K, treat } from './aid.js';
 import { atKerb, destinations, ride, cabFor, hailedBy, board, rideTick, WALK_OFF_M } from './taxi.js';
@@ -76,7 +76,7 @@ export const SLANT_DEG_S = 70;                                     // (the eyes 
  * parseWeather(): 'snow-heavy-gale', 'frost', 'clear'), for shots, tests and debugging; none, the
  * city's own.
  */
-export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = null, chapter = null, campaign = null, context = null, city = null, weather = null, lesson = null, character = null } = {}) {
+export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = null, chapter = null, campaign = null, context = null, city = null, weather = null, lesson = null, character = null, job = null } = {}) {
   // (a lesson of the tutorial: its scene, and Hale in your ear: sim/tutorial/)
   const L = lesson ? lessonOf(lesson) : null;
   if (L) { scenario = L.scenario; chapter = L.chapter ?? chapter; }
@@ -94,8 +94,10 @@ export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = 
   // The city (sim/cities/): a street map is generated from its profile (state.map.city; none is Moscow).
   const C = city && CITIES[city];
   if (C) state.country = C.country;
-  SCENARIOS[scenario].setup(state, { chapter, campaign: context, city: C && city !== 'moscow' ? city : null, lesson: L });
-  if (character) wear(state, character);                            // (a lesson played by the campaign's own officer: src/main.js)
+  // (a lesson played by the campaign's own officer, in its city, under its cover: src/main.js; the scene makes its player as them)
+  SCENARIOS[scenario].setup(state, { chapter, campaign: context, city: C && city !== 'moscow' ? city : null, lesson: L, character });
+  if (character) wear(state, character);
+  if (job && state.legend && state.legend.id === 'embassy') state.legend.name = job;
   if (L?.beats) startTutor(state, L);
   if (C && city !== 'moscow' && state.map?.kind === 'street') state.map.city ??= city;
   return state;
@@ -109,8 +111,7 @@ export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = 
  */
 export function wear(state, character) {
   const me = state.people[state.player];
-  if (!me) return;
-  for (const k of ['name', 'sex', 'age', 'look', 'skills', 'os', 'cls', 'bg', 'langs', 'background']) if (character[k] !== undefined) me[k] = structuredClone(character[k]);
+  if (me) asOfficer(me, character);
 }
 
 /** Attach the runtime world (state.$world) to a state, new or loaded, and fill the street if it's new. */

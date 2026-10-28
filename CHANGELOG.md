@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc30 (2026-10-28)
+
+- **Hale's lessons are your officer's.** From the flat's telephone, the exercises used to drop you in Moscow whatever your posting, and their first line named a stranger with someone else's job. Now every lesson runs in your posting's city (London for a first tour; Hale's words follow: Moscow, the FSB and Lefortovo read as your city, its service and its prison) and you play your own officer from the first word: their name, face, coat, skills and background, under your posting's cover. The Farm is your own past: this spring for a junior, years back for a Handler. "On your own" from the tutorial page plays the same way.
+- **Fixed:** the umbrella lesson in London could put Kostin's minder inside a terrace's front railings, and the lesson failed to start. He now stands at the first spot by the door he can walk from.
+- Tests: tutorial (from the flat, every lesson in the posting's city, the officer named in its first line, their look, sheet and cover; the Farm in their own past).
+
 ## v0.1.0-rc29 (2026-10-28)
 
 - **R: what's at hand.** T did two jobs: what the instinct's line offered (call off the meeting, the pass, sit with him) and, when the line offered nothing, whatever was at hand (a shop window, a bench, a shop's counter). When the scene had something of its own, the thing at hand couldn't be reached at all: a brush pass you could call off left you no way to look in a window. Now they're two keys. T is the instinct's line; R uses what's at hand, shown after the line as its own chip whatever the line offers. R covers the shop windows, benches, zebras, kiosks, phone boxes, bus shelters, taxis, metro doors, a shop's counter, window ledge, basin and back door, and anything lying within reach. (R was set aside for reloading guns, which aren't in yet; reloading will get a key of its own.) Hale's lessons say R where they mean it.

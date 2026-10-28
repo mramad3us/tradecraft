@@ -45,7 +45,7 @@
 // state.scenario, read by the UI (the marker, the instinct, the brief and the result).
 import { townOf } from '../cities/index.js';
 import { at, TICK_MS, calendar, dateText } from '../clock.js';
-import { handler, sheet, seedFrom, streetLook, describe } from '../people.js';
+import { handler, sheet, seedFrom, streetLook, describe, asOfficer } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
 import { say, speak } from '../log.js';
 import { skill } from '../skills.js';
@@ -153,7 +153,7 @@ export const tail = {
     });
   },
 
-  setup(state, { campaign: C = null, city = null, lesson = null } = {}) {
+  setup(state, { campaign: C = null, city = null, lesson = null, character = null } = {}) {
     const r = state.rng;
     // (from a campaign, its context: the character, the time, the city, the target: sim/campaign.js context(); in a lesson, its evening)
     const ev = C ? campaignEvening(C) : EVENINGS.find(e => e.id === lesson?.options?.evening) ?? weighted(r, EVENINGS.map(e => [e, e.w]));
@@ -161,7 +161,7 @@ export const tail = {
     state.legend = { id: 'embassy', name: 'Second Secretary, US Embassy', cover: 'official', floor: 20 };
     state.country = C?.country ?? 'ru';
     state.heat[heatKey('embassy', state.country)] = C?.heat ?? 20;
-    const me = C ? { ...structuredClone(C.player), id: 'me' } : handler(r);
+    const me = C ? { ...structuredClone(C.player), id: 'me' } : asOfficer(handler(r), character);
     state.people[me.id] = me;
     state.player = me.id;
     state.people.orlov = sheet({ id: 'orlov', name: C?.target?.name ?? 'Gennady Orlov', sex: 'm', cls: 'spook', os: 20,
@@ -1004,14 +1004,14 @@ export const umbrellaTest = {
     };
   },
 
-  setup(state, { city = null, lesson = null } = {}) {
+  setup(state, { city = null, lesson = null, character = null } = {}) {
     const r = state.rng, ev = UMBRELLA_EVENINGS.find(e => e.id === lesson?.options?.evening) ?? weighted(r, UMBRELLA_EVENINGS.map(e => [e, e.w]));
     state.time.ms = at(2026, 11, 4, ev.h, ev.m);
     if (!state.weather) state.weather = lesson?.options?.weather ?? (weighted(r, [['rain', 3], ['rain-heavy', 1.5], ['', 2]]) || null);   // (rain more often than not: the umbrella's cover)
     state.legend = { id: 'embassy', name: 'Second Secretary, US Embassy', cover: 'official', floor: 20 };
     state.country = 'ru';
     state.heat[heatKey('embassy', state.country)] = 20;
-    const me = handler(r);
+    const me = asOfficer(handler(r), character);
     me.hand = 'umbrella';
     state.people[me.id] = me;
     state.player = me.id;
@@ -1039,7 +1039,10 @@ export const umbrellaTest = {
     route.stops.unshift({ kind: 'leave', s: 0, ticks: 2 * TPS, face: 'down' });
     const t = makeAgent(state, { who: 'orlov', row: 0, x: door.x, z: Z.front + 0.3, speed: range(r, 1.2, 1.35), f: range(r, -0.5, 0.5), face: 'down' });
     setRoute(state, t, route);
-    const m = makeAgent(state, { who: 'minder', row: 0, x: door.x + 1.2, z: Z.front + 0.6, speed: 1.45, face: 'down' });
+    // (his minder a pace along from the door: the first such spot he can walk from; a London terrace's railings fence some)
+    const near = [[1.2, 0.6], [-1.2, 0.6], [1.2, 1.4], [-1.2, 1.4], [2.4, 1.4], [-2.4, 1.4], [0.6, 2.2]].map(([dx, dz]) => ({ x: door.x + dx, z: Z.front + dz }))
+      .find(p => { try { routeFrom(seed, { row: 0, ...p }, { row: 0, x: door.x, z: Z.front + 0.3 }); return true; } catch { return false; } }) ?? { x: door.x + 1.2, z: Z.front + 0.6 };
+    const m = makeAgent(state, { who: 'minder', row: 0, x: near.x, z: near.z, speed: 1.45, face: 'down' });
     followTarget(state, m, t, MINDER_KEEP_M);
     // Those waiting at his stop, spread out as people at a stop are, and as the picture needs them: a pace
     // apart side by side (SPACE_M), more one behind another (SPACE_DEEP_M: the camera looks down, and a man a

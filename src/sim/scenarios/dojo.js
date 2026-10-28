@@ -26,7 +26,7 @@
 // ender in a bout (sim/cqc.js finish()) stops it, and the bout is lost, whatever it did; Hale sees to
 // that. A classmate killed by one ends the lesson ('dismissed').
 import { at, TICK_MS, dateText } from '../clock.js';
-import { recruit } from '../people.js';
+import { recruit, asOfficer } from '../people.js';
 import { say, speak } from '../log.js';
 import { pick, int, stream } from '../rng.js';
 import { HEARSAY, haleStream } from '../hale.js';
@@ -115,12 +115,15 @@ export const dojoScenario = {
     };
   },
 
-  setup(state, { chapter = null } = {}) {
+  setup(state, { chapter = null, character = null } = {}) {
     const r = state.rng;
-    state.time.ms = at(2007, 9, 14, 10, 20);                       // (the Farm is the past: Moscow's nineteen years on)
+    // (the Farm is the past: Moscow's nineteen years on; an officer's own, played from their flat, their own past: a junior's
+    // this spring, a Handler's the year they were 27)
+    const age = character?.age, year = !character ? 2007 : age <= 29 ? 2026 : 2026 - Math.max(1, age - 27);
+    state.time.ms = at(year, year === 2026 ? 4 : 9, 14, 10, 20);
     state.legend = { id: 'farm', name: 'Career trainee, the Farm', cover: 'none', floor: 0 };
     state.country = 'us';
-    const me = recruit(r, { id: 'me', cqc: [5, 2], os: 15 });
+    const me = asOfficer(recruit(r, { id: 'me', cqc: [5, 2], os: 15 }), character);
     state.people.me = me;
     state.player = 'me';
     state.map = { kind: 'dojo', seed: int(r, 1e9), row: 0, i0: 0, i1: 0, crowd: 0 };

@@ -18,7 +18,7 @@
 // taken. The rolls you can't see are hidden from the log until the end (as being tailed's are).
 // Outcomes: 'out' (in the car), 'captured', 'stranded' (the deadline gone: the driver left), 'dead'.
 import { at, TICK_MS, MIN, clockText, dateText } from '../clock.js';
-import { handler, sheet, streetLook, describe } from '../people.js';
+import { handler, sheet, streetLook, describe, asOfficer } from '../people.js';
 import { heatKey } from '../heat.js';
 import { say, speak } from '../log.js';
 import { townOf } from '../cities/index.js';
@@ -73,13 +73,13 @@ export const hunted = {
     };
   },
 
-  setup(state, { campaign: C = null, city = null } = {}) {
+  setup(state, { campaign: C = null, city = null, character = null } = {}) {
     const r = state.rng;
     state.time.ms = C?.startMs ?? at(2026, 11, 6, 18, 40);
     state.legend = { id: 'legend', name: 'A translator at a news agency (your legend)', cover: 'legend', floor: 40 };
     state.country = C?.country ?? 'ru';
     state.heat[heatKey('legend', state.country)] = C?.heat ?? 90;
-    const me = C ? { ...structuredClone(C.player), id: 'me' } : handler(r);
+    const me = C ? { ...structuredClone(C.player), id: 'me' } : asOfficer(handler(r), character);
     state.people.me = me;
     state.player = 'me';
     const seed = C?.mapSeed ?? Math.floor(range(r, 0, 4294967296));

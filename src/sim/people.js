@@ -163,6 +163,18 @@ const US_MALE = ['Michael', 'David', 'James', 'Robert', 'Daniel', 'Thomas', 'Mat
 const US_FEMALE = ['Sarah', 'Jennifer', 'Elizabeth', 'Rachel', 'Laura', 'Emily', 'Megan', 'Katherine', 'Rebecca', 'Amanda', 'Julia', 'Claire', 'Anne', 'Diane'];
 const US_FAMILY = ['Walker', 'Hughes', 'Bennett', 'Collins', 'Foster', 'Reed', 'Morgan', 'Sullivan', 'Hayes', 'Parker', 'Brooks', 'Price', 'Ward', 'Ellis', 'Keller', 'Novak', 'Lindqvist', 'Moreau', 'Kowalski', 'Garrett'];
 
+/**
+ * The player as a given officer (a campaign's, playing one of Hale's lessons: the user, 2026-10-28, "we
+ * don't even get to play our picked character"): a scene's own made person p, dressed as them before the
+ * scene says a word (who they are: name, sex, age, look, skills, Tradecraft, background, languages; what
+ * the scene gave them to carry stays the scene's). Without one, p as made.
+ */
+export const PLAYED = ['name', 'sex', 'age', 'look', 'skills', 'os', 'cls', 'bg', 'langs', 'background'];
+export function asOfficer(p, character) {
+  if (character) for (const k of PLAYED) if (character[k] !== undefined) p[k] = structuredClone(character[k]);
+  return p;
+}
+
 /** A CIA officer at the rank of Handler (0.1.0's character): a spook with a mid-career Tradecraft. */
 export function handler(r) {
   const sex = chance(r, 0.5) ? 'f' : 'm';

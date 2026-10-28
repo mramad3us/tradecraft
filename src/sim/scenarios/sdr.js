@@ -36,7 +36,7 @@
 // later by the world (epilogue()), and in full only in debug mode.
 import { townOf } from '../cities/index.js';
 import { at, TICK_MS, clockText, dateText } from '../clock.js';
-import { handler, sheet, streetLook, describe, passerby } from '../people.js';
+import { handler, sheet, streetLook, describe, passerby, asOfficer } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
 import { say, speak } from '../log.js';
 import { strain } from '../needs.js';
@@ -102,7 +102,7 @@ export const sdr = {
     state.legend = { id: 'embassy', name: 'Second Secretary, US Embassy', cover: 'official', floor: 20 };
     state.country = C?.country ?? 'ru';
     state.heat[heatKey('embassy', state.country)] = C ? C.heat : team === 'none' ? 22 : team === 'overt' ? 34 : 44;
-    const me = C ? { ...structuredClone(C.player), id: 'me' } : handler(r);
+    const me = C ? { ...structuredClone(C.player), id: 'me' } : asOfficer(handler(r), opts.character);
     state.people[me.id] = me;
     state.player = me.id;
     state.people.solovey = sheet({ id: 'solovey', name: C?.asset?.codename ?? 'SOLOVEY', sex: 'm', look: C?.asset?.look ?? SOLOVEY_LOOK, persistent: true, skills: { awareness: [3, 0], cqc: [2, 0] } });

@@ -9,7 +9,7 @@
 // weather (sim/weather.js weatherLine(): running on ice, hoods up in the rain, the fog).
 import { townOf } from '../cities/index.js';
 import { at, TICK_MS, hourOfDay } from '../clock.js';
-import { handler, seedFrom } from '../people.js';
+import { handler, seedFrom, asOfficer } from '../people.js';
 import { heatKey } from '../heat.js';
 import { say } from '../log.js';
 import { Z, streetName, parkName, inLane, mouthOf } from '../map/street.js';
@@ -25,13 +25,13 @@ export const walk = {
   name: 'Free walk',
   again: { another: ['Another walk', 'A new street, new people, new dice.'], same: ['The same walk again', 'The same streets and the same people; the dice fall as you play.'] },
   about: 'A boulevard in central Moscow, a November afternoon. Walk, look, get the feel of it; the lanes lead on north and south. The sun sets at ten to five.',
-  setup(state, { city = null } = {}) {
+  setup(state, { city = null, character = null } = {}) {
     const r = state.rng, C = CITY_WORDS[city] ?? null;
     state.time.ms = at(2026, 11, 2, 15, 40);
     state.legend = { id: 'embassy', name: 'Second Secretary, US Embassy', cover: 'official', floor: 20 };
     state.heat[heatKey('embassy', state.country)] = 20;           // official cover starts warm
-    const me = handler(r);
-    if (C) Object.assign(me.langs, C.langs);                      // (posted there: the language learnt)
+    const me = asOfficer(handler(r), character);
+    if (C && !character) Object.assign(me.langs, C.langs);                      // (posted there: the language learnt)
     state.people[me.id] = me;
     state.player = me.id;
     state.map = { kind: 'street', seed: seedFrom(r), row: 0, i0: null, i1: null, crowd: 1, ...(C ? { city } : {}) };

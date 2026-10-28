@@ -20,7 +20,7 @@
 // Outcomes: 'photo' (sharp, both), 'soft', 'seen' (witnessed: both in sight together for WITNESS_S),
 // 'missed', 'blown'.
 import { at, TICK_MS, MIN, clockText, dateText } from '../clock.js';
-import { handler, sheet, streetLook, describe } from '../people.js';
+import { handler, sheet, streetLook, describe, asOfficer } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
 import { say } from '../log.js';
 import { settle, place, onStreet } from '../instinct.js';
@@ -78,13 +78,13 @@ export const watchTest = {
     };
   },
 
-  setup(state, { campaign: C = null, city = null } = {}) {
+  setup(state, { campaign: C = null, city = null, character = null } = {}) {
     const r = state.rng;
     const hour = pick(r, [[12, 40, 'lunch'], [15, 10, 'afternoon'], [16, 50, 'dusk']]);
     state.time.ms = C?.startMs ?? at(2026, 11, 4, hour[0], hour[1]);
     state.legend = { id: 'embassy', name: 'Second Secretary, US Embassy', cover: 'official', floor: 20 };
     state.heat[heatKey('embassy', state.country)] = C?.heat ?? 28;
-    const me = C ? { ...structuredClone(C.player), id: 'me' } : handler(r);
+    const me = C ? { ...structuredClone(C.player), id: 'me' } : asOfficer(handler(r), character);
     state.people[me.id] = me;
     state.player = me.id;
     state.map = { kind: 'street', seed: C ? C.mapSeed : Math.floor(range(r, 0, 4294967296)), row: 0, i0: null, i1: null, crowd: 1, city: C?.city ?? city ?? undefined };

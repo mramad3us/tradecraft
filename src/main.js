@@ -46,8 +46,8 @@ let prev = new Map(), acc = 0, last = performance.now(), frames = 0;
 
 const ui = createUI({ input, cb: {
   // (a test or a lesson; from the flat's telephone, played by the campaign's officer: `home`)
-  newGame: (kind, chapter = null, city = null) => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city, weather: WEATHER, character: home?.character })),
-  newLesson: (id) => launch(newGame({ seed: randomSeed(), lesson: id, version: VERSION, weather: WEATHER, character: home?.character })),   // (the tutorial: sim/tutorial/)
+  newGame: (kind, chapter = null, city = null) => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city: city ?? home?.city ?? null, weather: WEATHER, character: home?.character, job: home?.job })),
+  newLesson: (id) => launch(newGame({ seed: randomSeed(), lesson: id, version: VERSION, weather: WEATHER, character: home?.character, city: home?.city, job: home?.job })),   // (from the flat: the officer, their city, their cover)   // (the tutorial: sim/tutorial/)
   // (the campaign, the game's way in: three officers, one picked, and day one in their flat: sim/campaign.js)
   newCampaign: (city = 'moscow') => pickOfficer(city),
   backHome: () => resumeHome(),                                     // (the tutorial, left for the flat)
@@ -113,7 +113,7 @@ function openCall(s, id) {
 
 /** From the flat to the tutorial: the hub kept to come back to, its officer to play the lessons. */
 async function toTutorial(s) {
-  home = { json: toJSON(s), character: structuredClone(s.people[s.player]), name: s.people[s.player].name, city: s.campaign.posting.city };
+  home = { json: toJSON(s), character: structuredClone(s.people[s.player]), name: s.people[s.player].name, city: s.campaign.posting.city, job: s.campaign.posting.job };
   await autosave();
   stop();
   ui.showTutorial({ home });
@@ -201,15 +201,15 @@ function result() {
   // (from the flat's telephone, `home`: the campaign's officer plays on, and the way out is back to the flat)
   const character = home?.character;
   const lesson = state.tutor ? {
-    again: () => launch(newGame({ seed: randomSeed(), lesson: state.tutor.lesson, version: VERSION, city, weather: WEATHER, character })),
-    alone: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, city, weather: WEATHER, character })),
-    next: (id) => launch(newGame({ seed: randomSeed(), lesson: id, version: VERSION, city, weather: WEATHER, character })),
+    again: () => launch(newGame({ seed: randomSeed(), lesson: state.tutor.lesson, version: VERSION, city, weather: WEATHER, character, job: home?.job })),
+    alone: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, city, weather: WEATHER, character, job: home?.job })),
+    next: (id) => launch(newGame({ seed: randomSeed(), lesson: id, version: VERSION, city, weather: WEATHER, character, job: home?.job })),
     tutorial: async () => { stop(); if (home) ui.showTutorial({ home }); else { showTitle(); ui.showTutorial(); } },
   } : null;
   ui.showResult(state, {
     photo: lastPhoto?.url,
-    again: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city, weather: WEATHER, character })),
-    same: () => launch(newGame({ seed, scenario: kind, version: VERSION, chapter, city, weather: WEATHER, character })),
+    again: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city, weather: WEATHER, character, job: home?.job })),
+    same: () => launch(newGame({ seed, scenario: kind, version: VERSION, chapter, city, weather: WEATHER, character, job: home?.job })),
     title: home ? () => resumeHome() : async () => { await autosave(); stop(); showTitle(); },
     home: !!home,
     lesson,
