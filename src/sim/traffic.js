@@ -98,7 +98,7 @@ export function busLeadMs(state, stop) {
 /** How far a body of radius r at (x, z) is into a car (0: clear of them all). */
 export function carDepth(state, x, z, r = 0.25) {
   const t = T(state);
-  if (!t || z < Z.kerbN - 1 || z > Z.kerbS + 1) return 0;
+  if (!t || (state.map && state.map.kind !== 'street') || z < Z.kerbN - 1 || z > Z.kerbS + 1) return 0;   // (indoors, the street's cars are nowhere: a flat's floor shares their z)
   let deep = 0;
   for (const c of t.cars) {
     const cx = Math.max(c.x - c.len / 2, Math.min(x, c.x + c.len / 2)), cz = Math.max(c.z - c.w / 2, Math.min(z, c.z + c.w / 2));

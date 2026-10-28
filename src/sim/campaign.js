@@ -145,11 +145,13 @@ export function posting(seed, city = 'moscow', startMs = at(2026, 11, 2, WAKE_H)
 /** A new campaign: the chosen character, the posting, day one. */
 export function newCampaign(seed, character, city = 'moscow') {
   const p = posting(seed, city);
-  const c = { seed, character, posting: p, day: dayOf(p.startMs), assignments: [], done: [], plannedTo: dayOf(p.startMs) - 1, worked: {}, log: [], reviews: [], awake: p.startMs, next: { } };
+  const c = { seed, character, posting: p, day: dayOf(p.startMs), assignments: [], done: [], plannedTo: dayOf(p.startMs) - 1, worked: {}, log: [], reviews: [], awake: p.startMs, next: { },
+    calls: [{ id: 'hale', at: p.startMs + CALL_S * 1000 }] };   // (day one: Hale on the telephone, the exercises or straight in: src/main.js)
   plan(c, p.startMs);
   return c;
 }
 
+export const CALL_S = 12;                                          // (day one: the telephone rings this long after you wake)
 export const dayOf = (ms) => Math.floor(ms / DAY);
 const weekday = (ms) => calendar(ms).weekday;                      // 0 Monday … 6 Sunday
 const isWorkday = (ms) => weekday(ms) < 5;

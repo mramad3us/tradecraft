@@ -202,7 +202,7 @@ export const hunted = {
     if (way === 'coat') { sc.disguised = true; for (const id of sc.hunters) { if (!sc.known[id]) continue; delete sc.known[id]; const a = actorOf(state, id); if (a?.ai?.follow) a.ai.follow.lost = true; } return; }   // (the description they carry no longer fits)
     if (way !== 'back') return;
     for (const id of sc.hunters) { delete sc.known[id]; const a = actorOf(state, id); if (a?.ai?.follow) a.ai.follow.lost = true; }
-    sc.lastSeen = { row: me.row + 1, x: me.x, ms: state.time.ms };   // (the shop's street: where they'll look)
+    sc.lastSeen = { row: me.row ?? state.map.row, x: me.x, ms: state.time.ms };   // (the shop's street: where they'll look)
   },
 
   /** F on one of them (sim/interact.js): a blow and he knows you, and says so on the radio; a word, and he looks at you close. */

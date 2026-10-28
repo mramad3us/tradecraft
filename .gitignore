@@ -10,3 +10,5 @@ ref/
 # credentials and anything private: never committed
 *.private
 __pycache__/
+# agents' scratch copies of the repo (git worktrees made by Claude Code's isolation)
+.claude/worktrees/

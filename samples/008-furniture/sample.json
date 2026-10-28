@@ -1,0 +1,11 @@
+{ "title": "Furniture: the interiors' pieces", "pixel": "640x360",
+  "about": "Every kind of src/sim/interiors/furniture.js (67: a flat's, a stairwell's, shops', a bakery's, a bar's, an office's and an embassy's) as src/art/furniture.js draws it, at the game's camera and scale (the fine finish, 640 × 360): boxes in whole pixels with painted faces, the detail on the tops and fronts that the camera sees, sides and backs painted for pieces turned. A contact sheet a page at a time, each kind labelled on the floor, a person in each row for scale; the turned page shows pieces facing up, left and right. Then the pieces together: a flat (living room, kitchen, bedroom, bathroom, hall) over a corner shop, a bakery and a café-bar, by day and by night (lamps with their pools, the TV, the fridges, the oven's fire, the back bar's light).",
+  "views": [ { "name": "sheet: home", "query": "page=home&t=0.3" },
+             { "name": "sheet: shops", "query": "page=shop&t=0.3" },
+             { "name": "sheet: food and drink", "query": "page=food&t=0.3" },
+             { "name": "sheet: stairwell, office, embassy", "query": "page=office&t=0.3" },
+             { "name": "sheet: turned", "query": "page=turned&t=0.3" },
+             { "name": "together, day", "query": "view=scene&t=0.3" },
+             { "name": "together, night", "query": "view=scene&t=0.3&time=night" },
+             { "name": "the flat, closer", "query": "view=scene&t=0.3&zoom=2&x=8&z=-1.7" },
+             { "name": "the shops, closer", "query": "view=scene&t=0.3&zoom=2&x=10.5&z=7.6" } ] }

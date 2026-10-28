@@ -79,6 +79,8 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .sheet .cities { display: flex; gap: 6px; margin-top: 7px; }
 .sheet .cities button { font: calc(13px * var(--ui, 1)) var(--type); padding: 3px 12px; cursor: pointer; background: var(--paper-2); border: 1px solid #b9b2a2; color: var(--ink); }
 .sheet .cities button:hover, .sheet .cities button:focus-visible { background: var(--ink); color: var(--paper); outline: none; }
+.sheet .cities button.on { background: var(--ink); color: var(--paper); }
+.sheet .cities .note { align-self: center; margin: 0; }
 .sheet .note { color: #6a7182; font-size: calc(12px * var(--ui, 1)); }
 
 .overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(20, 21, 28, 0.55); }
@@ -145,19 +147,9 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 
 /* Faces you've marked, over them: typed slips. */
 .tags { position: absolute; inset: 0; pointer-events: none; }
-.tag { position: absolute; left: 0; top: 0; transform-origin: 0 0; margin: -10px 0 0 0; translate: -50% 0; text-align: center; font: calc(10px * var(--ui, 1)) var(--type);
-  color: var(--ink); background: var(--paper-2); border: 1px solid #6a7182; padding: 0 4px; white-space: nowrap; }   /* (as wide as its words, centred over them) */
-.tag[hidden] { display: none; }
-.tag.sure { background: var(--red); color: var(--paper); border-color: var(--ink); font-weight: bold; }
-/* A place that's yours, over its door: a brass plate. */
-.placetag { position: absolute; left: 0; top: 0; translate: -50% -100%; font: bold calc(11px * var(--ui, 1)) var(--type); color: var(--ink);
-  background: var(--brass); border: 1px solid var(--ink); padding: 1px 6px; white-space: nowrap; pointer-events: none; }
-.placetag[hidden] { display: none; }
-/* Where you're going, at the picture's edge. */
-.goal { position: absolute; left: 0; top: 0; transform-origin: 0 0; margin: -9px 0 0 0; font: calc(11px * var(--ui, 1)) var(--type); color: var(--paper);
-  background: var(--hud); border: 1px solid #6a7182; padding: 2px 6px; white-space: nowrap; pointer-events: none; translate: -100% 0; }
-.goal.left { translate: 0 0; }
-.goal[hidden] { display: none; }
+/* The plaques over the picture (src/ui/plaque.js): drawn at its pixels, scaled as it is, on its grid. */
+.plaque { position: absolute; left: 0; top: 0; image-rendering: pixelated; pointer-events: none; }
+.plaque[hidden] { display: none; }
 .sheet .truth { background: var(--paper-2); padding: 6px 8px; font-size: calc(13px * var(--ui, 1)); }
 
 /* The character sheet (C): a personnel file. Skills in a table, the over-skill a bar, the body a figure. */

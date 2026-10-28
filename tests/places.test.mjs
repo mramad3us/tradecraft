@@ -28,9 +28,8 @@ export default [
           assert(d?.place === pl.id && d.kind === 'entrance', `${city} ${seed}: ${pl.id}'s door`);
           if (pl !== p.home && pl.row === p.home.row) assert(Math.abs(pl.x - p.home.x) >= SAFE_APART_M, `${city} ${seed}: a safe house away from the flat`);
         }
-        // (day one: at the flat's door; a save and a load; the taxi to the embassy, to its door)
-        const me = playerActor(s);
-        assert(s.map.row === p.home.row && Math.abs(me.x - p.home.x) < 0.01, `${city} ${seed}: day one at the flat's door`);
+        // (day one: in the flat, its street the flat's row; a save and a load; the taxi to the embassy, to its door)
+        assert(s.map.place === 'home' && s.map.row === p.home.row, `${city} ${seed}: day one in the flat`);
         const s2 = fromJSON(toJSON(s));
         start(s2, null);
         step(s2, { act: ['desk:travel:embassy'] }, null);

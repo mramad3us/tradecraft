@@ -93,6 +93,22 @@ export function sky(ms, geo = MOSCOW_GEO, w = null) {
   return S;
 }
 
+/**
+ * A lit room's light (an interior: sim/map/interior.js), from the sky outside S: its lamps on whatever
+ * the hour (glow), a warm fill; by day the windows add a little of the sky's.
+ */
+export function indoors(S, mood = 'soft') {
+  const day = clamp01(S.elev / 10), m = INDOOR[mood] ?? INDOOR.soft;
+  return { elev: S.elev, sun: m.sun, sunK: 0.3 + 0.2 * day, sky: m.sky, ground: 0x8f7a64, skyK: 0.42 + 0.12 * day,
+    tint: m.tint.map((v, j) => v + (0.18 + (j === 2 ? 0.02 : 0)) * day), glow: 0.75, shadow: 0.12 };
+}
+// (a flat's mood, sim/interiors/flat.js: a warm lamp's light, a soft one, a kitchen tube's cool one)
+const INDOOR = {
+  warm: { sun: 0xffe4c0, sky: 0xf4dcb8, tint: [0.68, 0.58, 0.46] },
+  soft: { sun: 0xfff0d8, sky: 0xf0e4cc, tint: [0.62, 0.58, 0.52] },
+  cool: { sun: 0xf0f4ff, sky: 0xe4e8f0, tint: [0.56, 0.58, 0.6] },
+};
+
 const toLinear = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
 const linearCache = new Map();
 /** An sRGB hex colour in linear RGB. */

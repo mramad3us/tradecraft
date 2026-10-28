@@ -1,5 +1,5 @@
 {
- "built": "2026-10-26T10:45",
+ "built": "2026-10-28T00:32",
  "samples": [
   {
    "id": "000-toolchain",
@@ -246,6 +246,59 @@
      "name": "sprites",
      "query": "view=sheet",
      "shot": "007-fine/shots/sprites.png"
+    }
+   ]
+  },
+  {
+   "id": "008-furniture",
+   "title": "Furniture: the interiors' pieces",
+   "about": "Every kind of src/sim/interiors/furniture.js (67: a flat's, a stairwell's, shops', a bakery's, a bar's, an office's and an embassy's) as src/art/furniture.js draws it, at the game's camera and scale (the fine finish, 640 × 360): boxes in whole pixels with painted faces, the detail on the tops and fronts that the camera sees, sides and backs painted for pieces turned. A contact sheet a page at a time, each kind labelled on the floor, a person in each row for scale; the turned page shows pieces facing up, left and right. Then the pieces together: a flat (living room, kitchen, bedroom, bathroom, hall) over a corner shop, a bakery and a café-bar, by day and by night (lamps with their pools, the TV, the fridges, the oven's fire, the back bar's light).",
+   "pixel": true,
+   "views": [
+    {
+     "name": "sheet: home",
+     "query": "page=home&t=0.3",
+     "shot": "008-furniture/shots/sheet-home.png"
+    },
+    {
+     "name": "sheet: shops",
+     "query": "page=shop&t=0.3",
+     "shot": "008-furniture/shots/sheet-shops.png"
+    },
+    {
+     "name": "sheet: food and drink",
+     "query": "page=food&t=0.3",
+     "shot": "008-furniture/shots/sheet-food-and-drink.png"
+    },
+    {
+     "name": "sheet: stairwell, office, embassy",
+     "query": "page=office&t=0.3",
+     "shot": "008-furniture/shots/sheet-stairwell-office-embassy.png"
+    },
+    {
+     "name": "sheet: turned",
+     "query": "page=turned&t=0.3",
+     "shot": "008-furniture/shots/sheet-turned.png"
+    },
+    {
+     "name": "together, day",
+     "query": "view=scene&t=0.3",
+     "shot": "008-furniture/shots/together-day.png"
+    },
+    {
+     "name": "together, night",
+     "query": "view=scene&t=0.3&time=night",
+     "shot": "008-furniture/shots/together-night.png"
+    },
+    {
+     "name": "the flat, closer",
+     "query": "view=scene&t=0.3&zoom=2&x=8&z=-1.7",
+     "shot": "008-furniture/shots/the-flat-closer.png"
+    },
+    {
+     "name": "the shops, closer",
+     "query": "view=scene&t=0.3&zoom=2&x=10.5&z=7.6",
+     "shot": "008-furniture/shots/the-shops-closer.png"
     }
    ]
   }

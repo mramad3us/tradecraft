@@ -5,10 +5,15 @@
 // 'shop'), and the UI asks how (the bus: 'shop', ways()):
 //   - 'front': a minute among the shelves (BROWSE_S), and out the way you came. Natural: people go into
 //     shops. Whoever was following waits outside, where they can see the door, and has you again.
-//   - 'back': through to the back, the stock room, a yard, and out on the street behind (BACKWAY_S):
-//     the next street north, on its pavement along the backs (LINE.S). Only where there is a back way
-//     (BACKWAYS, by the kind of shop: a café's kitchen door, a grocer's yard; not a bank or a pharmacy).
-//     Whoever waited at the front waits for nothing (sim/agents.js: two minutes at the door, then lost).
+//   - 'back': through to the back, the stock room, a yard, and out of its gate into the lane beside
+//     the building (BACKWAY_S): the side street or alley nearest the shop on this street (backLane():
+//     within BACK_REACH_M), BACK_IN_M up it from the building line, out of sight of the shop's door.
+//     (It came out on the next street north once, out of its hedge: the user, 2026-10-27, "it does not
+//     make sense ... there should be cross alleyways to drop to when taking that action". The yard
+//     behind, and a lane across the backs, wait for the buildings' cutaway: DESIGN.md, Next.) Only
+//     where there is a back way (BACKWAYS, by the kind of shop: a café's kitchen door, a grocer's yard;
+//     not a bank or a pharmacy) and a lane to come out in. Whoever waited at the front waits for
+//     nothing (sim/agents.js: two minutes at the door, then lost).
 //   - 'eat' (a café, a bakery, a grocer's…: FOOD): a bite, EAT_S (sim/needs.js), BITE_USD; 'wash' (a
 //     café's, a bar's toilet: TOILETS) the blood off your face (sim/notice.js); 'coat' (a clothes shop):
 //     a coat off the rail, worn out of the shop (COAT_S, COAT_USD: sim/money.js), a colour you weren't
@@ -17,8 +22,8 @@
 // it does. The scene hears of it, going in and coming out (scenario.onShop?.(state, bus, phase, way)):
 // being tailed's team watches the door, and a back way they saw you take is written down; in Blown the
 // hunters who had you wait at the front.
-import { Z } from './map/street.js';
-import { LINE } from './city.js';
+import { Z, gapsOf, mouthOf, inLane, SECTION_M } from './map/street.js';
+import { townOf } from './cities/index.js';
 import { sectionAt } from './world.js';
 import { hash } from './rng.js';
 import { say } from './log.js';
@@ -39,6 +44,7 @@ export const TOILETS = new Set(['cafe', 'restaurant', 'bar', 'shawarma', 'beer']
 // (the kinds where you can eat something, quickly: sim/needs.js)
 export const FOOD = new Set(['cafe', 'restaurant', 'bar', 'shawarma', 'bakery', 'deli', 'grocery']);
 export const DOOR_REACH_M = 0.9;
+export const BACK_REACH_M = 30, BACK_IN_M = 7;
 // (the kinds of shop with a way out the back, more often than not: a kitchen, a yard, a goods door)
 export const BACKWAYS = { cafe: 0.85, restaurant: 0.9, bar: 0.8, shawarma: 0.8, grocery: 0.7, deli: 0.7, bakery: 0.75, beer: 0.7, clothes: 0.5, books: 0.4, shoes: 0.4, flowers: 0.5, tobacco: 0.3, phones: 0.3 };
 const WORDS = { cafe: 'the café', restaurant: 'the restaurant', bar: 'the bar', shawarma: 'the shawarma place', grocery: 'the grocer\'s', deli: 'the food hall', bakery: 'the bakery', beer: 'the beer shop',
@@ -52,13 +58,25 @@ export function shopNear(state, a) {
   return sectionAt(state, a.x)?.doors.find(d => d.kind === 'shop' && d.z === Z.front && Math.abs(d.x - a.x) < DOOR_REACH_M) ?? null;
 }
 
-/** Whether this shop has a way out the back (by its kind, and the door: the same every time). */
-export const backWay = (state, d) => (hash(state.map.seed, state.map.row ?? 0, Math.round(d.x * 10), 'back') % 100) / 100 < (BACKWAYS[d.shop] ?? 0);
+/** The lane a shop's back way comes out in: the side street or alley nearest it on this street, within BACK_REACH_M; { x, z } BACK_IN_M up it, or null. */
+export function backLane(state, d) {
+  if (state.map.kind !== 'street') return null;
+  const town = townOf(state.map), row = state.map.row ?? 0, i = Math.floor(d.x / SECTION_M);
+  let best = null;
+  for (const j of [i - 1, i, i + 1]) for (const g of gapsOf(town, row, j)) {
+    const m = mouthOf(g), x = (m.x0 + m.x1) / 2, z = Math.max(Z.front - BACK_IN_M, (m.z ?? -Infinity) + 0.8), dist = Math.abs(x - d.x);
+    if (dist < BACK_REACH_M && inLane(g, x, z) && (!best || dist < best.dist)) best = { dist, x, z };
+  }
+  return best;
+}
+
+/** Whether this shop has a way out the back (by its kind, and the door: the same every time; and a lane beside to come out in). */
+export const backWay = (state, d) => (hash(state.map.seed, state.map.row ?? 0, Math.round(d.x * 10), 'back') % 100) / 100 < (BACKWAYS[d.shop] ?? 0) && !!backLane(state, d);
 
 /** How you could go in: [{ id, label }]. */
 export function ways(state, d) {
   const out = [{ id: 'front', label: `Into ${shopWord(d.shop)}: a minute among the shelves, and out the front` }];
-  if (backWay(state, d)) out.push({ id: 'back', label: 'Through to the back: the stock room, a yard, out on the street behind' });
+  if (backWay(state, d)) out.push({ id: 'back', label: 'Through to the back: the stock room, a yard, out of its gate into the lane beside' });
   const p = state.people[state.player];
   if (FOOD.has(d.shop)) out.push({ id: 'eat', label: `${d.shop === 'grocery' || d.shop === 'bakery' || d.shop === 'deli' ? 'Something to eat: bread, cheese, eaten by the window' : 'A bite and a hot drink at the counter'} (two minutes, ${price(state, BITE_USD)})` });
   if (WINDOW_TABLES.has(d.shop)) out.push({ id: 'sit', label: `A coffee at the window table: three minutes, watching the street from inside (${price(state, BITE_USD)})` });
@@ -87,11 +105,10 @@ export function insideTick(state, bus, me, scenario, { loadRow }) {
   if (!ins || state.time.ms < ins.until) return;
   delete me.inside;
   me.hidden = false;
-  if (ins.way === 'back') {
-    const row = ins.row - 1;
-    Object.assign(me, { row, x: ins.x, z: LINE.S, face: 'down', head: Math.PI / 2 });
-    loadRow(state, bus, row, ins.x, { quiet: true });
-    say(state, bus, { kind: 'note', text: 'A yard of bins and crates, a gate, a passage: out on the street behind, nobody on your heels.' });
+  const lane = ins.way === 'back' && backLane(state, { x: ins.x });
+  if (lane) {
+    Object.assign(me, { x: lane.x, z: lane.z, face: 'down', head: Math.PI / 2 });
+    say(state, bus, { kind: 'note', text: 'Past the stock room, a yard of bins and crates, a gate: out in the lane beside it, out of sight of the shop\'s door.' });
   } else {
     Object.assign(me, { x: ins.x, z: Z.front + 0.7, face: 'down', head: Math.PI / 2 });
     const p = state.people[state.player];

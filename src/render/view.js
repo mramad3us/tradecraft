@@ -56,11 +56,12 @@ import * as THREE from 'three';
 import { pixelStage, finish, FINE_PALETTE, PX_PER_M, emissiveOf, WX, WX_LAMPS } from '../art/pixelart.js';
 import { buildSection } from './town.js';
 import { buildDojo } from './dojo.js';
+import { buildInterior } from './interior.js';
 import { createCrowd } from './crowd.js';
 import { createBlood } from './blood.js';
 import { createTraffic } from './traffic.js';
 import { createItems } from './items.js';
-import { sky, lightAt, lightLevel, LAMP } from '../sim/light.js';
+import { sky, indoors, lightAt, lightLevel, LAMP } from '../sim/light.js';
 import { Z, SECTION_M } from '../sim/map/street.js';
 import { passerby } from '../sim/people.js';
 import { geoOf } from '../sim/cities/index.js';
@@ -93,6 +94,7 @@ export const BUILD_MS = 6;
 export const AHEAD_M = 15;                                          // up a lane this near its far end, the next street's built ahead
 export const FOG_CELL_M = 0.5;
 export const SHAKE_TICKS = 4;
+export const INTERIOR_CAM_M = 3.2;                                // (in a flat: the camera on the plan's north wall plus this)
 export const LEAD_M = { walk: [1, 2.5], look: [1.5, 8] };          // the camera's lean where the eyes go (east–west, north–south): walking, looking (E held)
 export const LEAD_S = 0.35;                                         // how quickly it gets there
 // (deep to the south: a facade whose foot is well below the picture shows its upper floors in it)
@@ -138,7 +140,7 @@ export function createView({ parent, bus, month = () => 11 }) {
       const k = `${S.row}|${S.i}`, a = ahead.get(k)?.S.seed === S.seed && ahead.get(k).month === month() ? ahead.get(k) : null;
       if (a) ahead.delete(k);                                     // (built ahead: in the scene now, or the rest of it to build)
       if (a?.built) { sections.set(S.i, a.built); scene.add(a.built.group); shadows(); return; }
-      building.set(S.i, { gen: a ? a.gen : S.kind === 'dojo' ? buildDojo(S) : buildSection(S, { month: month() }), x0: S.x0, x1: S.x1 });
+      building.set(S.i, { gen: a ? a.gen : S.kind === 'dojo' ? buildDojo(S) : S.kind === 'interior' ? buildInterior(S) : buildSection(S, { month: month() }), x0: S.x0, x1: S.x1 });
     }),
     bus.on('map', () => { for (const k of [...ahead.keys()]) drop(k); cut = true; }),   // (what was built ahead and not wanted after all)
     bus.on('section-', (S) => {
@@ -329,7 +331,7 @@ export function createView({ parent, bus, month = () => 11 }) {
   /** Draw the state. prev: id → [x, z, stride] at the last tick; alpha: how far into this one. */
   function frame(state, prev, alpha, t) {
     city = state.map.city;                                         // (passers-by dress as their city does)
-    const ms = state.time.ms, wx = weatherAt(state), S = sky(ms, geoOf(state.map), wx), W = state.$world;
+    const ms = state.time.ms, wx = weatherAt(state), S = state.map.kind === 'interior' ? indoors(sky(ms, geoOf(state.map), wx), state.$world?.sections.get(0)?.plan?.mood) : sky(ms, geoOf(state.map), wx), W = state.$world;
     const lamps = W.lamps;
     // Where everyone is, between the ticks.
     const at = (a) => { const p = prev.get(a.id); return p ? [lerp(p[0], a.x, alpha), lerp(p[1], a.z, alpha), lerp(p[2], a.stride, alpha)] : [a.x, a.z, a.stride]; };
@@ -352,8 +354,10 @@ export function createView({ parent, bus, month = () => 11 }) {
       lead[0] += (want[0] - lead[0]) * ease; lead[1] += (want[1] - lead[1]) * ease;
       let x = fx + lead[0];
       if (state.map.i0 !== null) x = Math.max(state.map.i0 * SECTION_M + halfW, Math.min((state.map.i1 + 1) * SECTION_M - halfW, x));
-      // (in the hall: the near sill at the picture's foot, the back wall in it)
-      const cz = state.map.kind === 'dojo' ? [Z_BACK + 3, Z_FRONT + 0.4 - stage.H / PX_PER_M / 2] : camZ;
+      // (in the hall: the near sill at the picture's foot, the back wall in it; in a flat, the whole plan, still)
+      const plan = state.map.kind === 'interior' && W.sections.get(0)?.plan;
+      if (plan) x = (plan.x0 + plan.x1) / 2;
+      const cz = state.map.kind === 'dojo' ? [Z_BACK + 3, Z_FRONT + 0.4 - stage.H / PX_PER_M / 2] : plan ? [plan.z0 + INTERIOR_CAM_M, plan.z0 + INTERIOR_CAM_M] : camZ;
       // (a blow landing: the picture jolts a pixel or three, the way the blow went, and settles: sim/cqcshow.js)
       const imp = state.fight?.impact, since = imp ? state.tick - imp.tick + alpha : 99;
       const jolt = since < SHAKE_TICKS ? Math.round((1 + 2 * Math.min(1, imp.force / 0.4)) * (1 - since / SHAKE_TICKS)) * (Math.floor(since * 2) % 2 ? -1 : 1) * (imp.side === 'b' ? 1 : -1) / PX_PER_M : 0;

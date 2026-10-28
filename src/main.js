@@ -38,22 +38,21 @@ const settings = { debug: (() => { try { return localStorage.getItem('tradecraft
 const input = createInput();
 const FARM_KEY = 'tradecraft.farm';                                // (the Farm's lesson had, in this browser: the title offers it as a memory)
 let state = null, bus = null, view = null;
+// (the campaign the tutorial was opened from, by the flat's telephone: its hub saved to come back to, and
+// its officer, who plays the lessons: the user, 2026-10-27, "gate the tutorial behind the campaign")
+let home = null;
 let paused = false, running = false, acts = [];
 let prev = new Map(), acc = 0, last = performance.now(), frames = 0;
 
 const ui = createUI({ input, cb: {
-  newGame: (kind, chapter = null, city = null) => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city, weather: WEATHER })),
-  newLesson: (id) => launch(newGame({ seed: randomSeed(), lesson: id, version: VERSION, weather: WEATHER })),   // (the tutorial: sim/tutorial/)
-  // (the campaign: three officers, one picked, the posting's brief, then the posting: sim/campaign.js)
-  newCampaign: (city = 'moscow') => {
-    const seed = randomSeed(), list = candidates(seed, city);
-    ui.hideTitle();
-    ui.showCandidates(list, (i) => {
-      const c = newCampaign(seed, list[i], city);
-      ui.showPaper(postingPaper(c), () => launch(newGame({ seed, scenario: 'campaign', version: VERSION, campaign: c, weather: WEATHER })));
-    }, city);
-  },
-  continue: async () => { const s = await getSave('auto'); if (s) launch(fromJSON(s.json)); },
+  // (a test or a lesson; from the flat's telephone, played by the campaign's officer: `home`)
+  newGame: (kind, chapter = null, city = null) => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city, weather: WEATHER, character: home?.character })),
+  newLesson: (id) => launch(newGame({ seed: randomSeed(), lesson: id, version: VERSION, weather: WEATHER, character: home?.character })),   // (the tutorial: sim/tutorial/)
+  // (the campaign, the game's way in: three officers, one picked, and day one in their flat: sim/campaign.js)
+  newCampaign: (city = 'moscow') => pickOfficer(city),
+  backHome: () => resumeHome(),                                     // (the tutorial, left for the flat)
+  beginPosting: () => resumeHome(true),                             // (the tutorial done with: the posting's brief, and on)
+  continue: async () => { home = null; const s = await getSave('auto'); if (s) launch(fromJSON(s.json)); },
   importSave: async () => {
     const text = await importFile();
     if (!text) return;
@@ -68,6 +67,52 @@ const ui = createUI({ input, cb: {
   fit: (w, h, outW, outH) => view?.resize(w, h, outW, outH),
   talk: (id) => acts.push(`talk:${id}`),                        // (a conversation's choice: sim/talk.js)
 } });
+
+/** The way into the game: three officers for a posting (another city: three others), one picked, and day one in their flat. */
+function pickOfficer(city = 'moscow') {
+  const seed = randomSeed(), list = candidates(seed, city);
+  home = null;
+  ui.hideTitle();
+  ui.showCandidates(list, (i) => launch(newGame({ seed, scenario: 'campaign', version: VERSION, campaign: newCampaign(seed, list[i], city), weather: WEATHER })),
+    city, { cities: (c) => pickOfficer(c), back: () => showTitle() });
+}
+
+/**
+ * The flat's telephone (sim/scenarios/campaign.js): Hale. Day one he offers the exercises (the tutorial,
+ * played by this officer) or straight in (the posting's brief); called back later, the exercises again.
+ */
+function openCall(s, id) {
+  if (state !== s) return;
+  const c = s.campaign, city = cityById(c.posting.city).name, first = id === 'hale';
+  const lines = first ? [
+    `"Hale. Welcome to ${city}. You'll meet the station chief soon enough; I wanted to get to you first."`,
+    '"Before they let you near anyone who matters, I\'d like some of your evenings: the street work, me in your ear and our own people playing the parts. Seven exercises and the mat at the Farm, if you want it again. Or you go straight in and learn it on the job. Plenty did. Your call."',
+  ] : ['"Hale."', '"The exercises? Whenever you like. My door\'s open, and so\'s the street."'];
+  ui.showCall({ who: 'HALE', lines, choices: [
+    { key: 'tutorial', label: 'The exercises, with Hale', about: 'The tutorial: the work on the street, one lesson at a time, played by your officer. Back to the flat whenever you like.' },
+    first ? { key: 'begin', label: 'Straight in', about: 'The posting\'s brief, and on with it. Hale\'s number stays by the phone.' } : { key: 'later', label: 'Not now', about: 'Another time.' },
+  ] }, (key) => {
+    if (key === 'tutorial') toTutorial(s);
+    else if (key === 'begin') ui.showPaper(postingPaper(c), () => {});
+  });
+}
+
+/** From the flat to the tutorial: the hub kept to come back to, its officer to play the lessons. */
+async function toTutorial(s) {
+  home = { json: toJSON(s), character: structuredClone(s.people[s.player]), name: s.people[s.player].name, city: s.campaign.posting.city };
+  await autosave();
+  stop();
+  ui.showTutorial({ home });
+}
+
+/** Back to the flat from the tutorial, as it was left; begin: the posting's brief first. */
+function resumeHome(begin = false) {
+  if (!home) return showTitle();
+  const s = fromJSON(home.json);
+  home = null;
+  launch(s);
+  if (begin) ui.showPaper(postingPaper(s.campaign), () => {});
+}
 
 function randomSeed() { return crypto.getRandomValues(new Uint32Array(1))[0]; }
 const about = (s) => `${SCENARIOS[s.scenario.kind]?.name ?? s.scenario.kind} · ${s.people[s.player]?.name ?? ''} · ${stampText(s.time.ms)}`;
@@ -100,6 +145,8 @@ function launch(s, { hour = null } = {}) {
   // (the campaign: an assignment taken at the desk, launched after this tick; papers the days bring, one after another)
   bus.on('assignment', (id) => setTimeout(() => launchAssignment(s, id), 0));
   bus.on('papers', (list) => showPapers(list));
+  bus.on('call', (id) => setTimeout(() => openCall(s, id), 0));    // (the flat's telephone: Hale)
+  bus.on('bed', (list) => ui.openChoices('BED', 'HOW LONG?', list, (key) => acts.push(`desk:${key}`)));   // (the flat's bed by day: sim/scenarios/campaign.js)
   bus.on('photo', (w) => { snapWanted = w; });                    // (sim/scenarios/watch.js: the frame, at the next draw)
   bus.on('shop', ({ shop, ways }) => ui.openChoices('SHOP', shopWord(shop).replace(/^the /, '').toUpperCase(), ways.map(w => ({ key: w.id, label: w.label })), (key) => acts.push(`shop:${key}`)));   // (sim/shops.js)
   bus.on('bus', ({ line, dir, list }) => ui.openChoices('BUS', `THE ${line}, ${dir > 0 ? 'SOUTH' : 'NORTH'}: WHERE TO?`, list.map(d => ({ key: d.id, label: `${d.label.charAt(0).toUpperCase() + d.label.slice(1)} · ${price(state, d.fare)}` })), (key) => acts.push(`bus:${key}`)));   // (sim/buses.js)
@@ -129,17 +176,20 @@ function result() {
   const kind = state.scenario.kind, seed = state.seed, chapter = state.scenario.chapter ?? null, city = state.map?.city ?? null;
   if (state.campaign) return ui.showResult(state, { back: () => backToPosting(state), title: async () => { await autosave(); stop(); showTitle(); }, photo: lastPhoto?.url }, settings);
   // (a lesson of the tutorial: again with Hale, on your own, the next one, the directory: sim/tutorial/)
+  // (from the flat's telephone, `home`: the campaign's officer plays on, and the way out is back to the flat)
+  const character = home?.character;
   const lesson = state.tutor ? {
-    again: () => launch(newGame({ seed: randomSeed(), lesson: state.tutor.lesson, version: VERSION, city, weather: WEATHER })),
-    alone: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, city, weather: WEATHER })),
-    next: (id) => launch(newGame({ seed: randomSeed(), lesson: id, version: VERSION, city, weather: WEATHER })),
-    tutorial: async () => { await autosave(); stop(); showTitle(); ui.showTutorial(); },
+    again: () => launch(newGame({ seed: randomSeed(), lesson: state.tutor.lesson, version: VERSION, city, weather: WEATHER, character })),
+    alone: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, city, weather: WEATHER, character })),
+    next: (id) => launch(newGame({ seed: randomSeed(), lesson: id, version: VERSION, city, weather: WEATHER, character })),
+    tutorial: async () => { stop(); if (home) ui.showTutorial({ home }); else { showTitle(); ui.showTutorial(); } },
   } : null;
   ui.showResult(state, {
     photo: lastPhoto?.url,
-    again: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city, weather: WEATHER })),
-    same: () => launch(newGame({ seed, scenario: kind, version: VERSION, chapter, city, weather: WEATHER })),
-    title: async () => { await autosave(); stop(); showTitle(); },
+    again: () => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city, weather: WEATHER, character })),
+    same: () => launch(newGame({ seed, scenario: kind, version: VERSION, chapter, city, weather: WEATHER, character })),
+    title: home ? () => resumeHome() : async () => { await autosave(); stop(); showTitle(); },
+    home: !!home,
     lesson,
   }, settings);
 }

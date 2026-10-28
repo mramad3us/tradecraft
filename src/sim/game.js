@@ -74,7 +74,7 @@ export const SLANT_DEG_S = 70;                                     // (the eyes 
  * parseWeather(): 'snow-heavy-gale', 'frost', 'clear'), for shots, tests and debugging; none, the
  * city's own.
  */
-export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = null, chapter = null, campaign = null, context = null, city = null, weather = null, lesson = null } = {}) {
+export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = null, chapter = null, campaign = null, context = null, city = null, weather = null, lesson = null, character = null } = {}) {
   // (a lesson of the tutorial: its scene, and Hale in your ear: sim/tutorial/)
   const L = lesson ? lessonOf(lesson) : null;
   if (L) { scenario = L.scenario; chapter = L.chapter ?? chapter; }
@@ -93,9 +93,22 @@ export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = 
   const C = city && CITIES[city];
   if (C) state.country = C.country;
   SCENARIOS[scenario].setup(state, { chapter, campaign: context, city: C && city !== 'moscow' ? city : null, lesson: L });
+  if (character) wear(state, character);                            // (a lesson played by the campaign's own officer: src/main.js)
   if (L?.beats) startTutor(state, L);
   if (C && city !== 'moscow' && state.map?.kind === 'street') state.map.city ??= city;
   return state;
+}
+
+/**
+ * The player as someone else: a campaign's officer playing a lesson (the user, 2026-10-27: "gate the
+ * tutorial behind the campaign, to make it linked to the character we pick"). Who they are (name, sex,
+ * age, look, skills, Tradecraft, background, languages) is the officer's; what the scene gave them to
+ * carry stays the scene's.
+ */
+export function wear(state, character) {
+  const me = state.people[state.player];
+  if (!me) return;
+  for (const k of ['name', 'sex', 'age', 'look', 'skills', 'os', 'cls', 'bg', 'langs', 'background']) if (character[k] !== undefined) me[k] = structuredClone(character[k]);
 }
 
 /** Attach the runtime world (state.$world) to a state, new or loaded, and fill the street if it's new. */

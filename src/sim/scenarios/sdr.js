@@ -263,8 +263,9 @@ export const sdr = {
 
   /**
    * Into a shop (sim/shops.js): seen going in, they watch the door (they don't lose you while you're
-   * in it); out the back, they wait for nothing, and they know what that means (backway). A covert
-   * team covers a back way BACK_COVERED of the time: the spare's in the street behind.
+   * in it); out the back (into the lane beside it), they wait for nothing, and they know what that
+   * means (backway). A covert team covers a back way BACK_COVERED of the time: the spare's at the
+   * lane's mouth.
    */
   onShop(state, bus, phase, way) {
     const sc = state.scenario, me = playerOf(state);
@@ -286,15 +287,14 @@ export const sdr = {
     if (way !== 'back' || !seen || !sc.crew.some(c => c.id)) return;
     if (sc.team === 'covert' && chance(stream('back', state.map.seed, state.time.ms), BACK_COVERED)) {
       const ids = sc.crew.filter(c => c.id).map(c => c.id);
-      loseUs(state, bus); sc.teamLost = false;                      // (off the old street: the one in the street behind comes on)
+      loseUs(state, bus); sc.teamLost = false;                      // (the one at the lane's mouth comes on, the others after)
       state.actors = state.actors.filter(a => !ids.includes(a.id));
       sc.pending = sc.crew.slice(0, 2).map((c, k) => ({ crew: sc.crew.indexOf(c), at: state.time.ms + 4000 + k * 6000 }));
-      sc.arrival = { x: me.x + 12, z: me.z };
-      say(state, bus, { kind: 'note', hidden: true, text: 'The street behind had someone in it already. They\'d covered the back.' });
+      sc.arrival = { x: me.x, z: Z.front + 1.2 };
+      say(state, bus, { kind: 'note', hidden: true, text: 'The lane beside had someone at its mouth already. They\'d covered the back.' });
     } else {
-      const ids = sc.crew.filter(c => c.id).map(c => c.id);
+      // (they're still on the street, watching the door: they go in at last, and find the back door)
       loseUs(state, bus); sc.lostHow = 'out the back of a shop';
-      state.actors = state.actors.filter(a => !ids.includes(a.id));
       say(state, bus, { kind: 'note', hidden: true, text: 'They waited on the shop door, went in at last, and found the back door.' });
     }
     if (sc.flags.filter(f => f.kind === 'backway').length < FLAGS_MAX) sc.flags.push({ kind: 'backway', ms: state.time.ms, who: sc.crew[0].who });

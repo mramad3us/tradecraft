@@ -1,8 +1,8 @@
 // Into a shop (sim/shops.js): T at its door offers it; the front a minute and out the same door; the
-// back a minute more and out on the street behind; being tailed's team, seen you go in, watches the
+// back a minute more and out in the lane beside it; being tailed's team, seen you go in, watches the
 // door, and loses you out the back (now and then, covert, they'd covered it), and writes it down.
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
-import { shopNear, backWay, ways, TOILETS, BROWSE_S, BACKWAY_S } from '../src/sim/shops.js';
+import { shopNear, backWay, ways, TOILETS, BROWSE_S, BACKWAY_S, BACK_REACH_M } from '../src/sim/shops.js';
 import { mods as showsMods } from '../src/sim/notice.js';
 import { bodyLine } from '../src/sim/aid.js';
 import { at } from '../src/sim/clock.js';
@@ -25,7 +25,7 @@ function atDoor(g, back = true) {
 
 export default [
   {
-    name: 'shops: T at a door offers it; out the front after a minute, at the door; out the back onto the street behind',
+    name: 'shops: T at a door offers it; out the front after a minute, at the door; out the back into the lane beside, up it from the street',
     fn() {
       const g = newGame({ seed: 4, scenario: 'walk' });
       start(g, null);
@@ -43,9 +43,9 @@ export default [
       const t1 = g.time.ms;
       step(g, { act: ['shop:back'] }, bus);
       for (let t = 0; t < 20 * (BACKWAY_S + 2) && me.inside; t++) step(g, {}, bus);
-      console.log(`      at ${d.shop}'s door: "${offer}"; asked: ${asked[0]?.ways.map(w => w.id).join(', ')}; the front: ${fmt(front.s, 0)} s, out at the door ${front.at}; the back: ${fmt((g.time.ms - t1) / 1000, 0)} s, now row ${g.map.row}`);
+      console.log(`      at ${d.shop}'s door: "${offer}"; asked: ${asked[0]?.ways.map(w => w.id).join(', ')}; the front: ${fmt(front.s, 0)} s, out at the door ${front.at}; the back: ${fmt((g.time.ms - t1) / 1000, 0)} s, now row ${g.map.row}, in the lane at x ${fmt(me.x - d.x, 1)} m from the door, ${fmt(Z.front - me.z, 1)} m up it`);
       assert(/go into/.test(offer) && ['front', 'back'].every(k => asked[0]?.ways.some(w => w.id === k)) && hidden, 'offered, the front and the back, out of sight inside');
-      assert(front.at && g.map.row === -1 && !me.hidden, 'out the front at the door; out the back a street north');
+      assert(front.at && g.map.row === 0 && !me.hidden && me.z < Z.front - 3 && Math.abs(me.x - d.x) < BACK_REACH_M, 'out the front at the door; out the back up the lane beside');
     },
   },
   {

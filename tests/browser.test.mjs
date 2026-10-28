@@ -29,26 +29,33 @@ async function withGame(fn) {
 
 export default [
   {
-    name: 'the campaign from the title: three officers, the posting\'s brief, the street from your door, the desk, a day at the embassy, no errors',
+    name: 'the campaign from the title: three officers, day one in the flat, Hale on the telephone, straight in, the desk, a day at the embassy, no errors',
     heavy: true,
     async fn() {
       await withGame(async (page, errors) => {
         await page.goto(`http://localhost:${PORT}/`);
         await page.waitForFunction("!document.getElementById('title').hidden", null, { timeout: 30000 });
-        await page.locator('#title .campaign .cities button', { hasText: 'Moscow' }).click();   // (the campaign: a button per posting city)
+        await page.locator('#title .campaign').click();                      // (the way in: pick your officer)
+        await page.waitForSelector('.candidates', { timeout: 30000 });
+        await page.locator('.candidates .cities button', { hasText: 'London' }).click();   // (another posting: three other officers)
         await page.waitForSelector('.candidates', { timeout: 30000 });
         const names = await page.locator('.cand').count();
         await page.locator('.cand').first().click();
-        await page.locator('.overlay:not([hidden]) .sheet.brief .go').click();
         await page.waitForFunction('window.__ready === true && window.__tradecraft.state?.scenario.kind === "campaign"', null, { timeout: 30000 });
+        const flat = await page.evaluate(() => window.__tradecraft.state.map.place);
+        await page.evaluate(() => window.__tradecraft.step(300));            // (the telephone rings, twelve seconds in)
+        await page.keyboard.press('KeyT');                                   // (to the telephone, round the furniture, and pick up)
+        await page.waitForSelector('.sheet.call', { timeout: 30000 });
+        await page.locator('.sheet.call button', { hasText: 'Straight in' }).click();
+        await page.locator('.overlay:not([hidden]) .sheet.brief .go').click();   // (the posting's brief)
         await page.keyboard.press('Tab');
         await page.waitForSelector('.desk', { timeout: 5000 });
         const ahead = await page.locator('.desk tr').count();
         await page.evaluate(() => [...document.querySelectorAll('.desk button')].find(b => /Go to work/.test(b.textContent))?.click());
         await page.waitForTimeout(1500);
-        const s = await page.evaluate(() => { const st = window.__tradecraft.state; return { hour: new Date(st.time.ms).getUTCHours(), cover: st.campaign.posting.cover, log: st.log.at(-1)?.text }; });
-        console.log(`      ${names} officers; ${ahead} assignments ahead on the desk; after work: cover ${s.cover}; ${s.log}`);
-        assert(names === 3 && ahead >= 2 && s.cover > 70, 'picked, posted, at the desk, a day worked');
+        const s = await page.evaluate(() => { const st = window.__tradecraft.state; return { hour: new Date(st.time.ms).getUTCHours(), cover: st.campaign.posting.cover, log: st.log.at(-1)?.text, map: st.map.kind }; });
+        console.log(`      ${names} officers; day one in the ${flat === 'home' ? 'flat' : flat}; ${ahead} assignments ahead on the desk; after work: cover ${s.cover}, on the ${s.map}; ${s.log}`);
+        assert(names === 3 && flat === 'home' && ahead >= 2 && s.cover > 70 && s.map === 'street', 'picked, in the flat, the call, at the desk, a day worked, out of the embassy');
         assert(errors.length === 0, errors.join('\n'));
       });
     },
@@ -92,14 +99,11 @@ export default [
     },
   },
   {
-    name: 'mechanic test 2 from the title: the brief, the way to the bench, the instinct, no errors',
+    name: 'mechanic test 2 by its address: the brief, the way to the bench, the instinct, no errors',
     heavy: true,
     async fn() {
       await withGame(async (page, errors) => {
-        await page.goto(`http://localhost:${PORT}/`);
-        await page.waitForFunction("!document.getElementById('title').hidden", null, { timeout: 30000 });
-        await page.getByText('The tutorial: Hale takes you through it').click();   // (the tests are the tutorial's now: sim/tutorial/)
-        await page.locator('.row', { hasText: '2. Being tailed' }).getByText('On your own').click();
+        await page.goto(`http://localhost:${PORT}/?play=sdr&seed=4`);           // (the plain test: the tutorial's, on your own)
         await page.waitForSelector('.sheet.brief', { timeout: 30000 });
         await page.keyboard.press('Enter');
         await page.waitForFunction('window.__ready === true', null, { timeout: 30000 });
@@ -108,7 +112,7 @@ export default [
         await page.keyboard.up('KeyD');
         await page.keyboard.press('KeyE');                                   // a glance back
         await page.waitForTimeout(1500);
-        const seen = await page.evaluate(() => ({ goal: document.querySelector('.goal').hidden ? null : document.querySelector('.goal').textContent,
+        const seen = await page.evaluate(() => ({ goal: document.querySelector('.goal').hidden ? null : document.querySelector('.goal').dataset.text,
           prompt: document.querySelector('.prompt').hidden ? null : document.querySelector('.prompt').textContent, team: window.__tradecraft.state.scenario.team, glances: window.__tradecraft.state.scenario.glances }));
         console.log(`      ${seen.team} evening; the way: ${seen.goal}; instinct: ${seen.prompt}; glances ${seen.glances}`);
         assert(seen.goal && seen.prompt && seen.glances === 1, 'the way to the bench, the instinct, and a glance taken');
@@ -117,14 +121,27 @@ export default [
     },
   },
   {
-    name: 'lesson 1 from the tutorial: the brief, the marker, the instinct, Hale on the earpiece, the checklist, no errors',
+    name: 'the tutorial from the flat\'s telephone and back, then lesson 1 played by the officer picked: the brief, the marker, the instinct, Hale on the earpiece, the checklist, no errors',
     heavy: true,
     async fn() {
       await withGame(async (page, errors) => {
         await page.goto(`http://localhost:${PORT}/`);
         await page.waitForFunction("!document.getElementById('title').hidden", null, { timeout: 30000 });
-        await page.getByText('The tutorial: Hale takes you through it').click();   // (lesson 1, with Hale: his earpiece checked below)
-        await page.getByText('1. Tailing a man').click();
+        await page.locator('#title .campaign').click();
+        await page.waitForSelector('.candidates', { timeout: 30000 });
+        await page.locator('.cand').first().click();
+        await page.waitForFunction('window.__ready === true && window.__tradecraft.state?.scenario.kind === "campaign"', null, { timeout: 30000 });
+        const officer = await page.evaluate(() => window.__tradecraft.state.people.me.name);
+        await page.evaluate(() => window.__tradecraft.step(300));
+        await page.keyboard.press('KeyT');
+        await page.waitForSelector('.sheet.call', { timeout: 30000 });
+        await page.locator('.sheet.call button', { hasText: 'The exercises' }).click();   // (the tutorial, from the telephone: sim/tutorial/)
+        await page.locator('#title button', { hasText: 'Back to the flat' }).click();     // (back as it was left; and Hale's number, by the telephone)
+        await page.waitForFunction('window.__ready === true && window.__tradecraft.state?.map.place === "home"', null, { timeout: 30000 });
+        await page.keyboard.press('KeyT');
+        await page.waitForSelector('.sheet.call', { timeout: 30000 });
+        await page.locator('.sheet.call button', { hasText: 'The exercises' }).click();
+        await page.locator('#title button', { hasText: '1. Tailing a man' }).click();
         await page.waitForSelector('.sheet.brief', { timeout: 30000 });
         await page.keyboard.press('Enter');
         await page.waitForFunction('window.__ready === true', null, { timeout: 30000 });
@@ -133,22 +150,21 @@ export default [
         await page.keyboard.up('KeyD');
         const seen = await page.evaluate(() => ({ marker: !document.querySelector('.marker').hidden, prompt: document.querySelector('.prompt').hidden ? null : document.querySelector('.prompt').textContent, target: window.__tradecraft.state.scenario.target,
           hale: document.querySelector('.earpiece .line')?.textContent ?? null, lesson: document.querySelector('.watch .lesson')?.hidden === false }));
-        console.log(`      marker over him: ${seen.marker}; instinct: ${seen.prompt ?? '(quiet)'}; Hale: ${seen.hale ?? '(nothing)'}; the checklist: ${seen.lesson}`);
+        const who = await page.evaluate(() => window.__tradecraft.state.people.me.name);
+        console.log(`      ${who} (picked: ${officer}); marker over him: ${seen.marker}; instinct: ${seen.prompt ?? '(quiet)'}; Hale: ${seen.hale ?? '(nothing)'}; the checklist: ${seen.lesson}`);
         assert(seen.target && seen.marker, 'the target and his marker');
         assert(seen.hale && seen.lesson, 'Hale on the earpiece, the lesson\'s checklist');
+        assert(who === officer, 'played by the officer picked');
         assert(errors.length === 0, errors.join('\n'));
       });
     },
   },
   {
-    name: 'the dojo from the title: the brief, onto the mat, an exchange (C, the sheet), no errors',
+    name: 'the Farm by its address: the brief, onto the mat, an exchange (C, the sheet), no errors',
     heavy: true,
     async fn() {
       await withGame(async (page, errors) => {
-        await page.goto(`http://localhost:${PORT}/`);
-        await page.waitForFunction("!document.getElementById('title').hidden", null, { timeout: 30000 });
-        await page.getByText('The tutorial: Hale takes you through it').click();
-        await page.getByText('0. Hand to hand, at the Farm').click();
+        await page.goto(`http://localhost:${PORT}/?play=dojo&chapter=lesson&seed=2`);   // (the Farm: lesson 0 of the tutorial)
         await page.waitForSelector('.sheet.brief', { timeout: 30000 });
         await page.keyboard.press('Enter');
         await page.waitForFunction('window.__ready === true', null, { timeout: 30000 });
