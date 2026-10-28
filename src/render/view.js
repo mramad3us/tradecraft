@@ -57,6 +57,8 @@ import { pixelStage, finish, FINE_PALETTE, PX_PER_M, emissiveOf, WX, WX_LAMPS } 
 import { buildSection } from './town.js';
 import { buildDojo } from './dojo.js';
 import { buildInterior } from './interior.js';
+import { buildCut } from './cutaway.js';
+import { unitAt } from '../sim/interiors/use.js';
 import { createCrowd } from './crowd.js';
 import { createBlood } from './blood.js';
 import { createTraffic } from './traffic.js';
@@ -213,6 +215,25 @@ export function createView({ parent, bus, month = () => 11 }) {
   { const h = sc.right + SHADOW_STEP / 2, n = Math.round(2 * h / texel); Object.assign(sc, { left: -h, right: h, top: h, bottom: -h }); sc.updateProjectionMatrix(); sun.shadow.mapSize.set(n, n); }
   stage.renderer.shadowMap.autoUpdate = false;
   const shadows = () => { stage.renderer.shadowMap.needsUpdate = true; };
+  // The shop you're in, opened up (src/render/cutaway.js): its building hidden, and the awnings and signs
+  // over its front; the building with the shop's slot cut out of it in their place.
+  let opened = null;
+  const over = (m, u) => { const bb = new THREE.Box3().setFromObject(m); return bb.max.x > u.x0 + 0.05 && bb.min.x < u.x1 - 0.05; };
+  function cutaway(state) {
+    const pc = playerActor(state), at = pc && !pc.hidden ? unitAt(state, pc.x, pc.z) : null, built = at && sections.get(at.S.i);
+    const all = built?.byBuilding?.[at.u.building] ?? [], body = all.find(m => m.userData?.body)?.userData.body;
+    const key = built && body ? `${state.map.row}|${at.S.i}|${at.k}|${body.material[4]?.id}` : null;   // (its façade's material too: dusk repaints it)
+    if (key === (opened?.key ?? null)) return;
+    if (opened) { for (const m of opened.hidden) m.visible = true; scene.remove(opened.group); opened.group.traverse(o => o.geometry?.dispose()); opened = null; }
+    if (!key) return;
+    // (its body; whatever's on it over the shop (a pipe, the ivy, the parapet) and the awnings and signs there: the rest stays)
+    const hidden = [body, ...all.flatMap(m => (m.userData?.body ? m.children.filter(c => c !== body && over(c, at.u)) : over(m, at.u) ? [m] : []))];
+    for (const m of hidden) m.visible = false;
+    const group = buildCut(at.S, at.u.building, at.u, body);
+    scene.add(group);
+    opened = { key, hidden, group, units: [at.u] };
+    shadows();
+  }
   shadows();
   let shadowU = null, shadowV = null;
   const aim = new THREE.Vector3();
@@ -331,6 +352,7 @@ export function createView({ parent, bus, month = () => 11 }) {
   /** Draw the state. prev: id → [x, z, stride] at the last tick; alpha: how far into this one. */
   function frame(state, prev, alpha, t) {
     city = state.map.city;                                         // (passers-by dress as their city does)
+    cutaway(state);
     const ms = state.time.ms, wx = weatherAt(state), S = state.map.kind === 'interior' ? indoors(sky(ms, geoOf(state.map), wx), state.$world?.sections.get(0)?.plan?.mood) : sky(ms, geoOf(state.map), wx), W = state.$world;
     const lamps = W.lamps;
     // Where everyone is, between the ticks.
@@ -387,7 +409,8 @@ export function createView({ parent, bus, month = () => 11 }) {
       }
       for (const h of s.heads) h.head.material = S.glow > 0.35 ? h.night : h.day;
     }
-    const near = lamps.map(l => [l, (l.x - cam.x) ** 2 + (l.z - cam.z) ** 2]).sort((a, b) => a[1] - b[1]);
+    // (a shop's lights behind its façade light nothing you can see: only the shop you're in has its own; sim/interiors/shop.js)
+    const near = lamps.filter(l => l.shop === undefined || l.shop === opened?.units[0].door).map(l => [l, (l.x - cam.x) ** 2 + (l.z - cam.z) ** 2]).sort((a, b) => a[1] - b[1]);
     slots.forEach((pair, i) => {
       const l = near[i]?.[0];
       pair.forEach((spot, k) => {
@@ -432,6 +455,11 @@ export function createView({ parent, bus, month = () => 11 }) {
       const P = a.who && state.people[a.who], bl = P?.bloody, hand = P?.hand, rain = rainwearOf(wx, a.who ?? a.seed, hand);
       const key = bl || hand || rain ? `${a.who ?? a.seed}~${bl ? Object.keys(bl).sort().join('') : ''}~${hand ?? ''}~${rain ?? ''}` : a.who ?? a.seed;
       people.push({ key, look: bl || hand || rain ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}), ...(rain ? { rainwear: rain } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S) });
+    }
+    // (in a shop: whoever's behind each counter of the building, cut away; the view's, not the sim's people)
+    for (const u of opened?.units ?? []) {
+      const key = 7e6 + u.look.seed;
+      people.push({ key, look: lookOf(key), x: u.staff.x, z: u.staff.z, face: 'down', gait: 'idle', stride: 0, phase: 0, tint: lightAt(lamps, u.staff.x, u.staff.z, ms, S) });
     }
     for (const id in aware ? {} : seen) {                          // (and as remembered, those out of sight)
       const r = seen[id];
@@ -502,6 +530,7 @@ export function createView({ parent, bus, month = () => 11 }) {
    */
   const dying = [];
   function clear(later = false) {
+    if (opened) { scene.remove(opened.group); opened.group.traverse(o => o.geometry?.dispose()); opened = null; }   // (the street gone: its cut with it)
     for (const s of sections.values()) { scene.remove(s.group); if (later) dying.push(s); else s.dispose(); }
     sections.clear();
     for (const b of building.values()) b.gen.return();

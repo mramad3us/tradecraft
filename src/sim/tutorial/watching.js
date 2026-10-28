@@ -24,7 +24,7 @@ export const watching = {
   beats: [
     { id: 'hello', when: (s) => secs(s) >= 1, say: '"Hale. Same rules. Tonight you watch, and you don\'t get watched doing it."' },
     { id: 'minder', when: (s) => secs(s) >= 8, say: '"See the café on the brief? Across the road from it, Ruiz isn\'t waiting for anyone. He\'s looking at faces. Anyone standing about near that café, anyone staring at it, anyone with a camera up: that\'s who he\'s there for."' },
-    { id: 'where', when: (s) => secs(s) >= 22, say: '"So find somewhere you\'d be anyway, with the café in sight: a shop window across the way, a kiosk, a café\'s window table. {instinct} when you\'re at one."' },
+    { id: 'where', when: (s) => secs(s) >= 22, say: '"So find somewhere you\'d be anyway, with the café in sight: a shop window across the way, a kiosk, a café\'s window. {instinct} when you\'re at one."' },
     { id: 'loiter', now: true, every: 40, when: (s) => s.scenario.loiterS >= 25 && !s.scenario.made, say: '"You\'ve been standing about. Ruiz will have noticed a man with nowhere to be. Find a reason to be there."' },
     { id: 'stare', now: true, every: 30, when: (s) => s.scenario.stareS >= 2 && !s.scenario.made, say: '"Don\'t stare at the café. Look at it the way you\'d look at anything: then at something else."' },
     { id: 'coming', now: true, when: (s) => s.scenario.phase === 'walk' && sees(s, actorWho(s, 'volkov')), say: '"There\'s Volkov: glasses, dark coat, briefcase. Let him get there. Don\'t move to meet him."' },

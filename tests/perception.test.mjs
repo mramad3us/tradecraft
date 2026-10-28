@@ -54,7 +54,7 @@ export default [
     fn() {
       const g = street(22);
       const me = playerActor(g);
-      const lamp = g.$world.lamps.find(l => l.z < 0 && l.x > 30);
+      const lamp = g.$world.lamps.find(l => l.z < 0 && l.x > 30 && l.shop === undefined);   // (a street lamp, not a shop's light)
       Object.assign(me, { x: lamp.x - 26, z: -2.6, head: 0 });
       const e = eyes(g, me);
       const lit = visibility(g, e, lamp.x, -1.0), dark = visibility(g, e, lamp.x, -4.8);

@@ -87,6 +87,7 @@ export const FURNITURE = {
   bar:          { w: 2.4, d: 0.7, h: 1.1, block: true, wall: false, use: 'drink', spot: S(0, 0.65, 'up'), staff: S(0, -0.65) },
   barShelf:     { w: 2.0, d: 0.35, h: 2.1, block: true, wall: true },
   barStool:     { w: 0.4, d: 0.4, h: 0.75, block: true, wall: false, use: 'sit', seats: [S(0, 0)] },
+  windowBar:    { w: 1.6, d: 0.35, h: 1.05, block: true, wall: false, use: 'drink', spot: S(-0.35, -0.5, 'down') },   // (a café's ledge along its window: a coffee stood at it, the street through the glass)
   restaurantTable: { w: 0.8, d: 1.9, h: 0.75, block: true, wall: false, use: 'eat', seats: [S(0, -0.72), S(0, 0.72, 'up')] },
   range:        { w: 1.2, d: 0.8, h: 0.9, block: true, wall: true, use: 'cook', spot: S(0, 0.7, 'up') },
   steelSink:    { w: 1.2, d: 0.7, h: 0.9, block: true, wall: true, use: 'wash', spot: S(0, 0.65, 'up') },

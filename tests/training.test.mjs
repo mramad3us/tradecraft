@@ -2,24 +2,22 @@
 // the higher the skill, no further than the teacher; a language by levels; at a gym, a club, a language
 // school, an hour or two for its fee, and the skill it trains; a bookshop's shelf; an hour's reading,
 // at home or over a coffee.
-import { newGame, start, step, skip, playerActor } from '../src/sim/game.js';
+import { newGame, start, step, playerActor } from '../src/sim/game.js';
 import { train, learn, hoursFor, BOOKS, shelf } from '../src/sim/training.js';
 import { ways, GYM_UP_TO } from '../src/sim/shops.js';
-import { sectionOf } from '../src/sim/city.js';
-import { refocus } from '../src/sim/world.js';
-import { townOf } from '../src/sim/cities/index.js';
+import { atDoor, walkIn, walk, spotOf } from './shopwalk.mjs';
 import { candidates, newCampaign } from '../src/sim/campaign.js';
-import { Z } from '../src/sim/map/street.js';
 import { cashOf } from '../src/sim/money.js';
 import { assert, fmt } from './helpers.mjs';
 
-/** The nearest door of a kind of shop on the player's street, the player at it. */
-function atShop(g, kind) {
-  const me = playerActor(g);
-  let d = null;
-  for (let i = 0; i < 40 && !d; i++) for (const j of [i, -i]) d ??= sectionOf(townOf(g.map), g.map.row ?? 0, Math.floor(me.x / 45) + j).doors.find(o => o.kind === 'shop' && o.z === Z.front && o.shop === kind);
-  if (d) { Object.assign(me, { x: d.x, z: Z.front + 0.6, busy: null }); refocus(g, null, d.x); for (let t = 0; t < 5; t++) step(g, {}, null); }   // (the street there in play: a teleport's)
-  return d;
+/** The nearest shop of a kind on the player's street, walked into, the player at its counter (or its window table: `spot`). */
+function atShop(g, kind, spot = 'counter') {
+  const u = atDoor(g, (o) => o.shop === kind && !!spotOf(o, spot));
+  if (!u) return null;
+  walkIn(g, u);
+  const s = spotOf(u, spot);
+  walk(g, s.x, s.z);
+  return { x: u.door, shop: u.shop };
 }
 
 export default [
@@ -53,18 +51,17 @@ export default [
             if (!d) continue;
             const p = g.people[g.player], me = playerActor(g);
             p.cash = 2000;
-            const w = ways(g, d).map(o => o.id), way = { gym: 'train', club: 'class', school: 'lesson' }[kind] ?? w.find(x => x.startsWith('book:'));
+            const w = ways(g, d, 'counter').map(o => o.id), way = { gym: 'train', club: 'class', school: 'lesson' }[kind] ?? w.find(x => x.startsWith('book:'));
             assert(w.includes(way), `${city} ${kind}: offered (${w.join(', ')})`);
             const t0 = g.time.ms, cash0 = cashOf(p), before = JSON.stringify([p.skills, p.langs, p.training]);
             step(g, { act: [`shop:${way}`] }, null);
-            if (me.inside) skip(g, null, me.inside.until - g.time.ms);       // (the hours in there, skipped: the clock's, as the shop's)
-            for (let t = 0; t < 40 && me.inside; t++) step(g, {}, null);
+            for (let t = 0; t < 20 * 200 && me.inside; t++) step(g, {}, null);   // (a book's three minutes at the counter; the hours of the rest, skipped by the game)
             const mins = (g.time.ms - t0) / 60000;
             assert(cashOf(p) < cash0 && (kind === 'books' ? p.books?.length === 1 : JSON.stringify([p.skills, p.langs, p.training]) !== before), `${city} ${kind}: paid, and something for it`);
             if (kind === 'books') {
               // (and an hour of it over a coffee: at a café, 'read')
-              const c = atShop(g, 'cafe');
-              if (c) { step(g, { act: ['shop:read'] }, null); if (me.inside) skip(g, null, me.inside.until - g.time.ms); for (let t = 0; t < 40 && me.inside; t++) step(g, {}, null); assert(p.books[0].read === 1, `${city}: an hour's reading over a coffee`); }
+              const c = atShop(g, 'cafe', 'sit');
+              if (c) { step(g, { act: ['shop:read'] }, null); for (let t = 0; t < 40 && me.inside; t++) step(g, {}, null); assert(p.books[0].read === 1, `${city}: an hour's reading over a coffee`); }
             }
             got = `${kind} ${fmt(mins, 0)} min`;
           }

@@ -685,7 +685,7 @@ function second(state, bus, me) {
   // The team.
   if (!sc.teamLost) {
     const onUs = sc.crew.some(c => { const a = actorOf(state, c.id); return a && seesActor(state, a, me); });
-    if (onUs || (me.inside && sc.inShop?.seen)) sc.teamSeenMs = now;   // (in a shop they saw you go into: they're watching its door)
+    if (onUs || (me.within && sc.inShop?.seen)) sc.teamSeenMs = now;   // (in a shop they saw you go into: they're watching its door)
     if (sc.crew.some(c => c.id) && !sc.pending.length && now - sc.teamSeenMs > LOSE_S[sc.team] * 1000) { loseUs(state, bus); sc.lostHow = sc.lostHow ?? 'in the crowd'; }
     if (sc.team === 'covert' && now >= sc.nextHandover) { handover(state); sc.nextHandover = now + Math.round(range(state.rng, ...HANDOVER_S)) * 1000; }
     if (me.gait === 'run') flag(state, bus, 'ran');

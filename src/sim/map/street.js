@@ -57,6 +57,10 @@ import { marksAt } from './marks.js';
 import { embassyBuilding } from '../cities/embassy.js';
 import { stationBuilding } from '../cities/station.js';
 import { stationAt, busLinesAt } from '../transit.js';
+import { shopUnit } from '../interiors/shop.js';
+import { walls, wallRect } from '../interiors/plan.js';
+import { FURNITURE, footprint } from '../interiors/furniture.js';
+import { backWayAt } from '../backways.js';
 
 export { SECTION_M, Z, LANES, GAP_M, STRETCH, ROW_M };
 export const PARK_SHARE = 0.35;                                    // (Moscow's; a city's own is its profile's parkShare)
@@ -199,6 +203,7 @@ export function section(seed, i, row = 0) {
       S.doors.push({ x: (B.x0 + B.x1) / 2, z: B.z, w: 3, kind: 'metro', lines });
     }
   }
+  shopFloors(S, seed, row, block);
   // The ways north: a side street has its lamps and a bin; an alley is dark, with a bin.
   for (const g of S.gapsN) {
     if (g.kind === 'side') {
@@ -561,6 +566,47 @@ function dress(S, seed, row, zx, sx, P) {
   if (f) f.look = w(f.kind);
   if (S.square && LOOKS[S.square.kind]) S.square.look = w(S.square.kind);
   for (const B of S.buildings) if (B.style !== 'embassy' && B.style !== 'station') P.dress(B, L, S);   // (the embassy and a station wear their own: sim/cities/)
+}
+
+/** A section's shops' ground floors set into their buildings (sim/interiors/shop.js): S.units, and the blockers carved round them. */
+function shopFloors(S, seed, row, block) {
+  S.units = [];
+  for (const d of S.doors) {
+    if (d.kind !== 'shop' || d.z !== Z.front) continue;
+    const b = S.buildings.findIndex(B => d.x > B.x0 && d.x < B.x1 && B.z === Z.front && B.style !== 'embassy' && B.style !== 'station');
+    if (b < 0) continue;
+    const u = shopUnit(S.buildings[b], d, { seed: hash(seed, row, S.i), back: backWayAt(seed, row, d) });
+    if (!u) continue;
+    u.building = b; d.unit = S.units.length;
+    S.units.push(u);
+  }
+  // (each building with shops: its block taken down, put back behind them and between them, and theirs set in)
+  for (const b of new Set(S.units.map(u => u.building))) {
+    const B = S.buildings[b], us = S.units.filter(u => u.building === b), back = Math.min(...us.map(u => u.z0));
+    const k = S.blockers.findIndex(o => o.what === 'building' && Math.abs(o.x0 - B.x0) < 0.01 && Math.abs(o.x1 - B.x1) < 0.01 && Math.abs(o.z1 - B.z) < 0.01);
+    if (k < 0) continue;
+    const old = S.blockers.splice(k, 1)[0];
+    block(B.x0, old.z0, B.x1, back, 'building');
+    let x = B.x0;
+    for (const u of [...us].sort((p, q) => p.x0 - q.x0)) { if (u.x0 - x > 0.01) block(x, back, u.x0, B.z, 'building'); x = u.x1; }
+    if (B.x1 - x > 0.01) block(x, back, B.x1, B.z, 'building');
+    for (const u of us) {
+      for (const w of walls(u)) {
+        const q = wallRect(w, true), pane = w.side === 's' && u.windowsS[0];
+        if (!pane) { block(q.x0, q.z0, q.x1, q.z1, 'building'); continue; }
+        // (the street side: wall either side of the window, glass in it)
+        const a = Math.max(q.x0, pane.a), c = Math.min(q.x1, pane.b);
+        if (c <= a) { block(q.x0, q.z0, q.x1, q.z1, 'building'); continue; }
+        if (a - q.x0 > 0.01) block(q.x0, q.z0, a, q.z1, 'building');
+        block(a, q.z0, c, q.z1, 'glass');
+        if (q.x1 - c > 0.01) block(c, q.z0, q.x1, q.z1, 'building');
+      }
+      for (const it of u.items) if (FURNITURE[it.kind]?.block !== false) { const f = footprint(it); block(f.x0, f.z0, f.x1, f.z1, 'furniture'); }
+      block(u.staff.x - 0.22, u.staff.z - 0.22, u.staff.x + 0.22, u.staff.z + 0.22, 'furniture');   // (whoever's behind the counter: src/render/view.js draws them)
+      // (its lights: at night, whoever's in there is lit, and seen through the glass; the view lights them only for the shop you're in)
+      for (const l of u.lights) S.lamps.push({ x: l.x, z: l.z, r: l.r, core: l.core, ring: l.ring, color: l.color, shop: u.door });
+    }
+  }
 }
 
 

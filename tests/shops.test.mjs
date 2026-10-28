@@ -1,58 +1,62 @@
-// Into a shop (sim/shops.js): T at its door offers it; the front a minute and out the same door; the
-// back a minute more and out in the lane beside it; being tailed's team, seen you go in, watches the
-// door, and loses you out the back (now and then, covert, they'd covered it), and writes it down.
+// In a shop (sim/shops.js, its floor sim/interiors/shop.js): walked into at its door (the scene hears),
+// T at the counter, a minute there, seen through the window; out the back door, the yard, and out in the
+// lane beside it; being tailed's team, seen you go in, watches the door, and loses you out the back (now
+// and then, covert, they'd covered it), and writes it down; a café's basin; a coat off the rail.
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
-import { shopNear, backWay, ways, TOILETS, BROWSE_S, BACKWAY_S, BACK_REACH_M } from '../src/sim/shops.js';
+import { atDoor, walk, walkIn, spotOf } from './shopwalk.mjs';
+import { follow } from '../src/sim/agents.js';
+import { unitAt } from '../src/sim/interiors/use.js';
+import { backWay, BROWSE_S, YARD_S, BACK_REACH_M, COAT_S, WASH_S } from '../src/sim/shops.js';
+import { SCENARIOS } from '../src/sim/scenarios/index.js';
 import { mods as showsMods } from '../src/sim/notice.js';
 import { bodyLine } from '../src/sim/aid.js';
 import { at } from '../src/sim/clock.js';
 import { cashOf, price, COAT_USD } from '../src/sim/money.js';
-import { sectionOf } from '../src/sim/city.js';
-import { townOf } from '../src/sim/cities/index.js';
 import { Z } from '../src/sim/map/street.js';
-import { sectionAt } from '../src/sim/world.js';
 import { assert, fmt } from './helpers.mjs';
 
-/** The player at the door of a shop with a back way (or any shop), on this street. */
-function atDoor(g, back = true) {
-  const me = playerActor(g);
-  for (let x = me.x; x < me.x + 400; x += 2) {
-    const d = sectionAt(g, x)?.doors.find(o => o.kind === 'shop' && o.z === Z.front && Math.abs(o.x - x) < 1 && (!back || backWay(g, o)));
-    if (d) { Object.assign(me, { x: d.x, z: Z.front + 0.6, busy: null, glass: false }); return d; }
-  }
-  return null;
-}
 
 export default [
   {
-    name: 'shops: T at a door offers it; out the front after a minute, at the door; out the back into the lane beside, up it from the street',
+    name: 'shops: walked in at the door (the scene hears); T at the counter, a minute there, in sight; out the back door: the yard, out in the lane beside',
     fn() {
       const g = newGame({ seed: 4, scenario: 'walk' });
       start(g, null);
-      const asked = [], bus = { emit: (k, v) => { if (k === 'shop') asked.push(v); }, on() {} };
-      for (let t = 0; t < 10; t++) step(g, {}, bus);
-      const d = atDoor(g);
-      step(g, {}, bus);
-      const offer = g.$offer?.text;
-      step(g, { act: ['instinct'] }, bus);
-      const me = playerActor(g), t0 = g.time.ms;
-      step(g, { act: ['shop:front'] }, bus);
-      const hidden = me.hidden;
-      for (let t = 0; t < 20 * (BROWSE_S + 2) && me.inside; t++) step(g, { mx: 1 }, bus);   // (pushing to walk: the feet are the shop's)
-      const front = { s: (g.time.ms - t0) / 1000, at: Math.abs(me.x - d.x) < 0.5 && !me.hidden };
-      const t1 = g.time.ms;
-      step(g, { act: ['shop:back'] }, bus);
-      for (let t = 0; t < 20 * (BACKWAY_S + 2) && me.inside; t++) step(g, {}, bus);
-      console.log(`      at ${d.shop}'s door: "${offer}"; asked: ${asked[0]?.ways.map(w => w.id).join(', ')}; the front: ${fmt(front.s, 0)} s, out at the door ${front.at}; the back: ${fmt((g.time.ms - t1) / 1000, 0)} s, now row ${g.map.row}, in the lane at x ${fmt(me.x - d.x, 1)} m from the door, ${fmt(Z.front - me.z, 1)} m up it`);
-      assert(/go into/.test(offer) && ['front', 'back'].every(k => asked[0]?.ways.some(w => w.id === k)) && hidden, 'offered, the front and the back, out of sight inside');
-      assert(front.at && g.map.row === 0 && !me.hidden && me.z < Z.front - 3 && Math.abs(me.x - d.x) < BACK_REACH_M, 'out the front at the door; out the back up the lane beside');
+      const heard = [], asked = [], bus = { emit: (k, v) => { if (k === 'shop') asked.push(v); }, on() {} };
+      SCENARIOS.walk.onShop = (state, b, phase, way) => heard.push(`${phase}:${way}`);
+      try {
+        for (let t = 0; t < 10; t++) step(g, {}, bus);
+        const u = atDoor(g, (o) => o.exits.length && o.spots.some(s => s.kind === 'counter')), me = playerActor(g);
+        const inside = walkIn(g, u, bus);
+        const c = spotOf(u, 'counter'), atC = walk(g, c.x, c.z, bus);
+        step(g, {}, bus);
+        const offer = g.$offer?.text;
+        step(g, { act: ['instinct'] }, bus);
+        const t0 = g.time.ms;
+        step(g, { act: ['shop:browse'] }, bus);
+        const seen = !me.hidden && !!me.inside;
+        for (let t = 0; t < 20 * (BROWSE_S + 2) && me.inside; t++) step(g, { mx: 1 }, bus);   // (pushing to walk: the feet are the shop's)
+        const browse = (g.time.ms - t0) / 1000;
+        const b = spotOf(u, 'back'), atB = walk(g, b.x, b.z, bus);
+        step(g, {}, bus);
+        const offerB = g.$offer?.text;
+        const t1 = g.time.ms;
+        step(g, { act: ['instinct'] }, bus);
+        const hidden = me.hidden;
+        for (let t = 0; t < 20 * (YARD_S + 2) && me.inside; t++) step(g, {}, bus);
+        console.log(`      ${u.shop} (${fmt(u.x1 - u.x0, 1)} m wide): in at the door ${inside}; at the counter ${atC}, "${offer}", asked: ${asked[0]?.ways.map(w => w.id).join(', ')}; a browse ${fmt(browse, 0)} s, in sight ${seen}; at the back door ${atB}, "${offerB}"; the yard ${fmt((g.time.ms - t1) / 1000, 0)} s, out of sight ${hidden}; now ${fmt(u.door - me.x, 1)} m along, ${fmt(Z.front - me.z, 1)} m up the lane; the scene heard ${heard.join(', ')}`);
+        assert(inside && atC && atB, 'walked in, to the counter, to the back door');
+        assert(/counter/.test(offer) && asked[0]?.ways.some(w => w.id === 'browse') && seen && browse >= BROWSE_S, 'the counter offered; a minute there, in sight');
+        assert(/back door/.test(offerB) && hidden && !me.hidden && !me.within && g.map.row === 0 && me.z < Z.front - 3 && Math.abs(me.x - u.door) < BACK_REACH_M, 'out the back, out of sight, up the lane beside');
+        assert(heard.join() === 'in:front,out:back', 'the scene heard in at the front, out at the back');
+      } finally { delete SCENARIOS.walk.onShop; }
     },
   },
   {
     name: 'shops: being tailed, seen going in they watch the door; out the back they lose you (or had it covered) and write it down',
     heavy: true,
     fn() {
-      let n = 0, lost = 0, covered = 0, flagged = 0, front = 0;
+      let n = 0, lost = 0, covered = 0, flagged = 0, front = 0, waited = 0;
       for (let seed = 1; n < 14 && seed < 80; seed++) {
         const g = newGame({ seed, scenario: 'sdr' });
         start(g, null);
@@ -60,22 +64,60 @@ export default [
         for (let t = 0; t < 20 * 40; t++) step(g, {}, null);
         const sc = g.scenario;
         if (!sc.crew.some(c => c.id) || sc.teamLost) continue;
-        if (!atDoor(g)) continue;
-        step(g, {}, null);
-        const back = n % 2 === 0;
-        step(g, { act: [`shop:${back ? 'back' : 'front'}`] }, null);
+        const u = atDoor(g, (o) => o.exits.length && backWay(g, { x: o.door, shop: o.shop }));
+        if (!u || !walkIn(g, u)) continue;
         if (!sc.inShop?.seen) continue;
         n++;
-        for (let t = 0; t < 20 * 70 && playerActor(g).inside; t++) step(g, {}, null);
+        const back = n % 2 === 1;
+        const c = spotOf(u, 'counter');
+        walk(g, c.x, c.z);
+        step(g, { act: ['shop:browse'] }, null);
+        for (let t = 0; t < 20 * (BROWSE_S + 2) && playerActor(g).inside; t++) step(g, {}, null);
+        // (one of them where the door can be seen, out on the street: not in after you)
+        waited += sc.crew.some(c => { const a = c.id && g.actors.find(o => o.id === c.id); return a && Math.abs(a.x - u.door) < 15 && a.z > Z.front && !a.within; });
+        if (back) {
+          const b = spotOf(u, 'back');
+          walk(g, b.x, b.z);
+          step(g, { act: ['shop:back'] }, null);
+          for (let t = 0; t < 20 * (YARD_S + 2) && playerActor(g).inside; t++) step(g, {}, null);
+        } else walk(g, u.door, Z.front + 0.8);
         for (let t = 0; t < 20 * 15; t++) step(g, {}, null);
         if (back) { lost += sc.teamLost; covered += !sc.teamLost; flagged += sc.flags.some(f => f.kind === 'backway'); } else front += !sc.teamLost;
       }
-      console.log(`      ${n} evenings seen going in: out the back ${n / 2}: lost them ${lost}, covered ${covered}, written down ${flagged}; out the front ${n / 2}: still on you ${front}`);
-      assert(n >= 8 && lost >= 1 && flagged === lost + covered && front >= n / 2 - 2, 'the back loses them, mostly; the front doesn\'t');
+      console.log(`      ${n} evenings seen going in: one of them watching the door ${waited}; out the back ${Math.ceil(n / 2)}: lost them ${lost}, covered ${covered}, written down ${flagged}; out the front ${Math.floor(n / 2)}: still on you ${front}`);
+      assert(n >= 8 && lost >= 1 && flagged === lost + covered && front >= Math.floor(n / 2) - 2, 'the back loses them, mostly; the front doesn\'t');
+      assert(waited >= n / 2, 'they wait on the door');
     },
   },
   {
-    name: 'blood shows: people seeing it remember the face (heat), Orlov looks harder; a café\'s toilet washes the face clean',
+    name: 'shops: a follower (Blown\'s hunter) doesn\'t come in after you: out on the pavement, a few metres along, waiting on the door',
+    fn() {
+      let n = 0, ok = 0;
+      const where = [];
+      for (let seed = 1; seed <= 6; seed++) {
+        const g = newGame({ seed, scenario: 'hunted' });
+        start(g, null);
+        for (let t = 0; t < 40; t++) step(g, {}, null);
+        const me = playerActor(g), u = atDoor(g, (o) => o.spots.some(s => s.kind === 'counter')), h = g.actors.find(a => g.scenario.hunters.includes(a.id));
+        if (!u || !h) continue;
+        Object.assign(h, { x: me.x - 14, z: me.z, row: undefined }); h.ai.route = null;   // (on this street, 14 m back)
+        follow(g, h, me, 10);
+        for (let t = 0; t < 20 * 3; t++) step(g, {}, null);
+        walkIn(g, u);
+        const c = spotOf(u, 'counter');
+        walk(g, c.x, c.z);
+        for (let t = 0; t < 20 * 25; t++) step(g, {}, null);
+        const fo = h.ai.follow;
+        n++;
+        ok += !!(fo && !fo.lost && Math.abs((fo.inside?.x ?? 1e9) - u.door) < 0.5 && h.z > Z.front && !unitAt(g, h.x, h.z));
+        where.push(`${fmt(h.x - u.door, 1)} m`);
+      }
+      console.log(`      ${ok} of ${n} waiting on the door after 25 s inside, at ${where.join(', ')} from it`);
+      assert(n >= 4 && ok === n, 'every one waiting on the door, outside');
+    },
+  },
+  {
+    name: 'blood shows: people seeing it remember the face (heat), Orlov looks harder; a café\'s basin washes the face clean',
     fn() {
       const g = newGame({ seed: 5, scenario: 'walk' });
       g.time.ms = at(2026, 11, 2, 13, 0);
@@ -87,45 +129,49 @@ export default [
       const heat1 = Object.values(g.heat)[0];
       const line = bodyLine(g)?.text;
       const mod = showsMods(p).map(m => `${m.why} +${m.v}`).join(', ');
-      // the toilet
-      let d = null;
-      for (let x = me.x - 300; x < me.x + 300 && !d; x += 2) d = sectionAt(g, x)?.doors.find(o => o.kind === 'shop' && o.z === Z.front && Math.abs(o.x - x) < 1 && TOILETS.has(o.shop));
-      Object.assign(me, { x: d.x, z: Z.front + 0.6, busy: null, glass: false });
+      // the basin, at the back of a café
+      const u = atDoor(g, (o) => o.spots.some(s => s.kind === 'wash'));
+      walkIn(g, u);
+      const w = spotOf(u, 'wash'), there = walk(g, w.x, w.z);
       step(g, {}, null);
-      const offered = ways(g, d).some(w => w.id === 'wash');
-      step(g, { act: ['shop:wash'] }, null);
-      for (let t = 0; t < 20 * 95 && me.inside; t++) step(g, {}, null);
-      console.log(`      two minutes walking bloody at lunchtime: heat ${heat0} → ${heat1}; the instinct: "${line}"; to a watcher: ${mod}; ${d.shop}'s toilet offered ${offered}, after it: ${p.bloody ? JSON.stringify(p.bloody) : 'clean'}`);
-      assert(heat1 > heat0 && /face/.test(line) && offered && !p.bloody?.face, 'noticed, said, washed');
+      const offer = g.$offer?.text;
+      step(g, { act: ['instinct'] }, null);
+      for (let t = 0; t < 20 * (WASH_S + 5) && me.inside; t++) step(g, {}, null);
+      console.log(`      two minutes walking bloody at lunchtime: heat ${heat0} → ${heat1}; the instinct: "${line}"; to a watcher: ${mod}; at ${u.shop}'s basin ${there}: "${offer}"; after it: ${p.bloody ? JSON.stringify(p.bloody) : 'clean'}`);
+      assert(heat1 > heat0 && /face/.test(line) && there && /basin/.test(offer) && !p.bloody?.face, 'noticed, said, washed');
     },
   },
   {
-    name: 'money: a coat off the rail (another colour, paid for), a taxi\'s fare; short of cash, nothing doing',
+    name: 'money: a coat off the rail (another colour, paid for; out the door in it, the scene hears), a taxi\'s fare; short of cash, nothing doing',
     fn() {
       const g = newGame({ seed: 7, scenario: 'walk' });
       g.time.ms = at(2026, 11, 2, 13, 0);
       start(g, null);
-      const me = playerActor(g), p = g.people[g.player];
-      for (let t = 0; t < 10; t++) step(g, {}, null);
-      let d = null;
-      for (let i = -12; i <= 12 && !d; i++) d = sectionOf(townOf(g.map), 0, i).doors.find(o => o.kind === 'shop' && o.z === Z.front && o.shop === 'clothes');
-      Object.assign(me, { x: d.x, z: Z.front + 0.6, busy: null, glass: false });
-      for (let t = 0; t < 25; t++) step(g, {}, null);
-      const cash0 = cashOf(p), coat0 = p.look.top.color;
-      step(g, { act: ['shop:coat'] }, null);
-      for (let t = 0; t < 20 * 160 && me.inside; t++) step(g, {}, null);
-      const cash1 = cashOf(p), coat1 = p.look.top.color;
-      Object.assign(me, { z: Z.kerbN - 0.5, busy: null });
-      step(g, {}, null);
-      step(g, { act: ['taxi:off2'] }, null);
-      const cash2 = cashOf(p), row = g.map.row;
-      p.cash = 1;
-      Object.assign(playerActor(g), { z: Z.kerbN - 0.5, busy: null });
-      step(g, {}, null);
-      step(g, { act: ['taxi:off2'] }, null);
-      console.log(`      a coat: ${price(g, cash0 - cash1)} (${coat0.toString(16)} → ${coat1.toString(16)}); a taxi two streets: ${price(g, cash1 - cash2)}, now row ${row}; with ${price(g, 1)}: row ${g.map.row}, "${g.log.at(-1).text}"`);
-      assert(cash1 === cash0 - COAT_USD && coat1 !== coat0, 'the coat, paid for, worn');
-      assert(cash2 < cash1 && row === 2 && g.map.row === 2, 'the fare taken; short, no ride');
+      const me = playerActor(g), p = g.people[g.player], heard = [];
+      SCENARIOS.walk.onShop = (state, b, phase, way) => heard.push(`${phase}:${way}`);
+      try {
+        for (let t = 0; t < 10; t++) step(g, {}, null);
+        const u = atDoor(g, (o) => o.shop === 'clothes');
+        walkIn(g, u);
+        const c = spotOf(u, 'counter');
+        walk(g, c.x, c.z);
+        const cash0 = cashOf(p), coat0 = p.look.top.color;
+        step(g, { act: ['shop:coat'] }, null);
+        for (let t = 0; t < 20 * (COAT_S + 2) && me.inside; t++) step(g, {}, null);
+        const cash1 = cashOf(p), coat1 = p.look.top.color;
+        walk(g, u.door, Z.front + 0.8);
+        Object.assign(me, { z: Z.kerbN - 0.5, busy: null });
+        step(g, {}, null);
+        step(g, { act: ['taxi:off2'] }, null);
+        const cash2 = cashOf(p), row = g.map.row;
+        p.cash = 1;
+        Object.assign(playerActor(g), { z: Z.kerbN - 0.5, busy: null });
+        step(g, {}, null);
+        step(g, { act: ['taxi:off2'] }, null);
+        console.log(`      a coat: ${price(g, cash0 - cash1)} (${coat0.toString(16)} → ${coat1.toString(16)}), the scene heard ${heard.join(', ')}; a taxi two streets: ${price(g, cash1 - cash2)}, now row ${row}; with ${price(g, 1)}: row ${g.map.row}, "${g.log.at(-1).text}"`);
+        assert(cash1 === cash0 - COAT_USD && coat1 !== coat0 && heard.join() === 'in:front,out:coat', 'the coat, paid for, worn out of the door');
+        assert(cash2 < cash1 && row === 2 && g.map.row === 2, 'the fare taken; short, no ride');
+      } finally { delete SCENARIOS.walk.onShop; }
     },
   },
 ];

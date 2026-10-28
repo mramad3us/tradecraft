@@ -29,3 +29,13 @@ export function walkTo(state, a, s) {
   const S = state.$world?.sections.get(0), way = S?.plan ? wayAcross(S, a.x, a.z, s.x, s.z) : null;
   a.busy = { what: `spot:${s.kind}`, steps: [...(way ?? [[s.x, s.z]]).map(([x, z]) => ['go', x, z]), ['wait', 1, s.face, 'idle']], wait: 0 };
 }
+
+/** The shop floor (sim/interiors/shop.js) at (x, z) on the street in play: { S, u, k }, or null. */
+export function unitAt(state, x, z) {
+  if (state.map?.kind !== 'street' || !state.$world) return null;
+  for (const S of state.$world.sections.values()) {
+    if (x < S.x0 - 1 || x > S.x1 + 1) continue;
+    for (let k = 0; k < (S.units?.length ?? 0); k++) { const u = S.units[k]; if (x >= u.x0 && x <= u.x1 && z >= u.z0 && z <= u.z1) return { S, u, k }; }
+  }
+  return null;
+}

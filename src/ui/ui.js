@@ -394,8 +394,8 @@ export function createUI({ input, cb }) {
     // (in a fight, someone stunned, dazed or staggered: the engine's line on it comes first: sim/fight.js)
     // (in a fight, how things stand; then your own body, if it's more pressing than the scene's line: sim/aid.js)
     // (in a shop: where you are, in place of the scene's line, unless it's urgent: sim/shops.js)
-    const inShop = state.actors.find(a => a.who === state.player)?.inside;
-    const shopLine = inShop && { id: 'inside', tone: 'calm', text: inShop.way === 'back' ? `In ${shopWord(inShop.shop)}, through to the back: out on the street behind in a moment.` : inShop.way === 'wash' ? `In ${shopWord(inShop.shop)}'s toilet, the bolt across, cleaning up.` : inShop.way === 'eat' ? `In ${shopWord(inShop.shop)}, eating, your back to the wall.` : inShop.way === 'coat' ? `In ${shopWord(inShop.shop)}, along the rails, a coat that fits.` : inShop.way === 'sit' ? `At ${shopWord(inShop.shop)}'s window table, a coffee, the street outside: who stops when you do?` : `In ${shopWord(inShop.shop)}, among the shelves. Out again in a minute.` };
+    const inShop = state.actors.find(a => a.who === state.player)?.inside, shopW = inShop ? shopWord(inShop.shop) : '';
+    const shopLine = inShop && { id: 'inside', tone: 'calm', text: { back: 'Across the yard, between the bins, to the gate: out in the lane beside in a moment.', wash: `In ${shopW}'s toilet, the bolt across, cleaning up.`, eat: `In ${shopW}, eating, your back to the wall.`, coat: `In ${shopW}, the coat on, the tags off.`, sit: `At ${shopW}'s window, a coffee, the street outside: who stops when you do?`, read: `At ${shopW}'s window, the book open, the street at the edge of the page.` }[inShop.way] ?? `In ${shopW}, at the counter.` };
     const sceneP = shopLine && sc.prompt?.tone !== 'urgent' ? shopLine : sc.prompt;
     const body = bodyLine(state), scene = sceneP && body && RANKS[body.tone] <= RANKS[sceneP.tone] ? sceneP : body ?? sceneP;
     const sp = !sc.outcome && ((state.fight?.phase === 'choose' && statusLine(state)) || scene), off = !sc.outcome && !sp?.act && sp?.tone !== 'urgent' && state.$offer;

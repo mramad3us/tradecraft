@@ -36,9 +36,10 @@ export default [
     fn() {
       // (hashes of v0.0.46's output, before there were other cities: change them only on purpose. On purpose
       // in 0.1.0-rc23: the city's transit network, its metro stations in place of buildings and its bus
-      // stops' bays kept clear of parked cars: sim/transit.js; in 0.1.0-rc24, gyms, clubs and language schools
-      // among the shops: sim/cities/*.js)
-      const want = { 7: 3156895912, 77: 15396036, 1234: 1562388225, people: 2649027127 };
+      // stops' bays kept clear of parked cars: sim/transit.js; gyms, clubs and language schools among the
+      // shops: sim/cities/*.js. In 0.1.0-rc24, the shops' ground floors set into their buildings, their
+      // walls, furniture and lights: sim/interiors/shop.js)
+      const want = { 7: 4182475135, 77: 1221909099, 1234: 2278968939, people: 2649027127 };
       for (const seed of [7, 77, 1234]) {
         const parts = [];
         // (the bus shelters and notice boards of 0.1.0-rc16, from a stream of their own, left out)

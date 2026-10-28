@@ -14,7 +14,9 @@
 //   - 'cross': over the street at its zebra, or over the boulevard's far road at its own;
 //   - 'pickup': something lying within reach (sim/items.js), into the hand, stooping for it;
 //   - 'taxi': at the kerb, hail a taxi (sim/taxi.js): where to is the UI's to ask (the bus: 'taxi');
-//   - 'shop': at a shop's door, go in (sim/shops.js): how is the UI's to ask (the bus: 'shop').
+//   - in a shop (sim/shops.js, walked into at its door): 'counter' (what it sells: which is the UI's to
+//     ask, the bus: 'shop'), 'table' (a café's ledge in its window: a coffee, or the book on the go), 'basin'
+//     (the toilet, bloody), 'backdoor' (out the back, where it has one).
 // Each becomes the player's busy plan (sim/game.js busy()), which moving cancels; busy.since is when
 // it began (a scenario may care whether that was before or after someone looked).
 // Also here, the bits of the street they read: where the crossings and the shop windows are, the
@@ -32,11 +34,14 @@ import { stopNear, nextBus, linesOf, STOP_Z } from './buses.js';
 import { itemNear, pickUp } from './items.js';
 import { atKerb, taxiComing, hail } from './taxi.js';
 import { stationNear, metroName, destinations as metroWays } from './metro.js';
-import { shopNear, ways, shopWord } from './shops.js';
+import { spotIn, ways, doWay } from './shops.js';
 import { pay } from './money.js';
 import { weaponOf } from './weapons.js';
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+// (in a shop: the spot's act, and the instinct's words for it)
+const IN_SHOP = { counter: 'counter', sit: 'table', wash: 'basin', back: 'backdoor' };
+const SHOP_COVER = { counter: (k) => (k === 'gym' || k === 'club' || k === 'school' ? 'ask at the desk' : 'go to the counter'), sit: () => 'have a coffee at the window', wash: () => 'wash at the basin', back: () => 'slip out the back door' };
 
 export const LACE_AGAIN_S = 40;
 const TPS = 1000 / TICK_MS;
@@ -130,18 +135,22 @@ const COVER = { window: 'look in the window', bench: 'sit on the bench', lace: '
 
 /** What's at hand for T, the engine's: a shop window, a free seat, a zebra ({ act, text }), or null. */
 export function affordance(state, me) {
-  if (!me || me.ai || me.busy || me.glass || me.gait === 'sit') return null;
+  if (!me || me.ai || me.busy || me.inside || me.glass || me.gait === 'sit') return null;
   const it = itemNear(state, me);
   if (it) return { act: 'pickup', text: ` {instinct} pick up ${weaponOf(it.kind)?.name ?? 'it'}.` };
   if (state.map.kind !== 'street' || !sectionAt(state, me.x)) return null;
   // (at the kerb: the zebra if it's there, else a taxi; the window behind you is for the pavement)
   const kerb = atKerb(state, me), cross = crossingNear(state, me, 4);
-  const door = !kerb && shopNear(state, me);                        // (at a shop's door: in; sim/shops.js)
-  const station = !kerb && !door && stationNear(state, me);          // (at a station's door: down; sim/metro.js)
-  const spot = !door && !station && spotNear(state, me);             // (a kiosk, a phone box: somewhere to watch from)
+  // (in a shop: its counter, its window ledge, its basin, its back door; sim/shops.js)
+  if (me.within) {
+    const sp = spotIn(state, me), w = sp && ways(state, sp.door, sp.kind);
+    return w?.length ? { act: IN_SHOP[sp.kind], text: ` {instinct} ${SHOP_COVER[sp.kind](sp.door.shop)}.` } : null;
+  }
+  const station = !kerb && stationNear(state, me);                  // (at a station's door: down; sim/metro.js)
+  const spot = !station && spotNear(state, me);                      // (a kiosk, a phone box: somewhere to watch from)
   if (station) return { act: 'metro', text: ` {instinct} down into the ${metroName(state) === 'Underground' ? 'Underground' : 'metro'}.` };
-  const act = kerb && cross ? 'cross' : spot ? spot.kind : kerb && taxiComing(state, me) ? 'taxi' : door ? 'shop' : paneNear(state, me) ? 'window' : benchNear(state, me) !== null ? 'bench' : cross ? 'cross' : null;
-  return act && { act, text: ` {instinct} ${act === 'shop' ? `go into ${shopWord(door.shop)}` : COVER[act]}.` };
+  const act = kerb && cross ? 'cross' : spot ? spot.kind : kerb && taxiComing(state, me) ? 'taxi' : paneNear(state, me) ? 'window' : benchNear(state, me) !== null ? 'bench' : cross ? 'cross' : null;
+  return act && { act, text: ` {instinct} ${COVER[act]}.` };
 }
 /** What T would do here, for the end of an instinct's line: { act, text } (only: the covers allowed). */
 export function offer(state, me, only = null) {
@@ -157,7 +166,12 @@ export function act(state, bus, me, what, opts = {}) {
 
 function act1(state, bus, me, what, { toward = Math.cos(me.head ?? 0) >= 0 ? -1 : 1, scenario = null } = {}) {
   if (what === 'taxi') { if (atKerb(state, me)) hail(state, bus, me); return; }   // (an arm up: it stops, and asks where: sim/game.js)
-  if (what === 'shop') { const d = shopNear(state, me); if (d) bus?.emit('shop', { shop: d.shop, ways: ways(state, d) }); return; }
+  if (Object.values(IN_SHOP).includes(what)) {                     // (in a shop: one thing to do, done; more, the UI asks which)
+    const sp = spotIn(state, me), w = sp && IN_SHOP[sp.kind] === what ? ways(state, sp.door, sp.kind) : [];
+    if (w.length === 1) doWay(state, bus, me, w[0].id, scenario);
+    else if (w.length) bus?.emit('shop', { shop: sp.door.shop, ways: w });
+    return;
+  }
   if (what === 'metro') { const d = stationNear(state, me); if (d) bus?.emit('metro', { name: metroName(state), list: metroWays(state, d) }); return; }   // (where to: sim/metro.js)
   if (what === 'pickup') {
     const it = itemNear(state, me), p = state.people[me.who];

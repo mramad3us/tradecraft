@@ -12,7 +12,7 @@
 import * as THREE from 'three';
 import { ground, mat, box, paint, tone, part, PX_PER_M } from '../art/pixelart.js';
 import { facade } from '../art/pixeltown.js';
-import { WALL_H, CUT_H, OUTER_T, wallRect } from '../sim/interiors/plan.js';
+import { WALL_H, CUT_H, OUTER_T, WALL_T, wallRect } from '../sim/interiors/plan.js';
 import { furniture } from '../art/furniture.js';
 import { CEMENT } from '../sim/interiors/flat.js';
 
@@ -105,16 +105,18 @@ function hang(px, d, x, y, w, h) {
   if (s % 2) px(ix + Math.floor(iw * 0.7), iy + 1, 1, 1, 0xf8e08a);
 }
 
-export function* buildInterior(S) {
-  const g = new THREE.Group(), plan = S.plan;
-  const sprites = [], fronts = [], heads = [];
-  // The dark round it; the floors, room by room.
-  g.add(ground(-10, plan.z0 - 12, S.x1 + 10, plan.z1 + 14, mat(DARK), -0.02));
+/**
+ * Draw a plan into group g: its floors, the back wall's face (painted room by room, its windows, its
+ * door: a flat's front door, a shop's back door, and what hangs there), the other walls (the sides to
+ * the ceiling, edge on; the rest cut low, their faces the paint of the room in front), the street
+ * side's windows (glass on the cut wall), the thresholds, the furniture. `inset`: a plan set into a
+ * building (a shop's floor: sim/interiors/shop.js), its outer walls inside its lines, the street side's
+ * face the building's own (`outside`).
+ */
+export function drawPlan(g, plan, runs, { seed = 1, inset = false, outside = OUTSIDE } = {}) {
   for (const r of plan.rooms) g.add(ground(r.x0, r.z0, r.x1, r.z1, floorMat(r.floor, r.floorColor ?? plan.look?.floor)));
-  yield;
-  // The back wall: one face, painted room by room, with the windows and the front door.
-  const bx0 = plan.x0 - OUTER_T, bx1 = plan.x1 + OUTER_T, roomsN = plan.rooms.filter(r => Math.abs(r.z0 - plan.z0) < 0.01);
-  const back = facade({ w: bx1 - bx0, h: WALL_H, wall: 'plaster', wallColor: 0xe2dac6, seed: S.seed % 1000, draw: (f) => {
+  const t = inset ? WALL_T : OUTER_T, bx0 = inset ? plan.x0 : plan.x0 - OUTER_T, bx1 = inset ? plan.x1 : plan.x1 + OUTER_T, roomsN = plan.rooms.filter(r => Math.abs(r.z0 - plan.z0) < 0.01);
+  const back = facade({ w: bx1 - bx0, h: WALL_H, wall: 'plaster', wallColor: 0xe2dac6, seed: seed % 1000, draw: (f) => {
     f.rect(0, 0, bx1 - bx0, WALL_H, CUT);
     // (each room's paint or paper, its skirting and cornice; then what hangs on it)
     const P = (x, y, w, h, c) => f.rect(x / PX_PER_M, WALL_H - (y + h) / PX_PER_M, w / PX_PER_M, h / PX_PER_M, c);   // (pixels, y down from the top)
@@ -125,37 +127,43 @@ export function* buildInterior(S) {
     }
     for (const d of plan.decor ?? []) hang(P, d, Math.round((d.x - d.w / 2 - bx0) * PX_PER_M), Math.round((WALL_H - d.y - d.h) * PX_PER_M), Math.max(3, Math.round(d.w * PX_PER_M)), Math.max(3, Math.round(d.h * PX_PER_M)));
     for (const w of plan.windows.filter(o => o.axis === 'x' && Math.abs(o.at - plan.z0) < 0.01)) f.window(w.a - bx0, 1.0, w.b - w.a, 1.35, { frame: 0xf6f4ee, lintel: null, curtain: 0x9e8a6a });
-    for (const o of plan.openings.filter(o => o.kind === 'front')) f.door(o.a - bx0, o.b - o.a, 2.1, { color: 0x6b4636, frame: 0xf6f4ee, glass: false, style: 'panel' });
+    for (const o of plan.openings.filter(o => o.kind === 'front' || o.kind === 'back')) f.door(o.a - bx0, o.b - o.a, 2.1, o.kind === 'back' ? { color: 0x6a7182, frame: 0x8f96a6, glass: false, style: 'panel' } : { color: 0x6b4636, frame: 0xf6f4ee, glass: false, style: 'panel' });
   } });
-  const backBox = box(bx1 - bx0, WALL_H, OUTER_T, { front: mat(0, back), sides: mat(CUT), top: mat(CUT) });
-  backBox.position.set((bx0 + bx1) / 2, 0, plan.z0 - OUTER_T / 2);
+  const backBox = box(bx1 - bx0, WALL_H, t, { front: mat(0, back), sides: mat(CUT), top: mat(CUT) });
+  backBox.position.set((bx0 + bx1) / 2, 0, inset ? plan.z0 + t / 2 : plan.z0 - t / 2);
   g.add(part(backBox));
-  // The other walls: the sides to the ceiling (edge on), the rest cut, their faces the paint of the room in front.
-  for (const w of S.walls.filter(w => w.side !== 'n')) {
-    const q = wallRect(w), len = w.axis === 'x' ? q.x1 - q.x0 : q.z1 - q.z0;
+  for (const w of runs.filter(w => w.side !== 'n')) {
+    const q = wallRect(w, inset), len = w.axis === 'x' ? q.x1 - q.x0 : q.z1 - q.z0;
     const front = w.axis === 'x' ? plan.rooms.find(r => Math.abs(r.z0 - w.at) < 0.01 && r.x0 < w.b && r.x1 > w.a) : null;
-    const face = w.side === 's' ? mat(OUTSIDE) : front ? cutFace(q.x1 - q.x0, front.wall ?? { kind: 'paint', c1: front.paint }) : mat(tone(CUT, 0.1));
+    const face = w.side === 's' ? mat(outside) : front ? cutFace(q.x1 - q.x0, front.wall ?? { kind: 'paint', c1: front.paint }) : mat(tone(CUT, 0.1));
     const b = w.axis === 'x' ? box(len, w.h, q.z1 - q.z0, { front: face, sides: mat(tone(CUT, 0.06)), top: mat(CUT) })
       : box(q.x1 - q.x0, w.h, len, { front: mat(tone(CUT, 0.1)), sides: mat(tone(CUT, 0.06)), top: mat(CUT) });
     b.position.set((q.x0 + q.x1) / 2, 0, (q.z0 + q.z1) / 2);
     g.add(part(b));
   }
-  // The street side's windows: glass along the top of its cut wall, a sill in front.
+  // The street side's windows: glass along the top of its cut wall (a shop's, in the wall's place), a sill in front.
   for (const w of plan.windowsS ?? []) {
-    const glass = box(w.b - w.a, 0.06, OUTER_T * 0.6, { sides: mat(0xb8c4cc), top: mat(0xc8d4dc) });
-    glass.position.set((w.a + w.b) / 2, CUT_H, plan.z1 + OUTER_T / 2);
+    const glass = inset ? box(w.b - w.a, CUT_H + 0.06, WALL_T * 0.6, { sides: mat(0xb8c4cc), top: mat(0xc8d4dc), front: mat(0x9fb0bc) }) : box(w.b - w.a, 0.06, OUTER_T * 0.6, { sides: mat(0xb8c4cc), top: mat(0xc8d4dc) });
+    glass.position.set((w.a + w.b) / 2, inset ? 0 : CUT_H, inset ? plan.z1 - WALL_T / 2 : plan.z1 + OUTER_T / 2);
     g.add(part(glass));
-    g.add(ground(w.a, plan.z1 - 0.12, w.b, plan.z1, mat(0xe2dac6), 0.012));
+    g.add(ground(w.a, plan.z1 - (inset ? 0.3 : 0.12), w.b, plan.z1 - (inset ? WALL_T : 0), mat(0xe2dac6), 0.012));
   }
   // A threshold in each doorway.
-  for (const o of plan.openings.filter(o => o.kind !== 'front')) {
+  for (const o of plan.openings.filter(o => o.kind !== 'front' && o.kind !== 'back')) {
     g.add(o.axis === 'x' ? ground(o.a, o.at - 0.08, o.b, o.at + 0.08, mat(0x8f6345), 0.01) : ground(o.at - 0.08, o.a, o.at + 0.08, o.b, mat(0x8f6345), 0.01));
   }
+  for (const it of plan.items) g.add(furniture({ ...it, seed: (seed + Math.round(it.x * 10) + Math.round(it.z * 10)) % 100000 }));
+  return g;
+}
+
+export function* buildInterior(S) {
+  const g = new THREE.Group(), plan = S.plan;
+  const sprites = [], fronts = [], heads = [];
+  // The dark round it; then the plan.
+  g.add(ground(-10, plan.z0 - 12, S.x1 + 10, plan.z1 + 14, mat(DARK), -0.02));
   yield;
-  // The furniture.
-  for (const it of plan.items) { g.add(furniture({ ...it, seed: (S.seed + Math.round(it.x * 10) + Math.round(it.z * 10)) % 100000 })); }
+  drawPlan(g, plan, S.walls, { seed: S.seed });
   yield;
   const dispose = () => g.traverse(o => { if (o.isMesh) { o.geometry.dispose(); } });
   return { group: g, fronts, heads, sprites, dispose };
 }
-

@@ -71,7 +71,7 @@ export const watchTest = {
       body: [
         `${state.people[state.player].name}: the station wants a photograph. Arkady Volkov, of the defence ministry's procurement office, meets someone this afternoon outside ${shopWord(sc.cafeShop)} on ${streetName(townOf(state.map), 0)}, ${sc.cafeAlong}. Between ${clockText(sc.window[0])} and ${clockText(sc.window[1])}, they think.`,
         'Volkov: grey hair, round glasses, a dark coat, a briefcase. Who he meets, nobody knows: that\'s what the photograph is for. Both faces, together.',
-        'He won\'t be alone. The FSB minds its procurement officers, and the minder will be looking at faces round the café before Volkov comes. Don\'t stand about in the open, don\'t stare, and don\'t let him see a camera. A shop window, a kiosk, a café\'s window table across the way: reasons to be where you are.',
+        'He won\'t be alone. The FSB minds its procurement officers, and the minder will be looking at faces round the café before Volkov comes. Don\'t stand about in the open, don\'t stare, and don\'t let him see a camera. A shop window, a kiosk, a café\'s window across the way: reasons to be where you are.',
       ].map(t => sub(state, t)),
       footer: `Station Moscow · ${dateText(sc.began)} · ${clockText(sc.began)}`,
       keys: [['camera', 'a photograph (both of them in sight)'], ['watch', 'held: stop and watch'], ['instinct', 'does what your instinct offers (a window, a kiosk, a café)'], ['log', 'the log']],

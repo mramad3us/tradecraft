@@ -34,13 +34,14 @@ export const BUCKET_M = 4;
 export const RADIUS_M = 0.25;
 export const REACH_M = 70;                                         // sections within this of the focus are in play
 export const DROP_M = 115;                                         // and dropped beyond this
+export const WALL_BIN_M = 8;                                        // (the walls' bins along the street, for lines of sight)
 export const BOUNDS_Z = [Z.north + 0.2, Z.edge - 0.2];
 
 const key = (ix, iz) => ix * 73856093 ^ iz * 19349663;
 
 /** Build state.$world for state.map, with the sections around x. */
 export function attach(state, bus, x = 0) {
-  const W = state.$world = { sections: new Map(), grid: new Map(), hash: new Map(), lamps: [], walls: [], bx: [0, 0] };
+  const W = state.$world = { sections: new Map(), grid: new Map(), hash: new Map(), lamps: [], walls: [], wallBins: new Map(), bx: [0, 0] };
   for (const i of state.map.inPlay ?? []) { W.sections.set(i, sectionFor(state.map, i)); bus?.emit('section+', W.sections.get(i)); }
   reindex(W);
   refocus(state, bus, x);
@@ -71,12 +72,17 @@ function reindex(W) {
   W.grid.clear();
   W.lamps = [];
   W.walls = [];
+  W.wallBins = new Map();
   let a = Infinity, b = -Infinity;
   for (const S of W.sections.values()) {
     a = Math.min(a, S.x0); b = Math.max(b, S.x1);
     W.lamps.push(...S.lamps);
     for (const b of S.blockers) {
-      if (b.what === 'building') W.walls.push(b);
+      if (b.what === 'building') {
+        W.walls.push(b);
+        // (and in WALL_BIN_M bins along the street, so a line of sight tests only the walls it could cross: sim/perception.js)
+        for (let k = Math.floor(b.x0 / WALL_BIN_M); k <= Math.floor(b.x1 / WALL_BIN_M); k++) { if (!W.wallBins.has(k)) W.wallBins.set(k, []); W.wallBins.get(k).push(b); }
+      }
       for (let ix = Math.floor(b.x0 / BUCKET_M); ix <= Math.floor(b.x1 / BUCKET_M); ix++) {
         for (let iz = Math.floor(b.z0 / BUCKET_M); iz <= Math.floor(b.z1 / BUCKET_M); iz++) {
           const k = key(ix, iz);

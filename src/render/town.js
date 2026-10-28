@@ -303,8 +303,9 @@ export function* buildSection(S, { month = 11 } = {}) {
   yield;
 
   // The buildings, each in its dress; awnings over some shops.
-  const r = stream('dusk', S.seed);
+  const r = stream('dusk', S.seed), byBuilding = [];               // (each building's own meshes, for the cutaway: src/render/cutaway.js)
   for (const B of S.buildings) {
+    const before = g.children.length;
     const spec = { x0: B.x0, x1: B.x1, z: B.z, h: B.h, d: B.d, wall: B.wall, wallColor: B.wallColor, roof: B.roof, roofColor: B.roofColor, kit: B.look?.roofKit, draw: run(B.ops, false), seed: B.seed, split: true, stacks: B.look?.party ? [0.4, ...B.look.party, B.x1 - B.x0 - 0.4] : null };
     const b = building(spec);
     g.add(b);
@@ -320,6 +321,7 @@ export function* buildSection(S, { month = 11 } = {}) {
       for (const b of hs.userData.signs) heads.push({ head: b, day: b.material, night: b.userData.night });   // (lit with the lamps)
       g.add(hs);
     }
+    byBuilding.push(g.children.slice(before));
     const body = b.userData.body;
     fronts.push({ body, day: body.material[4], night: null, spec, dusk: range(r, 0.08, 0.7),
       paintNight() { this.night = mat(0, facade({ w: B.x1 - B.x0, h: B.h, wall: B.wall, wallColor: B.wallColor, draw: run(B.ops, true), seed: B.seed, night: true, split: true })); } });
@@ -416,5 +418,5 @@ export function* buildSection(S, { month = 11 } = {}) {
       m.map?.dispose(); m.emissiveMap?.dispose(); m.dispose();
     }
   };
-  return { group: g, fronts, heads, sprites, dispose };
+  return { group: g, fronts, heads, sprites, dispose, byBuilding };
 }

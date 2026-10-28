@@ -1290,6 +1290,16 @@ function barStool(k, o) {
   c.box(5, 1, 1, CHROME, 0, 4, 2); c.box(5, 1, 1, CHROME, 0, 4, -2); c.box(1, 1, 3, CHROME, 2, 4, 0); c.box(1, 1, 3, CHROME, -2, 4, 0);
   k.comp().round(6, 1.5, 6, 0.7, { sides: tone(seat, -0.08), top: tex(`stool-${seat}`, 6, 6, (px, w, h) => { px(0, 0, w, h, seat); px(1, 1, 2, 1, tone(seat, 0.12)); px(0, h - 1, w, 1, tone(seat, -0.1)); }) }, 0, 11, 0);
 }
+function windowBar(k, o) {
+  const { W, D, r, v } = o, wood = pick(r, [0x6b4636, 0x8f6345, 0x47302a]);
+  const c = k.comp();
+  // (a board along the glass on two steel brackets; a cup or two on it, a sugar shaker)
+  c.box(W, 1, D, { sides: tone(wood, -0.12), top: tex(`ledge-${wood}-${W}-${D}`, W, D, (px, w, h) => { px(0, 0, w, h, wood); for (let y = 1; y < h; y += 2) px(0, y, w, 1, tone(wood, -0.05)); px(0, 0, w, 1, tone(wood, 0.1)); }) }, 0, 16, 0);
+  for (const x of [-W / 2 + 3, W / 2 - 3]) { c.box(1, 16, 1, STEEL_D, x, 0, D / 2 - 1); c.box(1, 1, D - 2, STEEL_D, x, 15, 0); }
+  const cups = k.comp();
+  for (const x of [-W / 4 - 1, v % 2 ? W / 4 : null].filter(n => n !== null)) { cups.box(2, 2, 2, { sides: PAPER, top: 0x47302a }, x, 17, -1); cups.box(1, 1, 1, PAPER, x + 1.5, 17.5, -1); }
+  cups.box(1, 2, 1, { sides: 0xdfe2e8, top: CHROME }, 2, 17, 0);
+}
 function restaurantTable(k, o) {
   const { W, D, look, r, v } = o;
   const cloth_ = look.cloth ?? pick(r, ['white', 'checks']);
@@ -1603,7 +1613,7 @@ const MAKERS = {
   rug, floorLamp, plant, phoneTable, coatRack, shoeRack,
   stairs, mailboxes, liftDoor,
   shelving, gondola, shopCounter, checkout, drinksFridge, chestFreezer, baskets, crates, cartons, pallet, clothesRail, fittingRoom,
-  mirror: mirrorKind, displayCase, breadRack, deckOven, workTable, cafeCounter, bar, barShelf, barStool, restaurantTable, range,
+  mirror: mirrorKind, displayCase, breadRack, deckOven, workTable, cafeCounter, bar, barShelf, barStool, windowBar, restaurantTable, range,
   steelSink, flowerBuckets, bankCounter,
   officeDesk, officeChair, filingCabinet, securityDesk, metalDetector, xray, stanchions, flag, waitingChairs, vaultDoor, waterCooler,
 };

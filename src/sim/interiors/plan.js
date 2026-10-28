@@ -39,8 +39,13 @@ export function walls(plan) {
   return out;
 }
 
-/** A wall run as the rectangle it stands on (an outer wall's thickness outside the plan). */
-export function wallRect(w) {
+/** A wall run as the rectangle it stands on (an outer wall's thickness outside the plan; inside it, `inset`, for a plan set into a building). */
+export function wallRect(w, inset = false) {
+  if (inset && w.outer) {
+    const t = WALL_T;
+    const lo = w.side === 'n' || w.side === 'w' ? w.at : w.at - t, hi = w.side === 'n' || w.side === 'w' ? w.at + t : w.at;
+    return w.axis === 'x' ? { x0: w.a, x1: w.b, z0: lo, z1: hi } : { x0: lo, x1: hi, z0: w.a, z1: w.b };
+  }
   const t = w.outer ? OUTER_T : WALL_T / 2, o = w.outer ? 0 : WALL_T / 2;
   // (an outer wall: its inner face on the line, its thickness out; an inner one: astride the line)
   const lo = w.side === 'n' || w.side === 'w' ? w.at - t : w.at - o, hi = w.side === 'n' || w.side === 'w' ? w.at : w.side ? w.at + t : w.at + o;

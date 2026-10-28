@@ -34,6 +34,7 @@ import { geoOf } from './cities/index.js';
 import { lightLevel, sky } from './light.js';
 import { skill } from './skills.js';
 import { weatherAt, sightM } from './weather.js';
+import { WALL_BIN_M } from './world.js';
 
 export const CONE_DEG = 100;
 export const CONE_PER_AWARENESS = 2;
@@ -141,12 +142,18 @@ export function gazeInto(g, x, z, tx, tz) {
 /** Whether a head (radians) looks into glass on the building line north of it. */
 export const intoGlass = (head) => Math.abs(wrap(head + Math.PI / 2)) <= GLASS_MAX_DEG * RAD + 1e-9;
 
-/** Whether the segment from (x0, z0) to (x1, z1) passes through no building. */
-export function lineClear(state, x0, z0, x1, z1, walls = state.$world.walls) {
-  const ax = Math.min(x0, x1), bx = Math.max(x0, x1), az = Math.min(z0, z1), bz = Math.max(z0, z1);
-  for (const w of walls) {
-    if (w.x1 < ax || w.x0 > bx || w.z1 < az || w.z0 > bz) continue;
-    if (crosses(x0, z0, x1, z1, w)) return false;
+/**
+ * Whether the segment from (x0, z0) to (x1, z1) passes through no building. The walls given, or those
+ * in play by their bins along the street (sim/world.js WALL_BIN_M: a shop's walls are many), each once.
+ */
+let stamp = 0;
+export function lineClear(state, x0, z0, x1, z1, walls = null) {
+  const ax = Math.min(x0, x1), bx = Math.max(x0, x1), az = Math.min(z0, z1), bz = Math.max(z0, z1), W = state.$world;
+  const hit = (w) => !(w.x1 < ax || w.x0 > bx || w.z1 < az || w.z0 > bz) && crosses(x0, z0, x1, z1, w);
+  if (walls || !W.wallBins) { for (const w of walls ?? W.walls) if (hit(w)) return false; return true; }
+  const s = ++stamp;
+  for (let k = Math.floor(ax / WALL_BIN_M); k <= Math.floor(bx / WALL_BIN_M); k++) {
+    for (const w of W.wallBins.get(k) ?? []) { if (w.$seen === s) continue; w.$seen = s; if (hit(w)) return false; }
   }
   return true;
 }

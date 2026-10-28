@@ -304,6 +304,13 @@ export function watchTarget(state, a) {
   } else if (fo.door) { a.ai.eyesOn = true; a.head = Math.atan2(Z.front - a.z, fo.door.x - a.x); }   // the door they went in by
   else if (fo.search > 0) { a.ai.eyesOn = true; a.head += 2 * Math.PI / (3 * TPS); }   // looking about: a turn of the head every 3 s
   else a.ai.eyesOn = false;
+  // In a shop (sim/shops.js): not after them through its door; out on the pavement where its door can be
+  // seen, waiting, seen through the window or not (in sight, the wait starts over).
+  if (t.within && rowOf(state, t) === rowOf(state, a)) {
+    if (sees) { fo.seenMs = state.time.ms; fo.search = 0; }
+    if (!fo.inside || fo.inside.x !== t.within.x) waitOnDoor(state, a, fo, { x: t.within.x, z: Z.front, shop: t.within.shop });
+    return;
+  }
   if (!sees && !contact) return;
   if (sees) fo.seenMs = state.time.ms;
   fo.search = 0; fo.door = fo.inside = null; fo.triedDoor = false;
@@ -330,10 +337,14 @@ function giveUp(state, a, fo) {
   const seed = townOf(state.map), door = !fo.triedDoor && doorNear(seed, fo.trail.at(-1), 15);
   fo.triedDoor = true; fo.guessing = false;
   if (!door) { fo.lost = true; return; }
-  fo.inside = door; fo.door = door; fo.search = 0;
-  // (out to the pavement, a few metres along from the door: where the shopfronts can be seen)
+  waitOnDoor(state, a, fo, door);
+}
+
+/** Wait on a door (they went in by it): out to the pavement, a few metres along from it, where the shopfronts can be seen. */
+function waitOnDoor(state, a, fo, door) {
+  fo.inside = door; fo.door = door; fo.search = 0; fo.guessing = false;
   const row = rowOf(state, a), side = Math.sign(a.x - door.x) || 1;
-  try { Object.assign(a.ai, { route: routeFrom(seed, { row, x: a.x, z: a.z }, { row, x: door.x + side * 6, z: LINE.F }), s: 0, stop: 0, f: 0, pace: 1 }); } catch {}
+  try { Object.assign(a.ai, { route: routeFrom(townOf(state.map), { row, x: a.x, z: a.z }, { row, x: door.x + side * 6, z: LINE.F }), s: 0, stop: 0, f: 0, pace: 1 }); } catch {}
 }
 
 /**

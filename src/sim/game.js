@@ -39,7 +39,7 @@ import { drift } from './people.js';
 import { heal, bleeding, bloodTick, bandOf, canStand, kill, BLOOD, COME_ROUND_S } from './health.js';
 import { PRESSURE_K, treat } from './aid.js';
 import { atKerb, destinations, ride, cabFor, hailedBy, board, rideTick, WALK_OFF_M } from './taxi.js';
-import { shopNear, goIn, insideTick } from './shops.js';
+import { doWay, insideTick, withinTick } from './shops.js';
 import * as buses from './buses.js';
 import * as metro from './metro.js';
 import { stationNear, destinations as metroWays } from './metro.js';
@@ -170,9 +170,8 @@ export function step(state, input = {}, bus) {
       }
       continue;
     }
-    if (String(act).startsWith('shop:')) {                         // (into a shop, the way chosen: sim/shops.js)
-      const d = me && !state.fight && !me.inside && shopNear(state, me);
-      if (d) goIn(state, bus, me, d, act.slice(5), scenario);
+    if (String(act).startsWith('shop:')) {                         // (in a shop, at its counter, its table, its back door: what's chosen there, sim/shops.js)
+      if (me && !state.fight && doWay(state, bus, me, act.slice(5), scenario) && me.inside?.long) skip(state, bus, me.inside.until - state.time.ms);   // (the hours of it: an action that takes time)
       continue;
     }
     if (String(act).startsWith('taxi:')) {                         // (a taxi, where to chosen: sim/taxi.js)
@@ -206,7 +205,8 @@ export function step(state, input = {}, bus) {
   // A fight waiting for a choice, a conversation: time stands still (sim/fight.js, sim/talk.js).
   if (state.fight?.phase === 'choose' || state.talk) return;
   if (state.fight || scenario.holds?.(state) || me?.inside || me?.cab) input = { act: me?.cab ? [] : input.act };   // (a fight, the scenario, a shop or a taxi has the player's feet)
-  if (me?.inside) insideTick(state, bus, me, scenario, { loadRow });
+  if (me?.inside) insideTick(state, bus, me, scenario);
+  if (me && state.map.kind === 'street') withinTick(state, bus, me, scenario);   // (in at a shop's door, or out: sim/shops.js)
   traffic.trafficTick(state, bus);                                 // (the cars on the road: sim/traffic.js)
   // A taxi hailed: stopped for you, it asks where to; walk off, and it goes. In one: with it, then the ride (sim/taxi.js).
   if (me?.cab) {
