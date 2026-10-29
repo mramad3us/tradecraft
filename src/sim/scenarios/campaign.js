@@ -45,6 +45,7 @@ export const campaignHub = {
   name: 'Campaign',
   about: 'A US embassy, for as long as it lasts: a first tour in London, or a network to run of your own; the heat to keep down.',
   campaign: true,
+  police: true,                                                     // (your own hours in the city: patrols, and stops: sim/police.js)
 
   setup(state) {
     const c = state.campaign, p = c.posting;

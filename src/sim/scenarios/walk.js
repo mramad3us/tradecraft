@@ -23,6 +23,7 @@ const TPS = 1000 / TICK_MS;
 
 export const walk = {
   name: 'Free walk',
+  police: true,                                                     // (patrols, and stops: sim/police.js)
   again: { another: ['Another walk', 'A new street, new people, new dice.'], same: ['The same walk again', 'The same streets and the same people; the dice fall as you play.'] },
   about: 'A boulevard in central Moscow, a November afternoon. Walk, look, get the feel of it; the lanes lead on north and south. The sun sets at ten to five.',
   setup(state, { city = null, character = null } = {}) {

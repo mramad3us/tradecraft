@@ -42,6 +42,7 @@ import { atKerb, destinations, ride, cabFor, hailedBy, board, rideTick, WALK_OFF
 import { doWay, insideTick, withinTick, LIVED } from './shops.js';
 import * as buses from './buses.js';
 import * as metro from './metro.js';
+import * as police from './police.js';
 import { stationNear, destinations as metroWays } from './metro.js';
 import { lessonOf } from './tutorial/index.js';
 import { startTutor, tutorTick } from './tutorial/earpiece.js';
@@ -173,6 +174,7 @@ export function step(state, input = {}, bus) {
       }
       continue;
     }
+    if (String(act).startsWith('police:')) { police.answer(state, bus, act.slice(7)); continue; }   // (stopped: your answer, sim/police.js)
     if (String(act).startsWith('shop:')) {                         // (in a shop, at its counter, its table, its back door: what's chosen there, sim/shops.js)
       if (me && !state.fight) doWay(state, bus, me, act.slice(5), scenario);
       continue;
@@ -309,6 +311,7 @@ export function step(state, input = {}, bus) {
     learnTick(state);                                               // (the streets walked, known: sim/knowledge.js)
     wetTick(state, bus, me);                                        // (rain on you, the cold, a cold: sim/wet.js)
     metro.stepsTick(state);                                         // (whoever rode with you, up the steps after you: sim/metro.js)
+    if (scenario.police && !state.tutor) { police.patrolTick(state); police.eyeTick(state, bus); }   // (ordinary law: sim/police.js)
     if (state.tick % (TICKS_PER_S * 60) === 0 && state.people[state.player]) bodyNotes(state, bus, heal(state.people[state.player], 1 / 1440, state.time.ms, { blood: false }));   // (your wounds, a minute on: sim/medicine.js)
     weatherTick(state, bus);                                        // (the weather turning, in the log: sim/weather.js)
     if (me?.gait === 'run' && !me.ai && !state.fight) slipUp(state, bus, me);

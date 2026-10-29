@@ -635,7 +635,7 @@ export function createUI({ input, cb }) {
     cv.style.width = `${pl.w * 2}px`; cv.style.height = `${pl.h * 2}px`; cv.style.imageRendering = 'pixelated';
     return cv;
   }
-  const CHOICE_ICON = { TAXI: 'right', BUS: 'right', SHOP: 'house', BED: 'house', WARDROBE: 'key' };
+  const CHOICE_ICON = { TAXI: 'right', BUS: 'right', SHOP: 'house', BED: 'house', WARDROBE: 'key', POLICE: 'star' };
   /** [item, its number (1…, for the ones that can be chosen), or 0]. */
   const numbered = (list, ok = () => true) => { let k = 0; return list.map(o => [o, ok(o) ? ++k : 0]); };
 

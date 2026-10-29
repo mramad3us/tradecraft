@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc40 (2026-10-29)
+
+- **The police.** Officers walk the streets in pairs, in each city's uniform: often in Moscow and Cairo, seldom in London. One who sees you weighs what shows on you (blood, something in your hand or at your belt, a bulge, a sneeze), the city's habit of asking foreigners for their papers, and how hot you are, and may stop you: "Documents, please." Show your diplomatic passport (handed back, but your name goes in a notebook), answer their questions (Deception; blood or a weapon in your hand makes it harder; fail and they search you), or walk on (you're a diplomat: the embassy hears of it). Searched, what shows is found and what's in a pocket may be; a weapon is taken and reported, and the ambassador hears. In the free walk and your own hours in the campaign, not in the mechanic tests.
+- Tests: police (patrols by city; what draws them; papers, walking on, questions by Deception, a knife found or not).
+
 ## v0.1.0-rc39 (2026-10-29)
 
 - **The Underground doesn't lose a tail for free any more.** A follower close behind who saw you go down can get on your train. Each line you ride is your Deception against their Tracking, and a change of line is another chance to lose them. The rush hour's crowd helps you, and so does the old trick: the map's second button has you step off as the doors close and take the next train (five minutes more). If they keep you, they come up the steps a few seconds after you; glance back. Even-matched, a follower stays with you about two times in five on one line, one in six through a change. More than 25 m back, or out of sight, and they lose you at the barrier.
