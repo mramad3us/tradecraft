@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc47 (2026-10-29)
+
+- **Being tailed: the metro.** Taking the metro used to lose the surveillance team every time, with nothing written down. Now it works as it does for anyone following you: whoever of them saw you go down goes down too (an overt pair both; a covert team only one, since its car can't follow a train), and each leg of the ride is your Deception against their Tracking. Kept, they come up the steps behind you a few seconds later, their faces easier to pick out. Stepping off as the doors close loses them more often, but whoever went down after you writes it down. In the tests' evenings, 5 of the 11 who went down after you were still with you at the other end; stepping off as the doors closed, none of 8.
+- Tests: riders (being tailed's team on the metro).
+- **Performance, a little more.** The fog of what you can see (which spots your eyes take in, 12,288 of them round you) was worked out again 20 times a second even while you stood still; now only when your eyes move, turn or change (at a shop window, a bus stop, a café, it costs nothing). The HUD no longer measures its speech balloons' layout every frame when nobody is talking. At 4× CPU slowdown the main thread is now about 57% idle while walking and turning, with no long frames.
+
 ## v0.1.0-rc46 (2026-10-29)
 
 - **Fixed: the stagger on turning (Windows).** Every time someone new came into view (and a turn brings several into sight at once), the game re-sent its whole 64 MB atlas of people's sprites to the graphics card. On a Mac that's quick. Chrome on Windows took up to a second over it, so each turn froze the picture. Now only the new person's sheet goes up (half a megabyte), and their fight poses are only painted the first time they fight. No more than two new faces are painted in a frame; anyone else in sight appears a frame or two later, while still coming out of the dark, and your own figure is never held back. A street's shaders also start compiling when the street is built, not when it first comes on screen, which on Windows was another hitch the first time you met a railing or a bin. Measured here with the CPU slowed six times: the worst frame while turning went from 67 ms to 33 ms, and the atlas uploads while walking and turning from six (64 MB each) to none.

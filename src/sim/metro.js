@@ -5,8 +5,8 @@
 // (the bus: 'metro', destinations()): every station on the network, the quickest way there, the lines
 // taken and the changes, the minutes (transit.js route(): the wait on the platform, a few minutes a
 // station, a change). ride(): the fare (FARE_USD: sim/money.js), the scene's say on who saw you go
-// down (scenario.onMetro?.(state, bus, to)), the clock skipped, the street there loaded, and you up its
-// steps, at its door.
+// down (scenario.onMetro?.(state, bus, to); and again, 'up', once you're up), the clock skipped, the street
+// there loaded, and you up its steps, at its door.
 // **Who rides with you** (riders(); DESIGN.md, Being tailed: "still to come: the metro"): a follower
 // within BOARD_M who saw you go down can get on the same train; then each leg (a line; a change is a
 // second) is your Deception against their Tracking, they +NEAR_MOD on your heels (NEAR_M), you +RUSH_MOD
@@ -60,21 +60,29 @@ export function destinations(state, d) {
 
 /** Whoever's following you that gets on your train and stays with you to the end ([actors]); the rest lost. doors: off as they close, on the last leg. */
 export function riders(state, me, to, doors = false) {
-  const k = calendar(state.time.ms), h = k.hour + k.minute / 60, rush = k.weekday < 5 && RUSH_H.some(([a, b]) => h >= a && h < b), you = state.people[state.player], out = [];
+  const out = [];
   for (const a of state.actors) {
     const f = a.ai?.follow;
     if (f?.id !== me.id || f.lost) continue;
     const them = state.people[a.who], d = Math.hypot(a.x - me.x, a.z - me.z);
-    let kept = d <= BOARD_M && seesActor(state, a, me) && !!them;
-    for (let leg = 0; kept && leg < Math.max(1, to.lines.length); leg++) {
-      const last = leg === Math.max(1, to.lines.length) - 1;
-      const r = opposed(state.rng, { skill: 'deception', value: skill(you, 'deception'), body: you, mods: [rush && { why: 'the rush hour\'s crowd', v: RUSH_MOD }, last && doors && { why: 'off as the doors close', v: LAST_MOD }].filter(Boolean) },
-        { skill: 'tracking', value: skill(them, 'tracking'), body: them, mods: d <= NEAR_M ? [{ why: 'on your heels', v: NEAR_MOD }] : [] });
-      kept = !r.ok;
-    }
-    if (kept) out.push(a); else f.lost = true;
+    if (d <= BOARD_M && seesActor(state, a, me) && !!them && stays(state, them, to, d, doors)) out.push(a); else f.lost = true;
   }
   return out;
+}
+
+/**
+ * Whether one who went down after you (them: a sheet; d: how far back they were) stays with you to the
+ * end of the ride to: each leg your Deception against their Tracking (sim/scenarios/sdr.js onMetro() too).
+ */
+export function stays(state, them, to, d, doors = false) {
+  const k = calendar(state.time.ms), h = k.hour + k.minute / 60, rush = k.weekday < 5 && RUSH_H.some(([a, b]) => h >= a && h < b), you = state.people[state.player];
+  for (let leg = 0; leg < Math.max(1, to.lines.length); leg++) {
+    const last = leg === Math.max(1, to.lines.length) - 1;
+    const r = opposed(state.rng, { skill: 'deception', value: skill(you, 'deception'), body: you, mods: [rush && { why: 'the rush hour\'s crowd', v: RUSH_MOD }, last && doors && { why: 'off as the doors close', v: LAST_MOD }].filter(Boolean) },
+      { skill: 'tracking', value: skill(them, 'tracking'), body: them, mods: d <= NEAR_M ? [{ why: 'on your heels', v: NEAR_MOD }] : [] });
+    if (r.ok) return false;
+  }
+  return true;
 }
 
 /** Once a second: whoever rode with you comes up the steps when it's time. */
@@ -86,7 +94,7 @@ export function stepsTick(state) {
 export function ride(state, bus, to, { scenario, skip, loadRow, doors = false }) {
   const me = state.actors.find(a => a.who === state.player), from = state.map.row ?? 0;
   if (!pay(state, bus, to.fare, 'the fare')) return;
-  scenario?.onMetro?.(state, bus, to);
+  scenario?.onMetro?.(state, bus, { ...to, doors });                // (the scene's: who saw you go down, and went down too)
   if (state.scenario.outcome) return;
   const with_ = riders(state, me, to, doors), minutes = to.minutes + (doors ? LAST_MIN : 0);
   skip(state, bus, Math.round(minutes * MIN));
@@ -100,5 +108,6 @@ export function ride(state, bus, to, { scenario, skip, loadRow, doors = false })
     Object.assign(a.ai.follow, { trail: [], seenMs: up, contactUntil: up + 8000, search: 0 });
   }
   if (to.row !== from) loadRow(state, bus, to.row, door.x, { quiet: true });
+  scenario?.onMetro?.(state, bus, { ...to, doors }, 'up');          // (up: the scene's own who kept with you, being tailed's)
   return minutes;
 }

@@ -56,6 +56,7 @@ import { shown as shownOn } from '../notice.js';
 import { keeps, behind, CHASE_SEE_M, CAB_FLAG, CHASE_WAIT_S } from '../taxi.js';
 import { freeShare } from '../traffic.js';
 import { DOORS_MOD } from '../buses.js';
+import { stays, BOARD_M as METRO_BOARD_M, RIDER_S } from '../metro.js';
 
 const TPS = 1000 / TICK_MS;
 export const MEET_AFTER_MIN = [5, 6.5];
@@ -243,6 +244,39 @@ export const sdr = {
     sc.check = { tick: state.tick + 3 * TPS, why: 'alight', bonus: 1 };   // (who gets off with you: anyone looks)
   },
 
+  /**
+   * The metro (sim/metro.js): nothing written down (people take the metro), but a man on foot can go
+   * down after you. Going down: whoever of them saw you, within the metro's BOARD_M, goes down too (an
+   * overt pair both; a covert team its nearest: the car can't follow a train); each leg, your Deception
+   * against their Tracking (stays(): a change of line is a second chance, the rush hour's crowd helps;
+   * off as the doors close, more on the last, and whoever went down after you saw it). Up ('up'):
+   * whoever kept with you comes up the steps after you, their faces easier to know. Nobody went down
+   * after you, or each lost on the way: lost.
+   */
+  onMetro(state, bus, to, phase) {
+    const sc = state.scenario, me = playerOf(state), now = state.time.ms;
+    if (phase === 'up') {
+      sc.arrival = { x: me.x, z: me.z };
+      (sc.metroRiders ?? []).forEach((k, n) => sc.pending.push({ crew: k, at: now + Math.round(range(state.rng, ...RIDER_S) * 1000) + n * 900, bus: true, metro: true }));
+      if (sc.metroRiders?.length) sc.teamSeenMs = now;
+      sc.metroRiders = null;
+      return;
+    }
+    sc.metroRiders = []; sc.wentDown = 0;
+    if (sc.teamLost) return;
+    const dist = (a) => Math.hypot(a.x - me.x, a.z - me.z);
+    const saw = sc.crew.map((c, k) => ({ k, a: actorOf(state, c.id) })).filter(o => o.a && dist(o.a) <= METRO_BOARD_M && seesActor(state, o.a, me)).sort((p, q) => dist(p.a) - dist(q.a));
+    const down = sc.team === 'overt' ? saw : saw.slice(0, 1);
+    sc.metroRiders = down.filter(o => stays(state, state.people[o.a.who], to, dist(o.a), to.doors)).map(o => o.k);
+    sc.wentDown = down.length;
+    if (to.doors && down.length && sc.flags.filter(f => f.kind === 'doors').length < FLAGS_MAX) sc.flags.push({ kind: 'doors', ms: now, who: sc.crew[down[0].k].who });   // (whoever went down after you saw it)
+    const ids = sc.crew.map(c => c.id).filter(Boolean);
+    for (const c of sc.crew) c.id = null;
+    state.actors = state.actors.filter(a => !ids.includes(a.id));   // (left on the street, or on the train with you: brought back at the other end)
+    sc.pending = [];
+    if (!sc.metroRiders.length) { sc.teamLost = true; sc.lostHow = !down.length ? 'down into the metro' : to.doors ? 'off a train as its doors closed' : 'on the metro'; }
+  },
+
   /** Where you're going, for the picture's edge: the bench, until it's done. */
   goal(state) {
     const sc = state.scenario, g = sc.meet;
@@ -360,7 +394,7 @@ export const sdr = {
       sc.pending = sc.pending.filter(q => q !== p);
       // (the car's man gets out a way behind you, wherever you've walked to since; the others come up the way you came)
       const c = sc.crew[p.crew], a = p.car ? join(state, c, -Math.sign(me.vx || 1) * range(state.rng, 18, 30)) : join(state, c, 0, sc.arrival);
-      a.ai.seenMs = state.time.ms; a.ai.fromLane = !p.bus; a.ai.fromBus = !!p.bus;
+      a.ai.seenMs = state.time.ms; a.ai.fromLane = !p.bus; a.ai.fromBus = !!p.bus && !p.metro; a.ai.fromMetro = !!p.metro;
       sc.teamSeenMs = state.time.ms;
     }
     if (sc.check && state.tick >= sc.check.tick) { look(state, bus, sc.check.why, sc.check.bonus); sc.check = null; }
@@ -448,8 +482,8 @@ const CAUGHT_LINE = {
   doubled: (who) => `When you turn round, ${who[0].toLowerCase() + who.slice(1)} stops too, and finds a shop window very interesting.`,
 };
 const CAUGHT = { bloody: 'walk about bloody', armed: 'carry a weapon in your hand', ran: 'run', checked: 'look back', glassed: 'check behind you in a shop window', jaywalked: 'cross away from the zebra', doubled: 'double back' };
-const FLAGS = { changed: 'you went into a shop in one coat and came out in another', bloody: 'you walked about with blood on you', backway: 'you went into a shop and out the back', armed: 'you walked the street with a weapon showing', assaulted: 'you went for one of them', spoke: 'you spoke to one of them', ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back', taxi: 'you jumped into a taxi', doors: 'you stepped off a bus as its doors closed', marked: 'you chalked a mark on a lamppost' };
-const SAW = { changed: 'saw you come out in another coat', bloody: 'saw the blood on you', backway: 'waited on a shop door for nothing', armed: 'saw the weapon on you', assaulted: 'took it from you', spoke: 'had a word from you', ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back', taxi: 'saw you jump into a taxi', doors: 'saw you step off the bus as its doors closed', marked: 'saw you chalk a lamppost' };
+const FLAGS = { changed: 'you went into a shop in one coat and came out in another', bloody: 'you walked about with blood on you', backway: 'you went into a shop and out the back', armed: 'you walked the street with a weapon showing', assaulted: 'you went for one of them', spoke: 'you spoke to one of them', ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back', taxi: 'you jumped into a taxi', doors: 'you stepped off as the doors closed', marked: 'you chalked a mark on a lamppost' };
+const SAW = { changed: 'saw you come out in another coat', bloody: 'saw the blood on you', backway: 'waited on a shop door for nothing', armed: 'saw the weapon on you', assaulted: 'took it from you', spoke: 'had a word from you', ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back', taxi: 'saw you jump into a taxi', doors: 'saw you step off as the doors closed', marked: 'saw you chalk a lamppost' };
 export const FLAGS_MAX = 2;
 export const ASSAULT_HEAT = 12;
 export const BACK_COVERED = 0.3;
@@ -572,7 +606,7 @@ function look(state, bus, why, bonus = 0) {
     const light = lightBand(lightHere(state, a.x, a.z));
     const mods = [bonus && { why: { glance: 'a straight look', cross: 'crossing, looking both ways', window: 'in the glass', stop: 'stood, looking about', passive: 'not looking', kiosk: 'over the top of a paper', cafe: 'from a café window', phone: 'through a phone box\'s glass', shelter: 'waiting for a bus', notices: 'over the notices', alight: 'watching who gets off with you' }[why], v: bonus },
       d > 20 ? { why: 'far off', v: -3 } : d > 12 ? { why: 'a way off', v: -1 } : null, crowd >= 2 && { why: 'among people', v: -2 },
-      light === 'dark' && { why: 'in the dark', v: -2 }, a.ai?.fromLane && state.time.ms - sc.sinceMap < 30000 && { why: 'up the lane after you', v: 4 }, a.ai?.fromBus && state.time.ms - sc.sinceMap < 30000 && { why: 'off the bus after you', v: 4 }, a.ai?.outOfCab && state.time.ms - a.ai.outOfCab < 30000 && { why: 'out of a car behind yours', v: 4 }, ...faces].filter(Boolean);
+      light === 'dark' && { why: 'in the dark', v: -2 }, a.ai?.fromLane && state.time.ms - sc.sinceMap < 30000 && { why: 'up the lane after you', v: 4 }, a.ai?.fromBus && state.time.ms - sc.sinceMap < 30000 && { why: 'off the bus after you', v: 4 }, a.ai?.fromMetro && state.time.ms - sc.sinceMap < 30000 && { why: 'up the steps after you', v: 4 }, a.ai?.outOfCab && state.time.ms - a.ai.outOfCab < 30000 && { why: 'out of a car behind yours', v: 4 }, ...faces].filter(Boolean);
     const theirs = a.who ? skill(state.people[a.who], 'deception') : 2;
     const r = opposed(state.rng, { skill: 'pathfinding', value: ours, mods, body: state.people[state.player] }, { skill: 'deception', value: theirs });
     sc.rolls++;

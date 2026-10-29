@@ -39,8 +39,9 @@
 //     radius of awareness, a shop window's glass, the light, the walls in the way). A building takes the visibility of its
 //     walls' feet, so a facade lights up when it's seen. The stage dims what's unseen (pixelStage
 //     setFog); the mask eases in quickly and out slowly (FOG_IN_S, FOG_OUT_S), as eyes do. What the
-//     eyes take in changes with the sim, so it's worked out again only on a new tick (or when the mask
-//     moves, or the light changes, once a game second); only the easing runs every frame. The light on
+//     eyes take in changes with the sim, so it's worked out again only when they've moved, turned or
+//     changed (or when the mask moves, or the light changes, once a game second); only the easing runs
+//     every frame. The light on
 //     a cell is the open air's, but where a lamp's pool may reach (each lamp stamps the cells under
 //     it): those take lightLevel() with the lamps that reach them, the number checks read;
 //   - people as the player knows them: those seen this tick where they are, the rest where they were
@@ -314,10 +315,11 @@ export function createView({ parent, bus, month = () => 11 }) {
       const open = lightLevel([], x0, z0, state.time.ms, S);      // (the open air's: the same everywhere)
       for (let j = 0, k = 0; j < FNZ; j++) for (let i = 0; i < FNX; i++, k++) fogLight[k] = fogLamps[k].length ? lightLevel(fogLamps[k], x0 + (i + 0.5) * FOG_CELL_M, z0 + (j + 0.5) * FOG_CELL_M, state.time.ms, S) : open;
     }
-    // What the eyes take in: again only when the sim has moved on (or the mask, or the light).
-    if (fogTick !== state.tick) {
-      fogTick = state.tick;
-      const e = eyes(state, me);
+    // What the eyes take in: again only when they've moved, turned or changed (or the mask, or the
+    // light): stood still, at a window or a stop, the mask costs nothing.
+    const e = eyes(state, me), g = e.glass, key = `${e.x},${e.z},${e.head},${e.cone},${e.aware},${g ? `${g.x0},${g.x1},${g.z},${!!g.south}` : ''}`;
+    if (fogTick !== key) {
+      fogTick = key;
       const walls = W.walls.filter(w => w.x1 > Math.min(e.x, x0) - 1 && w.x0 < Math.max(e.x, x0 + FNX * FOG_CELL_M) + 1 && w.z1 > Math.min(e.z, z0) - 1 && w.z0 < Math.max(e.z, z0 + FNZ * FOG_CELL_M) + 1);
       for (let j = 0, k = 0; j < FNZ; j++) {
         const z = z0 + (j + 0.5) * FOG_CELL_M;

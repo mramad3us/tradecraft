@@ -499,10 +499,11 @@ export function createUI({ input, cb }) {
   }
   /** Each line its TOAST_S, as a line at the top left (the same clock); over the speaker's head, kept inside the picture. */
   function placeBalloons(view, now, W) {
+    if (!balloons.size) return;                                    // (nobody talking: no layout read, so no reflow forced every frame)
     const k = W / RES[0], cam = view?.camera;
-    const o = speech.getBoundingClientRect(), tagBoxes = balloons.size ? [intent, reach, bubble, ...states].filter(e => !e.hidden && e.isConnected)
+    const o = speech.getBoundingClientRect(), tagBoxes = [intent, reach, bubble, ...states].filter(e => !e.hidden && e.isConnected)
       .map(e => { const r = e.getBoundingClientRect(); return { left: r.left - o.left, right: r.right - o.left, top: r.top - o.top, bottom: r.bottom - o.top }; })
-      .sort((a, b) => b.top - a.top) : [];
+      .sort((a, b) => b.top - a.top);
     for (const [id, b] of balloons) {
       for (const p of [...b.children]) {
         if (now - p.born > TOAST_S * 1000 && !p.classList.contains('gone')) p.classList.add('gone');

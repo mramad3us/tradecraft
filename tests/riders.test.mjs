@@ -1,14 +1,16 @@
 // Who rides the metro with you (sim/metro.js riders(), ride()): a follower close enough who saw you go
 // down gets on; each leg your Deception against their Tracking; a change of line, another chance to lose
 // them; off as the doors close, a better one; out of sight or far back, lost at the barrier. Kept, they
-// come up the steps after you, a few seconds on, and follow on.
+// come up the steps after you, a few seconds on, and follow on. Being tailed's team the same: down after
+// you, kept or lost by the legs, up the steps behind you; off as the doors close, written down.
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
+import { goTo } from './bots.mjs';
 import { makeAgent, follow } from '../src/sim/agents.js';
 import { sheet } from '../src/sim/people.js';
 import { stationNear, destinations, riders } from '../src/sim/metro.js';
 import { network } from '../src/sim/transit.js';
 import { townOf } from '../src/sim/cities/index.js';
-import { section, Z } from '../src/sim/map/street.js';
+import { section, Z, SECTION_M } from '../src/sim/map/street.js';
 import { createBus } from '../src/sim/bus.js';
 import { assert } from './helpers.mjs';
 
@@ -71,6 +73,37 @@ export default [
         return;
       }
       assert(false, 'a Tracking 30 watcher never rode with a Deception 0 officer');
+    },
+  },
+  {
+    name: 'riders: being tailed\'s team goes down after you if they saw you (an overt pair both, a covert team one: the car can\'t follow a train), kept or lost by the legs, up the steps behind you; off as the doors close, written down',
+    heavy: true,
+    fn() {
+      const T = { plain: { n: 0, down: 0, kept: 0, up: 0 }, doors: { n: 0, down: 0, kept: 0, up: 0, noted: 0 } };
+      for (let seed = 1; seed <= 80; seed++) {
+        const g = newGame({ seed, scenario: 'sdr', weather: 'clear' }), how = seed % 2 ? 'plain' : 'doors';
+        start(g, null);
+        const sc = g.scenario, me = playerActor(g), row = g.map.row ?? 0;
+        if (sc.team === 'none') continue;
+        for (let t = 0; t < 25 * 40; t++) step(g, goTo(g, me, row, me.x + 30, -2.7), null);   // (a walk first: the team takes up behind)
+        const town = townOf(g.map), i0 = Math.floor(me.x / SECTION_M);
+        const door = [...Array(41)].map((_, k) => i0 - 20 + k).flatMap(i => section(town, i, row).doors.filter(d => d.kind === 'metro')).sort((a, b) => Math.abs(a.x - me.x) - Math.abs(b.x - me.x))[0];
+        if (!door) continue;
+        for (let t = 0; t < 25 * 240 && !stationNear(g, me) && !sc.outcome; t++) step(g, goTo(g, me, row, door.x, Z.front + 0.8), null);
+        const d = stationNear(g, me);
+        if (!d || sc.outcome) continue;
+        const to = destinations(g, d).find(x => x.lines.length === 1);
+        step(g, { act: [`metro:${to.id}${how === 'doors' ? ':doors' : ''}`] }, null);
+        const R = T[how], kept = sc.pending.filter(p => p.metro).length;
+        R.n++; R.down += sc.wentDown ?? 0; R.kept += kept;
+        if (how === 'doors') R.noted += (sc.wentDown ?? 0) > 0 && sc.flags.some(f => f.kind === 'doors');
+        for (let t = 0; t < 20 * 15; t++) step(g, {}, null);
+        R.up += sc.crew.filter(c => c.id && g.actors.find(a => a.id === c.id && a.ai.fromMetro)).length;
+      }
+      const { plain: P, doors: D } = T;
+      console.log(`      being tailed, one line of the metro: ${P.n} evenings, ${P.down} of the team went down after you, ${P.kept} kept with you, ${P.up} up the steps behind you; off as the doors close: ${D.n} evenings, ${D.down} went down, ${D.kept} kept, ${D.up} up; written down ${D.noted}`);
+      assert(P.down > 0 && P.kept > 0 && P.kept < P.down && P.up === P.kept, 'some go down after you, some kept, those up the steps behind you');
+      assert(D.kept / Math.max(1, D.down) < P.kept / P.down && D.noted > 0, 'off as the doors close loses more, and is written down');
     },
   },
 ];

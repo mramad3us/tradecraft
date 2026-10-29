@@ -156,7 +156,8 @@ export function chase(state, me, to, from, seen) {
  * sent along the lane and stops CHASE_BACK_M behind you (chaseTick()). plain: a team's own car, not a taxi.
  */
 export function behind(state, actors, { plain = false } = {}) {
-  if (!actors.length || !state.$world) return;
+  if (!actors.length) return;
+  if (!state.$world) { for (const a of actors) a.hidden = false; return; }   // (no street to drive along: out at once, where they are)
   const me = state.actors.find(a => a.who === state.player), dir = laneOf(state, 1) === LANE_Z.south ? 1 : -1, [x0, x1] = state.$world.bx;
   const x = Math.min(x1 - 4, Math.max(x0 + 4, me.x - dir * range(state.rng, ...CHASE_BACK_M))), until = state.time.ms + CHASE_WAIT_S * SEC;
   for (const a of actors) { Object.assign(a, { row: state.map.row ?? 0, x, z: Z.kerbS + 0.6, vx: 0, vz: 0, gait: 'idle', hidden: true }); a.ai.downUntil = until; }
