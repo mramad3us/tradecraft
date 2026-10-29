@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc48 (2026-10-29)
+
+- **Watched in your own hours.** In the campaign, going out of your flat or the embassy, the opposition may now be on you, as the design always said heat should do: in Moscow, at the starting heat, about one time in six, one in three as it warms, and nearly always (mostly a covert team) when you're hot; Cairo and Beirut a little less, London seldom. It's being tailed's team, playing as it does in the test: you check your back and mark faces the same ways, and everything conspicuous they see you do costs heat at once (3 each). Look out of the flat's window first, and whoever's waiting for you is standing by the kerb below. A trip from the desk may shake them or not (on foot, the metro, a taxi, each its own odds); lie low at a safe house with them on you and the station's cable the next morning says it's blown; and an asset meeting you set off for with them still on you has them along.
+- Tests: watched (the odds by heat and city; the window, the door, following and what they write down; trips and safe houses; an asset meeting inherits them).
+- **Fixed:** in your own hours, the instinct's "Next: …" line ended with how hot you really are ("Heat: noticed"), which only your officer's guess should say (the mind's, since rc35). It's gone from the line; the station's papers (the week's review, a debrief) still give the station's own view.
+
 ## v0.1.0-rc47 (2026-10-29)
 
 - **Being tailed: the metro.** Taking the metro used to lose the surveillance team every time, with nothing written down. Now it works as it does for anyone following you: whoever of them saw you go down goes down too (an overt pair both; a covert team only one, since its car can't follow a train), and each leg of the ride is your Deception against their Tracking. Kept, they come up the steps behind you a few seconds later, their faces easier to pick out. Stepping off as the doors close loses them more often, but whoever went down after you writes it down. In the tests' evenings, 5 of the 11 who went down after you were still with you at the other end; stepping off as the doors closed, none of 8.

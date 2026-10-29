@@ -17,14 +17,24 @@
 // Every skip of the clock is the engine's (sim/game.js skip(): what bleeds bleeds, what heals heals),
 // and the calendar's consequences are the campaign's (pass(): days worked or missed, pay, the week's
 // review), told as papers on the bus ('papers').
+// **Watched** (DESIGN.md, Cover, heat and the hunt; the user, 2026-10-26: "the FSB follows people of
+// interest, diplomats among them, and doesn't much hide it"): out of the flat's door or the embassy's
+// (outing()), the hour's dice (sim/campaign.js watched(): by the heat and the city) may put being
+// tailed's team on you (sim/scenarios/sdr.js: an overt pair, or a covert team), and the scene is theirs
+// as it is in the test: they follow you through lanes, shops, buses, taxis and the metro; you check your
+// back the same ways, and mark faces; what they write down costs FLAG_HEAT each, at once. Their sheet is
+// the scene's `tail`. From the flat's window, whoever waits for you by the kerb below is there to be seen. A trip
+// from the desk takes them along or loses them by its way (tailOver()); lying low at a safe house with
+// them on you shows them its door (the station's cable the next morning: sim/campaign.js pass()); an
+// asset meeting begun with them still on you has them for its team (sim/campaign.js context()).
 import { TICK_MS, DAY, HOUR, MIN, calendar, clockText } from '../clock.js';
-import { heatKey } from '../heat.js';
+import { heatKey, addHeat } from '../heat.js';
 import { say } from '../log.js';
 import { Z, streetName } from '../map/street.js';
 import { townOf, cityById } from '../cities/index.js';
 import { skip, newMap } from '../game.js';
 import { eat, soothe } from '../needs.js';
-import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, KINDS, WORK } from '../campaign.js';
+import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, watched, KINDS, WORK } from '../campaign.js';
 import { signOf } from '../places.js';
 import { reading, bookOf, readAnHour } from '../training.js';
 import { dress, wardrobeWays, unpack, DRESS_S } from '../clothes.js';
@@ -35,9 +45,14 @@ import { follow } from '../crowd.js';
 import { arrived } from '../knowledge.js';
 import { planOf } from '../map/interior.js';
 import { spotNear, spotOf, exitHere, walkTo, SPOT_REACH_M } from '../interiors/use.js';
-import { hash } from '../rng.js';
-import { headOf } from '../perception.js';
-import { rowsText } from './sdr.js';
+import { hash, stream, range, chance } from '../rng.js';
+import { headOf, seesActor } from '../perception.js';
+import { skill } from '../skills.js';
+import { opposed } from '../checks.js';
+import { keeps, behind, CAB_FLAG, CHASE_WAIT_S } from '../taxi.js';
+import { freeShare } from '../traffic.js';
+import { stays, RIDER_S } from '../metro.js';
+import { sdr, rowsText, crewFor, newTeam, pickUp, join, teamTick, teamSecond, glanced, FLAG_HEAT } from './sdr.js';
 
 const TPS = 1000 / TICK_MS;
 
@@ -67,15 +82,22 @@ export const campaignHub = {
     say(state, null, { kind: 'note', text: c.where ? `${clockText(state.time.ms)}, ${flat ? 'the flat' : street}.` : `${state.people.me.name}, ${p.job}. Day one of the posting: ${clockText(state.time.ms)}, the flat the embassy rents you on ${street}. Boxes not yet unpacked. Tab: the desk.` });
   },
 
+  /** Begun on a street (where an assignment left you), or a game from before the watchers: out, as from a door. */
+  attach(state) { if (state.map.kind === 'street' && state.scenario.tail === undefined && !state.scenario.window) outing(state, 'street'); },
+
   act(state, bus, action) {
     const c = state.campaign;
     if (action === 'instinct') return use(state, bus, state.scenario.prompt?.act);
+    if (action === 'glance') { const me = state.actors.find(a => a.who === state.player); if (state.scenario.tail && me && state.map.kind === 'street') glanced(state, bus, me); return; }
     if (!String(action).startsWith('desk:')) return;
     const [, what, id] = action.split(':'), now = state.time.ms;
     const until = (to, text) => {                                  // (the clock skipped to `to`, the calendar's consequences told)
       if (to <= now) return;
       if (text) say(state, bus, { kind: 'note', text });
+      const out = state.scenario.tail && to - now > HOUR;             // (hours on, on the street: whoever was on you then isn't the question now)
+      if (out) dropTeam(state);
       skip(state, bus, to - now);
+      if (out && state.map.kind === 'street') outing(state, 'street');
       const papers = pass(c, now, state.time.ms);
       if (papers.length) bus?.emit('papers', papers);
       if (c.over && !state.scenario.outcome) { Object.assign(state.scenario, { outcome: c.over.why, ended: state.time.ms }); bus?.emit('scenario-end', c.over.why); }
@@ -88,7 +110,7 @@ export const campaignHub = {
       if (state.scenario.outcome) return;
       // (at your desk: still there at six, up from it; from anywhere else, the day worked and out of its door)
       if (here) { const me = state.actors.find(a => a.who === state.player), d = spotOf(state, 'desk'); if (me && d) Object.assign(me, { x: d.x, z: d.z, face: 'left', head: headOf('left'), gait: 'idle' }); say(state, bus, { kind: 'note', text: 'Six o\'clock: the cables read, the safe locked, your coat off the back of the chair.' }); }
-      else goTo(state, bus, c.posting.embassy, `Six o'clock, and out of the embassy onto ${streetName(townOf({ seed: c.posting.mapSeed, city: c.posting.city }), c.posting.embassy.row)}.`);
+      else { goTo(state, bus, c.posting.embassy, `Six o'clock, and out of the embassy onto ${streetName(townOf({ seed: c.posting.mapSeed, city: c.posting.city }), c.posting.embassy.row)}.`); outing(state, 'embassy'); }
     } else if (what === 'sleep') {                                  // (a night's sleep, and breakfast: sim/needs.js; you wake in the flat)
       until(rest(c, now), state.map.place === 'home' ? 'To bed.' : 'Home, and to bed.'); soothe(state.people.me, 60);   // (rested, calmer: not fed; sim/needs.js)
       if (state.map.place !== 'home' && !state.scenario.outcome) enterHome(state, bus, 'sleep');
@@ -100,7 +122,11 @@ export const campaignHub = {
       if (/^(wear|off):/.test(action.split(':').slice(2).join(':'))) skip(state, bus, DRESS_S * 1000);
       if (state.map.place === 'home') bus?.emit('wardrobe', wardrobeWays(p));   // (and the wardrobe still open: what else)
     }
-    else if (what === 'low') { const safe = c.posting.safehouses.some(h => h.row === state.map.row); until(lieLow(c, now, safe), safe ? 'A day in the safe house: the curtains drawn, the kettle, nobody.' : 'A day of being nobody.'); eat(state.people.me, state.time.ms, 40); }
+    else if (what === 'low') {
+      const safe = c.posting.safehouses.some(h => h.row === state.map.row), house = c.posting.safehouses.find(h => h.row === state.map.row && !h.burned);
+      if (house && seenGoing(state)) house.seen = now;               // (its door, with them watching: sim/campaign.js pass(), the cable)
+      until(lieLow(c, now, safe), safe ? 'A day in the safe house: the curtains drawn, the kettle, nobody.' : 'A day of being nobody.'); eat(state.people.me, state.time.ms, 40);
+    }
     else if (what === 'rest' && state.map.place === 'home') {      // (the bed, by day: a nap, or lying down a while: sim/needs.js, campaign.js fatigue())
       const p = state.people.me;
       if (id === 'nap') { until(now + NAP_MIN * MIN, 'An hour on top of the covers, shoes off. You wake thick-headed, and better for it.'); c.awake = Math.min(state.time.ms, (c.awake ?? now) + NAP_EASES_H * HOUR); }
@@ -113,9 +139,11 @@ export const campaignHub = {
     else if (what === 'travel') {
       const to = places(c).find(pl => pl.id === id);
       if (!to) return;
-      const { ms, how } = trip(state.map.row ?? 0, to.row);
+      const from = state.map.row ?? 0, { ms, how, by } = trip(from, to.row);
+      const kept = tailOver(state, by, to, from);                     // (whoever's on you, with you there or lost on the way)
       until(now + ms, `To ${to.label}: ${how}.`);
       goTo(state, bus, to);
+      arriveWith(state, kept);
     }
     else if (what === 'go') {
       const a = c.assignments.find(x => x.id === id && x.status === 'open');
@@ -125,6 +153,8 @@ export const campaignHub = {
         until(a.start, `You kill the time till ${clockText(a.start)}, and go.`);
       }
       if (state.scenario.outcome || state.people.me.dead) return;
+      const t = state.scenario.tail;
+      a.tailedBy = t && !t.teamLost && t.crew.some(x => x.id) ? t.team : null;   // (still on you: the meeting's team: sim/campaign.js context())
       c.character = structuredClone(state.people.me);
       c.posting.heat = state.heat[heatKey('embassy', c.posting.country)] ?? c.posting.heat;
       bus?.emit('assignment', a.id);
@@ -132,6 +162,12 @@ export const campaignHub = {
   },
 
   tick(state, bus) {
+    // (the watchers, if they're on you: being tailed's, every tick; what they write down, heat at once)
+    const t = state.scenario.tail, me0 = t && state.map.kind === 'street' && !state.scenario.window && state.actors.find(a => a.who === state.player);
+    if (me0 && teamTick(state, bus, me0)) {
+      teamSecond(state, bus, me0);
+      if (t.flags.length > (t.charged ?? 0)) { addHeat(state, FLAG_HEAT * (t.flags.length - (t.charged ?? 0))); t.charged = t.flags.length; }
+    }
     if (state.tick % TPS !== 0) return;
     const c = state.campaign, now = state.time.ms;
     if (c.over && !state.scenario.outcome) { Object.assign(state.scenario, { outcome: c.over.why, ended: now }); bus?.emit('scenario-end', c.over.why); return; }   // (the goal met in the last assignment: the posting's paper)
@@ -156,15 +192,25 @@ export const campaignHub = {
   },
 
   /** The embassy's people, walking their day (sim/interiors/staffing.js). */
-  think(state, a) {
+  think(state, a, bus) {
+    if (a.ai?.kind === 'watcher') return sdr.think(state, a, bus);   // (being tailed's: sim/scenarios/sdr.js)
     if (a.ai?.kind === 'staff' || a.ai?.kind === 'applicant') staffThink(state, state.$world.sections.get(0), a, follow);
   },
+
+  // Out on the street with the team's sheet (outing()): being tailed's hooks, as the test has them.
+  onTaxi(state, bus, to, phase) { if (state.scenario.tail) sdr.onTaxi(state, bus, to, phase); },
+  onBus(state, bus, to, phase) { if (state.scenario.tail) sdr.onBus(state, bus, to, phase); },
+  onMetro(state, bus, to, phase) { if (state.scenario.tail) sdr.onMetro(state, bus, to, phase); },
+  onShop(state, bus, phase, way) { if (state.scenario.tail) sdr.onShop(state, bus, phase, way); },
+  onInteract(state, bus, them, id) { if (state.scenario.tail) sdr.onInteract(state, bus, them, id); },
+  carry(state, way) { return state.scenario.tail ? sdr.carry(state, way) : []; },
+  mapChanged(state) { if (state.scenario.tail) sdr.mapChanged(state); },
 
   /** At the window, your feet are the window's: nothing but T takes you from it. */
   holds(state) { return !!state.scenario.window; },
 
   /** In the flat, the whole of it is taken in: no fog (src/render/view.js). */
-  aware(state) { return state.map.kind === 'interior'; },
+  aware(state) { return state.map.kind === 'interior' || !!state.scenario.window; },   // (from the flat's window, the whole stretch below: who's waiting, who looks up)
 
   /** A taxi (sim/taxi.js) to the posting's places. */
   destinations(state) { return places(state.campaign).map(pl => ({ id: pl.id, label: pl.label, row: pl.row, x: pl.x ?? 12 })); },
@@ -239,6 +285,7 @@ function enterEmbassy(state, bus) {
   const s = { x: (e.x0 + e.x1) / 2, z: e.z0 - 0.8 };
   Object.assign(me, { x: s.x, z: s.z, vx: 0, vz: 0, busy: null, face: 'up', head: headOf('up'), hidden: false });
   newMap(state, bus, map, s.x);
+  state.scenario.tail = null;                                       // (in: whoever was on you waits outside, or doesn't)
   c.where = { inside: 'embassy', row: c.posting.embassy.row, x: s.x, z: s.z };
   say(state, bus, { kind: 'note', text: 'In off the street, your pass to the Marine behind the glass, a nod: the lobby, and the arch of the metal detector.' });
 }
@@ -248,6 +295,7 @@ function leaveEmbassy(state, bus) {
   const p = state.campaign.posting;
   state.scenario.life = null;                                       // (its people as they'll be when you're next in: sim/interiors/staffing.js)
   goTo(state, bus, p.embassy, `Out past the Marine, onto ${streetName(townOf({ seed: p.mapSeed, city: p.city }), p.embassy.row)}.`, (p.embassy.z ?? Z.front) + 0.8);
+  outing(state, 'embassy');
 }
 
 /** Into the flat: up the stairs from your door (at 'door'), straight to bed (at 'sleep', the desk's), or back from its window (at 'window'). */
@@ -256,6 +304,7 @@ function enterHome(state, bus, at = 'door') {
   const e = plan.exits[0], s = at === 'sleep' || at === 'window' ? plan.spots.find(x => x.kind === (at === 'sleep' ? 'sleep' : 'window')) : { x: (e.x0 + e.x1) / 2, z: e.z1 + 0.7, face: 'down' };
   Object.assign(me, { x: s.x, z: s.z, vx: 0, vz: 0, busy: null, face: s.face, head: headOf(s.face), hidden: false });
   newMap(state, bus, map, s.x);
+  state.scenario.tail = null;
   c.where = { inside: 'home', row: c.posting.home.row, x: s.x, z: s.z };
   if (at === 'door') say(state, bus, { kind: 'note', text: 'Up the stairs, the key in the lock: the flat.' });
   const got = unpack(state.people.me);                              // (the shop's bag unpacked: sim/clothes.js)
@@ -273,6 +322,8 @@ function lookOut(state, bus) {
   Object.assign(me, { x: (p.home.x ?? 12) + 1.2, z: (p.home.z ?? Z.front) + 0.1, vx: 0, vz: 0, busy: null, face: 'down', head: Math.PI / 2, hidden: true });
   newMap(state, bus, { kind: 'street', seed: p.mapSeed, row: p.home.row, i0: null, i1: null, crowd: 1, city: p.city }, me.x);
   state.scenario.window = true;
+  state.scenario.tail = null;
+  waiting(state);
   say(state, bus, { kind: 'note', text: 'The curtain an inch aside: the street below, and nobody looking up.' });
 }
 function backFromWindow(state, bus) {
@@ -285,6 +336,7 @@ function backFromWindow(state, bus) {
 function leaveHome(state, bus) {
   const p = state.campaign.posting;
   goTo(state, bus, p.home, `Down the stairs and out, onto ${streetName(townOf({ seed: p.mapSeed, city: p.city }), p.home.row)}.`, (p.home.z ?? Z.front) + 0.8);
+  outing(state, 'home');
 }
 const DOORSTEP_M = 2.6;
 export const NAP_MIN = 60, NAP_EASES_H = 4, REST_MIN = 30, REST_CALM = 15;   // (the bed by day: a nap takes the edge off being up long; lying down, stress)
@@ -367,6 +419,112 @@ function goTo(state, bus, to, note = null, z = -2.6) {
 }
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
+// ---------- watched in your own hours ----------
+
+const heatNow = (state) => state.heat[heatKey('embassy', state.campaign.posting.country)] ?? state.campaign.posting.heat;
+const outingDice = (state, door) => stream('outing', state.campaign.seed, door, Math.floor(state.time.ms / HOUR));   // (the hour's: the window shows the faces you'll meet)
+const actorOf = (state, id) => (id ? state.actors.find(a => a.id === id) : null);
+
+/**
+ * Out of a door ('home', 'embassy'; 'street': begun on one): whether they're on you this hour
+ * (sim/campaign.js watched()), and if so being tailed's team, picking you up behind you. Their sheet
+ * either way, team or none: your checks of your back, and the faces you mark, work the same.
+ */
+function outing(state, door) {
+  const c = state.campaign, r = outingDice(state, door), team = watched(c, door, state.time.ms, heatNow(state)), crew = crewFor(state, team, r);
+  state.scenario.tail = newTeam(state, team, crew, r);
+  pickUp(state, r);
+  // (at your own door, from where they waited: what the window showed; a covert team's back-up out of its sight)
+  if (door === 'home') for (const p of postsOf(state, team, crew)) Object.assign(actorOf(state, p.c.id), { x: p.x, z: p.z });
+}
+
+/** The team off the street (the clock skipped hours on): their people gone, their sheet with them. */
+function dropTeam(state) {
+  const ids = (state.scenario.tail?.crew ?? []).map(x => x.id).filter(Boolean);
+  state.actors = state.actors.filter(a => !ids.includes(a.id));
+  state.scenario.tail = null;
+}
+
+/** Whether they see you go in at a door here: one of them on you, with you in sight or lately so. */
+function seenGoing(state) {
+  const t = state.scenario.tail, me = state.actors.find(a => a.who === state.player);
+  return !!t && !t.teamLost && !!me && t.crew.some(x => { const a = actorOf(state, x.id); return a && (seesActor(state, a, me) || state.time.ms - (a.ai.seenMs ?? -1e12) < SEEN_GOING_MS); });
+}
+export const SEEN_GOING_MS = 10000;
+
+/**
+ * A trip from the desk (sim/campaign.js trip()) with them on you: on foot the long way round, your
+ * Pathfinding (+TRIP_FOOT_MOD) against their best Tracking; two stops on the metro, a leg of the metro's
+ * (sim/metro.js stays(): an overt pair both, a covert team its eye); a taxi, theirs to keep (sim/taxi.js
+ * keeps(): a covert team's own car, an overt pair a cab if one comes along). Indoors, whoever waits at
+ * the door you leave by this hour. { team, crew, kept: [crew indices], by }, or null (nobody on you, or
+ * lost on the way).
+ */
+function tailOver(state, by, to, from) {
+  const c = state.campaign, now = state.time.ms, you = state.people[state.player];
+  let t = state.scenario.tail, on;
+  if (!t && (state.map.kind !== 'street' || state.scenario.window)) {
+    const door = state.map.place === 'embassy' ? 'embassy' : 'home', team = watched(c, door, now, heatNow(state));
+    if (team === 'none') return null;
+    t = { team, crew: crewFor(state, team, outingDice(state, door)) };
+    on = t.crew.filter(x => x.role !== 'spare');                   // (as they'd have picked you up at the door)
+  } else {
+    if (!t || t.teamLost) return null;
+    on = t.crew.filter(x => actorOf(state, x.id));
+  }
+  if (!on.length) return null;
+  const sheets = on.map(x => state.people[x.who]), best = [...sheets].sort((p, q) => skill(q, 'tracking') - skill(p, 'tracking'))[0];
+  let kept = [];
+  if (by === 'foot') {
+    const r = opposed(state.rng, { skill: 'pathfinding', value: skill(you, 'pathfinding'), body: you, mods: [{ why: 'the long way round', v: TRIP_FOOT_MOD }] }, { skill: 'tracking', value: skill(best, 'tracking'), body: best });
+    if (!r.ok) kept = on;
+  } else if (by === 'metro') kept = (t.team === 'overt' ? on : on.slice(0, 1)).filter(x => stays(state, state.people[x.who], { lines: [null] }, TRIP_METRO_M));
+  else if ((t.team === 'covert' || chance(state.rng, freeShare(now) * CAB_FLAG)) && keeps(state, best, to, from)) kept = t.team === 'covert' ? on.slice(0, 1) : on;
+  return kept.length ? { team: t.team, crew: t.crew, kept: kept.map(x => t.crew.indexOf(x)), by } : null;
+}
+export const TRIP_FOOT_MOD = 2, TRIP_METRO_M = 12;
+
+/**
+ * At the trip's end, out at its door: whoever kept with you (tailOver()) behind you, as each way brings
+ * them (out of a car pulled in behind yours; up the metro's steps a few seconds after you; round the
+ * corner after you on foot); otherwise nobody, this outing.
+ */
+function arriveWith(state, k) {
+  const now = state.time.ms, r = outingDice(state, 'trip'), me = state.actors.find(a => a.who === state.player);
+  if (state.map.kind !== 'street' || !me) return;
+  state.scenario.tail = newTeam(state, k?.team ?? 'none', k?.crew ?? [], r);
+  const t = state.scenario.tail;
+  if (!k) return;
+  if (k.by === 'taxi') { behind(state, k.kept.map(i => join(state, t.crew[i], 0)), { plain: k.team === 'covert' }); t.teamSeenMs = now + CHASE_WAIT_S * 1000; }
+  else if (k.by === 'metro') { t.arrival = { x: me.x, z: me.z }; k.kept.forEach((i, n) => t.pending.push({ crew: i, at: now + Math.round(range(r, ...RIDER_S) * 1000) + n * 900, bus: true, metro: true })); t.teamSeenMs = now; }
+  else { for (const i of k.kept) join(state, t.crew[i], -range(r, 14, 22)); t.teamSeenMs = now; }
+}
+
+/**
+ * Where they wait for you at the flat's door this hour, by the kerb on your own pavement (the window
+ * looks down on it): an overt pair together a few doors along, a covert team's eye further, the others
+ * out of sight. [{ c: a crew member, x, z }].
+ */
+function postsOf(state, team, crew) {
+  const c = state.campaign, door = c.posting.home.x ?? 12, hour = Math.floor(state.time.ms / HOUR), r = stream('post', c.seed, hour), side = chance(r, 0.5) ? 1 : -1;
+  const along = team === 'overt' ? range(r, ...POST_OVERT_M) : range(r, ...POST_COVERT_M);
+  return crew.filter(x => team === 'overt' || x.role === 'eye').map((x, n) => ({ c: x, x: door + side * (along + n * 1.1), z: Z.kerbN - 0.6 }));
+}
+export const POST_OVERT_M = [4, 8], POST_COVERT_M = [12, 20];
+
+/**
+ * From the flat's window: whoever waits for you this hour (outing()'s dice: the faces you'll meet at the
+ * door), standing where they wait, facing the building.
+ */
+function waiting(state) {
+  const c = state.campaign, team = watched(c, 'home', state.time.ms, heatNow(state));
+  if (team === 'none') return;
+  for (const p of postsOf(state, team, crewFor(state, team, outingDice(state, 'home')))) {
+    state.actors.push({ id: `a${state.nextActor++}`, who: p.c.who, seed: null, row: c.posting.home.row, x: p.x, z: p.z, vx: 0, vz: 0,
+      face: 'up', head: headOf('up'), gait: 'idle', stride: 0, stuck: 0, ai: { kind: 'post', steps: [], wait: 0 } });
+  }
+}
+
 /** The hub's instinct: what's next, and when to leave for it; the embassy, if it's a working day; otherwise nothing. */
 function instinct(state, c, now) {
   const L = (id, tone, text, act = null) => ({ id, tone, text, act, ms: now });
@@ -390,6 +548,9 @@ function instinct(state, c, now) {
     if (next.when === 'now') return L(`now-${a.id}`, 'warn', `${KINDS[a.kind].name}: ${name}, now. {mindmap} the desk, and go.`);
     if (a.start - now < 3 * HOUR) return L(`soon-${a.id}`, 'note', `${name} at ${clockText(a.from)}: be off by ${clockText(a.start)}. {mindmap}: the desk.`);
   }
+  // (a face you've marked as a tail, about you still: what it means in your own hours)
+  const tl = state.scenario.tail;
+  if (tl && state.map.kind === 'street' && Object.values(tl.suspects).some(v => v >= 2)) return L('tail', 'warn', 'A tail, you\'d swear to it. Lose them before anywhere that matters (a safe house, an asset), or go about your day as if you hadn\'t seen them: everything you do, they write down.');
   const tired = fatigue(c, now);
   if (tired.v) return L(`tired-${tired.word}`, tired.v <= -3 ? 'warn' : 'note', `${Math.floor(tired.h)} hours awake: ${tired.word}, ${tired.v} to everything. ${state.map.place === 'home' ? '{instinct}: to bed.' : '{mindmap}: the desk, and sleep.'}`, state.map.place === 'home' ? 'sleep' : null);
   // (in the flat, what's at hand: the bed, the telephone, the basin, the kitchen; at the embassy, your desk, the chief's)
@@ -400,7 +561,7 @@ function instinct(state, c, now) {
   if (state.map.place === 'embassy') return k.weekday < 5 && !worked && k.hour < WORK.to ? L('work-in', 'note', 'The station: through the arch, behind the vault door off the corridor. Your desk\'s in there.') : null;
   if (k.weekday < 5 && !worked && k.hour >= 7 && k.hour < WORK.to - 2) return L('work', 'note', `A working day: the embassy expects you${k.hour < WORK.from ? ' at nine' : ''}. ${state.map.place === 'home' ? 'Out by the front door in the hall, and to its door' : 'Its door, {instinct}'}; or {mindmap}: the desk.`);
   if (k.hour >= 23 || k.hour < 5) return L('late', 'calm', `${clockText(now)}. Bed, sooner or later: {mindmap}.`);
-  return next ? L(`later-${next.a.id}`, 'calm', `Next: ${KINDS[next.a.kind].name.toLowerCase()}, ${dayWord(next.a.from, now)} at ${clockText(next.a.from)}. Heat: ${heatWord(c.posting.heat)}.`) : null;
+  return next ? L(`later-${next.a.id}`, 'calm', `Next: ${KINDS[next.a.kind].name.toLowerCase()}, ${dayWord(next.a.from, now)} at ${clockText(next.a.from)}.`) : null;   // (how hot you are is the officer's guess, the mind's: sim/belief.js)
 }
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const dayWord = (ms, now) => { const d = Math.floor(ms / DAY) - Math.floor(now / DAY); return d === 0 ? 'today' : d === 1 ? 'tomorrow' : DAYS[calendar(ms).weekday]; };

@@ -38,7 +38,14 @@
 // **What heat costs** (pass()): an asset met with a tail on you is compromised, and each day after may be
 // arrested (ARREST_PER_DAY): gone from the network, heat up. Heat at EXPEL_HEAT and the posting's over:
 // declared persona non grata (official cover: expelled, not jailed; DESIGN.md, Career), c.over.
-// Lying low at a safe house cools faster (SAFE_LOW_K).
+// Lying low at a safe house cools faster (SAFE_LOW_K); lying low at one with the opposition on you
+// shows them the door, and the station's cable says it's blown the next morning (s.seen → s.burned).
+// **Watched in your own hours** (watched(); DESIGN.md, Cover, heat and the hunt: "occasional
+// surveillance (20+), then regular tails (40+)"): out of the flat's door or the embassy's, the hour's
+// dice say whether they're on you (the same all that hour, at that door: the flat's window shows it):
+// WATCHED_CITY × (heat − 10) / 60, at most WATCHED_MAX, an overt pair or, as the heat climbs, a covert
+// team ((heat − 30) / 40 of the time, at most COVERT_MAX). The scene is the hub's (sim/scenarios/
+// campaign.js), with being tailed's team; still on you when an asset meeting begins, they're its team.
 // **The goal** (GOAL_INTEL): the posting is done when the station has the intelligence it wanted, a few
 // weeks' work done well; c.over = { why: 'completed' }. **Leads** (DESIGN.md, Intelligence and leads): a
 // tail that sees the meeting identifies the contact, who becomes a target of his own (CONTACTS), the
@@ -63,6 +70,8 @@ export const HEAT_LOW_PER_DAY = 6;                                // (a day lyin
 export const SAFE_LOW_K = 1.7;                                     // (… at a safe house)
 export const ARREST_PER_DAY = 0.25;
 export const EXPEL_HEAT = 95;
+export const WATCHED_CITY = { moscow: 1, cairo: 0.8, beirut: 0.6, london: 0.25 };   // (the FSB follows diplomats as a matter of course; London's SVR seldom can)
+export const WATCHED_MAX = 0.85, COVERT_MAX = 0.75;
 export const GOAL_INTEL = 10;                                  // (six or seven good operations: two or three weeks, done well)
 export const TRUSTED = 4;
 export const GOAL_JUNIOR = 6;                                      // (a first tour: four or five good evenings, a trip done well)
@@ -307,6 +316,12 @@ export function pass(c, from, to) {
     if (next.day === 1 && next.month !== p.money.paid) { p.money.paid = next.month; p.money.bank = (p.money.bank ?? 0) + p.money.salary; p.money.fundLeft = p.money.fund; papers.push({ kind: 'pay', title: 'PAY', lines: [`Salary in: $${p.money.salary}.`, `The operational fund topped up to $${p.money.fund}.`] }); }
     if (weekday(dayMs) === 6) papers.push(review(c, dayMs));
     p.heat = Math.max(20, p.heat - 1);                              // (a day goes by: the opposition's interest cools a little)
+    // (a safe house they saw you go into: the station hears by morning)
+    for (const s of p.safehouses.filter(x => x.seen && !x.burned && x.seen < dayMs + DAY)) {
+      s.burned = dayMs + DAY;
+      papers.push({ kind: 'cable', title: 'CABLE: A SAFE HOUSE', lines: [`${s.label[0].toUpperCase()}${s.label.slice(1)} is blown: a car outside it since the day you used it, and a man on the stairs asking the neighbours.`, 'Don\'t go back. The station will find another, in time.'] });
+      c.log.push({ ms: dayMs + DAY + 8 * HOUR, text: `${s.label}: blown.` });
+    }
     // (a compromised asset may be taken; heat at the top, and you're out)
     const ar = stream('arrest', c.seed, d);
     for (const s of p.assets.filter(x => x.burned && !x.arrested)) if (chance(ar, ARREST_PER_DAY)) {
@@ -357,8 +372,9 @@ export const places = (c) => [c.posting.home, c.posting.embassy, ...c.posting.sa
 /** How long getting from row a to row b takes (ms), and how it's done, in words. */
 export function trip(a, b, rng) {
   const rows = Math.abs(a - b), min = TRAVEL.waitMin + rows * TRAVEL.perRowMin;
-  const how = rows <= 1 ? 'on foot, the long way round' : rows <= 3 ? 'two stops on the metro' : 'a taxi, the driver silent for once';
-  return { ms: min * MIN, how };
+  const by = rows <= 1 ? 'foot' : rows <= 3 ? 'metro' : 'taxi';
+  const how = { foot: 'on foot, the long way round', metro: 'two stops on the metro', taxi: 'a taxi, the driver silent for once' }[by];
+  return { ms: min * MIN, how, by };
 }
 
 export const TIRED_H = 16;
@@ -392,7 +408,8 @@ export function context(c, a) {
   if (a.kind === 'sdr') {
     const s = T ? T.asset : p.assets.find(x => x.id === a.who);
     // (the heat says how hard they're on you: nobody, an overt pair, a covert team)
-    const team = weighted(r, [['none', Math.max(1, 70 - heat)], ['overt', 20 + heat * 0.3], ['covert', Math.max(0, heat - 25)]]);
+    // (still on you from your own hours when it began: them; sim/scenarios/campaign.js)
+    const rolled = weighted(r, [['none', Math.max(1, 70 - heat)], ['overt', 20 + heat * 0.3], ['covert', Math.max(0, heat - 25)]]), team = (!T && a.tailedBy) || rolled;
     Object.assign(ctx, { asset: { codename: s.codename, look: s.look, sex: s.sex, role: s.role }, meetFrom: a.from, team, heat });
   } else if (a.kind === 'tail' || a.kind === 'watch') {
     const t = T ? T.target : p.targets.find(x => x.id === a.who);
@@ -400,7 +417,17 @@ export function context(c, a) {
   }
   return ctx;
 }
-export const TRIP_HEAT = 35;                                       // (a visitor's heat in a trip's city: the opposition there has a file, and not much in it)
+export const TRIP_HEAT = 35;
+
+/** The odds the opposition's on you as you step out (heat, a city's id), and of a covert team when they are. */
+export const watchedOdds = (heat, city) => (WATCHED_CITY[city] ?? 0.6) * Math.max(0, Math.min(WATCHED_MAX, (heat - 10) / 60));
+export const covertShare = (heat) => Math.max(0, Math.min(COVERT_MAX, (heat - 30) / 40));
+/** Whether they're on you out of a door ('home', 'embassy', 'street') this hour: 'none', 'overt' or 'covert'. */
+export function watched(c, door, ms, heat = c.posting.heat) {
+  const r = stream('watched', c.seed, door, Math.floor(ms / HOUR));
+  if (!chance(r, watchedOdds(heat, c.posting.city))) return 'none';
+  return chance(r, covertShare(heat)) ? 'covert' : 'overt';
+}                                       // (a visitor's heat in a trip's city: the opposition there has a file, and not much in it)
 
 /**
  * An assignment's scene is over: its outcome (state.scenario.outcome) into the campaign: intelligence,

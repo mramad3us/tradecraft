@@ -255,9 +255,9 @@ export function createUI({ input, cb }) {
       marker.style.transform = `translate(${Math.round(cx * k)}px, ${Math.round(cy * k)}px) rotate(${off ? Math.atan2(sy - cy, sx - cx) * 180 / Math.PI - 90 : 0}deg)`;
       marker.style.setProperty('--k', k);
     }
-    // Faces you've marked (a scenario's suspects: { actor id: 1 seen before, 2 a tail }), over them as drawn.
-    const k0 = fw / RES[0], cam0 = view?.camera;
-    const sus = !sc.outcome && sc.suspects ? Object.entries(sc.suspects).filter(([, v]) => v >= 1) : [];
+    // Faces you've marked (a scenario's suspects, or its team's in the campaign's own hours: { actor id: 1 seen before, 2 a tail }), over them as drawn.
+    const k0 = fw / RES[0], cam0 = view?.camera, marked = sc.suspects ?? sc.tail?.suspects;
+    const sus = !sc.outcome && marked ? Object.entries(marked).filter(([, v]) => v >= 1) : [];
     while (tags.children.length < sus.length) tags.append(el('canvas', { className: 'plaque' }));
     [...tags.children].forEach((t, i) => {
       const at = sus[i] && view?.posOf(sus[i][0]);
