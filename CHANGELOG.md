@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc44 (2026-10-29)
+
+- **Who rides the bus with you.** Anyone following you who saw you get on, close enough to make the doors, now gets on too, and gets off behind you a few seconds after you. Before, a bus lost everyone but being tailed's team. The bus card has a new last line: stand by the doors and step off as they close. Each follower aboard must beat your Deception (+4, +2 more in the rush hours' crush) with their Tracking, or be carried on to the next stop. In the tests, an even follower (10 v 10) stays with you 20% of the time, a better one (18) 49%, against a better officer (18) never. Being tailed, the team's riders face the same roll (12 of 13 were carried on), but whoever was aboard writes it down.
+- Tests: buses (who gets on with you, off as the doors close, a watcher getting off behind you; being tailed's riders at the doors).
+
 ## v0.1.0-rc43 (2026-10-29)
 
 - **Follow that cab.** A taxi no longer shakes everyone. Whoever was following you and saw you get in needs a car: someone on foot needs a free cab to come by (fewer at the rush hours), while a surveillance team has its own car. Then it's their Tracking against the cabbie's way through the traffic. Kept, their car comes along the lane behind yours a few seconds later and stops a way back, and they get out and follow on. A cab pulling in behind yours is the tell, if you look back. The taxi's card has a new last line: the long way round, losing anyone behind us ($5 and 3 minutes more), which pits your Pathfinding against them instead (an officer who knows the streets nearly always loses them; a stranger to the city does worse than the driver). In the tests: a follower on foot keeps your cab 12% of the time; being tailed, a covert team keeps you 44% of evenings (19% the long way round), an overt pair 17% (0%). Before, a taxi lost them all.

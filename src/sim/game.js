@@ -192,9 +192,10 @@ export function step(state, input = {}, bus) {
     }
     if (String(act).startsWith('bus:')) {                          // (on the bus at the stop, where to chosen: sim/buses.js)
       const b = me?.busy?.what === 'shelter' && me.busy.bus && !state.fight ? me.busy : null;
-      const to = b && buses.destinations(state, b.stop, b.bus.line, b.bus.dir).find(d => d.id === act.slice(4));
+      const [id, how] = act.slice(4).split(':'), dest = b && buses.destinations(state, b.stop, b.bus.line, b.bus.dir).find(d => d.id === id);
+      const to = dest && { ...dest, doors: how === 'doors' };       // (stood by the doors, off as they close: sim/buses.js riders())
       if (to) {
-        say(state, bus, { kind: 'note', text: `On, a coin for the driver, a seat by the window. ${cap(to.label)}.` });
+        say(state, bus, { kind: 'note', text: to.doors ? `On, a coin for the driver, and you stand by the doors. ${cap(to.label)}: you step off as they fold shut.` : `On, a coin for the driver, a seat by the window. ${cap(to.label)}.` });
         const m = buses.ride(state, bus, to, { scenario, skip, loadRow });
         if (m) say(state, bus, { kind: 'note', text: `${Math.round(m)} minutes later, ${placeName(townOf(state.map), state.map.row ?? 0, playerActor(state).x, 0)}: off at the stop.` });
       } else if (me?.busy?.what === 'shelter') say(state, bus, { kind: 'note', text: 'Too late: it\'s gone.' });

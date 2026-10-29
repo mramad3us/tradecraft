@@ -166,7 +166,14 @@ function launch(s, { hour = null } = {}) {
   bus.on('bed', (list) => ui.openChoices('BED', 'HOW LONG?', list, (key) => acts.push(`desk:${key}`)));   // (the flat's bed by day: sim/scenarios/campaign.js)
   bus.on('photo', (w) => { snapWanted = w; });                    // (sim/scenarios/watch.js: the frame, at the next draw)
   bus.on('shop', ({ shop, ways }) => ui.openChoices('SHOP', shopWord(shop).replace(/^the /, '').toUpperCase(), ways.map(w => ({ key: w.id, label: w.label })), (key) => acts.push(`shop:${key}`)));   // (sim/shops.js)
-  bus.on('bus', ({ line, towards, list }) => ui.openChoices('BUS', `THE ${line}, FOR ${String(towards).toUpperCase()}: WHERE TO?`, list.map(d => ({ key: d.id, label: `${d.label.charAt(0).toUpperCase() + d.label.slice(1)} · ${price(state, d.fare)}` })), (key) => acts.push(`bus:${key}`)));   // (sim/buses.js)
+  // (sim/buses.js; stood by the doors, off as they close: the same stops, a second card)
+  bus.on('bus', ({ line, towards, list }) => {
+    const card = (doors) => ui.openChoices('BUS', doors ? `THE ${line}: OFF AS THE DOORS CLOSE` : `THE ${line}, FOR ${String(towards).toUpperCase()}: WHERE TO?`, [
+      ...list.map(d => ({ key: doors ? `${d.id}:doors` : d.id, label: `${d.label.charAt(0).toUpperCase() + d.label.slice(1)} · ${price(state, d.fare)}` })),
+      ...(doors ? [] : [{ key: 'doors', label: 'Stand by the doors, and step off as they close ▸' }]),
+    ], (key) => (key === 'doors' ? card(true) : acts.push(`bus:${key}`)));
+    card(false);
+  });
   bus.on('metro', (at) => ui.openTube(state, at, (key) => acts.push(`metro:${key}`)));   // (the network's map: src/ui/tubemap.js; sim/metro.js)
   bus.on('police', ({ line, ways }) => { if (!ui.overlay()) ui.openChoices('POLICE', line, ways, (key) => acts.push(`police:${key}`)); });   // (stopped: sim/police.js)
   // (sim/taxi.js; the fare, sim/money.js; the long way round, losing anyone behind: the same places, a second card)

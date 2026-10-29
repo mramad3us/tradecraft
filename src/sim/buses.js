@@ -15,9 +15,14 @@
 // "buses and trains would not drop you off anywhere, they would have a city network and stations").
 // Let it go, and you're still sat there for the next. ride(): the fare (FARE_USD: sim/money.js), the
 // minutes on the road (STOP_MIN a stop), the clock skipped, the street there loaded and you off at its stop. Unlike a taxi, nobody
-// minds a bus; but a man on foot can get on one too. The scene decides who did (scenario.onBus?(state,
-// bus, to, 'board' | 'off'): being tailed's riders get off behind you); without one, whoever was
-// following has lost you.
+// minds a bus; but a man on foot can get on one too. The scene hears of it (scenario.onBus?(state, bus,
+// to, 'board' | 'off'): being tailed's riders get off behind you). **Who rides with you** (riders(), as
+// the metro's: sim/metro.js): whoever's following you (an agent's follow) and saw you get on, within
+// BOARD_M of the doors (they've the bus's dwell to make them), gets on too, a few seats back, and gets
+// off behind you (OFF_S after you, out of sight till then); the rest are lost at the stop. Unless you
+// stand by the doors and step off as they close (to.doors: the card's last line): your Deception
+// +DOORS_MOD (+RUSH_MOD in the rush hours' crush) against each one's Tracking; beaten, they're carried
+// on to the next stop, and lost. Being tailed's riders the same (sim/scenarios/sdr.js onBus()).
 import { MIN, hourOfDay } from './clock.js';
 import { hash } from './rng.js';
 import { sectionAt } from './world.js';
@@ -27,6 +32,12 @@ import { townOf } from './cities/index.js';
 import { pay } from './money.js';
 import { say } from './log.js';
 import * as traffic from './traffic.js';
+import { opposed } from './checks.js';
+import { skill } from './skills.js';
+import { seesActor } from './perception.js';
+import { range } from './rng.js';
+import { calendar } from './clock.js';
+import { RUSH_H } from './metro.js';
 
 export const EVERY_MIN = [6, 8, 10, 12];
 export const NIGHT_H = [22, 6];                                    // (from 22:00 to 06:00, half as many)
@@ -36,6 +47,25 @@ export const FARE_USD = 1;
 export const BUS_SHOWN = 8;                                        // (the stops on that a bus's card lists)
 export const STOP_Z = -0.68;                                       // (where you sit in it: the bench along its back)
 export const OFF_Z = -0.56;                                        // (where you're stood, off the bus: at its kerb)
+export const BOARD_M = 25, DOORS_MOD = 4, RUSH_MOD = 2, OFF_S = [2, 5];
+
+/**
+ * Whoever's following you that gets on with you and off with you ([actors]); the rest lost. doors: you
+ * step off as they close, and each must beat that.
+ */
+export function riders(state, me, doors = false) {
+  const k = calendar(state.time.ms), h = k.hour + k.minute / 60, rush = k.weekday < 5 && RUSH_H.some(([a, b]) => h >= a && h < b), you = state.people[state.player], out = [];
+  for (const a of state.actors) {
+    const f = a.ai?.follow, them = state.people[a.who];
+    if (f?.id !== me.id || f.lost) continue;
+    const d = Math.hypot(a.x - me.x, a.z - me.z);
+    let on = !!them && !a.hidden && d <= BOARD_M && seesActor(state, a, me);
+    if (on && doors) on = !opposed(state.rng, { skill: 'deception', value: skill(you, 'deception'), body: you, mods: [{ why: 'off as the doors close', v: DOORS_MOD }, rush && { why: 'the rush hour\'s crush', v: RUSH_MOD }].filter(Boolean) },
+      { skill: 'tracking', value: skill(them, 'tracking'), body: them }).ok;
+    if (on) out.push(a); else f.lost = true;
+  }
+  return out;
+}
 
 /** The shelter actor a is at (on its bench, or in front of it), or null. */
 export function stopNear(state, a) {
@@ -106,19 +136,27 @@ export function waitTick(state, bus, me) {
   }
 }
 
-/** On it: the fare, the ride, the street there, you off at its stop. Returns the minutes, or nothing. */
+/** On it: the fare, the ride, the street there, you off at its stop; whoever got on with you off behind you (riders()). Returns the minutes, or nothing. */
 export function ride(state, bus, to, { scenario, skip, loadRow }) {
   const me = state.actors.find(a => a.who === state.player), from = state.map.row ?? 0;
   if (!pay(state, bus, to.fare, 'the fare')) return;
   scenario?.onBus?.(state, bus, to, 'board');                       // (the scene's: who saw you get on, and got on too)
   if (state.scenario.outcome) return;
-  for (const a of state.actors) if (a.ai?.follow?.id === me.id) a.ai.follow.lost = true;   // (on foot, whoever didn't get on: the scene brings back any who did)
+  const with_ = riders(state, me, to.doors);                       // (on foot, whoever didn't get on, or was carried on: lost)
   const minutes = (to.n ?? 1) * STOP_MIN + 1;
   skip(state, bus, Math.round(minutes * MIN));
   Object.assign(me, { row: to.row, busy: null, glass: false, vx: 0, vz: 0, face: 'down', head: Math.PI / 2 });
+  for (const a of with_) Object.assign(a, { row: to.row, x: to.x, vx: 0, vz: 0, hidden: true });
   if (to.row !== from) loadRow(state, bus, to.row, to.x, { quiet: true });
   const at = stopOn(state, to.row, to.x, to.i);
   Object.assign(me, { x: at.x, z: at.z });
+  // (off the bus a few seconds after you, on you still: on it till then, out of sight; their trail starts again at the stop)
+  for (const a of with_) {
+    const off = state.time.ms + Math.round(range(state.rng, ...OFF_S) * 1000);
+    Object.assign(a, { x: at.x + range(state.rng, -0.8, 0.8), z: at.z, gait: 'idle', steps: off });
+    a.ai.downUntil = off;
+    Object.assign(a.ai.follow, { trail: [], seenMs: off, contactUntil: off + 8000, search: 0 });
+  }
   scenario?.onBus?.(state, bus, to, 'off');
   return minutes;
 }

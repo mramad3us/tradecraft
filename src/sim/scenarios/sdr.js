@@ -55,6 +55,7 @@ import { weatherMods } from '../weather.js';
 import { shown as shownOn } from '../notice.js';
 import { keeps, behind, CHASE_SEE_M, CAB_FLAG, CHASE_WAIT_S } from '../taxi.js';
 import { freeShare } from '../traffic.js';
+import { DOORS_MOD } from '../buses.js';
 
 const TPS = 1000 / TICK_MS;
 export const MEET_AFTER_MIN = [5, 6.5];
@@ -202,7 +203,8 @@ export const sdr = {
    * for it), gets on (an overt pair both; a covert team its nearest, and the car may keep the bus in
    * sight, BUS_CAR_KEEPS). Getting off: they get off behind you (off the bus after you, their faces
    * easier to know), and you look, as anyone would; the car's man gets out a way behind you a minute
-   * or two later.
+   * or two later. Off as the doors close (to.doors), each of them on the bus must beat it (your Deception
+   * +DOORS_MOD against their Tracking), or be carried on.
    * Nobody saw you get on, or nobody made it: lost.
    */
   onBus(state, bus, to, phase) {
@@ -223,8 +225,18 @@ export const sdr = {
       return;
     }
     sc.arrival = { x: me.x, z: me.z };
+    const boarded = sc.riders;
+    if (to.doors && sc.riders.length) {                            // (off as the doors close: whoever doesn't beat it is carried on)
+      const you = state.people[state.player];
+      sc.riders = sc.riders.filter(k => !opposed(state.rng, { skill: 'deception', value: skill(you, 'deception'), body: you, mods: [{ why: 'off as the doors close', v: DOORS_MOD }] },
+        { skill: 'tracking', value: skill(state.people[sc.crew[k].who], 'tracking'), body: state.people[sc.crew[k].who] }).ok);
+      sc.carried = boarded.length - sc.riders.length;
+      // (whoever was on it with you saw it, kept or carried on: written down, as dry-cleaning is)
+      if (sc.flags.filter(f => f.kind === 'doors').length < FLAGS_MAX) sc.flags.push({ kind: 'doors', ms: now, who: sc.crew[boarded[0]].who });
+      if (!sc.riders.length && !sc.carKeeps) { sc.teamLost = true; sc.lostHow = 'off a bus as its doors closed'; return; }
+    }
     sc.riders.forEach((k, n) => sc.pending.push({ crew: k, at: now + 1200 + n * 900, bus: true }));
-    const car = sc.carKeeps && sc.crew.findIndex((c, k) => !sc.riders.includes(k));
+    const car = sc.carKeeps && sc.crew.findIndex((c, k) => !boarded.includes(k));
     if (car !== false && car >= 0) sc.pending.push({ crew: car, at: now + Math.round(range(stream('bus-car', state.map.seed, now), 60, 150) * 1000), car: true });
     sc.teamSeenMs = now;
     sc.check = { tick: state.tick + 3 * TPS, why: 'alight', bonus: 1 };   // (who gets off with you: anyone looks)
@@ -435,8 +447,8 @@ const CAUGHT_LINE = {
   doubled: (who) => `When you turn round, ${who[0].toLowerCase() + who.slice(1)} stops too, and finds a shop window very interesting.`,
 };
 const CAUGHT = { bloody: 'walk about bloody', armed: 'carry a weapon in your hand', ran: 'run', checked: 'look back', glassed: 'check behind you in a shop window', jaywalked: 'cross away from the zebra', doubled: 'double back' };
-const FLAGS = { changed: 'you went into a shop in one coat and came out in another', bloody: 'you walked about with blood on you', backway: 'you went into a shop and out the back', armed: 'you walked the street with a weapon showing', assaulted: 'you went for one of them', spoke: 'you spoke to one of them', ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back', taxi: 'you jumped into a taxi', marked: 'you chalked a mark on a lamppost' };
-const SAW = { changed: 'saw you come out in another coat', bloody: 'saw the blood on you', backway: 'waited on a shop door for nothing', armed: 'saw the weapon on you', assaulted: 'took it from you', spoke: 'had a word from you', ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back', taxi: 'saw you jump into a taxi', marked: 'saw you chalk a lamppost' };
+const FLAGS = { changed: 'you went into a shop in one coat and came out in another', bloody: 'you walked about with blood on you', backway: 'you went into a shop and out the back', armed: 'you walked the street with a weapon showing', assaulted: 'you went for one of them', spoke: 'you spoke to one of them', ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back', taxi: 'you jumped into a taxi', doors: 'you stepped off a bus as its doors closed', marked: 'you chalked a mark on a lamppost' };
+const SAW = { changed: 'saw you come out in another coat', bloody: 'saw the blood on you', backway: 'waited on a shop door for nothing', armed: 'saw the weapon on you', assaulted: 'took it from you', spoke: 'had a word from you', ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back', taxi: 'saw you jump into a taxi', doors: 'saw you step off the bus as its doors closed', marked: 'saw you chalk a lamppost' };
 export const FLAGS_MAX = 2;
 export const ASSAULT_HEAT = 12;
 export const BACK_COVERED = 0.3;

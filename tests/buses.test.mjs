@@ -3,8 +3,14 @@
 // amenities()); sat at one, the bus comes on its timetable, waits, and takes you to a stop on its own
 // line, for its fare; being tailed's team
 // gets on with you if they saw you and were near enough (an overt pair; a covert team's nearest, and
-// its car), and gets off behind you; nobody minds a bus (it isn't written down).
+// its car), and gets off behind you; nobody minds a bus (it isn't written down). Whoever follows you
+// gets on too, and off behind you; off as the doors close, by your Deception against their Tracking,
+// they may be carried on.
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
+import { makeAgent, follow } from '../src/sim/agents.js';
+import { sheet } from '../src/sim/people.js';
+import { riders } from '../src/sim/buses.js';
+import { Z } from '../src/sim/map/street.js';
 import { section, SECTION_M } from '../src/sim/map/street.js';
 import { townOf } from '../src/sim/cities/index.js';
 import { cashOf } from '../src/sim/money.js';
@@ -22,7 +28,7 @@ function nearestStop(g) {
 }
 
 /** Walk to the stop, sit, wait for the bus, and take it `which` (bus0: a street on); returns what happened. */
-function takeBus(g, which = 'bus0', bus = null) {
+function takeBus(g, which = 'bus0', bus = null, doors = false) {
   const st = nearestStop(g), sc = g.scenario;
   let t = 0;
   for (; t < 25 * 60 * 6 && !(playerActor(g).busy?.what === 'shelter'); t++) {
@@ -36,12 +42,56 @@ function takeBus(g, which = 'bus0', bus = null) {
   const came = g.time.ms, dir = playerActor(g).busy?.bus?.dir, line = playerActor(g).busy?.bus?.line;
   if (!dir) return { stop: st, waited: (came - sat) / 60000 };
   const list = destinations(g, st, line, dir), want = list.find(d => d.id === which) ?? list[0];
-  step(g, { act: [`bus:${want?.id ?? which}`] }, bus);
+  step(g, { act: [`bus:${want?.id ?? which}${doors ? ':doors' : ''}`] }, bus);
   const there = nearestStop(g);
   return { stop: st, waited: (came - sat) / 60000, dir, line, want, rode: (g.time.ms - came) / 60000, rows: (g.map.row ?? 0) - row, paid: cash - cashOf(g.people[g.player]), to: there?.x };
 }
 
+/** London, seed 7: you, and a follower behind you on the pavement, after you. */
+function followed({ tracking = 10, deception = 10, back = 6 } = {}) {
+  const g = newGame({ seed: 7, city: 'london', weather: 'clear' });
+  start(g, null);
+  const me = playerActor(g), row = g.map.row ?? 0;
+  g.people.me.skills.deception = [deception, 0];
+  g.people.fsb = sheet({ id: 'fsb', name: 'a watcher', sex: 'm', cls: 'civilian', skills: { tracking: [tracking, 0], awareness: [8, 0] } });
+  Object.assign(me, { face: 'right', z: -2.3 });
+  const a = makeAgent(g, { who: 'fsb', row, x: me.x - back, z: -2.6, face: 'right' });
+  follow(g, a, me, 8);
+  for (let t = 0; t < 3; t++) step(g, {}, null);
+  return { g, me, a };
+}
+
 export default [
+  {
+    name: 'buses: whoever follows you and saw you get on gets on too; off as the doors close, by your Deception against their Tracking, carried on; too far back, left at the stop',
+    fn() {
+      const N = 400, rows = [];
+      const rate = (opts, doors) => { const { g, me, a } = followed(opts); let on = 0; for (let k = 0; k < N; k++) { a.ai.follow.lost = false; on += riders(g, me, doors).length; } return on / N; };
+      for (const [label, opts] of [['even (10 v 10)', {}], ['a better watcher (10 v 18)', { tracking: 18 }], ['a better officer (18 v 10)', { deception: 18 }]]) rows.push([label, rate(opts, false), rate(opts, true)]);
+      const far = rate({ back: 40 }, false);
+      for (const [label, plain, doors] of rows) console.log(`      ${label}: on with you ${Math.round(plain * 100)}%, still with you off as the doors close ${Math.round(doors * 100)}%`);
+      console.log(`      40 m back: ${Math.round(far * 100)}%`);
+      const [even, watcher, officer] = rows;
+      assert(rows.every(r => r[1] === 1), 'seen getting on, near: on with you');
+      assert(watcher[2] > even[2] && even[2] > officer[2] && even[2] < 0.8, 'the doors: Tracking keeps you, Deception loses them');
+      assert(far === 0, 'too far back: left at the stop');
+    },
+  },
+  {
+    name: 'buses: a follower on the bus with you gets off behind you, a few seconds on, and follows on',
+    fn() {
+      const { g, me, a } = followed({ tracking: 30, deception: 0 });
+      const r = takeBus(g);
+      assert(r?.dir, 'a bus came');
+      const hid = a.hidden, row = a.row === g.map.row;
+      let offS = null;
+      for (let t = 0; t < 20 * 10 && offS === null; t++) { step(g, {}, null); if (!a.hidden) offS = t / 20; }
+      for (let t = 0; t < 20 * 15; t++) step(g, { mx: 0.6 }, null);
+      const d = Math.hypot(a.x - me.x, a.z - me.z);
+      console.log(`      a watcher on the bus with you: on your street ${row}, out of sight at first ${hid}, off ${offS} s after you; fifteen seconds' walk on: ${Math.round(d)} m behind, still on you ${!a.ai.follow.lost}`);
+      assert(row && hid && offS >= 1.5 && offS <= 5.5 && !a.ai.follow.lost && d < 30, 'off after you, and on you still');
+    },
+  },
   {
     name: 'buses: a shelter where the network\'s lines stop, in every city, its lines on it, room at its ends; notice boards in half the parks',
     fn() {
@@ -109,6 +159,26 @@ export default [
       assert(by.overt.n && by.overt.kept / by.overt.n >= 0.5, 'an overt pair mostly gets on with you');
       assert(by.covert.n && by.covert.kept < by.covert.n, 'a covert team loses you, sometimes');
       assert(!kinds.includes('taxi') && !kinds.includes('bus'), 'a bus is what people take: nothing to write down (the bot\'s own walk may be)');
+    },
+  },
+  {
+    name: 'buses: being tailed\'s riders, off as the doors close: whoever doesn\'t beat your Deception is carried on',
+    heavy: true,
+    fn() {
+      let rode = 0, carried = 0, lost = 0, n = 0, noted = 0, withSome = 0;
+      for (let seed = 1; seed <= 20; seed++) {
+        const g = newGame({ seed, scenario: 'sdr', weather: 'clear' });
+        start(g, null);
+        const sc = g.scenario;
+        if (sc.team === 'none') continue;
+        for (let t = 0; t < 25 * 40; t++) step(g, goTo(g, playerActor(g), g.map.row ?? 0, playerActor(g).x + 30, -2.7), null);
+        const r = takeBus(g, 'bus0', null, true);
+        if (!r?.dir || sc.outcome) continue;                         // (the evening over before the bus came: the meeting missed)
+        n++; rode += sc.riders.length + (sc.carried ?? 0); carried += sc.carried ?? 0; lost += sc.teamLost; noted += sc.flags.some(f => f.kind === 'doors'); withSome += sc.riders.length + (sc.carried ?? 0) > 0;
+      }
+      console.log(`      ${n} rides off as the doors closed: ${rode} of the team rode with you, ${carried} carried on; the team lost ${lost} times (the doors, or nobody got on); written down ${noted} of the ${withSome} with one of them aboard`);
+      assert(rode > 0 && carried > 0 && carried < rode, 'some carried on, not all');
+      assert(noted === withSome, 'whoever rode with you saw it: written down');
     },
   },
 ];
