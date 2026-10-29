@@ -41,13 +41,37 @@ export const metroName = (state) => network(townOf(state.map)).metro?.name ?? 'M
 
 /**
  * A station's name: the side street nearest it (stations along one street can't all be named for it),
- * or, with none near, its street's.
+ * or, with none near, its street's; and never another station's (a line across the streets runs up one
+ * side street, and its stations would all be named for it): the network's stations named in turn from
+ * the middle out, each the nearest side street not yet taken, else its own street (named()).
  */
 export function stationName(town, row, i) {
-  const at = (i + 0.5) * SECTION_M;
-  let best = null;
-  for (const j of [i, i - 1, i + 1]) for (const g of gapsOf(town, row, j)) if (g.name && g.kind === 'side' && (!best || Math.abs((g.x0 + g.x1) / 2 - at) < Math.abs((best.x0 + best.x1) / 2 - at))) best = g;
-  return best?.name ?? streetName(town, row);
+  if (!names.has(town)) names.set(town, named(town));
+  return names.get(town).get(`${row}|${i}`) ?? namesFor(town, row, i)[0];
+}
+const names = new Map();                                            // (town → 'row|i' → its name: from the town alone)
+/**
+ * What a station at (row, i) could be called, the likeliest first: the side streets near it (the next
+ * section either way, then further, to NAME_SECTIONS), nearest first; then its own street; then the
+ * streets either side of it.
+ */
+function namesFor(town, row, i) {
+  const at = (i + 0.5) * SECTION_M, near = [];
+  for (let j = i - NAME_SECTIONS; j <= i + NAME_SECTIONS; j++) for (const g of gapsOf(town, row, j)) if (g.name && g.kind === 'side') near.push(g);
+  const d = (g) => Math.abs((g.x0 + g.x1) / 2 - at);
+  near.sort((a, b) => d(a) - d(b));
+  const close = near.filter(g => d(g) <= 1.5 * SECTION_M), far = near.filter(g => d(g) > 1.5 * SECTION_M);
+  return [...new Set([...close.map(g => g.name), streetName(town, row), ...far.map(g => g.name), streetName(town, row - 1), streetName(town, row + 1)])];
+}
+const NAME_SECTIONS = 3;
+function named(town) {
+  const out = new Map(), taken = new Set();
+  const keys = [...network(town).stations.keys()].map(k => k.split('|').map(Number)).sort(([r1, i1], [r2, i2]) => Math.abs(r1) + Math.abs(i1) - Math.abs(r2) - Math.abs(i2) || r1 - r2 || i1 - i2);
+  for (const [row, i] of keys) {
+    const all = namesFor(town, row, i), n = all.find(x => !taken.has(x)) ?? `${all[0]} ${['North', 'South', 'East', 'West'].find(w => !taken.has(`${all[0]} ${w}`)) ?? row}`;
+    taken.add(n); out.set(`${row}|${i}`, n);
+  }
+  return out;
 }
 
 /** Where you can go from this station: [{ id, label, row, i, minutes, lines, fare }], the nearest first. */

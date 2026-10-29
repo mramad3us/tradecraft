@@ -4,6 +4,22 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc49 (2026-10-29)
+
+- **Fixes from a bug hunt.** A fresh agent played this build headlessly for several in-game days in four cities (the campaign's own hours, transit, shops, police, the phone, the mind, assignments and the tutorial) and reproduced eleven problems; all are fixed below.
+- **Crash: a taxi with watchers behind you.** Hailing a cab with being tailed's team in sight, and catching one of them noting it, threw an error: the fare was taken and the ride never came. Since rc43 in test 2; rc48's watchers brought it to the campaign. The line for it is written now ("…at the kerb behind, looking at its plate, not for a cab of their own").
+- **Heat never cooled in the campaign.** The days going by, lying low, and an arrested asset's +10 were all put back a second later by the street's copy of the heat, so heat only ever went up. Now three days lying low and four nights take 50 to 25, as the design says.
+- **Stuck after the desk from the flat's window.** Travelling, a day's work or bed chosen from the window left you frozen behind the curtain wherever you arrived. Fixed.
+- **No one within reach from behind the curtain.** F at the window could start a fight with a passer-by below. Not any more (nor from anywhere you're hidden).
+- **The desk mid-fight.** Tab during a street fight let you go home to bed and land outside the flat's walls. The desk now waits till the fight's over.
+- **A tutorial lesson from the flat's telephone no longer replaces the campaign's save.** Quitting a lesson and pressing Continue loaded the lesson, with the campaign gone. Continue now brings back the flat, as you left it.
+- **The posting's end paper no longer offers "Back to the posting"** after you're expelled (it looped).
+- **A safe house is its door.** Lying low counted as "at the safe house" anywhere on its street (your own flat on it too), and a blown one still counted. Now you must be at its door, and a blown one doesn't.
+- **The calls.** Bringing a meeting forward could land it later the same day; now only to a free evening before it, or the option's greyed ("no free evening before it"). Putting one off past the asset's own next meeting now simply cancels it, and that one's next.
+- **The Underground's map.** Station names ran into each other and were cut at 15 letters, and two stations could share a name (a line across the streets named all its stations for the side street it runs up). Now every station's name is its own, and each is placed where it fits, whole.
+- A first tour's weekly review said "The network: ."; it now says you run nobody yet.
+- Tests: phone (forward only before; off past theirs), transit (no two stations alike), taxi (a cab hailed looking back at them), campaign (the hub: heat cools; the window; the desk waits out a fight).
+
 ## v0.1.0-rc48 (2026-10-29)
 
 - **Watched in your own hours.** In the campaign, going out of your flat or the embassy, the opposition may now be on you, as the design always said heat should do: in Moscow, at the starting heat, about one time in six, one in three as it warms, and nearly always (mostly a covert team) when you're hot; Cairo and Beirut a little less, London seldom. It's being tailed's team, playing as it does in the test: you check your back and mark faces the same ways, and everything conspicuous they see you do costs heat at once (3 each). Look out of the flat's window first, and whoever's waiting for you is standing by the kerb below. A trip from the desk may shake them or not (on foot, the metro, a taxi, each its own odds); lie low at a safe house with them on you and the station's cable the next morning says it's blown; and an asset meeting you set off for with them still on you has them along.

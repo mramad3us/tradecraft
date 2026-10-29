@@ -20,6 +20,36 @@ const day = (ms) => Math.floor(ms / DAY);
 
 export default [
   {
+    name: 'phone: brought forward only to a free evening before it (never its own day); put off past one of theirs already planned, it\'s simply off and that one\'s next',
+    fn() {
+      const { s, c, bus } = hub(72), now = s.time.ms, a = c.posting.assets[0], me = s.people.me;
+      me.burners = 2;
+      let m = nextMeeting(c, a.id, now);
+      if (!m || day(m.from) < day(now) + 3) {                      // (one three days on, for the test)
+        const from = (day(now) + 3) * DAY + 19 * 60 * MIN;
+        if (m) Object.assign(m, { from, to: from + 15 * MIN, start: from - 30 * MIN });
+        else c.assignments.push(m = { id: 'aT', kind: 'sdr', who: a.id, from, to: from + 15 * MIN, start: from - 30 * MIN, status: 'open', brief: 'between 19:00 and 19:15' });
+      }
+      // (every evening before it taken: nowhere to bring it to)
+      const fill = [];
+      for (let d = day(now) + 1; d < day(m.from); d++) if (!c.assignments.some(x => x.status === 'open' && day(x.from) === d)) { const x = { id: `f${d}`, kind: 'tail', who: 'nobody', from: d * DAY + 19 * 60 * MIN, to: d * DAY + 19 * 60 * MIN + 20 * MIN, start: d * DAY + 19 * 60 * MIN, status: 'open' }; c.assignments.push(x); fill.push(x); }
+      const way = callWays(c, a, now).find(w => w.key === 'forward');
+      const was = m.from;
+      const r0 = call(s, bus, a.id, 'burner', 'forward');
+      assert(!way.ok && !r0.ok && m.from === was, `no free evening before it: it can't be (${way.why})`);
+      for (const x of fill) x.status = 'missed';                    // (the evenings freed)
+      const r1 = call(s, bus, a.id, 'burner', 'forward');
+      assert(r1.ok && day(m.from) < day(was), 'freed: brought forward, to before its own day');
+      // (one of theirs already two days after it: put off three, it's off, and that one's next)
+      const later = { id: 'aL', kind: 'sdr', who: a.id, from: m.from + 2 * DAY, to: m.from + 2 * DAY + 15 * MIN, start: m.from + 2 * DAY - 30 * MIN, status: 'open', brief: 'between 19:00 and 19:15' };
+      c.assignments.push(later);
+      me.burners = 1;
+      const r2 = call(s, bus, a.id, 'burner', 'off');
+      console.log(`      no free evening before it: "${way.why}"; freed: ${dateText(was)} → ${dateText(m.from)}; put off with one of theirs after: ${m.status}, next ${nextMeeting(c, a.id, now)?.id} ("${r2.text.slice(-90)}")`);
+      assert(r2.ok && m.status === 'off' && nextMeeting(c, a.id, now) === later, 'off, and theirs is next');
+    },
+  },
+  {
     name: 'phone: a meeting brought forward to tomorrow, put off three days; a word warms them, not again for days; a burner spent each call; all from the mind\'s desk command',
     fn() {
       const { s, c, bus } = hub(71), now = s.time.ms, a = c.posting.assets[0], me = s.people.me;

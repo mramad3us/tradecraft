@@ -10,8 +10,74 @@ import { oblivious } from './bots.mjs';
 import { seedRng } from '../src/sim/rng.js';
 import { skill } from '../src/sim/skills.js';
 import { assert, fmt } from './helpers.mjs';
+import { heatKey } from '../src/sim/heat.js';
+import { planOf } from '../src/sim/map/interior.js';
+import { atHand } from '../src/sim/interact.js';
+
+// (a Handler's hub in Moscow, day one in the flat, Hale's call had)
+const hubOf = (seed, heat = null) => {
+  const c = newCampaign(seed, candidates(seed, 'moscow')[0], 'moscow');
+  if (heat !== null) c.posting.heat = heat;
+  const g = newGame({ seed, scenario: 'campaign', campaign: c }), bus = { emit() {}, on() {} };
+  start(g, null);
+  for (const k of c.calls ?? []) k.done = g.time.ms;
+  for (let t = 0; t < 21; t++) step(g, {}, bus);
+  return { c, g, bus };
+};
+const atWindow = (g, bus) => {
+  const me = playerActor(g), w = planOf(g.map).spots.find(s => s.kind === 'window');
+  Object.assign(me, { x: w.x, z: w.z });
+  for (let t = 0; t < 21; t++) step(g, {}, bus);
+  step(g, { act: ['instinct'] }, bus);
+};
 
 export default [
+  {
+    name: 'the hub: heat cools as the days go and lying low (the street\'s heat and the campaign\'s kept one)',
+    fn() {
+      const { c, g, bus } = hubOf(8, 50), key = heatKey('embassy', c.posting.country), h0 = g.heat[key];
+      for (let k = 0; k < 3; k++) { step(g, { act: ['desk:low'] }, bus); for (let t = 0; t < 21; t++) step(g, {}, bus); }
+      const low = g.heat[key];
+      for (let k = 0; k < 4; k++) { step(g, { act: ['desk:sleep'] }, bus); for (let t = 0; t < 21; t++) step(g, {}, bus); }
+      console.log(`      heat ${h0}: three days lying low ${low}, four nights on ${g.heat[key]} (the campaign's ${c.posting.heat})`);
+      assert(low <= h0 - 15 && g.heat[key] < low && g.heat[key] === c.posting.heat, 'it cools, and stays cooled');
+    },
+  },
+  {
+    name: 'the hub: from the flat\'s window, nobody below within reach; the desk\'s trips and days from it leave the window behind; the desk waits out a fight',
+    fn() {
+      const out = [];
+      for (const what of ['travel', 'work', 'sleep']) {
+        const { c, g, bus } = hubOf(9);
+        atWindow(g, bus);
+        assert(g.scenario.window, 'at the window');
+        let reach = 0;
+        for (let t = 0; t < 20 * 30; t++) { step(g, {}, bus); if (atHand(g)) reach++; }
+        step(g, { act: [what === 'travel' ? `desk:travel:${c.posting.embassy.id}` : `desk:${what}`] }, bus);
+        for (let t = 0; t < 21; t++) step(g, {}, bus);
+        const me = playerActor(g), x0 = me.x, z0 = me.z;
+        for (let t = 0; t < 40; t++) step(g, { mx: 1 }, bus);
+        for (let t = 0; t < 40; t++) step(g, { mz: 1 }, bus);
+        const moved = Math.hypot(me.x - x0, me.z - z0);
+        out.push(`${what}: ${g.map.kind}${g.map.place ? ` (${g.map.place})` : ''}, at the window ${g.scenario.window}, walked ${fmt(moved, 1)} m; within reach from the window ${reach} ticks`);
+        assert(reach === 0, 'nobody below within reach of the window');
+        assert(!g.scenario.window && moved > 1, `${what}: away from the window, and free to walk`);
+      }
+      // (a fight on the street: the desk says not now, and you stay where you are)
+      const { g, bus } = hubOf(3);
+      const me = playerActor(g), e = planOf(g.map).exits[0];
+      Object.assign(me, { x: (e.x0 + e.x1) / 2, z: (e.z0 + e.z1) / 2 });
+      for (let t = 0; t < 30 && g.map.kind !== 'street'; t++) step(g, {}, bus);
+      let them = null;
+      for (let t = 0; t < 20 * 120 && !them; t++) { step(g, { mx: 0.3 }, bus); them = atHand(g); }
+      step(g, { act: [`interact:hit:${them.id}`] }, bus);
+      const fought = !!g.fight, row = g.map.row;
+      step(g, { act: ['desk:sleep'] }, bus);
+      out.push(`a fight on: the desk ${g.map.kind === 'street' && g.map.row === row ? 'waits' : 'went on'} ("${g.log.at(-1).text}")`);
+      console.log(`      ${out.join('; ')}`);
+      assert(fought && g.map.kind === 'street' && g.map.row === row, 'mid-fight, the desk waits');
+    },
+  },
   {
     name: 'campaign: the generators: three officers to pick from, a posting, four weeks of assignments that make sense (one a day at most, evenings and weekends, no overlap, only the posting\'s people)',
     fn() {

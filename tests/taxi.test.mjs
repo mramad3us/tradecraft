@@ -35,6 +35,30 @@ function atKerbFollowed({ tracking = 10, pathfinding = 10, back = 6 } = {}) {
 
 export default [
   {
+    name: 'taxi: being tailed, a cab hailed with them in view behind you: written down, maybe caught at it, and the ride goes (no throw)',
+    fn() {
+      let n = 0, rode = 0, caught = 0;
+      for (let seed = 1; seed <= 40 && n < 12; seed++) {
+        const g = newGame({ seed, scenario: 'sdr' }), bus = createBus();
+        start(g, bus);
+        if (g.scenario.team !== 'overt') continue;
+        const me = playerActor(g);
+        for (let k = 0; k < 20 * 40; k++) step(g, { mx: 1 }, bus);
+        for (let k = 0; k < 40 && !atKerb(g, me); k++) step(g, { mz: 1 }, bus);
+        for (let k = 0; k < 4; k++) step(g, {}, bus);
+        Object.assign(me, { face: 'left', head: Math.PI });           // (looking back at them as you get in)
+        for (let k = 0; k < 2; k++) step(g, {}, bus);
+        const row0 = g.map.row ?? 0, d = destinations(g, null).find(x => x.id.startsWith('off'));
+        step(g, { act: [`taxi:${d.id}`] }, bus);
+        n++;
+        if ((g.map.row ?? 0) !== row0) rode++;
+        if ((g.scenario.caught ?? []).some(c => c.kind === 'taxi')) caught++;
+      }
+      console.log(`      ${n} evenings with an overt pair, a cab hailed looking back at them: ridden ${rode}, caught them at it ${caught}`);
+      assert(n >= 8 && rode === n, 'every ride goes');
+    },
+  },
+  {
     name: 'taxi: hailed for real: T only with a free one coming; an arm up; it stops by you and asks where; in, away with it, and out of one there; a taken one drives by; walk off and it goes',
     fn() {
       const out = [];

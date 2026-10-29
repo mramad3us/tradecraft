@@ -90,7 +90,11 @@ export const campaignHub = {
     if (action === 'instinct') return use(state, bus, state.scenario.prompt?.act);
     if (action === 'glance') { const me = state.actors.find(a => a.who === state.player); if (state.scenario.tail && me && state.map.kind === 'street') glanced(state, bus, me); return; }
     if (!String(action).startsWith('desk:')) return;
+    if (state.fight) return say(state, bus, { kind: 'instinct', text: 'Not with a fight on your hands.' });   // (the desk's days and trips wait till it's over)
     const [, what, id] = action.split(':'), now = state.time.ms;
+    // (heat: the street's (state.heat, what they wrote down) into the campaign's, which the days, lying
+    // low and arrests then move (sim/campaign.js pass(), lieLow()), and back after: until())
+    c.posting.heat = heatNow(state);
     const until = (to, text) => {                                  // (the clock skipped to `to`, the calendar's consequences told)
       if (to <= now) return;
       if (text) say(state, bus, { kind: 'note', text });
@@ -99,6 +103,7 @@ export const campaignHub = {
       skip(state, bus, to - now);
       if (out && state.map.kind === 'street') outing(state, 'street');
       const papers = pass(c, now, state.time.ms);
+      state.heat[heatKey('embassy', c.posting.country)] = c.posting.heat;
       if (papers.length) bus?.emit('papers', papers);
       if (c.over && !state.scenario.outcome) { Object.assign(state.scenario, { outcome: c.over.why, ended: state.time.ms }); bus?.emit('scenario-end', c.over.why); }
     };
@@ -123,7 +128,7 @@ export const campaignHub = {
       if (state.map.place === 'home') bus?.emit('wardrobe', wardrobeWays(p));   // (and the wardrobe still open: what else)
     }
     else if (what === 'low') {
-      const safe = c.posting.safehouses.some(h => h.row === state.map.row), house = c.posting.safehouses.find(h => h.row === state.map.row && !h.burned);
+      const house = safeHere(state), safe = !!house;
       if (house && seenGoing(state)) house.seen = now;               // (its door, with them watching: sim/campaign.js pass(), the cable)
       until(lieLow(c, now, safe), safe ? 'A day in the safe house: the curtains drawn, the kettle, nobody.' : 'A day of being nobody.'); eat(state.people.me, state.time.ms, 40);
     }
@@ -285,7 +290,7 @@ function enterEmbassy(state, bus) {
   const s = { x: (e.x0 + e.x1) / 2, z: e.z0 - 0.8 };
   Object.assign(me, { x: s.x, z: s.z, vx: 0, vz: 0, busy: null, face: 'up', head: headOf('up'), hidden: false });
   newMap(state, bus, map, s.x);
-  state.scenario.tail = null;                                       // (in: whoever was on you waits outside, or doesn't)
+  Object.assign(state.scenario, { tail: null, window: false });     // (in: whoever was on you waits outside, or doesn't)
   c.where = { inside: 'embassy', row: c.posting.embassy.row, x: s.x, z: s.z };
   say(state, bus, { kind: 'note', text: 'In off the street, your pass to the Marine behind the glass, a nod: the lobby, and the arch of the metal detector.' });
 }
@@ -304,7 +309,7 @@ function enterHome(state, bus, at = 'door') {
   const e = plan.exits[0], s = at === 'sleep' || at === 'window' ? plan.spots.find(x => x.kind === (at === 'sleep' ? 'sleep' : 'window')) : { x: (e.x0 + e.x1) / 2, z: e.z1 + 0.7, face: 'down' };
   Object.assign(me, { x: s.x, z: s.z, vx: 0, vz: 0, busy: null, face: s.face, head: headOf(s.face), hidden: false });
   newMap(state, bus, map, s.x);
-  state.scenario.tail = null;
+  Object.assign(state.scenario, { tail: null, window: false });
   c.where = { inside: 'home', row: c.posting.home.row, x: s.x, z: s.z };
   if (at === 'door') say(state, bus, { kind: 'note', text: 'Up the stairs, the key in the lock: the flat.' });
   const got = unpack(state.people.me);                              // (the shop's bag unpacked: sim/clothes.js)
@@ -414,6 +419,7 @@ function goTo(state, bus, to, note = null, z = -2.6) {
   const door = { x: to.x ?? 12 };                                  // (its door: sim/places.js)
   Object.assign(me, { x: door.x, z, vx: 0, vz: 0, face: 'down', head: Math.PI / 2, busy: null, hidden: false });
   newMap(state, bus, { kind: 'street', seed: p.mapSeed, row: to.row, i0: null, i1: null, crowd: 1, city: p.city }, door.x);
+  state.scenario.window = false;                                    // (from the flat's window by the desk: down and out, not still behind the curtain)
   c.where = { row: to.row, x: door.x, z };
   say(state, bus, { kind: 'note', text: note ?? `${cap(to.label)}, on ${streetName(townOf({ seed: p.mapSeed, city: p.city }), to.row)}.` });
 }
@@ -444,6 +450,14 @@ function dropTeam(state) {
   state.actors = state.actors.filter(a => !ids.includes(a.id));
   state.scenario.tail = null;
 }
+
+/** The safe house whose door you're at (on its street, within SAFE_DOOR_M of it; not one that's blown), or null. */
+function safeHere(state) {
+  const me = state.actors.find(a => a.who === state.player);
+  if (!me || state.map.kind !== 'street' || state.scenario.window) return null;
+  return state.campaign.posting.safehouses.find(h => !h.burned && h.row === state.map.row && Math.abs((h.x ?? 12) - me.x) <= SAFE_DOOR_M) ?? null;
+}
+export const SAFE_DOOR_M = 10;
 
 /** Whether they see you go in at a door here: one of them on you, with you in sight or lately so. */
 function seenGoing(state) {

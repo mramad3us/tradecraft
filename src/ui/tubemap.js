@@ -16,7 +16,7 @@ import { townOf } from '../sim/cities/index.js';
 import { streetName, SECTION_M } from '../sim/map/street.js';
 import { AREA, AREA_I } from '../sim/transit.js';
 
-const COL_PX = 12, ROW_PX = 18, PAD = 8, NAME_MAX = 15, K = 2;
+const COL_PX = 12, ROW_PX = 18, PAD = 8, K = 2;
 const NEAR_M = 160;                                                 // (what you know this near a station: named on its card)
 const hex = (c) => `#${c.toString(16).padStart(6, '0')}`;
 const lum = (c) => (0.3 * (c >> 16) + 0.59 * ((c >> 8) & 255) + 0.11 * (c & 255)) / 255;
@@ -66,20 +66,39 @@ export function openTubeMap(host, state, at, deps) {
     // (the waypoint's flag)
     const w8 = c?.waypoint;
     if (w8) { const x = Xm(w8.x), y = Y(w8.row) - 10; px(x, y, 1, 9, 0xf6f4ee); px(x + 1, y, 4, 3, 0xe7b84a); }
-    // (the stations: a tick, a change a ring; yours, and the one picked, marked; the names)
+    // (the stations: a tick, a change a ring; yours, and the one picked, marked)
+    const boxes = [];                                               // (what the names mustn't cover: the ticks, YOU, the names placed: [x0, y0, x1, y1])
     for (const s of stations) {
       const x = X(s.i), y = Y(s.row), change = s.ids.length > 1, me = s.k === here, on = pick?.k === s.k;
       if (change || me || on) { px(x - 4, y - 4, 9, 9, 0x14151c); px(x - 3, y - 3, 7, 7, me ? 0xe7b84a : on ? 0x95c1e3 : 0xf6f4ee); px(x - 1, y - 1, 3, 3, 0x14151c); }
       else { px(x - 2, y - 2, 5, 5, 0x14151c); px(x - 1, y - 1, 3, 3, 0xf6f4ee); }
-      const name = (s.name || '').toUpperCase().slice(0, NAME_MAX), tw = textWidth(name);
-      if (!name) continue;
-      // (along a street, under it, centred; on the cross line, to the right)
+      boxes.push([x - 4, y - 4, x + 5, y + 5]);
+    }
+    if (stations.some(s => s.k === here)) { const s = stations.find(t => t.k === here), t = 'YOU', x = X(s.i) - Math.floor(textWidth(t) / 2), y = Y(s.row) - 12; px(x - 1, y - 1, textWidth(t) + 2, 7, 0x14151c); glyphs(px, x, y, t, 0xe7b84a); boxes.push([x - 1, y - 1, x + textWidth(t) + 1, y + 6]); }
+    // (the names: yours and the one picked first, then the changes, then the rest; each in the first
+    // place it fits (along a street under its tick, then over it, then beside; on the line across, beside
+    // it, then under, over), not over another name or a tick nor off the picture; whole, or a word at a
+    // time off its end till it fits; yours and the one picked always shown)
+    const free = (x0, y0, w) => x0 >= 1 && x0 + w <= W - 1 && !boxes.some(b => x0 - 2 < b[2] && x0 + w + 2 > b[0] && y0 - 1 < b[3] && y0 + 6 > b[1]);
+    const order = (s) => (s.k === here ? 0 : pick?.k === s.k ? 1 : s.ids.length > 1 ? 2 : 3);
+    for (const s of [...stations].sort((a, b) => order(a) - order(b))) {
+      if (!s.name) continue;
+      const x = X(s.i), y = Y(s.row), me = s.k === here, on = pick?.k === s.k, change = s.ids.length > 1;
       const along = lines.some(L => L.stops.some(t => t.row === s.row && t.i !== s.i && L.stops.every(u => u.row === s.row)));
-      const lx = along ? Math.max(2, Math.min(W - tw - 2, x - Math.floor(tw / 2))) : x + 6, ly = along ? y + 6 : y - 2;
+      const words = s.name.toUpperCase().split(' ');
+      let at = null;
+      for (let n = words.length; n >= 1 && !at; n--) {
+        const name = words.slice(0, n).join(' '), tw = textWidth(name), mid = x - Math.floor(tw / 2);
+        const spots = along ? [[mid, y + 6], [mid, y - 12], [x + 7, y - 2], [x - 7 - tw, y - 2]] : [[x + 7, y - 2], [x - 7 - tw, y - 2], [mid, y + 6], [mid, y - 12]];
+        const spot = spots.find(([lx, ly]) => free(lx, ly, tw)) ?? (n === 1 && (me || on) ? [Math.max(2, Math.min(W - tw - 2, spots[0][0])), spots[0][1]] : null);
+        if (spot) at = [spot[0], spot[1], name, tw];
+      }
+      if (!at) continue;
+      const [lx, ly, name, tw] = at;
       px(lx - 1, ly - 1, tw + 2, 7, 0x14151c);
       glyphs(px, lx, ly, name, me ? 0xe7b84a : on ? 0x95c1e3 : change ? 0xf6f4ee : 0xb8bdc8);
+      boxes.push([lx - 1, ly - 1, lx + tw + 1, ly + 6]);
     }
-    if (stations.some(s => s.k === here)) { const s = stations.find(t => t.k === here), t = 'YOU', x = X(s.i) - Math.floor(textWidth(t) / 2), y = Y(s.row) - 12; px(x - 1, y - 1, textWidth(t) + 2, 7, 0x14151c); glyphs(px, x, y, t, 0xe7b84a); }
   };
   // The station's card: where, the lines, the minutes, the fare; what you know near it; ride.
   const card = el('div', { className: 'tube-card' });

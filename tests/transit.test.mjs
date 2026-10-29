@@ -15,6 +15,20 @@ import { assert, fmt } from './helpers.mjs';
 
 export default [
   {
+    name: 'metro: every station a name of its own (a line across runs up one side street: the next side street near it, or its own street)',
+    fn() {
+      let n = 0, dup = 0, towns = 0;
+      for (const city of ['london', 'moscow', 'cairo']) for (let seed = 1; seed <= 40; seed++) {
+        const town = `${city}:${seed}`, net = network(town);
+        if (!net.stations.size) continue;
+        const names = [...net.stations.keys()].map(k => { const [row, i] = k.split('|').map(Number); return stationName(town, row, i); });
+        n += names.length; dup += names.length - new Set(names).size; towns++;
+      }
+      console.log(`      ${n} stations in ${towns} towns' networks: ${dup} sharing a name`);
+      assert(dup === 0, 'no two stations of a network share a name');
+    },
+  },
+  {
     name: 'transit: a bus line on every street of the middle of the city; the metro where the city has one, every station reachable, each a building with its door',
     fn() {
       const out = [];

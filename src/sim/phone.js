@@ -3,8 +3,10 @@
 //
 // A call to one of your assets (the mind's People leaf: src/ui/mind.js), for one of WHY:
 //   - **forward**: the next meeting brought forward, to tomorrow evening (or the first free evening after:
-//     one a day, as the planner keeps them: sim/campaign.js plan()); none planned, one made;
-//   - **off**: the next meeting put off OFF_DAYS (you're hot, or it's a bad week);
+//     one a day, as the planner keeps them: sim/campaign.js plan()), never to its own day or after it (no
+//     free evening before it: it can't be); none planned, one made;
+//   - **off**: the next meeting put off OFF_DAYS (you're hot, or it's a bad week); past a meeting of
+//     theirs already planned, it's simply off, and that one's the next;
 //   - **word**: a word, to keep them warm: trust +1, once in WARM_DAYS (a voice on the line is what keeps
 //     an agent yours between meetings).
 // From a **burner** (sim/clothes.js: bought at a phone shop, counted on p.burners): used once and dumped,
@@ -30,9 +32,9 @@ export const nextMeeting = (c, id, now) => c.assignments.filter(a => a.status ==
 
 /** What a call to asset s could be for, now: [{ key, label, ok, why }]. */
 export function callWays(c, s, now) {
-  const m = nextMeeting(c, s.id, now), tomorrow = dayOf(now) + 1;
+  const m = nextMeeting(c, s.id, now), tomorrow = dayOf(now) + 1, fwd = freeDay(c, tomorrow, m);
   return [
-    { key: 'forward', label: WHY.forward, ok: !m || dayOf(m.from) > tomorrow, why: m ? (dayOf(m.from) > tomorrow ? `${dayText(m.from, now)} at ${hm(m.from)}, to tomorrow evening (or the first free one)` : `it's ${dayText(m.from, now)} already`) : 'none planned: one tomorrow evening' },
+    { key: 'forward', label: WHY.forward, ok: !m || fwd < dayOf(m.from), why: m ? (fwd < dayOf(m.from) ? `${dayText(m.from, now)} at ${hm(m.from)}, to ${dayText(fwd * DAY, now)} evening` : dayOf(m.from) <= tomorrow ? `it's ${dayText(m.from, now)} already` : 'no free evening before it') : 'none planned: one tomorrow evening (or the first free one)' },
     { key: 'off', label: WHY.off, ok: !!m, why: m ? `${dayText(m.from, now)} at ${hm(m.from)}, put off ${OFF_DAYS} days` : 'none planned' },
     { key: 'word', label: WHY.word, ok: !(s.word > now - WARM_DAYS * DAY), why: s.word > now - WARM_DAYS * DAY ? 'you rang them lately' : `trust ${Math.min(TRUST_MAX, s.trust + 1) > s.trust ? 'up' : 'kept'}` },
   ];
@@ -66,12 +68,19 @@ export function call(state, bus, id, phone, why) {
   } else {
     const m = nextMeeting(c, s.id, now);
     const day = why === 'forward' ? freeDay(c, dayOf(now) + 1, m) : freeDay(c, dayOf(m.from) + OFF_DAYS, m);
-    const from = eveningOf(c, day, s.id);
-    if (m) Object.assign(m, { from, to: from + 15 * MIN, start: from - 30 * MIN, brief: m.brief.replace(/between \d\d:\d\d and \d\d:\d\d/, `between ${hm(from)} and ${hm(from + 15 * MIN)}`), moved: now });
-    else c.assignments.push({ id: `a${(Math.floor(now / MIN) * 31 + s.id.length) % 1e7}`, kind: 'sdr', who: s.id, from, to: from + 15 * MIN, start: from - 30 * MIN, status: 'open', moved: now,
-      brief: `Meet ${s.codename} (${s.role}) on a boulevard bench, between ${hm(from)} and ${hm(from + 15 * MIN)}. Clean, or not at all.` });
-    if (why === 'off') s.nextDay = Math.max(s.nextDay ?? 0, day + 2);
-    lines.push(`${s.codename} answers, and you say the words you agreed: ${why === 'forward' ? 'sooner' : 'later'}. The bench, ${dayText(day * DAY, now)}, between ${hm(from)} and ${hm(from + 15 * MIN)}.`);
+    // (put off past a meeting of theirs already planned: this one's simply off, and that one's the next)
+    const after = why === 'off' && c.assignments.filter(a => a !== m && a.status === 'open' && a.kind === 'sdr' && a.who === s.id && !a.trip && a.from > m.from && dayOf(a.from) <= day).sort((a, b) => a.from - b.from)[0];
+    if (after) {
+      Object.assign(m, { status: 'off', moved: now });
+      lines.push(`${s.codename} answers, and you say the words you agreed: not this time. The next is the one already set, ${dayText(after.from, now)} between ${hm(after.from)} and ${hm(after.to)}.`);
+    } else {
+      const from = eveningOf(c, day, s.id);
+      if (m) Object.assign(m, { from, to: from + 15 * MIN, start: from - 30 * MIN, brief: m.brief.replace(/between \d\d:\d\d and \d\d:\d\d/, `between ${hm(from)} and ${hm(from + 15 * MIN)}`), moved: now });
+      else c.assignments.push({ id: `a${(Math.floor(now / MIN) * 31 + s.id.length) % 1e7}`, kind: 'sdr', who: s.id, from, to: from + 15 * MIN, start: from - 30 * MIN, status: 'open', moved: now,
+        brief: `Meet ${s.codename} (${s.role}) on a boulevard bench, between ${hm(from)} and ${hm(from + 15 * MIN)}. Clean, or not at all.` });
+      if (why === 'off') s.nextDay = Math.max(s.nextDay ?? 0, day + 2);
+      lines.push(`${s.codename} answers, and you say the words you agreed: ${why === 'forward' ? 'sooner' : 'later'}. The bench, ${dayText(day * DAY, now)}, between ${hm(from)} and ${hm(from + 15 * MIN)}.`);
+    }
   }
   if (phone === 'burner') lines.push('The SIM snapped, the phone in a bin two streets on.');
   const text = lines.join(' ');

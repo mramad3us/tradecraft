@@ -391,7 +391,7 @@ export function review(c, dayMs) {
   const intel = week.reduce((n, a) => n + (a.intel ?? 0), 0), expected = 1;
   const grade = intel >= expected + 1 && p.heat < 40 ? 'Excellent' : intel >= expected && p.heat < 55 ? 'Good' : intel > 0 ? 'Adequate' : 'Poor';
   c.reviews.push({ ms: dayMs, grade, intel });
-  return { kind: 'review', title: `THE WEEK: ${grade.toUpperCase()}`, lines: [`Intelligence: ${intel} (expected ${expected}).`, `Heat: ${heatWord(p.heat)}. Cover standing: ${p.cover}.`, `The network: ${p.assets.map(s => `${s.codename}, trust ${s.trust}`).join('; ')}.`] };
+  return { kind: 'review', title: `THE WEEK: ${grade.toUpperCase()}`, lines: [`Intelligence: ${intel} (expected ${expected}).`, `Heat: ${heatWord(p.heat)}. Cover standing: ${p.cover}.`, p.assets.length ? `The network: ${p.assets.map(s => `${s.codename}, trust ${s.trust}`).join('; ')}.` : p.level === 'junior' ? 'The network: none of your own yet; a first tour runs nobody.' : 'The network: nobody left.'] };
 }
 export const heatWord = (h) => (h < 30 ? 'quiet' : h < 45 ? 'noticed' : h < 60 ? 'watched' : h < 75 ? 'hot' : 'burning');
 

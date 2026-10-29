@@ -114,8 +114,8 @@ function openCall(s, id) {
 
 /** From the flat to the tutorial: the hub kept to come back to, its officer to play the lessons. */
 async function toTutorial(s) {
+  await autosave();                                                 // (the hub, as it's left: Continue's, all the while you're in the lessons)
   home = { json: toJSON(s), character: structuredClone(s.people[s.player]), name: s.people[s.player].name, city: s.campaign.posting.city, job: s.campaign.posting.job };
-  await autosave();
   stop();
   ui.showTutorial({ home });
 }
@@ -133,7 +133,7 @@ function randomSeed() { return crypto.getRandomValues(new Uint32Array(1))[0]; }
 const about = (s) => `${SCENARIOS[s.scenario.kind]?.name ?? s.scenario.kind} · ${s.people[s.player]?.name ?? ''} · ${stampText(s.time.ms)}`;
 
 async function autosave() {
-  if (!state || !running) return;
+  if (!state || !running || home) return;                          // (a lesson from the flat's telephone: the campaign stays the autosave, not the lesson)
   try { await putSave('auto', toJSON(state), about(state), VERSION); } catch (e) { console.warn('autosave failed', e); }
 }
 
@@ -208,11 +208,12 @@ function launch(s, { hour = null } = {}) {
 function result() {
   const kind = state.scenario.kind, seed = state.seed, chapter = state.scenario.chapter ?? null, city = state.map?.city ?? null;
   if (state.campaign) {
-    // (the hub's own end, the posting over: the career's record kept (CAREER_KEY); promoted, the station of your own chosen here)
+    // (the hub's own end, the posting over: the career's record kept (CAREER_KEY); promoted, the station of your own chosen here;
+    // no way back to a posting that's over)
     const c = state.campaign, over = kind === 'campaign' && state.scenario.outcome;
     if (over) reached(levelOf(c.posting.level) + (over === 'promoted' || over === 'completed' ? 1 : 0));
     const next = over === 'promoted' ? (city) => launch(newGame({ seed: randomSeed(), scenario: 'campaign', version: VERSION, campaign: promote(c, city), weather: WEATHER })) : null;
-    return ui.showResult(state, { back: () => backToPosting(state), title: async () => { await autosave(); stop(); showTitle(); }, photo: lastPhoto?.url, next }, settings);
+    return ui.showResult(state, { back: over ? null : () => backToPosting(state), title: async () => { await autosave(); stop(); showTitle(); }, photo: lastPhoto?.url, next }, settings);
   }
   // (a lesson of the tutorial: again with Hale, on your own, the next one, the directory: sim/tutorial/)
   // (from the flat's telephone, `home`: the campaign's officer plays on, and the way out is back to the flat)
@@ -308,6 +309,7 @@ input.onAction((action) => {
   }
   if (action === 'mindmap') {                                      // (Tab: in the campaign's hub, the desk: sim/scenarios/campaign.js)
     if (open === 'mind') ui.closeOverlays();
+    else if (!open && state.scenario.kind === 'campaign' && state.fight) ui.toast({ kind: 'instinct', text: 'Not with a fight on your hands.' });
     else if (!open && state.scenario.kind === 'campaign') ui.openMind(state, (cmd) => acts.push(`desk:${cmd}`));   // (Tab: the mind, src/ui/mind.js)
     return;
   }

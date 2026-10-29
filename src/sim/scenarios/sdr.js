@@ -394,7 +394,7 @@ export const sdr = {
     const caught = sc.caught ?? [];
     const notes = [
       marked.length ? `Faces you'd marked: ${list(marked.map(f => `${f.look} (${f.sure ? 'a tail, you\'d say' : 'seen before'})`))}.` : 'You marked no face as following you.',
-      caught.length ? `You think ${list(caught.map(c => `${c.look} saw you ${CAUGHT[c.kind]}`))}.` : null,
+      caught.length ? `You think ${list(caught.map(c => `${c.look} saw you ${CAUGHT[c.kind] ?? 'at it'}`))}.` : null,
       epilogue(state),
     ];
     if (debug) {
@@ -460,8 +460,9 @@ const CAUGHT_LINE = {
   glassed: (who) => `In the glass, ${who[0].toLowerCase() + who.slice(1)} is watching you, not the street. They may know what you were looking at.`,
   jaywalked: (who) => `${who} watches you cross, and doesn't look away when you look up.`,
   doubled: (who) => `When you turn round, ${who[0].toLowerCase() + who.slice(1)} stops too, and finds a shop window very interesting.`,
+  taxi: (who) => `As the cab pulls out, ${who[0].toLowerCase() + who.slice(1)} is at the kerb behind, looking at its plate, not for a cab of their own.`,
 };
-const CAUGHT = { bloody: 'walk about bloody', armed: 'carry a weapon in your hand', ran: 'run', checked: 'look back', glassed: 'check behind you in a shop window', jaywalked: 'cross away from the zebra', doubled: 'double back' };
+const CAUGHT = { bloody: 'walk about bloody', armed: 'carry a weapon in your hand', ran: 'run', checked: 'look back', glassed: 'check behind you in a shop window', jaywalked: 'cross away from the zebra', doubled: 'double back', taxi: 'jump into a taxi' };
 const FLAGS = { changed: 'you went into a shop in one coat and came out in another', bloody: 'you walked about with blood on you', backway: 'you went into a shop and out the back', armed: 'you walked the street with a weapon showing', assaulted: 'you went for one of them', spoke: 'you spoke to one of them', ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back', taxi: 'you jumped into a taxi', doors: 'you stepped off as the doors closed', marked: 'you chalked a mark on a lamppost' };
 const SAW = { changed: 'saw you come out in another coat', bloody: 'saw the blood on you', backway: 'waited on a shop door for nothing', armed: 'saw the weapon on you', assaulted: 'took it from you', spoke: 'had a word from you', ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back', taxi: 'saw you jump into a taxi', doors: 'saw you step off as the doors closed', marked: 'saw you chalk a lamppost' };
 export const FLAGS_MAX = 2;
@@ -729,7 +730,7 @@ function flag(state, bus, kind) {
     if (r.ok) {
       (sc.caught ??= []).push({ kind, look });
       strain(state, bus, 6);                                          // (you caught them catching you: sim/needs.js)
-      say(state, bus, { kind: 'roll', roll: r, text: `${CAUGHT_LINE[kind](cap(look))} Maybe it's nothing.` });
+      say(state, bus, { kind: 'roll', roll: r, text: `${(CAUGHT_LINE[kind] ?? ((who) => `${who} was watching you just then.`))(cap(look))} Maybe it's nothing.` });
       sighting(state, bus, w, r);
     }
   }
