@@ -26,6 +26,7 @@ import { townOf } from '../sim/cities/index.js';
 import { streetName, SECTION_M, Z } from '../sim/map/street.js';
 import { trip } from '../sim/campaign.js';
 import { sectionOf } from '../sim/city.js';
+import { callWays, nextMeeting } from '../sim/phone.js';
 
 export const KIND_COLOUR = { home: 0xe7b84a, work: 0x5d8fc2, safe: 0x76ad4c, food: 0xe8896a, clothes: 0x7a4a86, books: 0x2f6b62, bank: 0xb9862e, club: 0xc95c45, school: 0x3b6296, phones: 0x95c1e3, optician: 0x8f96a6, chemist: 0x356f42, other: 0x6a7182, metro: 0x9e3c36, bus: 0xc4bba9 };
 const LEAVES = [['ahead', 'Ahead'], ['city', 'The city'], ['people', 'People'], ['stand', 'Where you stand']];
@@ -40,7 +41,7 @@ export function openMind(host, state, leaf = 'ahead', deps) {
   const show = (to) => openMind(host, state, to, deps);
   const tabs = el('div', { className: 'mind-tabs' }, ...LEAVES.map(([id, name], k) => el('button', { className: `mind-tab${id === leaf ? ' on' : ''}`, onclick: () => show(id), title: `${k + 1}` }, name)));
   const title = el('div', { className: 'mind-head' }, pix(copy(plaque({ text: 'THE MIND', sub: me.name.toUpperCase(), style: 'way', icon: 'eye', notch: false })), 2), tabs);
-  const body = el('div', { className: 'mind-body' }, ...(leaf === 'city' ? cityLeaf(state, deps, show) : leaf === 'people' ? peopleLeaf(state, deps) : leaf === 'stand' ? standLeaf(state, deps) : aheadLeaf(state, deps)));
+  const body = el('div', { className: 'mind-body' }, ...(leaf === 'city' ? cityLeaf(state, deps, show) : leaf === 'people' ? peopleLeaf(state, deps, show) : leaf === 'stand' ? standLeaf(state, deps) : aheadLeaf(state, deps)));
   host.replaceChildren(el('div', { className: 'mind' }, title, body, el('p', { className: 'mind-foot' }, `${deps.label('mindmap')} or ${deps.label('menu')} to close · 1–4 the leaves`)));
   host.hidden = false;
   host.dataset.kind = 'mind';
@@ -88,12 +89,28 @@ function standLeaf(state, { el }) {
 }
 
 // ---------- People ----------
-function peopleLeaf(state, { el }) {
-  const c = state.campaign, p = c.posting;
+function peopleLeaf(state, deps, show) {
+  const { el, act } = deps, c = state.campaign, p = c.posting, me = state.people.me, now = state.time.ms;
   const trust = (t) => (t >= 4 ? 'trusts you' : t >= 2 ? 'warming to you' : t >= 0 ? 'wary of you' : 'not sure of you at all');
+  // (a call: what for, then which phone: sim/phone.js; the choice kept on deps.on while the leaf's open)
+  const panel = (s) => {
+    const ways = callWays(c, s, now), why = ways.find(w => w.key === deps.on.why && w.ok) ?? ways.find(w => w.ok), m = nextMeeting(c, s.id, now);
+    return el('div', { className: 'mind-call' },
+      el('p', { className: 'mind-note' }, m ? `Next meeting: ${dateText(m.from).split(' ').slice(0, 3).join(' ')}, ${clockText(m.from)}.` : 'No meeting planned.'),
+      el('div', { className: 'mind-acts' }, ...ways.map(w => el('button', { className: `mind-why${w === why ? ' on' : ''}`, disabled: !w.ok, title: w.why, onclick: () => { deps.on.why = w.key; show('people'); } }, w.label))),
+      why ? el('p', { className: 'mind-note' }, `${why.label}: ${why.why}.`) : el('p', { className: 'mind-note' }, 'Nothing to call about.'),
+      el('div', { className: 'mind-acts' },
+        el('button', { disabled: !why || !(me.burners > 0), title: 'used once, and dumped: nothing to trace', onclick: () => act(`phone:${s.id}:burner:${why.key}`) }, `From a burner (${me.burners ?? 0} on you)`),
+        el('button', { disabled: !why, title: 'on their bill: the opposition reads such things', onclick: () => act(`phone:${s.id}:own:${why.key}`) }, 'From your own phone: traceable'),
+        el('button', { onclick: () => { deps.on.call = null; show('people'); } }, 'Not now')));
+  };
   return [
     el('h3', {}, p.assets.length ? 'Your network' : 'Your network: none yet'),
-    ...p.assets.map(s => el('p', {}, `${s.codename}: ${s.role}, in it for ${s.motive}; ${trust(s.trust)}${s.burned ? '. Compromised: they saw you meet' : ''}.`)),
+    ...p.assets.map(s => el('div', { className: 'mind-asset' },
+      el('div', { className: 'mind-acts' }, el('span', { className: 'what' }, `${s.codename}: ${s.role}, in it for ${s.motive}; ${trust(s.trust)}${s.burned ? `. Compromised: ${s.burnedBy === 'call' ? 'they looked at who you rang' : 'they saw you meet'}` : ''}.`),
+        deps.on.call === s.id ? null : el('button', { className: 'mind-go', onclick: () => { deps.on.call = s.id; deps.on.why = null; show('people'); } }, 'Call…')),
+      deps.on.call === s.id ? panel(s) : null)),
+    p.assets.length ? el('p', { className: 'mind-note' }, `A call to bring a meeting forward or put it off, or a word to keep them warm. ${me.burners ? `${me.burners} burner${me.burners === 1 ? '' : 's'} on you.` : 'No burners on you: a phone shop sells them.'}`) : null,
     el('h3', {}, 'Watched'),
     ...p.targets.map(t => el('p', {}, `${t.name}, ${t.what}.${t.wary ? ' Careful now: he knows someone was there.' : ''}${t.contact ? ' Seen meeting someone.' : ''}`)),
     el('h3', {}, 'The station'),

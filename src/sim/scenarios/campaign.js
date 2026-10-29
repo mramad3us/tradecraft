@@ -29,6 +29,7 @@ import { signOf } from '../places.js';
 import { reading, bookOf, readAnHour } from '../training.js';
 import { dress, wardrobeWays, unpack, DRESS_S } from '../clothes.js';
 import { kitWords, addSupply } from '../medicine.js';
+import { call } from '../phone.js';
 import { staffTick, think as staffThink } from '../interiors/staffing.js';
 import { follow } from '../crowd.js';
 import { arrived } from '../knowledge.js';
@@ -103,6 +104,10 @@ export const campaignHub = {
       const p = state.people.me;
       if (id === 'nap') { until(now + NAP_MIN * MIN, 'An hour on top of the covers, shoes off. You wake thick-headed, and better for it.'); c.awake = Math.min(state.time.ms, (c.awake ?? now) + NAP_EASES_H * HOUR); }
       else { until(now + REST_MIN * MIN, 'Half an hour on the bed with the ceiling for company. Your breathing slows.'); eat(p, p.needs?.ate ?? state.time.ms, REST_CALM); }
+    }
+    else if (what === 'phone') {                                    // (a call to an asset, from the mind: sim/phone.js; desk:phone:<asset>:<burner|own>:<why>)
+      const [, , , phone, why] = action.split(':'), r = call(state, bus, id, phone, why);
+      if (!r.ok && r.text) say(state, bus, { kind: 'instinct', text: r.text });
     }
     else if (what === 'travel') {
       const to = places(c).find(pl => pl.id === id);

@@ -397,3 +397,10 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .read-bar { position: relative; height: 6px; background: #23252f; border: 1px solid #353947; }
 .read-bar i { position: absolute; top: 0; bottom: 0; background: #95c1e3; }
 .read-row .why { color: #6a7182; font-size: calc(11px * var(--ui, 1)); }
+/* A call (the mind's People: src/ui/mind.js, sim/phone.js). */
+.mind-asset { border-bottom: 1px solid #23252f; padding: 3px 0; }
+.mind-asset > .mind-acts .what { flex: 1; }
+.mind-call { border-left: 2px solid #353947; padding: 2px 0 4px 10px; margin: 4px 0 6px; }
+.mind-why { background: #1b1c24; border: 1px solid #353947; color: #b8bdc8; padding: 2px 8px; cursor: pointer; border-radius: 2px; }
+.mind-why.on { border-color: #e7b84a; color: #f6f4ee; }
+.mind-why:disabled, .mind-acts button:disabled { opacity: 0.45; cursor: default; }

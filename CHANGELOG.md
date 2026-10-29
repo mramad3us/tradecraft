@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc38 (2026-10-29)
+
+- **Calling your network.** In the mind (Tab), on People, each of your assets has a Call…: bring the next meeting forward (to tomorrow evening, or the first free one), put it off three days, or a word to keep them warm (trust up a step, not again for three days). From a burner it's one burner gone and nothing to trace. From your own phone it's +4 heat, and the hotter you already are, the likelier the opposition looks at who you rang and compromises the asset (one in ten at heat 20, two in five at 80); call a compromised asset's line from your own phone and it's +10. The call takes 40 seconds, head bowed over the phone.
+- Tests: phone (forward, off, a word, burners spent; your own phone's heat and risk by how hot you are, a burner's none).
+
 ## v0.1.0-rc37 (2026-10-29)
 
 - **Getting wet.** Out in the rain you soak through: light rain takes twenty minutes, heavy six or seven, a downpour four; snow half as fast. Your umbrella keeps nearly all of it off (less in a strong wind), a hood about half. Out of it you dry slowly, indoors or in a shop much faster, and dry clothes at home (the wardrobe, or the basin) dry you at once. The log tells you when you're damp, wet through, soaked.
