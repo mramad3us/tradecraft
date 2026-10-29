@@ -7,7 +7,7 @@ import { hurt, heal, mods, stateOf, takes, PARTS } from '../src/sim/health.js';
 import { options, treat, bodyLine } from '../src/sim/aid.js';
 import { addSupply, kitWords, painOf, painBand, infectionOf, INFECT_P } from '../src/sim/medicine.js';
 import { GOODS, carry } from '../src/sim/clothes.js';
-import { newGame, start, skip } from '../src/sim/game.js';
+import { newGame, start, step, skip } from '../src/sim/game.js';
 import { createBus } from '../src/sim/bus.js';
 import { candidates, newCampaign } from '../src/sim/campaign.js';
 import { DAY, HOUR } from '../src/sim/clock.js';
@@ -146,6 +146,34 @@ export default [
       assert(['firstaid', 'bandage', 'antiseptic', 'sutures', 'splint', 'tourniquet', 'painkillers', 'poultice', 'antibiotics'].every(k => sold('pharmacy').includes(k)) && sold('grocery').includes('bandage'), 'the counters');
       assert(at === 'pocket' && p.kit.bandage === 4 && p.kit.sutures === 3 && !p.items?.length, 'counted, in a pocket');
       assert(c.cabinet.bandage > 0, 'the cabinet');
+    },
+  },
+  {
+    name: 'medicine: a professional: the embassy\'s nurse on a working day (an hour, discreet; an artery beyond her), a hospital\'s A&E (hours; everything; a knife wound reported, heat)',
+    fn() {
+      const wounds = (ms) => [
+        { part: 'armR', kind: 'cut', name: 'a stab in the right arm', ms, until: ms + 10 * DAY, bleed: ms + 6 * HOUR, rate: 3, deep: true },
+        { part: 'legL', kind: 'cut', name: 'a cut artery in the left thigh', ms, until: ms + 10 * DAY, bleed: ms + 6 * HOUR, rate: 12, deep: true, artery: true },
+        { part: 'armL', kind: 'fracture', name: 'a fractured left forearm', ms, until: ms + 42 * DAY, bleed: 0 },
+      ];
+      const run = (where) => {
+        const c = newCampaign(81, candidates(81, 'london', 'junior')[0], 'london', 'junior'); c.calls = [];
+        const s = newGame({ seed: 81, scenario: 'campaign', campaign: c }), bus = createBus();
+        start(s, bus);
+        if (where === 'embassy') { step(s, { act: ['desk:travel:embassy'] }, bus); for (let t = 0; t < 25; t++) step(s, {}, bus); step(s, { act: ['instinct'] }, bus); }
+        else { step(s, { act: ['desk:travel:embassy'] }, bus); for (let t = 0; t < 25; t++) step(s, {}, bus); }
+        const me = s.actors.find(a => a.who === s.player), p = s.people[s.player];
+        p.injuries = wounds(s.time.ms); p.tourniquets = { legL: { ms: s.time.ms } }; p.injuries[1].bleed = s.time.ms;
+        const keys = options(s, p, p).map(o => o.key), t0 = s.time.ms, h0 = s.heat[Object.keys(s.heat)[0]] ?? 0;
+        step(s, { act: [`aid:${me.id}:${where === 'embassy' ? 'nurse' : 'hospital'}:0`] }, bus);
+        const [stab, artery, arm] = p.injuries;
+        return { keys, h: (s.time.ms - t0) / HOUR, heat: (s.heat[Object.keys(s.heat)[0]] ?? 0) - h0, stab: !!stab.stitched, artery: !!artery.stitched, tq: !!p.tourniquets, set: !!p.set?.armL && !!p.splints?.armL, line: s.log.filter(l => /nurse|A&E/.test(l.text ?? '')).at(-1)?.text };
+      };
+      const e = run('embassy'), h = run('street');
+      console.log(`      the nurse (${e.keys.includes('nurse:0')}): ${e.h.toFixed(1)} h, heat +${e.heat}, the stab stitched ${e.stab}, the artery ${e.artery ? 'tied off' : 'beyond her'} (the tourniquet ${e.tq ? 'still on' : 'off'}), the arm set and splinted ${e.set}`);
+      console.log(`      A&E (${h.keys.includes('hospital:0')}): ${h.h.toFixed(1)} h, heat +${h.heat}, the stab stitched ${h.stab}, the artery tied off ${h.artery}, the tourniquet ${h.tq ? 'still on' : 'off'}, the arm set and splinted ${h.set}; "${(h.line ?? '').slice(0, 140)}…"`);
+      assert(e.keys.includes('nurse:0') && Math.round(e.h) === 1 && e.heat === 0 && e.stab && !e.artery && e.tq && e.set, 'the nurse: an hour, discreet, all but the artery');
+      assert(h.keys.includes('hospital:0') && h.h >= 4 && h.h <= 6.1 && h.heat === 8 && h.stab && h.artery && !h.tq && h.set, 'A&E: hours, everything, the knife wound reported');
     },
   },
 ];

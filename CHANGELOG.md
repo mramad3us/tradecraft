@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc42 (2026-10-29)
+
+- **Someone who knows what they're doing.** First aid (H) now offers a professional when you're badly hurt. At the embassy on a working day, the Health Unit's nurse sees to everything in an hour, discreetly, though an artery is beyond her. Out in the city, a hospital's A&E sees to everything, tourniquet and all, but it takes four to six hours, and a knife wound gets reported: a policeman with questions, +8 heat.
+- Tests: medicine (the nurse and A&E: what each does, the hours, the heat).
+
 ## v0.1.0-rc41 (2026-10-29)
 
 - **Shops have customers.** Passers-by now go into shops now and then, and anyone who does (the man you're tailing too) walks in through the door, round the furniture to the counter, stands there a while, and walks back out, instead of vanishing at the door. Follow someone in and there they are. (Tailing got a little easier for a good follower: in the tests' evenings, a follower of 15 against a careful man of 10 saw the meeting 88% of the time, against 75% before; against a man of 20, 13% against 4%.)

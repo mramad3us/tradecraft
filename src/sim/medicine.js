@@ -191,6 +191,30 @@ export function scarOf(p, i) {
   return null;
 }
 
+/**
+ * A professional's care (the embassy's nurse, a hospital: sim/aid.js), at game time ms: every open wound
+ * cleaned, a gash stitched (an artery tied off), all bandaged, the bleeding stopped; a break set and
+ * splinted; a tourniquet off; an infection on a course of antibiotics; painkillers; every hurt part tended.
+ * stitchArtery: whether they can tie off an artery (a nurse can't: a hospital can). Returns what was done, in words.
+ */
+export function fullCare(p, ms, { stitchArtery = true } = {}, stateOf = null) {
+  const done = new Set();
+  for (const i of p.injuries ?? []) {
+    if (isOpen(i)) { if (!i.clean) done.add('cleaned'); i.clean = true; delete i.rag; i.bandage = ms; i.dressed = true; if (i.infection) i.infection = Math.max(1, i.infection - INFECTION.clean); }
+    if (gash(i) && !i.stitched && (!i.artery || stitchArtery)) { i.stitched = ms; done.add('stitched'); }
+    if (i.bleed > ms && (!i.artery || i.stitched)) i.bleed = ms;
+    if (i.kind === 'fracture' && LIMBS.includes(i.part)) { (p.set ??= {})[i.part] = { ms }; (p.splints ??= {})[i.part] = { ms }; done.add('set and splinted'); }
+  }
+  for (const k of LIMBS) if (stateOf && stateOf(p, k) === 'out') { (p.set ??= {})[k] ??= { ms }; (p.splints ??= {})[k] ??= { ms }; done.add('set and splinted'); }
+  if (p.tourniquets && Object.keys(p.tourniquets).every(k => !(p.injuries ?? []).some(i => i.part === k && i.artery && !i.stitched))) { delete p.tourniquets; done.add('the tourniquet off'); }
+  if (infectionOf(p)) { p.antibiotics = ms + ANTIBIOTIC_DAYS * DAY; done.add('antibiotics'); }
+  if ((p.injuries ?? []).length || p.body) { p.dosed = { at: ms, until: ms + DOSE_H * HOUR }; for (const k of Object.keys(p.body ?? {})) (p.tended ??= {})[k] = ms; for (const i of p.injuries ?? []) (p.tended ??= {})[i.part] = ms; }
+  return [...done];
+}
+
+/** Whether someone has a wound a hospital would report: a cut by a blade, deep, a stab. */
+export const reportable = (p) => (p.injuries ?? []).some(i => i.kind === 'cut' && (i.deep || i.artery));
+
 /** An injury's care, in words ('stitched, a fresh bandage', 'infected', ''), at game time ms. */
 export function careWords(p, i, ms) {
   const w = [];

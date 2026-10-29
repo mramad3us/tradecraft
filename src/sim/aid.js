@@ -31,6 +31,9 @@
 //     day (sim/medicine.js POULTICE_H).
 //   - Painkillers (no sooner than DOSE_AGAIN_H after the last), a course of antibiotics (an infection, or
 //     a deep wound).
+// Or a professional (sim/medicine.js fullCare()): the embassy's Health Unit, the nurse, on a working day
+// (NURSE_H; discreet; an artery's beyond her), or a hospital's A&E from the street (HOSPITAL_H; everything;
+// a knife wound reported to the police, +HOSPITAL_HEAT).
 // Any care given to a part marks it tended (p.tended): a wound mends only once tended (sim/health.js).
 // On yourself SELF_MOD; with a wounded or broken arm, one-handed, ONE_HAND_MOD. It takes the time it
 // takes (SECONDS), stooped over it; moving stops it (the effect's already made).
@@ -43,8 +46,10 @@ import { TICK_MS } from './clock.js';
 import { skill } from './skills.js';
 import { say } from './log.js';
 import { stateOf, bleedRate, bandOf, bloodOf, bleeding, PARTS, BLOOD, REGEN_PER_H } from './health.js';
-import { SUPPLIES, kitOf, useSupply, supplyWord, isOpen, depthOf, bandageOf, broken, infectionOf, feverOf, painOf, painBand, needsCare, INFECTION, DOSE_H, DOSE_AGAIN_H, ANTIBIOTIC_DAYS, POULTICE_H } from './medicine.js';
-import { DAY, HOUR } from './clock.js';
+import { SUPPLIES, kitOf, useSupply, supplyWord, isOpen, depthOf, bandageOf, broken, infectionOf, feverOf, painOf, painBand, needsCare, fullCare, reportable, INFECTION, DOSE_H, DOSE_AGAIN_H, ANTIBIOTIC_DAYS, POULTICE_H } from './medicine.js';
+import { DAY, HOUR, calendar } from './clock.js';
+import { addHeat } from './heat.js';
+import { range } from './rng.js';
 import { weaponOf } from './weapons.js';
 import { eat, needsWords } from './needs.js';
 
@@ -61,6 +66,7 @@ export const RETRY_MOD = -2;
 export const REST_H = 8;
 export const STITCH_DC = { deep: 13, artery: 18 }, FACE_MOD = -2;
 export const SET_DC = 14;
+export const NURSE_H = 1, HOSPITAL_H = [4, 6], HOSPITAL_HEAT = 8;
 export const SECONDS = { dress: 45, tourniquet: 25, splint: 120, clean: 30, stitch: 240, bandage: 40, set: 60, poultice: 40, painkillers: 5, antibiotics: 5, loosen: 10 };
 const LIMBS = ['armL', 'armR', 'legL', 'legR'];
 const DEEP_BLEED_H = 6;
@@ -115,6 +121,13 @@ export function options(state, medic, patient) {
     out.push({ key: 'painkillers:0', label: `${medic === patient ? 'Take' : 'Give them'} painkillers`, ok: has('painkillers') > 0 && !soon, why: soon ? `too soon: the last dose is still working (${DOSE_AGAIN_H} hours apart)` : has('painkillers') ? `${left('painkillers')}: most of the pain gone, ${DOSE_H} hours` : 'painkillers, from a chemist\'s or a grocer\'s' });
   }
   if ((infectionOf(patient) || wounds.some(([i]) => i.kind === 'cut' && (i.deep || i.artery))) && !(patient.antibiotics > ms)) out.push({ key: 'antibiotics:0', label: 'Start a course of antibiotics', ok: has('antibiotics') > 0, why: has('antibiotics') ? `${left('antibiotics')}: ${ANTIBIOTIC_DAYS} days${infectionOf(patient) ? '' : ', to be safe'}` : 'antibiotics, from a chemist\'s' });
+  // (a professional: the embassy's nurse on a working day, discreet; a hospital's A&E from the street, everything, hours, and a knife wound reported)
+  const hurtAny = wounds.length || Object.keys(patient.body ?? {}).length || patient.tourniquets;
+  if (medic === patient && hurtAny && state.map.place === 'embassy') {
+    const k = calendar(ms), open = k.weekday < 5 && k.hour >= 9 && k.hour < 18;
+    out.push({ key: 'nurse:0', label: 'The Health Unit, down the corridor: the nurse', ok: open, why: open ? `an hour; discreet${wounds.some(([i]) => i.artery && !i.stitched) ? ', but an artery\'s beyond her' : ''}` : 'open 9 to 6, on working days' });
+  }
+  if (medic === patient && hurtAny && state.campaign && state.map.kind === 'street') out.push({ key: 'hospital:0', label: 'A hospital, A&E: everything seen to', ok: true, why: `${HOSPITAL_H[0]} to ${HOSPITAL_H[1]} hours${reportable(patient) ? '; a knife wound: they\'ll call the police' : ', most of them waiting'}` });
   if (medic === patient && !wounds.some(([i]) => i.bleed > ms) && bloodOf(patient) < 100) {
     const h = restHours(patient);
     out.push({ key: 'rest:0', label: `Rest ${h} hour${h === 1 ? '' : 's'}: somewhere warm, something sweet to drink`, ok: !!state.scenario.rest, why: state.scenario.rest ? `the blood back to ${Math.round(Math.min(100, bloodOf(patient) + h * REGEN_PER_H))}%` : 'not now: the time\'s not yours' });
@@ -227,6 +240,16 @@ export function treat(state, bus, medicActor, patientActor, key) {
     stoop(SECONDS.poultice, 'poultice'); tend(arg);
     (patient.poultices ??= {})[arg] = ms + POULTICE_H * HOUR;
     return say_(`An arnica poultice on the ${PART_WORD[arg]}, cool and bitter-smelling, bound on. The ache eases.`);
+  }
+  if (method === 'nurse' || method === 'hospital') {
+    if (!self) return null;
+    const knife = method === 'hospital' && reportable(patient), done = fullCare(patient, ms, { stitchArtery: method === 'hospital' }, stateOf);
+    const h = method === 'nurse' ? NURSE_H : range(state.rng, ...HOSPITAL_H);
+    if (knife) addHeat(state, HOSPITAL_HEAT);
+    say_(method === 'nurse'
+      ? `The nurse asks no questions she doesn't need to: ${done.length ? done.join(', ') : 'a look, and some advice'}. "Come back if it goes red." An hour.`
+      : `A&E: a plastic chair, a long wait, a young doctor who's seen worse tonight: ${done.length ? done.join(', ') : 'a look, and some advice'}.${knife ? ' A knife wound, though: a policeman comes to the curtain an hour later, with a notebook and questions about where you were.' : ''} ${Math.round(h)} hours.`);
+    return { rest: Math.round(h * HOUR) };
   }
   if (method === 'painkillers') {
     if (!useSupply(medic, 'painkillers')) return null;
