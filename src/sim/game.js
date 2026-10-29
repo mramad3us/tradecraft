@@ -48,6 +48,7 @@ import { startTutor, tutorTick } from './tutorial/earpiece.js';
 import * as traffic from './traffic.js';
 import { notice } from './notice.js';
 import { learnTick } from './knowledge.js';
+import { wetTick, wetDays } from './wet.js';
 import { needsTick, strain } from './needs.js';
 import { weatherAt, footing, weatherTick, parseWeather, SLIP_S } from './weather.js';
 import { shortName } from './fight.js';
@@ -306,6 +307,7 @@ export function step(state, input = {}, bus) {
     notice(state, bus, me);                                         // (blood on you, seen: a face remembered: sim/notice.js)
     needsTick(state, bus, me);                                      // (hunger's clock, the calm coming back, frayed slips: sim/needs.js)
     learnTick(state);                                               // (the streets walked, known: sim/knowledge.js)
+    wetTick(state, bus, me);                                        // (rain on you, the cold, a cold: sim/wet.js)
     if (state.tick % (TICKS_PER_S * 60) === 0 && state.people[state.player]) bodyNotes(state, bus, heal(state.people[state.player], 1 / 1440, state.time.ms, { blood: false }));   // (your wounds, a minute on: sim/medicine.js)
     weatherTick(state, bus);                                        // (the weather turning, in the log: sim/weather.js)
     if (me?.gait === 'run' && !me.ai && !state.fight) slipUp(state, bus, me);
@@ -364,7 +366,7 @@ export function skip(state, bus, ms) {
   for (const [who, p] of Object.entries(state.people)) {
     drift(p, state.time.ms);
     const notes = heal(p, ms / DAY, state.time.ms, { tended: who !== state.player });   // (off the map, people see their own doctors)
-    if (who === state.player) bodyNotes(state, bus, notes);
+    if (who === state.player) { wetDays(p, ms / DAY, state.time.ms); bodyNotes(state, bus, notes); }
   }
   const f = focusActor(state);
   if (f) populate(state, f.x);

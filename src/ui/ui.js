@@ -43,7 +43,7 @@ import { weatherAt } from '../sim/weather.js';
 
 const BAND_WORDS = { steady: 'steady', pale: 'pale, light-headed', shock: 'in shock', collapsed: 'collapsed', dead: 'gone' };
 /** Pain and fever, as '; in pain, feverish', or '' (sim/medicine.js). */
-const bodyWords = (p) => { const w = [painBand(painOf(p, stateOf, Object.keys(PARTS)))?.word, feverOf(p)?.word, p.dosed && 'on painkillers'].filter(Boolean); return w.length ? `; ${w.join(', ')}` : ''; };
+const bodyWords = (p) => { const w = [painBand(painOf(p, stateOf, Object.keys(PARTS)))?.word, feverOf(p)?.word, p.sick?.kind === 'cold' && 'a heavy cold', p.shiver ? 'shivering, wet through' : (p.wet ?? 0) >= 60 ? 'wet through' : (p.wet ?? 0) >= 30 ? 'damp' : null, p.dosed && 'on painkillers'].filter(Boolean); return w.length ? `; ${w.join(', ')}` : ''; };
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 import { knownOf, classOf, READABLE } from '../sim/know.js';
@@ -528,15 +528,18 @@ export function createUI({ input, cb }) {
     const toggle = el('label', { className: 'toggle' },
       el('input', { type: 'checkbox', checked: debug, onchange: (e) => { cb.setDebug(e.target.checked); openMenu({ debug: e.target.checked }); } }),
       el('span', {}, 'Debug mode', el('small', { className: 'note', style: 'display:block', textContent: `Manual save and load. ${input.label('BracketRight')} moves the clock on an hour, ${input.label('BracketLeft')} a quarter of an hour.` })));
-    menu.replaceChildren(el('div', { className: 'sheet' },
-      el('h2', { textContent: 'MENU' }), el('hr'),
-      el('button', { className: 'item', onclick: () => cb.resume() }, 'Resume'),
-      el('button', { className: 'item', onclick: () => cb.exportSave() }, 'Save to a file', el('small', { textContent: 'The game as it is now, as a .json file: to keep, or to send with a bug.' })),
-      el('button', { className: 'item', onclick: () => cb.importSave() }, 'Load a save file…'),
-      debug ? el('button', { className: 'item', onclick: () => cb.saveManual() }, 'Save (debug)') : null,
-      debug ? el('button', { className: 'item', onclick: () => cb.loadManual() }, 'Load the debug save') : null,
-      el('button', { className: 'item', onclick: () => cb.quit() }, 'Quit to the title', el('small', { textContent: 'The game is saved first.' })),
-      el('hr'), toggle,
+    // (the mind's dark glass: src/ui/mind.js; a button, and what it does under it)
+    const item = (label, sub, fn) => el('button', { className: 'item', onclick: fn }, el('span', {}, label, sub ? el('small', {}, sub) : null));
+    menu.replaceChildren(el('div', { className: 'mind glass menu' },
+      el('div', { className: 'mind-head' }, glassHead('TRADECRAFT', 'PAUSED', 'eye')),
+      el('div', { className: 'glass-list' },
+        item('Resume', null, () => cb.resume()),
+        item('Save to a file', 'The game as it is now, as a .json file: to keep, or to send with a bug.', () => cb.exportSave()),
+        item('Load a save file…', null, () => cb.importSave()),
+        debug ? item('Save (debug)', null, () => cb.saveManual()) : null,
+        debug ? item('Load the debug save', null, () => cb.loadManual()) : null,
+        item('Quit to the title', 'The game is saved first.', () => cb.quit())),
+      toggle,
     ));
     menu.hidden = false;
     log.hidden = true;
@@ -548,10 +551,11 @@ export function createUI({ input, cb }) {
   // the scene's over.
   function openLog(state, { debug = false } = {}) {
     const over = !!state.scenario.outcome && debug;
-    const items = state.log.filter(e => over || !e.hidden).reverse().map(e => el('li', { className: `${e.roll && !e.roll.ok ? 'fail' : ''}${e.hidden ? ' unseen' : ''}` },
-      el('time', { textContent: stampText(e.ms) }), e.hidden ? el('em', { textContent: 'Unseen: ' }) : null, ...keyed(e.text ?? ''), e.roll ? el('span', { className: 'num', textContent: checkText(e.roll) }) : null));
-    log.replaceChildren(el('div', { className: 'sheet logsheet' },
-      el('h2', { textContent: 'LOG' }), el('p', { className: 'note', textContent: `${dateText(state.time.ms)}. ${input.label('log')} or ${input.label('menu')} to close.` }), el('hr'),
+    const items = state.log.filter(e => over || !e.hidden).reverse().map(e => el('li', { className: `${e.kind ?? ''}${e.roll ? (e.roll.ok ? ' made' : ' fail') : ''}${e.hidden ? ' unseen' : ''}` },
+      el('time', { textContent: stampText(e.ms) }), el('span', { className: 'what' }, e.hidden ? el('em', { textContent: 'Unseen: ' }) : null, ...keyed(e.text ?? ''), e.roll ? el('span', { className: 'num', textContent: checkText(e.roll) }) : null)));
+    log.replaceChildren(el('div', { className: 'mind glass logsheet' },
+      el('div', { className: 'mind-head' }, glassHead('THE LOG', dateText(state.time.ms).toUpperCase(), 'pin')),
+      el('p', { className: 'mind-note' }, `What you've seen, heard and done, the latest first; a roll's numbers under it. ${input.label('log')} or ${input.label('menu')} to close.`),
       el('ol', {}, items)));
     log.hidden = false;
     menu.hidden = true;
@@ -588,7 +592,7 @@ export function createUI({ input, cb }) {
           el('div', { className: 'figure' }, part('head'), part('armR'), part('torso'), part('armL'), part('legR'), part('legL')),
           el('ul', {}, Object.keys(PARTS).map(k => el('li', { className: `${stateOf(p, k)}${injuriesOn(p, k) ? ' injured' : ''}` }, el('span', { textContent: PARTS[k].name }), el('span', { textContent: stateText(p, k) }),
             injuriesOn(p, k, state.time.ms) ? el('small', { textContent: injuriesOn(p, k, state.time.ms) }) : null))),
-          bodyWords(p) ? el('p', { className: 'blood pale', textContent: `${bodyWords(p).slice(2)}: it costs every roll${feverOf(p) ? '' : ' but a fight\'s'}.` }) : null,
+          bodyWords(p) ? el('p', { className: 'blood pale', textContent: `${bodyWords(p).slice(2).replace(/^./, c => c.toUpperCase())}. What it costs shows in a roll's modifiers.` }) : null,
           p.strain ? el('p', { className: 'blood pale', textContent: `Tired: ${p.strain} to every skill, until you sleep.` }) : null,
           el('p', { className: `blood ${bandOf(p)}`, textContent: `Blood ${Math.round(bloodOf(p))}%: ${BAND_WORDS[bandOf(p)]}${bleedRate(p, state.time.ms) ? `; bleeding ${bleedRate(p, state.time.ms) >= 8 ? 'fast' : bleedRate(p, state.time.ms) >= 0.8 ? 'steadily' : 'a little'} (${input.label('aid')}: first aid)` : ''}.` }),
           el('p', { className: 'note', textContent: `Fitness ${fit}: the body takes ${fit ? `${Math.round(100 * fit / FITNESS_K)}% more` : 'only what it takes'} before it gives.` }))),
@@ -696,31 +700,27 @@ export function createUI({ input, cb }) {
   });
 
   /** Their sheet as you guess it: what you know of them (sim/know.js). */
+  const READ_MAX = 30;                                              // (the read's bars: a skill's scale, as far as it goes on a person)
   function openRead(state, who) {
     const p = state.people[who], k = knownOf(state, who), title = p.known === false ? p.seen : p.name;
     // (what you've read first, then what a read could show but hasn't, then one line for what never shows at a glance)
     const all = Object.entries(SKILLS), got = all.filter(([key]) => k?.skills?.[key]), could = all.filter(([key]) => !k?.skills?.[key] && READABLE.includes(key));
     const hidden = all.filter(([key]) => !k?.skills?.[key] && !READABLE.includes(key)).map(([, sk]) => sk.name);
-    const rows = [...got, ...could].map(([key, sk]) => {
-      const r = k?.skills?.[key];
-      return el('tr', { className: r ? '' : 'none' }, el('td', { textContent: sk.name }), el('td', { className: 'val', textContent: r ? (r[0] === r[1] ? `${r[0]}` : `${r[0]}–${r[1]}`) : '?' }),
-        el('td', { className: 'lvl', textContent: r ? '' : 'not read yet' }));
-    });
-    if (hidden.length) rows.push(el('tr', { className: 'none' }, el('td', { colSpan: 3, className: 'lvl', textContent: `Not to be read at a glance: ${hidden.join(', ')}.` })));
     const bloodied = p.bloody?.face !== undefined;
     const seen = Object.keys(PARTS).filter(part => ['hurt', 'wounded', 'out'].includes(stateOf(p, part)) || (part === 'head' && bloodied));
-    card.replaceChildren(el('div', { className: 'sheet charsheet readsheet' },
-      el('span', { className: 'stamp', textContent: 'YOUR READ' }),
-      el('h2', { textContent: title.toUpperCase() }),
-      el('p', { className: 'note', textContent: `${classOf(k) ? `By the look of them: ${classOf(k)}.` : 'What they are, you can\'t yet say.'} Read ${k?.reads ?? 0} time${k?.reads === 1 ? '' : 's'}${k?.fights?.won || k?.fights?.lost ? `; fought ${k.fights.won + k.fights.lost} time${k.fights.won + k.fights.lost === 1 ? '' : 's'} (${k.fights.won} won)` : ''}.` }), el('hr'),
-      el('div', { className: 'cols' },
-        el('div', {}, el('table', { className: 'skills' }, el('tbody', {}, rows)),
-          el('p', { className: 'note', textContent: 'Each range holds the truth; a better read (your Analysis) narrows it, and so does every read after. A fight shows bounds.' })),
-        el('div', { className: 'body' },
-          el('ul', {}, seen.length ? seen.map(part => el('li', { className: stateOf(p, part) }, el('span', { textContent: PARTS[part].name }),
-            el('span', { textContent: part === 'head' && bloodied && stateOf(p, part) === 'unhurt' ? 'bloodied' : stateText(p, part) }))) : [el('li', {}, el('span', { textContent: 'Nothing shows on them' }))]))),
-      el('p', { className: 'note', textContent: `${state.fight ? `${input.label('interact')}, ` : ''}${input.label('sheet')} or ${input.label('menu')} to close.` }),
-    ));
+    // (the mind's dark glass: it's your read, in your head; a range a bar on the skills' scale)
+    const bar = (r) => { const lo = Math.max(0, Math.min(READ_MAX, r[0])), hi = Math.max(lo, Math.min(READ_MAX, r[1])); return el('span', { className: 'read-bar' }, el('i', { style: `left: ${100 * lo / READ_MAX}%; width: ${Math.max(1.5, 100 * (hi - lo) / READ_MAX)}%` })); };
+    card.replaceChildren(el('div', { className: 'mind glass readsheet' },
+      el('div', { className: 'mind-head' }, glassHead('YOUR READ', title, 'eye')),
+      el('p', { className: 'mind-note' }, `${classOf(k) ? `By the look of them: ${classOf(k)}.` : 'What they are, you can\'t yet say.'} Read ${k?.reads ?? 0} time${k?.reads === 1 ? '' : 's'}${k?.fights?.won || k?.fights?.lost ? `; fought ${k.fights.won + k.fights.lost} time${k.fights.won + k.fights.lost === 1 ? '' : 's'}` : ''}.`),
+      el('div', { className: 'read-cols' },
+        el('div', { className: 'glass-rows' }, ...[...got, ...could].map(([key, sk]) => {
+          const r = k?.skills?.[key];
+          return el('div', { className: `read-row${r ? '' : ' none'}` }, el('span', { className: 'what' }, sk.name), r ? bar(r) : el('span', { className: 'why' }, 'not read yet'), el('b', {}, r ? (r[0] === r[1] ? `${r[0]}` : `${r[0]}–${r[1]}`) : '?'));
+        }), hidden.length ? el('p', { className: 'mind-note' }, `Not to be read at a glance: ${hidden.join(', ')}.`) : null,
+          el('p', { className: 'mind-note' }, 'Each range holds the truth; a better read (your Analysis) narrows it, and so does every read after. A fight shows bounds.')),
+        el('div', {}, el('h3', {}, 'On them'), el('ul', { className: 'wounds' }, ...(seen.length ? seen.map(part => el('li', { className: ['wounded', 'out'].includes(stateOf(p, part)) ? 'bad' : 'mid' }, el('b', {}, PARTS[part].name), el('span', {}, part === 'head' && bloodied && stateOf(p, part) === 'unhurt' ? 'bloodied' : stateText(p, part)))) : [el('li', {}, el('span', {}, 'Nothing shows on them'))])))),
+      el('p', { className: 'mind-foot' }, `${state.fight ? `${input.label('interact')}, ` : ''}${input.label('sheet')} or ${input.label('menu')} to close.`)));
     card.hidden = false;
     card.dataset.kind = '';
     menu.hidden = log.hidden = true;

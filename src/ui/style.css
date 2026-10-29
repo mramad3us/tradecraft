@@ -374,3 +374,26 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .glass-list { display: flex; flex-direction: column; gap: 4px; margin: 4px 0; }
 .glass-list .item { display: flex; gap: 10px; align-items: center; text-align: left; padding: 5px 10px; }
 #frame .glass canvas { position: static; inset: auto; image-rendering: pixelated; }
+/* The menu, the log, your read (src/ui/ui.js): on the glass too. */
+.overlay .mind.glass.menu { width: min(calc(460px * var(--ui, 1)), 92%); }
+.glass-list .item small { display: block; color: #8f96a6; font-size: calc(11px * var(--ui, 1)); margin-top: 2px; }
+.glass .toggle { color: #dfe2e8; border-top: 1px solid #23252f; margin-top: 8px; padding-top: 10px; }
+.glass .toggle .note { color: #8f96a6; }
+.mind.glass.logsheet { width: min(calc(700px * var(--ui, 1)), 94%) !important; height: 86%; display: flex; flex-direction: column; }
+.glass.logsheet ol { list-style: none; margin: 4px 0 0; padding: 0 4px 0 0; overflow: auto; flex: 1; font-size: calc(13px * var(--ui, 1)); }
+.glass.logsheet li { display: grid; grid-template-columns: 7.5em 1fr; gap: 10px; padding: 5px 0; border-bottom: 1px solid #23252f; color: #dfe2e8; }
+.glass.logsheet li time { color: #6a7182; }
+.glass.logsheet li.instinct .what { color: #e7b84a; }
+.glass.logsheet li.fail .what { color: #e8896a; }
+.glass.logsheet li.made .num { color: #76ad4c; }
+.glass.logsheet li .num { display: block; color: #6a7182; font-size: calc(11px * var(--ui, 1)); margin-top: 2px; }
+.glass.logsheet li.unseen { opacity: 0.6; }
+.read-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; }
+.read-cols h3 { font-size: calc(11px * var(--ui, 1)); letter-spacing: 0.08em; color: #e7b84a; font-weight: normal; margin: 4px 0; text-transform: uppercase; }
+.read-row { display: grid; grid-template-columns: 9em 1fr 3.4em; gap: 10px; align-items: center; padding: 3px 0; border-bottom: 1px solid #23252f; }
+.read-row .what { color: #dfe2e8; }
+.read-row.none .what, .read-row.none b { color: #6a7182; }
+.read-row b { font-weight: normal; text-align: right; color: #f6f4ee; }
+.read-bar { position: relative; height: 6px; background: #23252f; border: 1px solid #353947; }
+.read-bar i { position: absolute; top: 0; bottom: 0; background: #95c1e3; }
+.read-row .why { color: #6a7182; font-size: calc(11px * var(--ui, 1)); }

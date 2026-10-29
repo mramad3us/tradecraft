@@ -267,6 +267,10 @@ export function bodyLine(state) {
   const pain = painBand(painOf(p, stateOf, Object.keys(PARTS)));
   if (pain) return { id: 'body-pain', tone: pain.v <= -2 ? 'warn' : 'note', text: `${pain.word === 'agony' ? 'Agony: it\'s hard to think of anything else' : pain.word === 'bad pain' ? 'It hurts badly, all the time' : 'It hurts'}: ${-pain.v} to everything but a fight. Painkillers take the edge off ({aid}); a splint, a poultice.` };
   if (fever) return { id: 'body-feverish', tone: 'note', text: `Feverish: ${inf?.name ?? 'something\'s'} not right. Antibiotics, a chemist's.` };
+  // (wet and cold: sim/wet.js)
+  if (p.shiver) return { id: 'body-shiver', tone: 'warn', text: 'Shivering, wet through: −1 to everything. In, somewhere warm, or home for dry clothes; or you\'ll catch something.' };
+  if (p.sick?.kind === 'cold' && p.sick.until > ms) return { id: 'body-cold', tone: 'note', text: `A heavy cold: ${p.dosed ? 'the painkillers are holding it off' : '−1 to everything, and you\'ll sneeze. Painkillers take the edge off'}.` };
+  if ((p.wet ?? 0) >= 60) return { id: 'body-wet', tone: 'calm', text: 'Wet through. An umbrella, a hood; or in, and dry off.' };
   // (the needs: sim/needs.js)
   const nw = needsWords(p, state.time.ms);
   if (nw.edgy && (p.needs?.stress ?? 0) >= 75) return { id: 'need-frayed', tone: 'warn', text: 'Frayed: your eyes keep going over your shoulder on their own. Somewhere to sit, a hot drink, and it passes.' };

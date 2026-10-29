@@ -124,9 +124,10 @@ export function dress(p, key) {
   if (what === 'wear') {
     const i = (p.wardrobe ?? []).findIndex(x => x.id === arg);
     if (i < 0) return null;
-    const piece = p.wardrobe.splice(i, 1)[0], was = putOn(p, piece);
+    const piece = p.wardrobe.splice(i, 1)[0], was = putOn(p, piece), wet = (p.wet ?? 0) >= 30;
     if (was) p.wardrobe.push(was);
-    return `${cap(piece.name)} on${was ? `, ${was.name} on its hanger` : ''}.`;
+    delete p.wet; delete p.shiver;                                   // (dry clothes: sim/wet.js)
+    return `${cap(piece.name)} on${was ? `, ${was.name} on its hanger${wet ? ' to dry' : ''}` : ''}.${wet ? ' Dry, at last.' : ''}`;
   }
   if (what === 'off') {
     const was = takeOff(p, arg);

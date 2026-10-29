@@ -101,6 +101,9 @@ export function mods(p, key) {
   // (fever, from an infected wound; pain, but not in a fight: adrenaline, you feel it after; sim/medicine.js)
   const fever = feverOf(p), pain = key === 'cqc' ? null : painBand(painOf(p, stateOf, Object.keys(PARTS)));
   if (fever) out.push({ why: fever.word, v: fever.v });
+  // (wet through in the cold; a cold, unless painkillers are working: sim/wet.js)
+  if (p.shiver) out.push({ why: 'shivering, wet through', v: -1 });
+  if (p.sick?.kind === 'cold' && !p.dosed) out.push({ why: 'a heavy cold', v: -1 });
   if (pain) out.push({ why: pain.word, v: pain.v });
   // (the blood's pressure falling: pale, light-headed; then shock)
   const band = bandOf(p);

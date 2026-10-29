@@ -328,8 +328,8 @@ function use(state, bus, act, here = false) {
   else if (act === 'eat') { say(state, bus, { kind: 'note', text: 'Bread, cheese, the kettle, the radio low: twenty minutes.' }); skip(state, bus, 20 * MIN); eat(state.people.me, state.time.ms, 20); }
   else if (act === 'wash') {
     const p = state.people.me, cab = kitWords(c.cabinet);
-    say(state, bus, { kind: 'note', text: p.bloody ? 'Hot water, a clean shirt, the stained one in a bag for the bin a long way from here.' : 'Hot water, a shave, a clean shirt.' });
-    delete p.bloody;
+    say(state, bus, { kind: 'note', text: p.bloody ? 'Hot water, a clean shirt, the stained one in a bag for the bin a long way from here.' : (p.wet ?? 0) >= 30 ? 'A hot shower, a towel, dry things on: the wet ones over the bath.' : 'Hot water, a shave, a clean shirt.' });
+    delete p.bloody; delete p.wet; delete p.shiver;                  // (dry, and clean: sim/wet.js)
     // (the cabinet over the basin: what's in it, into your pockets: sim/medicine.js)
     if (cab) { addSupply(p, c.cabinet); c.cabinet = {}; say(state, bus, { kind: 'note', text: `From the cabinet over the basin, into a pocket: ${cab}.` }); }
     skip(state, bus, 15 * MIN);

@@ -4,6 +4,14 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc37 (2026-10-29)
+
+- **Getting wet.** Out in the rain you soak through: light rain takes twenty minutes, heavy six or seven, a downpour four; snow half as fast. Your umbrella keeps nearly all of it off (less in a strong wind), a hood about half. Out of it you dry slowly, indoors or in a shop much faster, and dry clothes at home (the wardrobe, or the basin) dry you at once. The log tells you when you're damp, wet through, soaked.
+- **The cold.** Wet through below 10° and you shiver: −1 to everything until you're dry or inside. Shivering, you can catch a cold (the less fit, the likelier): four to seven days of −1 to everything (painkillers lift it while they work), and sneezes on the street that turn heads: for a few seconds after one, anyone looking for you has it easier.
+- Tests: wet (soaked by the rain's strength, under an umbrella, under a hood; drying; shivering; who catches a cold; a cold's cost, its sneezes, painkillers, its end).
+
+- **More menus on the glass.** The menu (Esc), the log (J) and your read of someone (F in a fight, or F → Read) are on the same dark glass as the mind, each under a plaque. The log reads as a list with the time beside each line, the instinct's lines in gold, a failed roll's in red and its numbers under it. Your read draws each skill you've read as a bar on the skills' scale, the range you've narrowed it to lit, so a better read shows as a thinner bar.
+
 ## v0.1.0-rc36 (2026-10-28)
 
 - **Medical supplies.** A chemist's counter sells bandages, antiseptic, a suture kit, a splint, a tourniquet, painkillers, an arnica poultice, a course of antibiotics, and a first-aid kit ($28: four bandages, three antiseptic, four painkillers, a poultice); a grocer's, bandages and painkillers. They go in a pocket, and the inventory lists them. Your flat's bathroom cabinet has two bandages, antiseptic and painkillers on the first day: take them at the basin.
