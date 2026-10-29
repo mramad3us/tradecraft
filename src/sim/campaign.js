@@ -162,7 +162,7 @@ export function posting(seed, city = 'moscow', startMs = at(2026, 11, 2, WAKE_H)
     mapSeed, home: { id: 'home', row: 2 + int(r, 2), label: 'the flat' }, embassy: { id: 'embassy', row: 0, label: C.embassy },
     safehouses: [{ id: 'sh0', row: 1 + int(r, 2), label: 'a flat above a pharmacy', known: true, burned: false }, { id: 'sh1', row: -3 - int(r, 2), label: 'a garage in a courtyard', known: true, burned: false }],
     assets, targets, startMs,
-    heat: 20, cover: 70, intelligence: 0, money: { salary: SALARY, fund: FUND, paid: calendar(startMs).month },
+    heat: 20, cover: 70, intelligence: 0, money: { salary: SALARY, fund: FUND, paid: calendar(startMs).month, bank: SALARY },   // (the first month's salary in the account on arrival)
   };
 }
 
@@ -190,7 +190,7 @@ function juniorPosting(seed, startMs) {
     mapSeed, home: { id: 'home', row: 2 + int(r, 2), label: 'the flat' }, embassy: { id: 'embassy', row: 0, label: C.embassy },
     safehouses: [{ id: 'sh0', row: 1 + int(r, 2), label: 'MI5\'s flat over a launderette', known: true, burned: false }],
     assets: [], targets, trips, startMs,
-    heat: 20, cover: 70, intelligence: 0, money: { salary: SALARY_JUNIOR, fund: 0, paid: calendar(startMs).month },
+    heat: 20, cover: 70, intelligence: 0, money: { salary: SALARY_JUNIOR, fund: 0, paid: calendar(startMs).month, bank: SALARY_JUNIOR },
   };
 }
 const TRIP_TARGETS = { beirut: ['Ali Haidar', 'Hussein Kassem', 'Mahmoud Zein'], cairo: ['Tarek Mansour', 'Sherif Ghoneim', 'Hany Lotfy'], moscow: ['Gennady Orlov'] };
@@ -499,5 +499,6 @@ export function promote(c, city) {
   const from = dayOf(c.over?.ms ?? c.now ?? c.posting.startMs) + 14, monday = from + ((7 - calendar(from * DAY).weekday) % 7);
   const next = newCampaign(hash(c.seed, 'promoted') % 1e9, { ...structuredClone(c.character), id: 'me' }, city, 'handler', monday * DAY + WAKE_H * HOUR);
   next.career = [...(c.career ?? []), { level: c.posting.level, city: c.posting.city, until: c.over?.ms ?? c.now }];
+  next.posting.money.bank += c.posting.money.bank ?? 0;              // (the account goes with you: the new posting's first month on top)
   return next;
 }

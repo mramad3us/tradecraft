@@ -34,12 +34,12 @@ import { sectionAt } from './world.js';
 import { hash } from './rng.js';
 import { say } from './log.js';
 import { eat, EAT_S } from './needs.js';
-import { price, pay, BITE_USD } from './money.js';
+import { price, pay, cashOf, BITE_USD } from './money.js';
 import { RAIL, GOODS, SLOTS, railOf, putOn, carry } from './clothes.js';
 import { weaponOf } from './weapons.js';
 import { train, learn, shelf, reading, readAnHour, bookOf, bookLine } from './training.js';
 import { cityById } from './cities/index.js';
-import { HOUR } from './clock.js';
+import { HOUR, DAY, calendar } from './clock.js';
 import { unitAt, SPOT_REACH_M } from './interiors/use.js';
 import { floorKind } from './interiors/shop.js';
 
@@ -57,8 +57,16 @@ export const SIT_S = 180;
 // take a language class": hours in, points out, sim/training.js)
 export const GYM_S = 90 * 60, CLASS_S = 120 * 60, LESSON_S = 90 * 60, READ_S = 60 * 60, BUY_S = 180;
 export const GYM_USD = 8, CLASS_USD = 12, LESSON_USD = 15, GYM_UP_TO = 14, CLUB_UP_TO = 14;
+// (a month's membership of one gym or club: its sessions free till then; the user, 2026-10-28: "implement clubs with subscriptions")
+export const CLUB_MONTH_USD = { gym: 45, club: 70 }, MEMBER_DAYS = 30;
+// (a bank: what's kept back on you, paying in; how long at the counter)
+export const KEEP_USD = 50, BANK_S = 4 * 60;
+/** Whether you're a member of the gym or club at door d (p.clubs: { 'row:x': until }). */
+export const memberOf = (state, d) => (state.people[state.player]?.clubs?.[`${state.map.row ?? 0}:${Math.round(d.x * 10)}`] ?? 0) > state.time.ms;
 const LANG_NAME = { ru: 'Russian', en: 'English', ar: 'Arabic' };
 // (the language a city's school teaches: its own; London's, the opposition's, since you have the English)
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const dayText = (ms) => { const k = calendar(ms); return `${k.day} ${MONTHS[k.month - 1]}`; };
 const langHere = (state) => (state.map.city === 'london' ? 'ru' : cityById(state.map.city ?? 'moscow')?.lang ?? 'ru');
 // (the kinds whose floor is a café's (sim/interiors/shop.js): a table by the window, where the room has one, a coffee, the street
 // watched from inside; a toilet at the back, a customer's to use (sim/notice.js))
@@ -115,8 +123,17 @@ export function ways(state, d, spot = 'counter') {
   out.push({ id: 'browse', label: 'A look at what they have, a question at the counter: a minute, nothing bought' });
   if (FOOD.has(d.shop)) out.push({ id: 'eat', label: `${d.shop === 'grocery' || d.shop === 'bakery' || d.shop === 'deli' ? 'Something to eat: bread, cheese, eaten by the window' : 'A bite and a hot drink at the counter'} (two minutes, ${price(state, BITE_USD)})` });
   // (time put into yourself: the gym, a class, a lesson; a book off the shelf)
-  if (d.shop === 'gym') out.push({ id: 'train', label: `An hour and a half on the weights and the bag: fitness (${price(state, GYM_USD)})` });
-  if (d.shop === 'club') out.push({ id: 'class', label: `A class, two hours on the mat: throws, falls, holds: close combat (${price(state, CLASS_USD)})` });
+  // (a gym's, a club's sessions: paid each time, or free on a month's membership of this one: CLUB_MONTH_USD)
+  const member = memberOf(state, d);
+  if (d.shop === 'gym') out.push({ id: 'train', label: `An hour and a half on the weights and the bag: fitness (${member ? 'a member' : price(state, GYM_USD)})` });
+  if (d.shop === 'club') out.push({ id: 'class', label: `A class, two hours on the mat: throws, falls, holds: close combat (${member ? 'a member' : price(state, CLASS_USD)})` });
+  if ((d.shop === 'gym' || d.shop === 'club') && !member) out.push({ id: 'join', label: `A month's membership: every ${d.shop === 'gym' ? 'session' : 'class'} till ${dayText(state.time.ms + MEMBER_DAYS * DAY)} without paying (${price(state, CLUB_MONTH_USD[d.shop])})` });
+  // (a bank's counter: your account, in the campaign: money out, money in)
+  const acct = state.campaign?.posting?.money;
+  if (d.shop === 'bank' && acct) {
+    for (const usd of [100, 500, 1000]) if ((acct.bank ?? 0) >= usd) out.push({ id: `withdraw:${usd}`, label: `Draw ${price(state, usd)} from your account (${price(state, acct.bank ?? 0)} in it)` });
+    if (cashOf(p) > KEEP_USD) out.push({ id: `deposit:${Math.floor(cashOf(p) - KEEP_USD)}`, label: `Pay in what's on you but ${price(state, KEEP_USD)}: ${price(state, Math.floor(cashOf(p) - KEEP_USD))}` });
+  }
   if (d.shop === 'school') out.push({ id: 'lesson', label: `A lesson, ninety minutes of ${LANG_NAME[langHere(state)] ?? 'the language'} (${price(state, LESSON_USD)})` });
   if (d.shop === 'books') for (const b of shelf(state.map.seed, state.map.row ?? 0, d.x)) if (!(p?.books ?? []).some(o => o.id === b.id)) out.push({ id: `book:${b.id}`, label: `${b.lang ? `A grammar of ${LANG_NAME[langHere(state)] ?? 'the language'}` : b.title}: ${b.hours} hours' reading (${price(state, b.usd)})` });
   // (a rail: which piece, asked next (doWay()); what a shop sells to take away)
@@ -157,12 +174,16 @@ export function doWay(state, bus, me, way, scenario) {
   if (!piece && !good && !ways(state, d, sp.kind).some(w => w.id === way)) return false;
   if (piece && !pay(state, bus, piece.usd, piece.name)) return false;
   if (good && !pay(state, bus, good[2], good[1])) return false;
-  const cost = { eat: [BITE_USD, 'a bite'], sit: [BITE_USD, 'a coffee'], read: [BITE_USD, 'a coffee'], train: [GYM_USD, 'a day at the gym'], class: [CLASS_USD, 'the class'], lesson: [LESSON_USD, 'the lesson'] }[way];
+  const member = memberOf(state, d);
+  const cost = { eat: [BITE_USD, 'a bite'], sit: [BITE_USD, 'a coffee'], read: [BITE_USD, 'a coffee'], train: member ? null : [GYM_USD, 'a day at the gym'], class: member ? null : [CLASS_USD, 'the class'], lesson: [LESSON_USD, 'the lesson'], join: [CLUB_MONTH_USD[d.shop], 'the membership'] }[way];
+  const [bankWay, bankUsd] = way.split(':'), acct = state.campaign?.posting?.money;
+  if (bankWay === 'withdraw' && !((acct?.bank ?? 0) >= Number(bankUsd))) return false;
+  if (bankWay === 'deposit' && !(cashOf(p) >= Number(bankUsd))) return false;
   const book = way.startsWith('book:') ? shelf(state.map.seed, state.map.row ?? 0, d.x).find(b => `book:${b.id}` === way) : null;
   if (cost && !pay(state, bus, ...cost)) return false;
   if (book && !pay(state, bus, book.usd, 'the book')) return false;
-  const secs = { back: YARD_S, wash: WASH_S, eat: EAT_S, sit: SIT_S, train: GYM_S, class: CLASS_S, lesson: LESSON_S, read: READ_S }[way] ?? (piece ? COAT_S : book || good ? BUY_S : BROWSE_S);
-  me.inside = { x: d.x, shop: d.shop, way, book: book?.id, ...(piece ? { piece: { id: piece.id, slot: piece.slot, name: piece.name, look: piece.look } } : {}), ...(good ? { good: good[0], what: good[1] } : {}), until: state.time.ms + secs * 1000, row: state.map.row ?? 0, long: !LIVED.has(way) };
+  const secs = { back: YARD_S, wash: WASH_S, eat: EAT_S, sit: SIT_S, train: GYM_S, class: CLASS_S, lesson: LESSON_S, read: READ_S, join: BUY_S, withdraw: BANK_S, deposit: BANK_S }[bankWay === 'withdraw' || bankWay === 'deposit' ? bankWay : way] ?? (piece ? COAT_S : book || good ? BUY_S : BROWSE_S);
+  me.inside = { x: d.x, shop: d.shop, way, book: book?.id, ...(bankWay === 'withdraw' || bankWay === 'deposit' ? { bank: bankWay, usd: Number(bankUsd) } : {}), ...(piece ? { piece: { id: piece.id, slot: piece.slot, name: piece.name, look: piece.look } } : {}), ...(good ? { good: good[0], what: good[1] } : {}), until: state.time.ms + secs * 1000, row: state.map.row ?? 0, long: !LIVED.has(way) };
   Object.assign(me, { x: sp.x, z: sp.z, vx: 0, vz: 0, busy: null, glass: false, gait: 'idle', face: sp.face ?? 'up' });
   me.head = { up: -Math.PI / 2, down: Math.PI / 2, left: Math.PI, right: 0 }[me.face] ?? -Math.PI / 2;
   if (way === 'back') me.hidden = true;                             // (the yard: out of everyone's sight)
@@ -195,7 +216,15 @@ export function insideTick(state, bus, me, scenario) {
     return;
   }
   const p = state.people[state.player];
-  if (ins.piece) {
+  if (ins.way === 'join') {
+    (p.clubs ??= {})[`${ins.row}:${Math.round(ins.x * 10)}`] = state.time.ms + MEMBER_DAYS * DAY;
+    say(state, bus, { kind: 'note', text: `A card with your photograph on it, and your name in the book: a member till ${dayText(state.time.ms + MEMBER_DAYS * DAY)}.` });
+  } else if (ins.bank) {
+    const acct = state.campaign?.posting?.money;
+    if (ins.bank === 'withdraw' && acct && (acct.bank ?? 0) >= ins.usd) { acct.bank -= ins.usd; p.cash = Math.round((cashOf(p) + ins.usd) * 100) / 100; }
+    if (ins.bank === 'deposit' && acct && cashOf(p) >= ins.usd) { acct.bank = (acct.bank ?? 0) + ins.usd; p.cash = Math.round((cashOf(p) - ins.usd) * 100) / 100; }
+    say(state, bus, { kind: 'note', text: `${ins.bank === 'withdraw' ? `${price(state, ins.usd)} counted out at the window` : `${price(state, ins.usd)} paid in`}: ${price(state, acct?.bank ?? 0)} in the account, ${price(state, cashOf(p))} on you.` });
+  } else if (ins.piece) {
     // (on there and then; what it replaced, and whatever was on it, folded into the shop's bag to take home: sim/clothes.js)
     const was = putOn(p, ins.piece);
     if (was) (p.bag ??= []).push(was);

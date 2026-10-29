@@ -2,11 +2,13 @@
 // T at the counter, a minute there, seen through the window; out the back door, the yard, and out in the
 // lane beside it; being tailed's team, seen you go in, watches the door, and loses you out the back (now
 // and then, covert, they'd covered it), and writes it down; a café's basin; a coat off the rail.
-import { newGame, start, step, playerActor } from '../src/sim/game.js';
+import { newGame, start, step, playerActor, loadRow } from '../src/sim/game.js';
+import { newCampaign, candidates } from '../src/sim/campaign.js';
+import { createBus } from '../src/sim/bus.js';
 import { atDoor, walk, walkIn, spotOf } from './shopwalk.mjs';
 import { follow } from '../src/sim/agents.js';
 import { unitAt } from '../src/sim/interiors/use.js';
-import { backWay, BROWSE_S, YARD_S, BACK_REACH_M, COAT_S, WASH_S } from '../src/sim/shops.js';
+import { KEEP_USD, CLUB_MONTH_USD, backWay, BROWSE_S, YARD_S, BACK_REACH_M, COAT_S, WASH_S } from '../src/sim/shops.js';
 import { SCENARIOS } from '../src/sim/scenarios/index.js';
 import { mods as showsMods } from '../src/sim/notice.js';
 import { bodyLine } from '../src/sim/aid.js';
@@ -205,6 +207,44 @@ export default [
         assert(cash1 === cash0 - piece.usd && coat1 === piece.look.color && coat1 !== coat0 && p.bag?.length === 1 && heard.join() === 'in:front,out:coat', 'the coat chosen off the rail, paid for, worn out of the door, the old one in the bag');
         assert(cash2 < cash1 && row === 2 && g.map.row === 2, 'the fare taken; short, no ride');
       } finally { delete SCENARIOS.walk.onShop; }
+    },
+  },
+  {
+    name: 'money: the account opens with the first month\'s pay; a bank draws from it and takes cash in; a gym\'s month paid, its sessions free till then',
+    fn() {
+      const c = newCampaign(43, candidates(43, 'london', 'junior')[0], 'london', 'junior');
+      c.calls = [];
+      const s = newGame({ seed: 43, scenario: 'campaign', campaign: c }), bus = createBus(), acct = c.posting.money, p = () => s.people.me;
+      start(s, bus);
+      const opened = acct.bank;
+      step(s, { act: ['desk:travel:embassy'] }, bus);
+      for (let t = 0; t < 10; t++) step(s, {}, bus);
+      // (a bank, and a gym, on one of the streets about)
+      const find = (kind) => { for (const row of [0, 1, -1, 2, -2, 3, -3]) { if (row !== s.map.row) loadRow(s, bus, row, 0, { quiet: true }); const u = atDoor(s, (o) => o.shop === kind); if (u) return u; } return null; };
+      const b = find('bank');
+      walkIn(s, b);
+      const k = spotOf(b, 'counter');
+      walk(s, k.x, k.z, bus);
+      const cash0 = cashOf(p());
+      step(s, { act: ['shop:withdraw:500'] }, bus);
+      const drawn = { cash: cashOf(p()) - cash0, bank: opened - acct.bank };
+      step(s, { act: [`shop:deposit:${Math.floor(cashOf(p()) - KEEP_USD)}`] }, bus);
+      const paidIn = cashOf(p());
+      walk(s, b.door, Z.front + 0.8, bus);
+      const g = find('gym');
+      walkIn(s, g);
+      const gk = spotOf(g, 'counter');
+      walk(s, gk.x, gk.z, bus);
+      const before = cashOf(p());
+      step(s, { act: ['shop:join'] }, bus);
+      const joined = before - cashOf(p());
+      const fit0 = p().training?.fitness ?? 0, sk0 = JSON.stringify(p().skills.fitness);
+      step(s, { act: ['shop:train'] }, bus);
+      const session = before - joined - cashOf(p());
+      console.log(`      the account opened with ${price(s, opened)}; drawn ${price(s, drawn.cash)} (the account down ${price(s, drawn.bank)}); paid in, ${price(s, paidIn)} kept on you; the gym's month ${price(s, joined)}, a session after it ${session ? price(s, session) : 'nothing'} (fitness ${sk0} → ${JSON.stringify(p().skills.fitness)})`);
+      assert(opened === acct.salary && drawn.cash === 500 && drawn.bank === 500, 'the first month in the account; drawn from it');
+      assert(Math.abs(paidIn - KEEP_USD) < 1, 'paid in, but what\'s kept back');
+      assert(joined === CLUB_MONTH_USD.gym && session === 0, 'a month paid; a session free');
     },
   },
 ];

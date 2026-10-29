@@ -4,6 +4,13 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc34 (2026-10-28)
+
+- **Your account.** The posting's bank account opens with your first month's salary already in it (a junior's $5,400, a Handler's $7,200), salary is paid in on the 1st as before, and on promotion the account comes with you. Cash on you is what pays on the street.
+- **Banks.** At a bank's counter, R: draw $100, $500 or $1,000 from the account, or pay in what you're carrying but $50. The desk shows what's in the account.
+- **Memberships.** A gym or a martial-arts club sells a month's membership ($45, $70): for thirty days its sessions cost you nothing. The counter shows you're a member.
+- Tests: shops (the account opens with the first month's pay; drawn from at a bank, paid into; a gym's month, then a session free).
+
 ## v0.1.0-rc33 (2026-10-28)
 
 - **The embassy keeps its day.** Its people come and go now. The Marine is on the desk round the clock. On working days the chief is in from about eight till after six, and your colleagues arrive between half past eight and a quarter past nine and leave around six (now and then one stays late). Between times they get up from their desks: the water cooler, the cabinets, a word at the chief's door. The visa section is open nine till one: applicants come in off the street, sit, wait to be called, stand at the window a few minutes and go; after one the room's empty, the consular officer gone. At six, after your day's work, the station empties round you. Weekends, only the Marine.
