@@ -1073,12 +1073,12 @@ export function frame(spec, dir, name) {
 }
 
 /**
- * Every frame of a person, FRAMES across, DIRS down, as rows of colours (null transparent): facing
- * left is facing right mirrored, so those frames are drawn once, not twice.
+ * Every frame of a person (or those named), FRAMES across, DIRS down, as rows of colours (null
+ * transparent): facing left is facing right mirrored, so those frames are drawn once, not twice.
  */
-export function frames(spec) {
+export function frames(spec, names = FRAMES) {
   const right = new Map();
-  return DIRS.map(dir => FRAMES.map(name => {
+  return DIRS.map(dir => names.map(name => {
     if (dir === 'left' && right.has(name)) return right.get(name).map(row => row.slice().reverse());
     const px = frame(spec, dir, name);
     if (dir === 'right') right.set(name, px);

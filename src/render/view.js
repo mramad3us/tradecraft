@@ -136,13 +136,16 @@ export function createView({ parent, bus, month = () => 11 }) {
   }
   const { scene, camera, sun, hemi } = stage;
   const sections = new Map();
-  const crowd = createCrowd(scene);
+  const crowd = createCrowd(scene, stage.renderer);
   const blood = createBlood(scene);
   const traffic = createTraffic(scene);
   const items = createItems(scene);                                // (things lying about: src/render/items.js)
   const looks = new Map();                                         // passer-by seed → look (generated once)
   let city = null;
   const building = new Map();                                     // i → a section's build under way: { gen, x0, x1 }
+  // (a section's shaders compiled as soon as it's built, not at its first frame on screen: the GPU's side
+  // compiles them meanwhile, and Chrome on Windows takes long over each one; three caches them by kind)
+  const warm = (group) => stage.renderer.compile(group, camera, scene);
   let cut = false;                                                 // (the street just changed: this frame builds only what's on screen)
   const off = [
     bus.on('map-', () => clear(true)),                            // another street: its sections share the old one's indices
@@ -150,7 +153,7 @@ export function createView({ parent, bus, month = () => 11 }) {
       if (sections.has(S.i) || building.has(S.i)) return;
       const k = `${S.row}|${S.i}`, a = ahead.get(k)?.S.seed === S.seed && ahead.get(k).month === month() ? ahead.get(k) : null;
       if (a) ahead.delete(k);                                     // (built ahead: in the scene now, or the rest of it to build)
-      if (a?.built) { sections.set(S.i, a.built); scene.add(a.built.group); shadows(); return; }
+      if (a?.built) { sections.set(S.i, a.built); scene.add(a.built.group); warm(a.built.group); shadows(); return; }
       building.set(S.i, { gen: a ? a.gen : S.kind === 'dojo' ? buildDojo(S) : S.kind === 'interior' ? buildInterior(S) : buildSection(S, { month: month() }), x0: S.x0, x1: S.x1 });
     }),
     bus.on('map', () => { for (const k of [...ahead.keys()]) drop(k); cut = true; }),   // (what was built ahead and not wanted after all)
@@ -168,7 +171,7 @@ export function createView({ parent, bus, month = () => 11 }) {
       for (;;) {
         if (!now && performance.now() - t0 > budget) break;
         const r = b.gen.next();
-        if (r.done) { building.delete(i); sections.set(i, r.value); scene.add(r.value.group); shadows(); break; }
+        if (r.done) { building.delete(i); sections.set(i, r.value); scene.add(r.value.group); warm(r.value.group); shadows(); break; }
       }
     }
   }
@@ -199,7 +202,7 @@ export function createView({ parent, bus, month = () => 11 }) {
     for (const k of [...ahead.keys()]) if (!want.has(k)) drop(k);
     // (in what's left of the frame's building time)
     for (const gen of [...scrap]) while (performance.now() - t0 < BUILD_MS) { const r = gen.next(); if (r.done) { r.value.dispose(); scrap.splice(scrap.indexOf(gen), 1); break; } }
-    for (const a of ahead.values()) while (!a.built && performance.now() - t0 < BUILD_MS) { const r = a.gen.next(); if (r.done) a.built = r.value; }
+    for (const a of ahead.values()) while (!a.built && performance.now() - t0 < BUILD_MS) { const r = a.gen.next(); if (r.done) { a.built = r.value; warm(a.built.group); } }
   }
 
   // Lamp light: pairs of spotlights (a core and a ring), moved to the nearest lamps each frame.
@@ -465,7 +468,7 @@ export function createView({ parent, bus, month = () => 11 }) {
       const P = a.who && state.people[a.who], bl = P?.bloody, hand = P?.hand, rain = rainwearOf(wx, a.who ?? a.seed, hand, a.who === state.player, look), bag = P?.bag?.length ? 'bag' : null;
       const base = a.who ? `${a.who}#${lookKey(look)}` : a.seed;
       const key = bl || hand || rain || bag ? `${base}~${bl ? Object.keys(bl).sort().join('') : ''}~${hand ?? ''}~${rain ?? ''}~${bag ?? ''}` : base;
-      people.push({ key, look: bl || hand || rain || bag ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}), ...(rain ? { rainwear: rain } : {}), ...(bag ? { carry: 'bag' } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S) });
+      people.push({ key, look: bl || hand || rain || bag ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}), ...(rain ? { rainwear: rain } : {}), ...(bag ? { carry: 'bag' } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S), own: a.who === state.player });
     }
     // (indoors, the view's own people at their places, not the sim's: whoever's behind the counter of the
     // shop you're in. Their looks a passer-by's, the hat and the bag left at the door)

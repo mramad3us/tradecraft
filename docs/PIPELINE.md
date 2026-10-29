@@ -107,6 +107,8 @@ A motion I made can look fine to me and be wrong. On 2026-10-25 the walk had sho
 
 ## Lessons
 
+- *2026-10-29.* A big texture changed a little must go up a little. The crowd's 4096² sprite atlas was a canvas, and every new face in view set `needsUpdate`, so all 64 MB went to the GPU again: nothing on the Mac's ANGLE Metal (no long frame even with the CPU slowed 6×), close to a second on the user's Windows machine (ANGLE over D3D11) every time they turned and new people came into sight. Now it's a `DataTexture` allocated on the GPU with no data (`source.dataReady = false`), and each sheet goes into its slot with `renderer.copyTextureToTexture()` (a `texSubImage2D` of half a megabyte). Headless Chrome won't show such a stall: count what goes to the GPU instead (wrap `texImage2D`, `texSubImage2D`, `linkProgram`) and treat any big upload or mid-game compile as a Windows hitch. A shader's first compile is one too: `renderer.compile(group, camera, scene)` when a section is built gets it started before the section is on screen.
+
 - *2026-10-27.* A smooth gradient laid over the picture in the composite (the weather's haze, by distance) comes out of the palette snap as rings: a hard-edged arc round the player, 28 m out. Dither it with the same 4 × 4 Bayer matrix as the fog of awareness, and it reads as haze.
 - *2026-10-27.* A frost drawn as a little snow lying (white patches by a noise) read as litter strewn on the street. Frost is a veil, not patches: what faces up mixed a third of the way to a pale blue-white, and one cell in fifty a glint.
 

@@ -4,6 +4,10 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc46 (2026-10-29)
+
+- **Fixed: the stagger on turning (Windows).** Every time someone new came into view (and a turn brings several into sight at once), the game re-sent its whole 64 MB atlas of people's sprites to the graphics card. On a Mac that's quick. Chrome on Windows took up to a second over it, so each turn froze the picture. Now only the new person's sheet goes up (half a megabyte), and their fight poses are only painted the first time they fight. No more than two new faces are painted in a frame; anyone else in sight appears a frame or two later, while still coming out of the dark, and your own figure is never held back. A street's shaders also start compiling when the street is built, not when it first comes on screen, which on Windows was another hitch the first time you met a railing or a bin. Measured here with the CPU slowed six times: the worst frame while turning went from 67 ms to 33 ms, and the atlas uploads while walking and turning from six (64 MB each) to none.
+
 ## v0.1.0-rc45 (2026-10-29)
 
 - **A parked car's window.** The last of the places to watch from on your list: on the pavement by a parked car, R bends you to its window as if to set your hair right, and its glass shows the pavement and the shop fronts behind you, the way a shop window shows the street. E held slants your eyes along it (left and right; down brings them back). A shop window still comes first where there's one, unless you're right at the kerb, and standing at the kerb by a car to hail a taxi isn't looking in it. Being tailed, it's a check like a shop window's, with less cover (+2, not +5): a man bent to a car's window is a little odder than one looking at the goods.
