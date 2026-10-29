@@ -16,7 +16,9 @@
 //     behind, through the glass on that side. Straight behind, BODY_DEG wide, the reflection is
 //     your own back: what's there isn't seen. You look in a window standing at it (GLASS_REACH_M);
 //     someone who uses one to check slants their look back the way they came (GLASS_BACK_DEG), or
-//     at whoever they're keeping an eye on (gazeInto()).
+//     at whoever they're keeping an eye on (gazeInto()). A parked car's window is glass too (sim/acts.js
+//     carPane()): on the pavement by the kerb, its pane is south of you (g.south), and the same mirror
+//     shows the pavement and the shop fronts behind you.
 // Buildings block the line of sight (in the glass, from the street to the pane); people, cars and
 // trees don't (the street is seen over and between them). The weather shortens the reach (reach():
 // never further than sim/weather.js sightM(), heavy rain or snow some, fog a lot), and dims the light
@@ -117,15 +119,15 @@ export function openness(state, e, x, z, light) {
  * behind their own back, within GLASS_K of the range.
  */
 export function inGlass(state, e, x, z, light) {
-  const g = e.glass;
-  if (!g || z <= g.z || e.z <= g.z) return 0;
+  const g = e.glass, s = g?.south ? -1 : 1;                         // (which way the glass looks: a shop's north of you, a parked car's south)
+  if (!g || (z - g.z) * s <= 0 || (e.z - g.z) * s <= 0) return 0;
   const ix = x - e.x, iz = 2 * g.z - z - e.z, d = Math.hypot(ix, iz);   // (the reflection, from the eyes)
   const range = reach(state, light ?? lightHere(state, x, z)) * GLASS_K;
   const far = clamp01((range + 2 - d) / 4);
   if (far <= 0) return 0;
   const dir = Math.atan2(iz, ix), body = BODY_DEG * RAD / 2;
   const cone = clamp01((e.cone + 0.12 - Math.abs(wrap(dir - e.head))) / 0.24);
-  const back = clamp01((Math.abs(wrap(dir + Math.PI / 2)) - body + 0.06) / 0.12);
+  const back = clamp01((Math.abs(wrap(dir + s * Math.PI / 2)) - body + 0.06) / 0.12);
   const gx = glassX(e, x, z), pane = clamp01((gx - g.x0 + 0.1) / 0.2) * clamp01((g.x1 - gx + 0.1) / 0.2);
   return far * cone * back * pane;
 }
@@ -135,12 +137,12 @@ const glassX = (e, x, z) => e.x + (x - e.x) * (e.z - e.glass.z) / ((e.z - e.glas
 
 /** The look into pane g from (x, z) that has (tx, tz) in it: at its reflection, slanted at most GLASS_MAX_DEG. */
 export function gazeInto(g, x, z, tx, tz) {
-  const off = Math.atan2(tx - x, (tz - g.z) + (z - g.z)), max = GLASS_MAX_DEG * RAD;
-  return -Math.PI / 2 + Math.max(-max, Math.min(max, off));
+  const s = g.south ? -1 : 1, off = Math.atan2(tx - x, s * ((tz - g.z) + (z - g.z))), max = GLASS_MAX_DEG * RAD;
+  return s * (-Math.PI / 2 + Math.max(-max, Math.min(max, off)));
 }
 
-/** Whether a head (radians) looks into glass on the building line north of it. */
-export const intoGlass = (head) => Math.abs(wrap(head + Math.PI / 2)) <= GLASS_MAX_DEG * RAD + 1e-9;
+/** Whether a head (radians) looks into glass north of it (a shop's), or (south) south of it (a parked car's by the kerb). */
+export const intoGlass = (head, south = false) => Math.abs(wrap(head + (south ? -1 : 1) * Math.PI / 2)) <= GLASS_MAX_DEG * RAD + 1e-9;
 
 /**
  * Whether the segment from (x0, z0) to (x1, z1) passes through no building. The walls given, or those
@@ -178,7 +180,7 @@ export function visibility(state, e, x, z, light, walls = state.$world.walls) {
   if (v > 0 && !lineClear(state, e.x, e.z, x, z, walls)) v = 0;
   if (e.glass && v < 1) {
     const g = inGlass(state, e, x, z, light);
-    if (g > v && lineClear(state, glassX(e, x, z), e.glass.z + 0.06, x, z, walls)) v = g;
+    if (g > v && lineClear(state, glassX(e, x, z), e.glass.z + (e.glass.south ? -0.06 : 0.06), x, z, walls)) v = g;
   }
   return v;
 }

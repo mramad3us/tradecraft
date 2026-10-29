@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc45 (2026-10-29)
+
+- **A parked car's window.** The last of the places to watch from on your list: on the pavement by a parked car, R bends you to its window as if to set your hair right, and its glass shows the pavement and the shop fronts behind you, the way a shop window shows the street. E held slants your eyes along it (left and right; down brings them back). A shop window still comes first where there's one, unless you're right at the kerb, and standing at the kerb by a car to hail a taxi isn't looking in it. Being tailed, it's a check like a shop window's, with less cover (+2, not +5): a man bent to a car's window is a little odder than one looking at the goods.
+- Tests: perception (a car's window: the pavement behind, slanted along it, not past its end; R looks in it, the kerb alone doesn't).
+
 ## v0.1.0-rc44 (2026-10-29)
 
 - **Who rides the bus with you.** Anyone following you who saw you get on, close enough to make the doors, now gets on too, and gets off behind you a few seconds after you. Before, a bus lost everyone but being tailed's team. The bus card has a new last line: stand by the doors and step off as they close. Each follower aboard must beat your Deception (+4, +2 more in the rush hours' crush) with their Tracking, or be carried on to the next stop. In the tests, an even follower (10 v 10) stays with you 20% of the time, a better one (18) 49%, against a better officer (18) never. Being tailed, the team's riders face the same roll (12 of 13 were carried on), but whoever was aboard writes it down.

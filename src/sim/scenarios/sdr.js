@@ -27,7 +27,7 @@
 //     watcher's Deception, with the watcher in view): a hedged line, and a face counted. Running,
 //     glancing back (your Deception against their Awareness), using a shop window to look (the same
 //     roll, GLASS_COVER on your side: people do look in windows; GLASS_AGAIN_COVER at another within
-//     GLASS_AGAIN_S), crossing away from the zebra, doubling back, each kind at most FLAGS_MAX times. Each costs FLAG_HEAT at the end; two or more and they
+//     GLASS_AGAIN_S; CAR_GLASS_COVER at a parked car's), crossing away from the zebra, doubling back, each kind at most FLAGS_MAX times. Each costs FLAG_HEAT at the end; two or more and they
 //     know what you are.
 //   - **The meeting.** T by the bench sits you beside him for MEET_S seconds. A watcher's eyes on
 //     you then and he's burned. Or T calls it off, when the instinct thinks you're followed.
@@ -70,6 +70,7 @@ export const STAYED_M = 100;                                       // and this f
 export const FLAG_HEAT = 3;
 export const GLASS_COVER = 5;                                      // a look in a shop window: to the eye, someone looking at the goods
 export const GLASS_AGAIN_COVER = 1;                                // less so at every window on the way
+export const CAR_GLASS_COVER = 2;                                  // a parked car's window: a man bent to one, fixing his hair, is odder than one at the goods
 export const GLASS_AGAIN_S = 60;
 export const TEAMS = [['none', 3], ['overt', 3.5], ['covert', 3.5]];
 export const HOURS = [{ id: 'afternoon', h: 15, m: 20, w: 1 }, { id: 'dusk', h: 16, m: 40, w: 2 }, { id: 'night', h: 19, m: 30, w: 1.5 }];
@@ -690,7 +691,7 @@ function glassed(state, bus, me) {
   if (sc.teamLost) return;
   const w = sc.crew.map(c => actorOf(state, c.id)).find(a => a && !a.ai.steps.length && seesActor(state, a, me) && Math.hypot(a.x - me.x, a.z - me.z) < 25);
   if (!w) return;
-  const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player], mods: [again ? { why: 'another window, so soon', v: GLASS_AGAIN_COVER } : { why: 'at a shop window, as people are', v: GLASS_COVER }] },
+  const r = opposed(state.rng, { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player], mods: [again ? { why: 'another window, so soon', v: GLASS_AGAIN_COVER } : me.glass?.car ? { why: 'at a parked car\'s window', v: CAR_GLASS_COVER } : { why: 'at a shop window, as people are', v: GLASS_COVER }] },
     { skill: 'awareness', value: skill(state.people[w.who], 'awareness'), body: state.people[w.who] });
   sc.rolls++;
   if (!r.ok) flag(state, bus, 'glassed');

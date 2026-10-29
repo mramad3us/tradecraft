@@ -11,6 +11,10 @@
 //     you'd watch (opts.toward: −1 west, 1 east; by default back the way you were going). Looking in
 //     a window is being stood at its pane with the eyes into it (glassAhead()), however you got
 //     there; the eyes can slant along it (E held).
+//   - 'car': the same at a parked car's window (the user's list of places to watch from: "car windows";
+//     carPane(), carNear()): from the pavement by the kerb, bent to it as if to fix your hair, its glass
+//     south of you; across the boulevard's far road, by its kerb, north of you. A shop window at hand
+//     comes first, unless you're right by the kerb (KERB_SIDE_M);
 //   - 'bench': sit on a bench on the boulevard's path, until you move;
 //   - 'mobile': stop and look at your phone, head down over it, a while or till you move (not again within
 //     MOBILE_AGAIN_S); the street's own cover, everyone does it (the user, 2026-10-28: "Looking at smartphone
@@ -35,6 +39,9 @@ import { sectionOf } from './city.js';
 import { sectionAt } from './world.js';
 import { say } from './log.js';
 import { GLASS_REACH_M, intoGlass } from './perception.js';
+
+export const CAR_PANE_M = 1.4, CAR_HALF_W = 0.9;                   // (a parked car's windows either side of its middle; its side, off its middle)
+export const KERB_SIDE_M = 1.2;                                    // (this close to the kerb, a parked car's window before a shop's)
 import { stopNear, nextBus, linesOf, STOP_Z } from './buses.js';
 import { itemNear, pickUp } from './items.js';
 import { atKerb, taxiComing, hail } from './taxi.js';
@@ -125,8 +132,35 @@ export function paneAt(state, x, z, row = state.map.row) {
   return sectionOf(townOf(state.map), row, Math.floor(x / SECTION_M)).doors.find(d => d.pane && x > d.pane.x0 - 0.3 && x < d.pane.x1 + 0.3)?.pane ?? null;
 }
 
-/** The pane the actor is looking into, stood at it with the eyes into it, or null. */
-export const glassAhead = (state, a) => (intoGlass(a.head ?? 0) ? paneAt(state, a.x, a.z) : null);
+/**
+ * A parked car's window by (x, z) on a row (sim/map/street.js: cars along the near kerb, and the far road's),
+ * close enough to look in, on the side looked into (south: the near kerb's, from the pavement north of
+ * it; else the far road's, from its pavement south of it): { x0, x1, z, car, south }, or null.
+ */
+export function carPane(state, x, z, row = state.map.row, south = true) {
+  const c = sectionOf(townOf(state.map), row, Math.floor(x / SECTION_M)).props.find(p => p.kind === 'car' && (p.z < Z.kerbS) === south && Math.abs(p.x - x) < CAR_PANE_M + 0.3);
+  if (!c) return null;
+  const pz = c.z + (south ? -CAR_HALF_W : CAR_HALF_W), d = (z - pz) * (south ? -1 : 1);
+  return d > 0 && d <= GLASS_REACH_M ? { x0: c.x - CAR_PANE_M, x1: c.x + CAR_PANE_M, z: pz, car: true, south } : null;
+}
+
+/** A parked car's window within m along the kerb from the actor, on the pavement beside it (the half nearer the kerb), or null. */
+export function carNear(state, a, m = 1.2) {
+  const S = sectionAt(state, a.x), near = a.z > (Z.front + Z.kerbN) / 2 && a.z < Z.kerbN + 0.2, far = a.z > Z.roadS && a.z < LANES.south[1];
+  const c = (near || far) && S?.props.find(p => p.kind === 'car' && (p.z < Z.kerbS) === near && Math.abs(p.x - a.x) < CAR_PANE_M + m);
+  return c ? { x0: c.x - CAR_PANE_M, x1: c.x + CAR_PANE_M, z: c.z + (near ? -CAR_HALF_W : CAR_HALF_W), car: true, south: near } : null;
+}
+
+/**
+ * The pane the actor is looking into, stood at it with the eyes into it, or null: a shop's, or a parked
+ * car's when they chose to look in it (R: 'car') and haven't moved since (stood at the kerb by one, to
+ * hail a taxi or cross, isn't looking in its window).
+ */
+export function glassAhead(state, a) {
+  const head = a.head ?? 0, car = a.busy?.what === 'car' || !!a.glass?.car;
+  if (intoGlass(head)) return paneAt(state, a.x, a.z) ?? (car ? carPane(state, a.x, a.z, state.map.row, false) : null);
+  return car && intoGlass(head, true) ? carPane(state, a.x, a.z, state.map.row, true) : null;
+}
 
 /** What gives the actor a reason to stop here: 'window' (a shop's glass at hand), 'bench' (a seat), 'mobile' (the phone), 'lace', or null. */
 export function coverHere(state, a) {
@@ -137,7 +171,7 @@ export function coverHere(state, a) {
   return state.time.ms - (state.scenario.laceMs ?? -1e12) > LACE_AGAIN_S * 1000 ? 'lace' : null;
 }
 
-const COVER = { window: 'look in the window', bench: 'sit on the bench', mobile: 'look at your phone', lace: 'tie a shoelace', cross: 'cross', taxi: 'hail a taxi', kiosk: 'buy a paper at the kiosk', phone: 'make a call from the phone box', shelter: 'wait for a bus', notices: 'read the notices' };
+const COVER = { window: 'look in the window', car: 'look in a parked car\'s window', bench: 'sit on the bench', mobile: 'look at your phone', lace: 'tie a shoelace', cross: 'cross', taxi: 'hail a taxi', kiosk: 'buy a paper at the kiosk', phone: 'make a call from the phone box', shelter: 'wait for a bus', notices: 'read the notices' };
 
 /** What's at hand for T, the engine's: a shop window, a free seat, a zebra ({ act, text }), or null. */
 export function affordance(state, me) {
@@ -155,7 +189,8 @@ export function affordance(state, me) {
   const station = !kerb && stationNear(state, me);                  // (at a station's door: down; sim/metro.js)
   const spot = !station && spotNear(state, me);                      // (a kiosk, a phone box: somewhere to watch from)
   if (station) return { act: 'metro', text: ` {use} down into the ${metroName(state) === 'Underground' ? 'Underground' : 'metro'}.` };
-  const act = kerb && cross ? 'cross' : spot ? spot.kind : kerb && taxiComing(state, me) ? 'taxi' : paneNear(state, me) ? 'window' : benchNear(state, me) !== null ? 'bench' : cross ? 'cross' : null;
+  const pane = paneNear(state, me), car = !pane || me.z > Z.kerbN - KERB_SIDE_M ? carNear(state, me) : null;   // (a shop's window first; right by the kerb, a car's)
+  const act = kerb && cross ? 'cross' : spot ? spot.kind : kerb && taxiComing(state, me) ? 'taxi' : car ? 'car' : pane ? 'window' : benchNear(state, me) !== null ? 'bench' : cross ? 'cross' : null;
   return act && { act, text: ` {use} ${COVER[act]}.` };
 }
 /** What T would do here, for the end of an instinct's line: { act, text } (only: the covers allowed). */
@@ -216,12 +251,13 @@ function act1(state, bus, me, what, { toward = Math.cos(me.head ?? 0) >= 0 ? -1 
     say(state, bus, { kind: 'instinct', text: say1(state, 'notices', ['A lost cat, a choir, a flat to let, a concert last month: you read them all, slowly, the path at the corner of your eye.', 'The notices: lessons, a dog found, the council\'s plans for the pond. You read them, and the path behind you in the edge of your sight.']) });
     return;
   }
-  if (what === 'window') {
-    const pane = paneNear(state, me);
+  if (what === 'window' || what === 'car') {
+    const pane = what === 'car' ? carNear(state, me) : paneNear(state, me);
     if (!pane) return;
     const wx = toward < 0 ? pane.x1 - 0.4 : pane.x0 + 0.4;          // (at the glass, and stood there after: moving takes you off)
-    me.busy = { what: 'window', steps: [['go', wx, pane.z + 0.65], ['wait', 1, 'up', 'idle']], wait: 0 };
-    say(state, bus, { kind: 'instinct', text: 'You find something in a shop window worth a look. In the glass, the street behind you.' });
+    me.busy = { what, steps: [['go', wx, pane.z + (pane.south ? -0.65 : 0.65)], ['wait', 1, pane.south ? 'down' : 'up', 'idle']], wait: 0 };
+    say(state, bus, { kind: 'instinct', text: what === 'car' ? say1(state, 'carglass', ['You stop by a parked car and bend to its window, as if to set your hair right. In the glass, the street behind you.', 'A parked car\'s window, and a look at yourself in it, as people do. And past yourself, the street behind.'])
+      : 'You find something in a shop window worth a look. In the glass, the street behind you.' });
   } else if (what === 'bench') {
     const sx = benchNear(state, me);
     if (sx === null) return;

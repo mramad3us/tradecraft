@@ -1,8 +1,8 @@
-// Perception: the cone, the radius of awareness, the light, the walls, a shop window's glass; and the
-// player's memory of who was where (frozen out of sight, forgotten when the spot is looked at again).
+// Perception: the cone, the radius of awareness, the light, the walls, a shop window's glass, a parked
+// car's; and the player's memory of who was where (frozen out of sight, forgotten when the spot is looked at again).
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
 import { eyes, visibility, sees, SEEN, inView, lightHere, AWARE_M, AWARE_PER, CONE_DEG, CONE_PER_AWARENESS, SIGHT_M, LIGHT_M, GLASS_K, BODY_DEG } from '../src/sim/perception.js';
-import { coverHere, crossingNear } from '../src/sim/acts.js';
+import { coverHere, crossingNear, carNear, CAR_PANE_M } from '../src/sim/acts.js';
 import { at } from '../src/sim/clock.js';
 import { skill } from '../src/sim/skills.js';
 import { Z } from '../src/sim/map/street.js';
@@ -95,6 +95,40 @@ export default [
       assert(coverHere(g, me) === 'window', 'a window offered, walking past it');
       me.glass = { ...pane, since: 0 };
       assert(coverHere(g, me) !== 'window', 'not when you\'re at it');
+    },
+  },
+  {
+    name: 'perception: a parked car\'s window, from the pavement by the kerb, shows the pavement behind you, slanted along it, not past its end; R looks in it, and standing at the kerb by one doesn\'t',
+    fn() {
+      const g = street(13), me = playerActor(g);
+      const car = [...g.$world.sections.values()].flatMap(S => S.props).filter(p => p.kind === 'car' && p.z < Z.kerbS && !crossingNear(g, { x: p.x, z: -1.2 }, 6)).sort((a, b) => Math.abs(a.x - me.x) - Math.abs(b.x - me.x))[0];
+      assert(car, 'a parked car by the near kerb');
+      const pane = carNear(g, { x: car.x, z: -1.2 }), ex = car.x + 1.0, ez = pane.z - 0.65;
+      const at = (head, glass) => { Object.assign(me, { x: ex, z: ez, head, glass: glass ? { ...pane, since: 0 } : false }); return eyes(g, me); };
+      const IN = Math.PI / 2, ROUND = -Math.PI / 2, WEST = Math.PI / 2 + Math.PI / 4;
+      const v = (e, x, z) => visibility(g, e, x, z);
+      // (the pavement is too narrow for your own back to hide anyone: what's straight behind is within the sense of someone there)
+      const back = [ex - 7, -4.5], past = [ex + 10, -4.5];
+      const straight = at(IN, true), turned = at(ROUND, false), away = at(IN, false), west = at(WEST, true);
+      console.log(`      a car's window, from ${fmt(ez, 1)} m: the pavement 7 m back, slanted along it ${fmt(v(west, ...back), 2)} (facing the car without its glass ${fmt(v(away, ...back), 2)}; turned round ${fmt(v(turned, ...back), 2)}); 10 m the other way, past the end of its windows ${fmt(v(straight, ...past), 2)}`);
+      assert(v(west, ...back) >= SEEN && v(away, ...back) < SEEN && v(turned, ...back) >= SEEN, 'the pavement behind, slanted along the car\'s glass (and not without it)');
+      assert(v(straight, ...past) < SEEN, 'not past the end of its windows');
+      // R by it (the near kerb, no taxi coming): look in it, bent to it, facing it; walk off and it's over.
+      const quiet = (input) => { if (g.traffic) g.traffic.cars = []; step(g, input, null); };   // (no taxi coming: the kerb's own offer)
+      Object.assign(me, { x: car.x, z: -1.2, head: 0, face: 'right', glass: false, busy: null, vx: 0, vz: 0 });
+      for (let t = 0; t < 20 * 2; t++) quiet({});
+      const offer = g.$offer;
+      quiet({ act: ['use'] });
+      for (let t = 0; t < 20 * 3; t++) quiet({});
+      const looked = !!me.glass?.car && me.face === 'down' && me.glass.south;
+      for (let t = 0; t < 20; t++) quiet({ mx: 1 });
+      const off = !me.glass;
+      // Stood still at the kerb by one, facing the road (for a taxi, a gap): not looking in its window.
+      Object.assign(me, { x: car.x, z: -1.0, head: Math.PI / 2, face: 'down', glass: false, busy: null, vx: 0, vz: 0 });
+      for (let t = 0; t < 20 * 2; t++) quiet({});
+      console.log(`      by the kerb at a parked car: R offers "${offer?.text?.trim()}"; looked in it ${looked}; walked off, done ${off}; stood facing the road, its glass ${!!me.glass}`);
+      assert(offer?.act === 'car' && looked && off && !me.glass, 'R looks in it; walking ends it; standing by one isn\'t looking in it');
+      assert(Math.abs(pane.x1 - pane.x0 - 2 * CAR_PANE_M) < 1e-9, 'its windows');
     },
   },
   {

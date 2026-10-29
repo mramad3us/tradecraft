@@ -14,7 +14,7 @@ import { heatKey } from '../heat.js';
 import { say } from '../log.js';
 import { Z, streetName, parkName, inLane, mouthOf } from '../map/street.js';
 import { sectionAt } from '../world.js';
-import { act, crossingNear, paneNear, benchNear, say1 } from '../acts.js';
+import { act, crossingNear, paneNear, carNear, benchNear, say1 } from '../acts.js';
 import { openAir } from '../perception.js';
 import { atKerb } from '../taxi.js';
 import { weatherLine } from '../weather.js';
@@ -65,9 +65,11 @@ function instinct(state, me) {
   const L = (id, text, act = null, tone = 'calm') => ({ id, tone, text: Array.isArray(text) ? say1(state, id, text) : text, act });
   const S = sectionAt(state, me.x), seed = townOf(state.map), row = state.map.row ?? 0, C = CITY_WORDS[state.map.city] ?? null;
   if (!S) return null;
+  if (me.glass?.car) return L('carglass', ['In a parked car\'s window, the pavement behind you, and the shop fronts: all but the middle of it, your own back.', 'Hold {watch} and slant your eyes along the car\'s glass: the pavement behind you, to either side.',
+    'A car\'s window is a darker mirror than a shop\'s, and a man bent to one is a little odder than a man at the goods.']);
   if (me.glass) return L('glass', ['In the glass, the street behind you, all but the middle of it: that\'s your own back.', 'Straight in, the glass shows the road behind you. Hold {watch} and slant your eyes along it: the pavement behind.',
     'A shop window is a mirror with goods in it. Nobody minds anyone looking at the goods.']);
-  if (me.busy) return L('busy', { window: 'To the shop window.', bench: 'A bench is a good seat for the street. Moving gets you up.',
+  if (me.busy) return L('busy', { window: 'To the shop window.', car: 'To the parked car\'s window.', bench: 'A bench is a good seat for the street. Moving gets you up.',
     lace: 'A shoelace: ten seconds to look back along the street, for free.', mobile: 'Your phone: head down, eyes up. Moving ends it.', cross: 'Over you go.', pickup: 'Picking it up.',
     pressure: 'Your hand hard on the wound. Hold still: moving lets go.', dress: 'Binding it.', tourniquet: 'The belt, tight.', splint: 'Splinting it: it takes a while.' }[me.busy.what] ?? 'Busy with it: moving stops it.');
   const wx = weatherLine(state, me);
@@ -98,6 +100,7 @@ function instinct(state, me) {
   // Something here: what to make of it (T, what's at hand, is the engine's).
   if (atKerb(state, me)) return L('kerb', 'The kerb: taxis stop for a raised hand.');
   if (paneNear(state, me)) return L('window', 'A shop window: its glass shows the street behind you.');
+  if (carNear(state, me)) return L('car', 'A parked car: its window shows the pavement behind you.');
   if (benchNear(state, me) !== null) return L('bench', 'A bench: a seat for watching the boulevard go by.');
   const f = S.park?.feature;
   if (f && Math.hypot((f.x0 + f.x1) / 2 - me.x, (f.z0 + f.z1) / 2 - me.z) < 9) {

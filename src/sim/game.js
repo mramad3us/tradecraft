@@ -244,9 +244,11 @@ export function step(state, input = {}, bus) {
       // (at a shop's glass, left and right slant the eyes along it, a little at a time, as far as the glass
       // shows, and up brings them back to straight in; down turns away from it. The user, 2026-10-27: E
       // held "tends to slant the wrong direction (up instead of left)": left turned you from the window.)
-      if (n > 0.01 && me.glass && mz <= 0) {
-        const max = GLASS_MAX_DEG * Math.PI / 180, to = mx ? -Math.PI / 2 + Math.sign(mx) * max : -Math.PI / 2, step = SLANT_DEG_S * Math.PI / 180 / TICKS_PER_S;
-        const at = Math.max(-Math.PI / 2 - max, Math.min(-Math.PI / 2 + max, me.head > Math.PI / 2 ? me.head - 2 * Math.PI : me.head));
+      // (a parked car's window by the kerb is south of you: the same, mirrored, down back to straight in)
+      const s = me.glass?.south ? -1 : 1, mid = -s * Math.PI / 2;
+      if (n > 0.01 && me.glass && s * mz <= 0) {
+        const max = GLASS_MAX_DEG * Math.PI / 180, to = mx ? mid + s * Math.sign(mx) * max : mid, step = SLANT_DEG_S * Math.PI / 180 / TICKS_PER_S;
+        const at = Math.max(mid - max, Math.min(mid + max, s > 0 ? (me.head > Math.PI / 2 ? me.head - 2 * Math.PI : me.head) : (me.head < -Math.PI / 2 ? me.head + 2 * Math.PI : me.head)));
         me.head = at + Math.max(-step, Math.min(step, to - at));
       } else if (n > 0.01) { me.head = Math.atan2(mz, mx); me.face = faceOf(me.head); }
     } else {
@@ -271,7 +273,7 @@ export function step(state, input = {}, bus) {
     // scenarios: a stop that began as someone looked is a stop they saw begin).
     const pane = !me.vx && !me.vz && glassAhead(state, me);
     me.glass = pane ? (me.glass?.x0 === pane.x0 ? me.glass : { ...pane, since: state.time.ms }) : false;
-    if (me.glass) me.face = 'up';
+    if (me.glass) me.face = me.glass.south ? 'down' : 'up';
   }
   // 2. Everyone moves; the focus may leave the map. (Someone out cold lies there a while; the dead, for good.)
   for (const a of state.actors) {
