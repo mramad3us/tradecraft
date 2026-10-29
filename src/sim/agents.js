@@ -27,6 +27,8 @@
 // pavement (DOOR_WAIT_S). Then it's lost them. Its eyes stay on them while they're anywhere it can
 // turn its head to; stood at a shop window, on their reflection in it (gazeInto()).
 import { townOf } from './cities/index.js';
+import { unitAt } from './interiors/use.js';
+import { wayAcross } from './interiors/path.js';
 import { TICK_MS } from './clock.js';
 import { placeAt, routeFrom, finish, sectionOf, clearAt, LINE } from './city.js';
 import { Z, SECTION_M, mouthOf, inLane as inLaneG, laneLine } from './map/street.js';
@@ -38,6 +40,7 @@ import { intoCar, carInWay } from './traffic.js';
 
 const DT = TICK_MS / 1000;
 const TPS = 1000 / TICK_MS;
+export const VISIT_MS = 1.0;                                       // (in a shop, to its counter and back: a browsing pace)
 export const LEAN = 0.04;                                          // how fast a walker leans aside, of its way's width a tick
 export const ROUTE_EVERY = 10;                                     // a follower re-reads the trail every this many ticks
 export const SEARCH_S = 8;                                         // out of sight at the end of what it knows: how long it looks about
@@ -176,6 +179,7 @@ export function stepAgent(state, a, scenario, bus) {
   if (ai.downUntil > state.time.ms) { a.vx = a.vz = 0; a.gait = 'down'; return; }   // (knocked out: lying there a while)
   if (ai.wait > 0) {
     a.vx = a.vz = 0;
+    if (ai.visit) visitStep(a, ai.visit, ai.visit.ticks - ai.wait);
     if (--ai.wait === 0) endStop(state, a, scenario, bus);
     return;
   }
@@ -243,11 +247,49 @@ function startStop(state, a, stop, scenario, bus) {
   if (stop.head !== undefined) a.head = stop.head;
   const pane = stop.glass && paneAt(state, a.x, a.z, rowOf(state, a));
   a.glass = pane ? { ...pane, since: state.time.ms } : false; a.wide = !!stop.wide; a.hidden = !!stop.hidden;
+  // (into a shop on the street in play: walked in, to its counter round the furniture, a while there, and out; seen through its glass)
+  const v = stop.kind === 'shop' && onMap(state, a) && visitOf(state, a, ai.wait);
+  if (v) { ai.visit = v; ai.wait = v.ticks; a.hidden = false; }
   scenario?.onStop?.(state, a, stop, 'start', bus);
+}
+
+/**
+ * A shop visit (the user, 2026-10-28; DESIGN.md, In a shop: "someone else who goes into a shop … is still
+ * out of sight in it"): the way from where they stand at the door in to the counter (sim/interiors/path.js),
+ * walked at VISIT_MS, the rest of the stop's time stood there, and the way back out: { pts, legS (ticks a
+ * way), ticks }. Null where there's no floor, or no way in.
+ */
+function visitOf(state, a, ticks) {
+  const at = unitAt(state, a.x, a.z - 1.2) ?? unitAt(state, a.x, a.z - 2);
+  const spot = at?.u.spots.find(s => s.kind === 'counter');
+  if (!spot) return null;
+  const inside = [at.u.door, at.u.z1 - 0.6], way = wayAcross({ plan: at.u, blockers: at.S.blockers }, inside[0], inside[1], spot.x, spot.z);
+  if (!way) return null;
+  const pts = [[a.x, a.z], inside, ...way], len = pts.slice(1).reduce((m, p, k) => m + Math.hypot(p[0] - pts[k][0], p[1] - pts[k][1]), 0), legS = Math.ceil(len / VISIT_MS * TPS);
+  return { pts, len, legS, ticks: Math.max(ticks, legS * 2 + 6 * TPS) };
+}
+
+/** Where a visit puts them t ticks in: walking in, stood at the counter, walking out. */
+function visitStep(a, v, t) {
+  const back = t > v.ticks - v.legS, standing = !back && t >= v.legS;
+  if (standing) { [a.x, a.z] = v.pts.at(-1); a.gait = 'idle'; a.face = 'up'; a.head = headOf('up'); return; }
+  let d = (back ? v.ticks - t : t) / v.legS * v.len;
+  for (let k = 1; k < v.pts.length; k++) {
+    const [x0, z0] = v.pts[k - 1], [x1, z1] = v.pts[k], seg = Math.hypot(x1 - x0, z1 - z0);
+    if (d <= seg || k === v.pts.length - 1) {
+      const f = seg ? Math.min(1, d / seg) : 1, ux = (x1 - x0) * (back ? -1 : 1), uz = (z1 - z0) * (back ? -1 : 1);
+      const nx = x0 + (x1 - x0) * f, nz = z0 + (z1 - z0) * f;
+      a.stride += Math.hypot(nx - a.x, nz - a.z); a.x = nx; a.z = nz;
+      a.gait = 'walk'; if (seg) { a.face = faceFor(ux, uz, a.face); a.head = Math.atan2(uz, ux); }
+      return;
+    }
+    d -= seg;
+  }
 }
 
 function endStop(state, a, scenario, bus) {
   const ai = a.ai, stop = ai.waiting;
+  if (ai.visit) { [a.x, a.z] = ai.visit.pts[0]; ai.visit = null; }   // (back out at the door, where the way goes on)
   ai.waiting = null; ai.wait = 0; ai.sit = false;
   a.glass = a.wide = a.hidden = false;
   a.gait = 'idle';

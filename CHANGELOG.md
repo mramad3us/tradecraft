@@ -4,6 +4,10 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc41 (2026-10-29)
+
+- **Shops have customers.** Passers-by now go into shops now and then, and anyone who does (the man you're tailing too) walks in through the door, round the furniture to the counter, stands there a while, and walks back out, instead of vanishing at the door. Follow someone in and there they are. (Tailing got a little easier for a good follower: in the tests' evenings, a follower of 15 against a careful man of 10 saw the meeting 88% of the time, against 75% before; against a man of 20, 13% against 4%.)
+
 ## v0.1.0-rc40 (2026-10-29)
 
 - **The police.** Officers walk the streets in pairs, in each city's uniform: often in Moscow and Cairo, seldom in London. One who sees you weighs what shows on you (blood, something in your hand or at your belt, a bulge, a sneeze), the city's habit of asking foreigners for their papers, and how hot you are, and may stop you: "Documents, please." Show your diplomatic passport (handed back, but your name goes in a notebook), answer their questions (Deception; blood or a weapon in your hand makes it harder; fail and they search you), or walk on (you're a diplomat: the embassy hears of it). Searched, what shows is found and what's in a pocket may be; a weapon is taken and reported, and the ambassador hears. In the free walk and your own hours in the campaign, not in the mechanic tests.

@@ -8,7 +8,8 @@
 //   - 'window': along a row of shops (a chance a stretch), he steps to a window and studies the street
 //     behind in the glass: at the end of the pane ahead of him, his look slanted back along it the
 //     way he came (GLASS_BACK_DEG: sim/perception.js); a passer-by looks at the goods;
-//   - 'shop': or he goes into one (out of sight a while; once a walk) and comes out looking both ways
+//   - 'shop': or he goes into one (once a walk: in to its counter, a while there, seen through the glass,
+//     sim/agents.js visitOf(); out of sight where the shop has no floor) and comes out looking both ways
 //     ('exit');
 //   - 'cross': at a zebra's kerb, a look both ways (wide);
 //   - 'turn': at a lane's mouth, before he turns into it, a look back along the street;
@@ -28,11 +29,11 @@ const TPS = 1000 / TICK_MS;
 // (A long walk crosses a dozen roads and turns a dozen corners: a check at every one would be one
 // every half-minute, so they're a chance each. Calm, some 14 checks on a walk across ten streets;
 // wary, some 23.)
-// A civilian (a passer-by: sim/crowd.js) checks nothing: now and then a shop window, a bench, a call.
+// A civilian (a passer-by: sim/crowd.js) checks nothing: now and then a shop window, a shop's counter, a bench, a call.
 export const STYLES = {
   calm: { lookEvery: [55, 100], looks: true, window: 0.3, shop: 0.12, pause: 0.12, cross: 0.35, turn: 0.45, sit: 0, checks: true, tell: [1.6, 2.6] },
   wary: { lookEvery: [35, 65], looks: true, window: 0.4, shop: 0.15, pause: 0.12, cross: 0.6, turn: 0.75, sit: 0, checks: true, tell: [1.0, 1.8] },
-  civil: { lookEvery: [70, 160], looks: false, window: 0.15, shop: 0, pause: 0.25, cross: 0, turn: 0, sit: 0.3, checks: false, tell: [1, 1] },
+  civil: { lookEvery: [70, 160], looks: false, window: 0.15, shop: 0.1, pause: 0.25, cross: 0, turn: 0, sit: 0.3, checks: false, tell: [1, 1] },
   none: { lookEvery: [1e9, 1e9], looks: true, window: 0, shop: 0, pause: 0, cross: 0, turn: 0, sit: 0, checks: true, tell: [1, 1] },
 };
 export const SEAT_Z = 12.96;                                       // a sitter stands here, before the bench (the renderer seats them)
