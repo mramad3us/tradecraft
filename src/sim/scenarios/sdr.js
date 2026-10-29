@@ -53,6 +53,8 @@ import { act, paneAt, paneNear, crossingAt, laneMid, say1 } from '../acts.js';
 import { waypoint, zoneOf } from '../nav.js';
 import { weatherMods } from '../weather.js';
 import { shown as shownOn } from '../notice.js';
+import { keeps, behind, CHASE_SEE_M, CAB_FLAG, CHASE_WAIT_S } from '../taxi.js';
+import { freeShare } from '../traffic.js';
 
 const TPS = 1000 / TICK_MS;
 export const MEET_AFTER_MIN = [5, 6.5];
@@ -167,16 +169,31 @@ export const sdr = {
   /** A shop window's glass, to run back the way you came. */
   toward(state) { return -state.scenario.heading.dir; },
 
-  /** A taxi (sim/taxi.js): it loses them, and whoever saw you get in writes it down (evasive, and they know what that means). */
-  onTaxi(state, bus) {
-    const sc = state.scenario;
-    flag(state, bus, 'taxi');
-    if (sc.crew.some(c => c.id)) {
-      const ids = sc.crew.map(c => c.id).filter(Boolean);
-      loseUs(state, bus);
-      sc.lostHow = 'in a taxi';
-      state.actors = state.actors.filter(a => !ids.includes(a.id));   // (left on the street behind you)
+  /**
+   * A taxi (sim/taxi.js): whoever saw you get in writes it down (evasive, and they know what that means),
+   * and they're after it or lost: a covert team in its own car, an overt pair in a cab if a free one comes
+   * along (freeShare() × CAB_FLAG); then the ride's one roll (keeps(): their best Tracking against the
+   * driver's way, or, told to lose them, your Pathfinding). Lost, they're left on the street behind you.
+   * Kept: out ('out'), the car's man (a covert team's) or the pair out of it a way behind you, a few
+   * seconds after (behind()), and easier to know for it.
+   */
+  onTaxi(state, bus, to, phase) {
+    const sc = state.scenario, me = playerOf(state);
+    if (phase === 'out') {
+      const kept = (sc.cabKept ?? []).map(k => join(state, sc.crew[k], 0));
+      sc.cabKept = null;
+      if (kept.length) { behind(state, kept, { plain: sc.team === 'covert' }); sc.teamSeenMs = state.time.ms + CHASE_WAIT_S * 1000; }
+      return;
     }
+    flag(state, bus, 'taxi');
+    if (!sc.crew.some(c => c.id)) return;
+    const saw = sc.crew.map((c, k) => ({ k, a: actorOf(state, c.id) })).filter(o => o.a && Math.hypot(o.a.x - me.x, o.a.z - me.z) <= CHASE_SEE_M && seesActor(state, o.a, me));
+    const best = saw.map(o => state.people[o.a.who]).sort((p, q) => skill(q, 'tracking') - skill(p, 'tracking'))[0], car = sc.team === 'covert';
+    const after = !!best && (car || chance(state.rng, freeShare(state.time.ms) * CAB_FLAG)) && keeps(state, best, to, state.map.row ?? 0);
+    const ids = sc.crew.map(c => c.id).filter(Boolean);
+    if (after) { sc.cabKept = car ? [saw[0].k] : sc.crew.map((c, k) => (c.id ? k : -1)).filter(k => k >= 0); for (const c of sc.crew) c.id = null; sc.pending = []; }
+    else { loseUs(state, bus); sc.lostHow = 'in a taxi'; }
+    state.actors = state.actors.filter(a => !ids.includes(a.id));   // (left on the street behind you, or in the car after yours: out of it there)
   },
 
   /**
@@ -542,7 +559,7 @@ function look(state, bus, why, bonus = 0) {
     const light = lightBand(lightHere(state, a.x, a.z));
     const mods = [bonus && { why: { glance: 'a straight look', cross: 'crossing, looking both ways', window: 'in the glass', stop: 'stood, looking about', passive: 'not looking', kiosk: 'over the top of a paper', cafe: 'from a café window', phone: 'through a phone box\'s glass', shelter: 'waiting for a bus', notices: 'over the notices', alight: 'watching who gets off with you' }[why], v: bonus },
       d > 20 ? { why: 'far off', v: -3 } : d > 12 ? { why: 'a way off', v: -1 } : null, crowd >= 2 && { why: 'among people', v: -2 },
-      light === 'dark' && { why: 'in the dark', v: -2 }, a.ai?.fromLane && state.time.ms - sc.sinceMap < 30000 && { why: 'up the lane after you', v: 4 }, a.ai?.fromBus && state.time.ms - sc.sinceMap < 30000 && { why: 'off the bus after you', v: 4 }, ...faces].filter(Boolean);
+      light === 'dark' && { why: 'in the dark', v: -2 }, a.ai?.fromLane && state.time.ms - sc.sinceMap < 30000 && { why: 'up the lane after you', v: 4 }, a.ai?.fromBus && state.time.ms - sc.sinceMap < 30000 && { why: 'off the bus after you', v: 4 }, a.ai?.outOfCab && state.time.ms - a.ai.outOfCab < 30000 && { why: 'out of a car behind yours', v: 4 }, ...faces].filter(Boolean);
     const theirs = a.who ? skill(state.people[a.who], 'deception') : 2;
     const r = opposed(state.rng, { skill: 'pathfinding', value: ours, mods, body: state.people[state.player] }, { skill: 'deception', value: theirs });
     sc.rolls++;

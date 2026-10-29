@@ -24,6 +24,7 @@ import { candidates, newCampaign, context, fold, heatWord, KINDS, LEVELS, levelO
 import { cityById } from './sim/cities/index.js';
 import { shopWord } from './sim/shops.js';
 import { price } from './sim/money.js';
+import { LOSE_USD, LOSE_MIN } from './sim/taxi.js';
 import { createView } from './render/view.js';
 import { createInput } from './ui/input.js';
 import { createUI, RES } from './ui/ui.js';
@@ -168,7 +169,14 @@ function launch(s, { hour = null } = {}) {
   bus.on('bus', ({ line, towards, list }) => ui.openChoices('BUS', `THE ${line}, FOR ${String(towards).toUpperCase()}: WHERE TO?`, list.map(d => ({ key: d.id, label: `${d.label.charAt(0).toUpperCase() + d.label.slice(1)} · ${price(state, d.fare)}` })), (key) => acts.push(`bus:${key}`)));   // (sim/buses.js)
   bus.on('metro', (at) => ui.openTube(state, at, (key) => acts.push(`metro:${key}`)));   // (the network's map: src/ui/tubemap.js; sim/metro.js)
   bus.on('police', ({ line, ways }) => { if (!ui.overlay()) ui.openChoices('POLICE', line, ways, (key) => acts.push(`police:${key}`)); });   // (stopped: sim/police.js)
-  bus.on('taxi', (list) => ui.openChoices('TAXI', 'WHERE TO?', list.map(d => ({ key: d.id, label: `${d.label.charAt(0).toUpperCase() + d.label.slice(1)} · ${price(state, d.fare)}` })), (key) => acts.push(`taxi:${key}`)));   // (sim/taxi.js; the fare, sim/money.js)
+  // (sim/taxi.js; the fare, sim/money.js; the long way round, losing anyone behind: the same places, a second card)
+  bus.on('taxi', (list) => {
+    const card = (lose) => ui.openChoices('TAXI', lose ? 'THE LONG WAY' : 'WHERE TO?', [
+      ...list.map(d => ({ key: lose ? `${d.id}:lose` : d.id, label: `${d.label.charAt(0).toUpperCase() + d.label.slice(1)} · ${price(state, d.fare + (lose ? LOSE_USD : 0))}` })),
+      ...(lose ? [] : [{ key: 'lose', label: `The long way round, losing anyone behind us (${price(state, LOSE_USD)} and ${LOSE_MIN} minutes more) ▸` }]),
+    ], (key) => (key === 'lose' ? card(true) : acts.push(`taxi:${key}`)));
+    card(false);
+  });
   bus.on('scenario-end', () => {
     if (s.scenario.kind === 'dojo' && s.scenario.chapter !== 'remembered') { try { localStorage.setItem(FARM_KEY, 'done'); } catch {} }   // (the lesson had: next time the Farm is a memory)
     setTimeout(() => { if (state === s) result(); }, 1800);

@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc43 (2026-10-29)
+
+- **Follow that cab.** A taxi no longer shakes everyone. Whoever was following you and saw you get in needs a car: someone on foot needs a free cab to come by (fewer at the rush hours), while a surveillance team has its own car. Then it's their Tracking against the cabbie's way through the traffic. Kept, their car comes along the lane behind yours a few seconds later and stops a way back, and they get out and follow on. A cab pulling in behind yours is the tell, if you look back. The taxi's card has a new last line: the long way round, losing anyone behind us ($5 and 3 minutes more), which pits your Pathfinding against them instead (an officer who knows the streets nearly always loses them; a stranger to the city does worse than the driver). In the tests: a follower on foot keeps your cab 12% of the time; being tailed, a covert team keeps you 44% of evenings (19% the long way round), an overt pair 17% (0%). Before, a taxi lost them all.
+- Tests: taxi (follow that cab: the rates, the long way, a watcher's cab pulling in behind yours; being tailed's team by taxi).
+
 ## v0.1.0-rc42 (2026-10-29)
 
 - **Someone who knows what they're doing.** First aid (H) now offers a professional when you're badly hurt. At the embassy on a working day, the Health Unit's nurse sees to everything in an hour, discreetly, though an artery is beyond her. Out in the city, a hospital's A&E sees to everything, tourniquet and all, but it takes four to six hours, and a knife wound gets reported: a policeman with questions, +8 heat.

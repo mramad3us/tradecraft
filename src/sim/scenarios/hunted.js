@@ -236,8 +236,9 @@ export const hunted = {
     const e = state.scenario.extract;
     return [{ id: 'car', label: 'a street near the car', row: e.row, x: e.x + (e.x > 0 ? -45 : 45) }];
   },
-  onTaxi(state, bus) {
+  onTaxi(state, bus, to, phase) {
     const sc = state.scenario;
+    if (phase === 'out') return;                                   // (out of it: whoever kept up is the engine's, sim/taxi.js chase())
     if (chance(state.rng, TAXI_RADIO)) end(state, bus, 'captured', 'The driver\'s eyes in the mirror, a second too long; then he doesn\'t take the turn you asked for. The doors lock themselves. He\'d heard the radio: a description, and a reward.');
     else sc.lastSeen = { row: state.map.row, x: playerOf(state).x, ms: state.time.ms };
   },

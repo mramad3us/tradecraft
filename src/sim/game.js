@@ -38,7 +38,7 @@ import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } fr
 import { drift, asOfficer } from './people.js';
 import { heal, bleeding, bloodTick, bandOf, canStand, kill, BLOOD, COME_ROUND_S } from './health.js';
 import { PRESSURE_K, treat } from './aid.js';
-import { atKerb, destinations, ride, cabFor, hailedBy, board, rideTick, WALK_OFF_M } from './taxi.js';
+import { atKerb, destinations, ride, cabFor, hailedBy, board, rideTick, chaseTick, WALK_OFF_M } from './taxi.js';
 import { doWay, insideTick, withinTick, LIVED } from './shops.js';
 import * as buses from './buses.js';
 import * as metro from './metro.js';
@@ -180,7 +180,8 @@ export function step(state, input = {}, bus) {
       continue;
     }
     if (String(act).startsWith('taxi:')) {                         // (a taxi, where to chosen: sim/taxi.js)
-      const to = destinations(state, scenario).find(d => d.id === act.slice(5)), cab = me && cabFor(state, me);
+      const [id, how] = act.slice(5).split(':'), dest = destinations(state, scenario).find(d => d.id === id), cab = me && cabFor(state, me);
+      const to = dest && { ...dest, lose: how === 'lose' };          // (the long way round, losing anyone behind: sim/taxi.js keeps())
       if (to && me && !state.fight && cab) { board(state, bus, me, cab, to); continue; }   // (the taxi stopped for you: in, and off: rideTick())
       if (to && me && !state.fight && atKerb(state, me)) {
         say(state, bus, { kind: 'note', text: `A taxi pulls in. ${cap(to.label)}, you tell him, and he grunts.` });
@@ -311,6 +312,7 @@ export function step(state, input = {}, bus) {
     learnTick(state);                                               // (the streets walked, known: sim/knowledge.js)
     wetTick(state, bus, me);                                        // (rain on you, the cold, a cold: sim/wet.js)
     metro.stepsTick(state);                                         // (whoever rode with you, up the steps after you: sim/metro.js)
+    chaseTick(state);                                               // (whoever kept your taxi in sight, out of their car behind you: sim/taxi.js)
     if (scenario.police && !state.tutor) { police.patrolTick(state); police.eyeTick(state, bus); }   // (ordinary law: sim/police.js)
     if (state.tick % (TICKS_PER_S * 60) === 0 && state.people[state.player]) bodyNotes(state, bus, heal(state.people[state.player], 1 / 1440, state.time.ms, { blood: false }));   // (your wounds, a minute on: sim/medicine.js)
     weatherTick(state, bus);                                        // (the weather turning, in the log: sim/weather.js)

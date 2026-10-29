@@ -24,7 +24,9 @@
 // 2026-10-27, "hailing a taxi should be fully animated, and only available when a taxi is close ? and
 // they could be already busy and ignore us") brakes, eases toward the kerb, and stops with its back
 // door by whoever hailed it (c.taxi.stopped), and waits there (TAXI_WAIT_S) until they get in or go;
-// a taken one drives by.
+// a taken one drives by. A car after yours (sim/taxi.js chase(): a cab taken by whoever followed you, or
+// a team's own car) is sent along the lane like any other (sendFare()), stops behind where you got out,
+// lets them out, and goes.
 import { Z } from './map/street.js';
 import { townOf, cityOf } from './cities/index.js';
 import { TICK_MS, hourOfDay, SEC } from './clock.js';
@@ -111,6 +113,20 @@ export function sendTaxi(state, dir = 1) {
   const [x0, x1] = state.$world.bx, from = dir > 0 ? x0 + 2 : x1 - 2;
   if (t.cars.some(c => c.dir === dir && Math.abs(c.x - from) < 14)) return null;
   return spawn(state, dir, from, { bus: false, kind: cityOf(townOf(state.map)).taxi, extra: { taxi: { free: true } } });
+}
+
+/**
+ * A car with someone in it for this street (sim/taxi.js chase()), sent along the lane on the south kerb's
+ * side from the upstream edge, to stop with its back door at x (a hail of its own: taxiStop()); a taxi
+ * taken, or (plain) a car of the city's makes. The car, or null with no room at the edge yet.
+ */
+export function sendFare(state, x, plain = false) {
+  const t = T(state);
+  if (!t || state.map.kind !== 'street' || !state.$world) return null;
+  const dir = laneOf(state, 1) === LANE_Z.south ? 1 : -1, [x0, x1] = state.$world.bx, from = dir > 0 ? x0 + 2 : x1 - 2;
+  if (t.cars.some(c => c.dir === dir && Math.abs(c.x - from) < 14)) return null;
+  const P = cityOf(townOf(state.map)), kind = plain ? weighted(stream('fare-car', state.map.seed, t.n), P.LOOKS.car.filter(([k]) => k !== P.taxi)) : P.taxi;
+  return spawn(state, dir, from, { bus: false, kind, extra: { taxi: { free: false, plain, hail: { x, by: null } } } });
 }
 
 /** The taxi you've just got out of, stopped at the south kerb by x, its light dark; it goes in a moment, free again. */
@@ -232,7 +248,7 @@ export function trafficTick(state, bus) {
     // A bus: in at each stop it passes (the one sent for: held there till let go).
     if (c.bus) busStops(state, t, c, ahead, (d) => hold(d, 'stop'));
     if (c.taxi?.hail) taxiStop(state, c, ahead, (d) => hold(d, 'hail'));
-    if (c.taxi?.drop) { if (now < c.taxi.drop) hold(-1, 'drop'); else c.taxi = { free: true }; }   // (you out, it goes, its light lit)
+    if (c.taxi?.drop) { if (now < c.taxi.drop) hold(-1, 'drop'); else c.taxi = c.taxi.plain ? undefined : { free: true }; }   // (you out, it goes, its light lit; a plain car just goes)
     c.held = why;                                                  // (what holds it, if anything: a car's id, zebra:<id>, someone's id, out:<bus>, stop)
     // (held a while by someone stood still in its way: it eases round them, within its lane)
     const holder = why && people.find(a => a.id === why);
