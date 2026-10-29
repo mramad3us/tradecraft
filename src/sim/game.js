@@ -165,10 +165,10 @@ export function step(state, input = {}, bus) {
       continue;
     }
     if (String(act).startsWith('metro:')) {                        // (down the steps, the station chosen: sim/metro.js)
-      const d = me && !state.fight && stationNear(state, me), to = d && metroWays(state, d).find(o => o.id === act.slice(6));
+      const [id, how] = act.slice(6).split(':'), d = me && !state.fight && stationNear(state, me), to = d && metroWays(state, d).find(o => o.id === id);
       if (to) {
-        say(state, bus, { kind: 'note', text: `Down the steps, through the barrier, the platform: ${to.lines.join(', then ')}.` });
-        const m = metro.ride(state, bus, to, { scenario, skip, loadRow });
+        say(state, bus, { kind: 'note', text: `Down the steps, through the barrier, the platform: ${to.lines.join(', then ')}.${how === 'doors' ? ' On the last train you stand by the doors, and step off as they close: the next one, five minutes on.' : ''}` });
+        const m = metro.ride(state, bus, to, { scenario, skip, loadRow, doors: how === 'doors' });
         if (m) say(state, bus, { kind: 'note', text: `${Math.round(m)} minutes later, up the steps into ${placeName(townOf(state.map), state.map.row ?? 0, playerActor(state).x, Z.front + 1)}.` });
       }
       continue;
@@ -308,6 +308,7 @@ export function step(state, input = {}, bus) {
     needsTick(state, bus, me);                                      // (hunger's clock, the calm coming back, frayed slips: sim/needs.js)
     learnTick(state);                                               // (the streets walked, known: sim/knowledge.js)
     wetTick(state, bus, me);                                        // (rain on you, the cold, a cold: sim/wet.js)
+    metro.stepsTick(state);                                         // (whoever rode with you, up the steps after you: sim/metro.js)
     if (state.tick % (TICKS_PER_S * 60) === 0 && state.people[state.player]) bodyNotes(state, bus, heal(state.people[state.player], 1 / 1440, state.time.ms, { blood: false }));   // (your wounds, a minute on: sim/medicine.js)
     weatherTick(state, bus);                                        // (the weather turning, in the log: sim/weather.js)
     if (me?.gait === 'run' && !me.ai && !state.fight) slipUp(state, bus, me);

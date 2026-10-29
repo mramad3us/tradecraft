@@ -102,7 +102,8 @@ export function openTubeMap(host, state, at, deps) {
     card.replaceChildren(el('h3', {}, d.name),
       el('p', {}, `On ${streetName(town, s.row)}. ${d.lines.length > 1 ? `The ${d.lines[0]}, change to the ${d.lines.slice(1).join(', then the ')}` : `The ${d.lines[0]}`}: ${d.minutes} minutes, ${deps.price(d.fare)}.`),
       n.length ? el('p', { className: 'mind-note' }, `Near it, that you know: ${n.map(o => `${o.word} (${Math.round(o.m / 10) * 10} m)`).join(', ')}.`) : el('p', { className: 'mind-note' }, 'Nothing you know near it.'),
-      el('div', { className: 'mind-acts' }, el('button', { className: 'tube-ride', onclick: () => deps.ride(d.id) }, `Ride there · ${deps.price(d.fare)}`)));
+      el('div', { className: 'mind-acts' }, el('button', { className: 'tube-ride', onclick: () => deps.ride(d.id) }, `Ride there · ${deps.price(d.fare)}`),
+        el('button', { title: 'whoever got on after you is carried off; five minutes more', onclick: () => deps.ride(`${d.id}:doors`) }, 'Off as the doors close, the next train')));
     card.querySelector('.tube-ride')?.focus();
   };
   const at_ = (e) => {

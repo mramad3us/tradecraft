@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc39 (2026-10-29)
+
+- **The Underground doesn't lose a tail for free any more.** A follower close behind who saw you go down can get on your train. Each line you ride is your Deception against their Tracking, and a change of line is another chance to lose them. The rush hour's crowd helps you, and so does the old trick: the map's second button has you step off as the doors close and take the next train (five minutes more). If they keep you, they come up the steps a few seconds after you; glance back. Even-matched, a follower stays with you about two times in five on one line, one in six through a change. More than 25 m back, or out of sight, and they lose you at the barrier.
+- Tests: riders (who stays with you by skill, a change, the doors, too far back; up the steps after you and following on).
+
 ## v0.1.0-rc38 (2026-10-29)
 
 - **Calling your network.** In the mind (Tab), on People, each of your assets has a Call…: bring the next meeting forward (to tomorrow evening, or the first free one), put it off three days, or a word to keep them warm (trust up a step, not again for three days). From a burner it's one burner gone and nothing to trace. From your own phone it's +4 heat, and the hotter you already are, the likelier the opposition looks at who you rang and compromises the asset (one in ten at heat 20, two in five at 80); call a compromised asset's line from your own phone and it's +10. The call takes 40 seconds, head bowed over the phone.
