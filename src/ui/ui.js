@@ -35,10 +35,15 @@ import { placed, fits } from '../sim/items.js';
 import { options as aidOptions, bodyLine } from '../sim/aid.js';
 import { calendar as calendarOf, DAY as DAY_MS } from '../sim/clock.js';
 import { bleedRate, bloodOf, bandOf, BLOOD } from '../sim/health.js';
+import { openTubeMap } from './tubemap.js';
+import { openPockets } from './pockets.js';
+import { kitWords, painOf, painBand, feverOf } from '../sim/medicine.js';
 import { RANK as RANKS } from '../sim/instinct.js';
 import { weatherAt } from '../sim/weather.js';
 
 const BAND_WORDS = { steady: 'steady', pale: 'pale, light-headed', shock: 'in shock', collapsed: 'collapsed', dead: 'gone' };
+/** Pain and fever, as '; in pain, feverish', or '' (sim/medicine.js). */
+const bodyWords = (p) => { const w = [painBand(painOf(p, stateOf, Object.keys(PARTS)))?.word, feverOf(p)?.word, p.dosed && 'on painkillers'].filter(Boolean); return w.length ? `; ${w.join(', ')}` : ''; };
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 import { knownOf, classOf, READABLE } from '../sim/know.js';
@@ -582,7 +587,8 @@ export function createUI({ input, cb }) {
         el('div', { className: 'body' },
           el('div', { className: 'figure' }, part('head'), part('armR'), part('torso'), part('armL'), part('legR'), part('legL')),
           el('ul', {}, Object.keys(PARTS).map(k => el('li', { className: `${stateOf(p, k)}${injuriesOn(p, k) ? ' injured' : ''}` }, el('span', { textContent: PARTS[k].name }), el('span', { textContent: stateText(p, k) }),
-            injuriesOn(p, k) ? el('small', { textContent: injuriesOn(p, k) }) : null))),
+            injuriesOn(p, k, state.time.ms) ? el('small', { textContent: injuriesOn(p, k, state.time.ms) }) : null))),
+          bodyWords(p) ? el('p', { className: 'blood pale', textContent: `${bodyWords(p).slice(2)}: it costs every roll${feverOf(p) ? '' : ' but a fight\'s'}.` }) : null,
           p.strain ? el('p', { className: 'blood pale', textContent: `Tired: ${p.strain} to every skill, until you sleep.` }) : null,
           el('p', { className: `blood ${bandOf(p)}`, textContent: `Blood ${Math.round(bloodOf(p))}%: ${BAND_WORDS[bandOf(p)]}${bleedRate(p, state.time.ms) ? `; bleeding ${bleedRate(p, state.time.ms) >= 8 ? 'fast' : bleedRate(p, state.time.ms) >= 0.8 ? 'steadily' : 'a little'} (${input.label('aid')}: first aid)` : ''}.` }),
           el('p', { className: 'note', textContent: `Fitness ${fit}: the body takes ${fit ? `${Math.round(100 * fit / FITNESS_K)}% more` : 'only what it takes'} before it gives.` }))),
@@ -600,67 +606,51 @@ export function createUI({ input, cb }) {
     const self = a.who === state.player, go = (key) => () => { closeOverlays(); act(key); };
     const list = aidOptions(state, medic, p), rate = bleedRate(p, state.time.ms), b = Math.round(bloodOf(p));
     const name = self ? 'YOUR WOUNDS' : (p.known === false ? p.seen : p.name).toUpperCase();
-    card.replaceChildren(el('div', { className: 'sheet charsheet aid' },
-      el('span', { className: 'stamp', textContent: 'FIRST AID' }),
-      el('h2', { textContent: name }),
-      el('p', { className: 'note', textContent: `Blood ${b}% (${BAND_WORDS[bandOf(p)]})${rate ? `; bleeding ${rate >= 8 ? 'fast, pumping' : rate >= 0.8 ? 'steadily' : 'a trickle'}` : ''}. Medicine ${skill(medic, 'medicine')}: it decides how well it's done${self ? '; on yourself, harder' : ''}.` }), el('hr'),
-      list.length ? el('table', { className: 'skills' }, el('tbody', {}, numbered(list, o => o.ok).map(([o, n]) => el('tr', { className: o.ok ? '' : 'none' },
-        el('td', {}, n ? el('kbd', { textContent: String(n) }) : null), el('td', { textContent: o.label }), el('td', { className: 'where', textContent: o.why ?? '' }),
-        el('td', {}, o.ok ? el('button', { className: 'small', dataset: { n }, onclick: go(o.key) }, 'do it') : null)))))
-        : el('p', { textContent: 'Nothing first aid can do: nothing bleeding, nothing broken.' }),
-      el('p', { className: 'note', textContent: `1–9 or a click does it. It takes time, stooped over it; moving stops it. ${input.label('aid')} or ${input.label('menu')} to close.` })));
+    // (the mind's dark glass, its heading a plaque: src/ui/mind.js; the user, 2026-10-28: "most menus need revamping")
+    const worst = (k) => ['out', 'wounded'].includes(stateOf(p, k)) ? 'bad' : stateOf(p, k) === 'hurt' ? 'mid' : '';
+    card.replaceChildren(el('div', { className: 'mind glass aid' },
+      el('div', { className: 'mind-head' }, glassHead('FIRST AID', self ? 'YOUR WOUNDS' : name, 'cross')),
+      el('p', { className: 'mind-note' }, `Blood ${b}% (${BAND_WORDS[bandOf(p)]})${rate ? `; bleeding ${rate >= 8 ? 'fast, pumping' : rate >= 0.8 ? 'steadily' : 'a trickle'}` : ''}${bodyWords(p)}. Medicine ${skill(medic, 'medicine')}: it decides how well it's done${self ? '; on yourself, harder' : ''}.`),
+      // (the wounds as they stand, and what you have to tend them with: sim/medicine.js)
+      el('div', { className: 'aid-body' },
+        el('ul', { className: 'wounds' }, ...Object.keys(PARTS).filter(k => stateOf(p, k) !== 'unhurt' || injuriesOn(p, k)).map(k => el('li', { className: worst(k) }, el('b', {}, `${PARTS[k].name}: ${stateText(p, k)}`), injuriesOn(p, k, state.time.ms) ? el('span', {}, injuriesOn(p, k, state.time.ms)) : null))),
+        el('p', { className: 'aid-kit' }, `On you: ${kitWords(medic.kit) || 'nothing from a chemist\'s'}.`)),
+      list.length ? el('div', { className: 'glass-rows' }, ...numbered(list, o => o.ok).map(([o, n]) => el('div', { className: `glass-row${o.ok ? '' : ' none'}` },
+        el('span', {}, n ? el('kbd', {}, String(n)) : null), el('span', { className: 'what' }, o.label), el('span', { className: 'why' }, o.why ?? ''),
+        o.ok ? el('button', { dataset: { n }, onclick: go(o.key) }, 'Do it') : el('span')))) : el('p', {}, 'Nothing first aid can do: nothing bleeding, nothing open, nothing broken, nothing that hurts.'),
+      el('p', { className: 'mind-foot' }, `1–9 or a click does it. It takes time, stooped over it; moving stops it. ${input.label('aid')} or ${input.label('menu')} to close.`)));
     card.hidden = false;
     card.dataset.kind = 'aid';
     menu.hidden = log.hidden = true;
     card.querySelector('button[data-n]')?.focus();
   }
+  /** A glass card's heading: a plaque of the picture's, at two of its pixels a pixel. */
+  function glassHead(text, sub, icon) {
+    const pl = plaque({ text, sub: sub && String(sub).slice(0, 44), style: 'way', icon, notch: false }), cv = document.createElement('canvas');
+    cv.width = pl.w; cv.height = pl.h; cv.getContext('2d').drawImage(pl.canvas, 0, 0);
+    cv.style.width = `${pl.w * 2}px`; cv.style.height = `${pl.h * 2}px`; cv.style.imageRendering = 'pixelated';
+    return cv;
+  }
+  const CHOICE_ICON = { TAXI: 'right', BUS: 'right', SHOP: 'house', BED: 'house', WARDROBE: 'key' };
   /** [item, its number (1…, for the ones that can be chosen), or 0]. */
   const numbered = (list, ok = () => true) => { let k = 0; return list.map(o => [o, ok(o) ? ++k : 0]); };
 
   /** A few choices on a card ([{ key, label }]), each a button that closes it and does it (a taxi's where to). */
   function openChoices(stamp, title, list, act) {
-    card.replaceChildren(el('div', { className: 'sheet charsheet choices' },
-      el('span', { className: 'stamp', textContent: stamp }), el('h2', { textContent: title }), el('hr'),
-      ...list.map((o, i) => el('button', { className: 'item', dataset: { n: i + 1 }, onclick: () => { closeOverlays(); act(o.key); } }, el('kbd', { textContent: String(i + 1) }), ` ${o.label}`)),
-      el('p', { className: 'note', textContent: `1–9 or a click. ${input.label('menu')} to close.` })));
+    card.replaceChildren(el('div', { className: 'mind glass choices' },
+      el('div', { className: 'mind-head' }, glassHead(stamp, title, CHOICE_ICON[stamp] ?? 'pin')),
+      el('div', { className: 'glass-list' }, ...list.map((o, i) => el('button', { className: 'item', dataset: { n: i + 1 }, onclick: () => { closeOverlays(); act(o.key); } }, el('kbd', {}, String(i + 1)), el('span', {}, o.label)))),
+      el('p', { className: 'mind-foot' }, `${list.length > 9 ? '1–9, 0' : '1–9'} or a click. ${input.label('menu')} to close.`)));
     card.hidden = false;
     card.dataset.kind = 'choices';
     menu.hidden = log.hidden = true;
     card.querySelector('.item')?.focus();
   }
 
-  /** I: what you carry, and what's in your hand; each a button (take out, put away, drop) that closes it and does it. */
+  /** I: what you carry, pocket by pocket (src/ui/pockets.js); each thing's buttons (take out, put away, drop) close it and do it. */
   function openInventory(state, act) {
-    const p = state.people[state.player], go = (cmd) => () => { closeOverlays(); act(cmd); };
-    let n = 0;
-    const where = placed(p).out, room = placed(p).spaces;
-    const row = (kind, inHand, k = -1) => {
-      const w = weaponOf(kind), first = inHand ? (fits(p, kind) ? ['stow', 'put away'] : ['drop:' + kind, 'put down']) : [`wield:${kind}`, 'take out'];
-      const at = inHand ? 'in hand' : where[k]?.label ? `${where[k].label}${where[k].shows ? (where[k].at === 'belt' ? ' (it shows)' : ' (it bulges)') : ''}` : 'nowhere it fits';
-      n++;
-      return el('tr', {}, el('td', {}, el('kbd', { textContent: String(n) })), el('td', { textContent: w?.name ?? kind }), el('td', { className: 'where', textContent: at }),
-        el('td', {}, el('button', { className: 'small', dataset: { n }, onclick: go(first[0]) }, first[1]),
-          first[0].startsWith('drop:') ? null : el('button', { className: 'small', onclick: go(`drop:${kind}`) }, 'drop')));
-    };
-    const list = [...(p.hand ? [row(p.hand, true)] : []), ...(p.items ?? []).map((kind, k) => row(kind, false, k))];
-    // (the room left, space by space: pockets in litres, the beltline in things)
-    const left = ['trousers', 'inside', 'coat', 'belt'].map(id => { const sp = room.filter(s => s.id === id); if (!sp.length) return null;
-      const free = sp.reduce((a, s) => a + (s.l - s.used), 0), cap = sp.reduce((a, s) => a + s.l, 0);
-      return `${{ trousers: 'trouser pockets', inside: 'inside pocket', coat: 'coat pockets', belt: 'beltline' }[id]} ${id === 'belt' ? `${sp.filter(s => !s.used).length} of ${sp.length} free` : `${free.toFixed(2)} of ${cap.toFixed(1)} L free`}`; }).filter(Boolean);
-    card.replaceChildren(el('div', { className: 'sheet charsheet inventory' },
-      el('span', { className: 'stamp', textContent: 'CARRIED' }),
-      el('h2', { textContent: 'WHAT YOU CARRY' }),
-      el('p', { className: 'note', textContent: 'Little, and only where it fits, by its length and its bulk: a pocket, or tucked in the beltline (under a coat, a jacket or a jumper, or it shows). Anything else is held, or put down.' }),
-      el('p', { className: 'note', textContent: `Room: ${left.join('; ') || 'none'}.` }), el('hr'),
-      list.length ? el('table', { className: 'skills' }, el('tbody', {}, list)) : el('p', { textContent: `Nothing to fight with. Things lie about: ${input.label('use')} picks one up.` }),
-      // (a shop's bag, in the other hand: what's in it goes home, into the wardrobe and the drawer: sim/clothes.js)
-      p.bag?.length ? el('p', { textContent: `In a shop's bag, for home: ${p.bag.map(x => x.item ? (weaponOf(x.item)?.name ?? x.item) : x.name).join(', ')}.` }) : null,
-      el('p', { className: 'note', textContent: `Your phone, in a pocket${p.burners ? `; and ${p.burners === 1 ? 'a burner' : `${p.burners} burners`}, prepaid, no name on ${p.burners === 1 ? 'it' : 'them'}` : ''}.` }),
-      el('p', { className: 'note', textContent: `1–9: the first button on its row. ${input.label('gun')} takes out the next thing, or puts it away; in a fight, drawing costs you the exchange (you can only cover while you do). ${input.label('inventory')} or ${input.label('menu')} to close.` })));
-    card.hidden = false;
-    card.dataset.kind = 'inventory';
+    openPockets(card, state, { el, act: (cmd) => { closeOverlays(); act(cmd); }, label: (k) => input.label(k), price: (usd) => price(state, usd) });
     menu.hidden = log.hidden = true;
-    card.querySelector('button[data-n]')?.focus();
   }
 
   // ---------- F: what to do with whoever's within reach (sim/interact.js) ----------
@@ -700,8 +690,9 @@ export function createUI({ input, cb }) {
   addEventListener('keydown', (e) => {
     if (!ask.hidden && askKeys) askKeys(e);
     else if (!talkbox.hidden) { const n = digit(e); if (n >= 1 && n <= TALK_CHOICES.length) { e.preventDefault(); cb.talk?.(TALK_CHOICES[n - 1].id); } }
+    else if (!card.hidden && card.dataset.kind === 'tube') { if (card.$tubeKey?.(e)) e.preventDefault(); }   // (the Underground's map: src/ui/tubemap.js)
     else if (!card.hidden && card.dataset.kind === 'mind') { const n = digit(e); if (n && card.$mindKey?.({ key: String(n) })) e.preventDefault(); }   // (the mind's leaves: src/ui/mind.js)
-    else if (!card.hidden && ['aid', 'inventory', 'choices'].includes(card.dataset.kind)) { const n = digit(e); const b = n && card.querySelector(`button[data-n="${n}"]`); if (b) { e.preventDefault(); b.click(); } }
+    else if (!card.hidden && ['aid', 'inventory', 'choices'].includes(card.dataset.kind)) { const n = digit(e) || (/^(?:Digit|Numpad)0$/.test(e.code) ? 10 : 0); const b = n && card.querySelector(`button[data-n="${n}"]`); if (b) { e.preventDefault(); b.click(); } }   // (0: the tenth)
   });
 
   /** Their sheet as you guess it: what you know of them (sim/know.js). */
@@ -784,6 +775,12 @@ export function createUI({ input, cb }) {
     paper.hidden = false;
     paper.dataset.kind = 'brief';
     paper.querySelector('.go').focus();
+  }
+
+  /** At a station's door: the network's map (src/ui/tubemap.js); ride(id) a destination's. */
+  function openTube(state, at, ride) {
+    openTubeMap(card, state, at, { el, ride: (id) => { closeOverlays(); ride(id); }, label: (k) => input.label(k), price: (usd) => price(state, usd) });
+    menu.hidden = log.hidden = true;
   }
 
   /** Tab: the mind (src/ui/mind.js), on a leaf; act(cmd) a desk command (null: walk on). */
@@ -895,5 +892,5 @@ export function createUI({ input, cb }) {
     setTimeout(() => f.remove(), 1600);
   }
 
-  return { frame, fit, flash, openInventory, openAid, openMind: openMindUI, openChoices, showCandidates, showPaper, showCall, showTitle, showTutorial, toggleKeys, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
+  return { frame, fit, flash, openInventory, openAid, openMind: openMindUI, openTube, openChoices, showCandidates, showPaper, showCall, showTitle, showTutorial, toggleKeys, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
 }

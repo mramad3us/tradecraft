@@ -57,7 +57,7 @@ export function placed(p, items = p.items ?? []) {
   });
   return {
     spaces,
-    out: out.map(({ kind, sp }) => ({ kind, at: sp?.id ?? null, label: sp?.label ?? null,
+    out: out.map(({ kind, sp }) => ({ kind, at: sp?.id ?? null, slot: sp ? spaces.indexOf(sp) : -1, label: sp?.label ?? null,
       shows: !!sp && (sp.belt ? !COVERS.has(top) : sp.used > BULGE * sp.l), how: sp ? (sp.belt ? 'at your belt' : 'a bulge in your pocket') : null })),
   };
 }

@@ -19,7 +19,10 @@ export default [
       const seq = [1, 2, 3, 3].map(d => hurt(unfit, 'armR', d));
       assert(seq.join() === 'bruised,hurt,wounded,out', `an arm through its states: ${seq}`);
       assert(stateText(unfit, 'armR') === 'broken' && !canGrapple(unfit), 'a broken arm: no grapple');
-      assert(mods(unfit, 'weapons').some(m => m.v === -6) && mods(unfit, 'social').length === 0, 'a broken arm costs the gun, not the talk');
+      assert(mods(unfit, 'weapons').some(m => m.v === -6) && mods(unfit, 'social').every(m => /pain/.test(m.why)), 'a broken arm costs the gun; the talk, only its pain');
+      unfit.dosed = { at: 0, until: 1e12 };
+      assert(mods(unfit, 'social').length === 0 && !mods(unfit, 'cqc').some(m => /pain/.test(m.why)), 'on painkillers, the talk is free of it; a fight never feels it');
+      delete unfit.dosed;
       hurt(unfit, 'head', 2.5);
       assert(mods(unfit, 'social').some(m => m.v === -1), 'a hurt head dulls every check');
       hurt(fit, 'head', 2.5);

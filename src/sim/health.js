@@ -12,8 +12,12 @@
 // What it costs (mods()): modifiers to the checks the part is used in, shown in the log like any other
 // (a hurt arm −1 to CQC and Weapon handling, wounded −3, broken: no grapple and −6 with a gun; a head
 // hurt or worse dulls every check). The legs slow the walk (paceOf()).
-// It mends by the day (heal()): bruises and hurts by HEAL_PER_DAY of what the part takes; a wound, or
-// worse, only with care, which comes later.
+// It mends by the day (heal()): bruises and hurts by HEAL_PER_DAY of what the part takes (POULTICED as fast
+// under a poultice); a wound, or worse, only once tended (p.tended[part]: any care given to it, sim/aid.js)
+// and with nothing on it still wanting care (sim/medicine.js needsCare()), at WOUND_HEAL of that pace.
+// What care is, what an untended wound goes through (infection, fever, sepsis), pain and what it costs,
+// and the scars healing leaves: sim/medicine.js. heal() runs the days one at a time, so what goes bad and
+// what mends take their turns; off the map (tended) people see their own doctors.
 //
 // **Injuries** (p.injuries: [{ part, kind, name, ms, until, bleed }]; the user, 2026-10-26: "a lot of
 // damage could trigger cracks and some types of damages can cut (not bare handed) and blood can be
@@ -45,7 +49,8 @@
 // a knockout, a slam onto the floor, worse on someone already beaten up); bleeding out comes later.
 import { skill } from './skills.js';
 import { chance, pick, range } from './rng.js';
-import { DAY } from './clock.js';
+import { DAY, HOUR } from './clock.js';
+import { painOf, painBand, feverOf, infectDays, infectionOf, needsCare, knitOf, expire, scarOf, careWords, broken, INFECTION } from './medicine.js';
 
 export const PARTS = {
   head: { name: 'Head', takes: 6 },
@@ -57,6 +62,8 @@ export const PARTS = {
 };
 export const FITNESS_K = 20;                                       // Fitness 10: half as much again
 export const HEAL_PER_DAY = 0.2;
+export const POULTICED = 1.6, WOUND_HEAL = 0.5;
+export const TOURNIQUET_SAFE_H = 2, TOURNIQUET_HARM_H = 0.15;     // (a tourniquet on longer: the limb starved, this share of what it takes an hour)
 const OUT = { head: 'out cold', torso: 'down', armL: 'broken', armR: 'broken', legL: 'broken', legR: 'broken' };
 export const STATES = ['unhurt', 'bruised', 'hurt', 'wounded', 'out'];
 
@@ -82,7 +89,7 @@ export function hurt(p, part, points) {
   return stateOf(p, part);
 }
 
-const ARMS = ['armL', 'armR'], LEGS = ['legL', 'legR'];
+const ARMS = ['armL', 'armR'], LEGS = ['legL', 'legR'], LIMBS = [...ARMS, ...LEGS];
 const level = (s) => STATES.indexOf(s);
 
 /**
@@ -91,6 +98,10 @@ const level = (s) => STATES.indexOf(s);
  */
 export function mods(p, key) {
   const out = [];
+  // (fever, from an infected wound; pain, but not in a fight: adrenaline, you feel it after; sim/medicine.js)
+  const fever = feverOf(p), pain = key === 'cqc' ? null : painBand(painOf(p, stateOf, Object.keys(PARTS)));
+  if (fever) out.push({ why: fever.word, v: fever.v });
+  if (pain) out.push({ why: pain.word, v: pain.v });
   // (the blood's pressure falling: pale, light-headed; then shock)
   const band = bandOf(p);
   if (band === 'pale') out.push({ why: 'pale, light-headed', v: -1 });
@@ -111,6 +122,10 @@ export function mods(p, key) {
   for (const i of (p.injuries ?? []).filter(j => j.kind === 'crack' || j.kind === 'fracture')) {
     const uses = i.part === 'head' ? true : i.part === 'torso' || i.part.startsWith('leg') ? key === 'cqc' || key === 'fitness' : key === 'cqc' || key === 'weapons';
     if (uses) out.push({ why: i.name, v: i.part === 'head' ? (i.kind === 'fracture' ? -2 : -1) : i.kind === 'fracture' ? FRACTURE_MOD : CRACK_MOD });
+  }
+  // (a scar that costs something, for good: a break knitted crooked)
+  for (const sc of (p.scars ?? []).filter(x => x.v)) {
+    if (sc.part.startsWith('leg') ? key === 'cqc' || key === 'fitness' : key === 'cqc' || key === 'weapons') out.push({ why: sc.name, v: sc.v });
   }
   return out;
 }
@@ -190,8 +205,9 @@ export function bloodTick(p, s, ms, k = 1) {
 /** Whether someone is bleeding at game time ms. */
 export const bleeding = (p, ms) => !!p.injuries?.some(i => i.bleed > ms);
 
-/** Their injuries on a part, in words ('a cracked rib, a split lip'), or ''. */
-export const injuriesOn = (p, part) => (p.injuries ?? []).filter(i => i.part === part).map(i => i.name).join(', ');
+/** Their injuries on a part, in words ('a cracked rib, a split lip'; at game time ms, with their care: 'a deep cut (stitched)'), and its scars, or ''. */
+export const injuriesOn = (p, part, ms = null) => [...(p.injuries ?? []).filter(i => i.part === part).map(i => { const w = ms === null ? '' : careWords(p, i, ms); return w ? `${i.name} (${w})` : i.name; }),
+  ...(p.scars ?? []).filter(x => x.part === part).map(x => x.name)].join(', ');
 
 /** Whether this person can grapple (two working arms) and stand (one working leg at least). */
 export const canGrapple = (p) => ARMS.every(k => stateOf(p, k) !== 'out' && !p.tourniquets?.[k]);
@@ -213,15 +229,58 @@ export function paceOf(p) {
 /** A limb's level, as what it costs goes (a tourniquet on it: as good as broken; sim/aid.js). */
 function limbLevel(p, k) { return p.tourniquets?.[k] ? 4 : level(stateOf(p, k)); }
 
-/** Days pass (to game time ms): bruises and hurts mend; injuries by their days; wounds wait for care; blood washes off in a day. */
-export function heal(p, days, ms = null) {
-  if (ms !== null && p.injuries) { p.injuries = p.injuries.filter(i => i.until > ms); if (!p.injuries.length) delete p.injuries; }
-  if (ms !== null && p.bloody) { for (const k in p.bloody) if (ms - p.bloody[k] > DAY) delete p.bloody[k]; if (!Object.keys(p.bloody).length) delete p.bloody; }
-  if (days > 0 && p.blood !== undefined && !bleeding(p, ms ?? 0)) { p.blood = Math.min(100, p.blood + REGEN_PER_H * 24 * days); if (p.blood >= 100) delete p.blood; }
-  if (!p.body || !(days > 0)) return;
-  for (const part in p.body) {
-    if (level(stateOf(p, part)) >= 3) continue;
-    p.body[part] = Math.max(0, Math.round((p.body[part] - HEAL_PER_DAY * takes(p, part) * days) * 10) / 10);
-    if (!p.body[part]) delete p.body[part];
+/**
+ * Days pass (to game time ms; a day at a time): what's timed runs out; open wounds go bad or don't, and
+ * infections run their course (sim/medicine.js); injuries knit by their days, as fast as their care lets
+ * them, and leave what they leave (scars); bruises and hurts mend, wounds once tended; a tourniquet left
+ * on starves the limb; blood washes off in a day, and comes back (blood: false, when the second's beat
+ * already brings it back: sim/game.js). tended: off the map, a doctor's care (no infection, everything
+ * knits). Returns what changed, for the log ([{ text, tone }]); sepsis kills (kill()).
+ */
+export function heal(p, days, ms = null, { tended = false, blood = true } = {}) {
+  const out = [], n = Math.max(1, Math.ceil(days));
+  for (let k = 1; k <= n && !p.dead; k++) healDay(p, days / n, ms === null ? null : ms - days * DAY + (k * days / n) * DAY, tended, blood, out);
+  return out;
+}
+
+function healDay(p, days, ms, tended, blood, out) {
+  if (ms !== null) {
+    expire(p, ms);
+    if (!tended) {
+      out.push(...infectDays(p, days, ms, p.id ?? ''));
+      if (infectionOf(p) >= INFECTION.sepsis) { kill(p, ms, 'sepsis, from an infected wound'); return; }
+    }
+    // (a tourniquet on too long: the limb starved of blood)
+    for (const [k, t] of Object.entries(p.tourniquets ?? {})) {
+      const over = Math.min(days * 24, (ms - t.ms) / HOUR - TOURNIQUET_SAFE_H);
+      if (over > 0) { const was = stateOf(p, k); hurt(p, k, TOURNIQUET_HARM_H * takes(p, k) * over); if (was !== 'out' && stateOf(p, k) === 'out') out.push({ text: `The ${SIDE[k]} ${k.startsWith('arm') ? 'arm' : 'leg'}'s gone cold and grey under the tourniquet. Dead weight.`, tone: 'warn' }); }
+    }
+    if (p.injuries) {
+      for (const i of p.injuries) i.until += (1 - knitOf(p, i, tended)) * days * DAY;
+      for (const i of p.injuries.filter(j => j.until <= ms)) {
+        const sc = !tended && scarOf(p, i);
+        if (sc) { (p.scars ??= []).push(sc); out.push({ text: `${i.name.charAt(0).toUpperCase() + i.name.slice(1)} has healed, and left ${sc.name}.`, tone: sc.v ? 'warn' : 'note' }); }
+      }
+      p.injuries = p.injuries.filter(i => i.until > ms); if (!p.injuries.length) delete p.injuries;
+    }
+    if (p.bloody) { for (const k in p.bloody) if (ms - p.bloody[k] > DAY) delete p.bloody[k]; if (!Object.keys(p.bloody).length) delete p.bloody; }
   }
+  if (blood && days > 0 && p.blood !== undefined && !bleeding(p, ms ?? 0)) { p.blood = Math.min(100, p.blood + REGEN_PER_H * 24 * days); if (p.blood >= 100) delete p.blood; }
+  if (p.body && days > 0) {
+    for (const part in p.body) {
+      const lv = level(stateOf(p, part)), poulticed = p.poultices?.[part];
+      // (a wound mends once tended, and nothing on it wants care; a bruise faster under a poultice)
+      const k = lv >= 3 ? ((tended || p.tended?.[part] !== undefined) && !needsCare(p, part, stateOf) && (lv < 4 || !LIMBS.includes(part) || tended || p.splints?.[part]) ? WOUND_HEAL : 0) : poulticed ? POULTICED : 1;
+      if (!k) continue;
+      p.body[part] = Math.max(0, Math.round((p.body[part] - HEAL_PER_DAY * k * takes(p, part) * days) * 1000) / 1000);
+      if (!p.body[part]) { delete p.body[part]; if (p.tended) delete p.tended[part]; }
+    }
+  }
+  // (a break knitted and the limb whole again: the splint off, the setting done)
+  for (const key of ['splints', 'set']) {
+    if (!p[key]) continue;
+    for (const k in p[key]) if (!broken(p, k, stateOf) && !(p.injuries ?? []).some(i => i.part === k && i.kind === 'crack')) { delete p[key][k]; if (key === 'splints') out.push({ text: `The splint off the ${SIDE[k]} ${k.startsWith('arm') ? 'arm' : 'leg'}: it's knitted.`, tone: 'note' }); }
+    if (!Object.keys(p[key]).length) delete p[key];
+  }
+  if (p.tended && !Object.keys(p.tended).length) delete p.tended;
 }

@@ -29,6 +29,58 @@ async function withGame(fn) {
 
 export default [
   {
+    name: 'what you carry (I): pocket by pocket in the dark glass, each thing drawn, how full; the hand\'s thing first (1), a pocket\'s next; a key does its first button; no errors',
+    heavy: true,
+    async fn() {
+      await withGame(async (page, errors) => {
+        await page.goto(`http://localhost:${PORT}/?play=walk&seed=4&city=london&hour=12&weather=clear`);
+        await page.waitForFunction('window.__ready === true', null, { timeout: 30000 });
+        await page.evaluate(() => { const T = window.__tradecraft, s = T.state, me = s.people[s.player]; me.hand = 'penknife'; me.items = ['hammer']; me.kit = { bandage: 2 }; T.step(2); });
+        await page.waitForTimeout(300);
+        await page.keyboard.press('KeyI');
+        await page.waitForSelector('.mind.pockets', { timeout: 5000 });
+        const seen = await page.evaluate(() => ({ pockets: document.querySelectorAll('.pk-pocket').length, things: [...document.querySelectorAll('.pk-thing .pk-name')].map(e => e.textContent), icons: document.querySelectorAll('.pk-thing canvas.pk-icon').length, first: document.querySelector('button[data-n="1"]')?.closest('.pk-thing')?.querySelector('.pk-name')?.textContent, kit: document.querySelector('.pk-kit')?.textContent }));
+        await page.keyboard.press('Digit1');                                   // (the hand's: put away)
+        await page.waitForTimeout(400);
+        const after = await page.evaluate(() => { const s = window.__tradecraft.state, me = s.people[s.player]; return { hand: me.hand ?? null, items: me.items, open: !document.getElementById('card')?.hidden }; });
+        console.log(`      ${seen.pockets} pockets; things ${seen.things.join(', ')} (${seen.icons} drawn; 1 is ${seen.first}); first aid: ${seen.kit}; 1: the hand ${after.hand ?? 'empty'}, carried ${after.items.join(', ')}`);
+        assert(seen.pockets >= 5 && seen.first === 'A penknife' && seen.icons === seen.things.length && /bandages/.test(seen.kit ?? ''), 'the pockets, the hand\'s thing first, each drawn, the kit');
+        assert(after.hand === null && after.items.includes('penknife'), '1 put the penknife away');
+        assert(errors.length === 0, errors.join('\n'));
+      });
+    },
+  },
+  {
+    name: 'the Underground at a station\'s door: R opens the network\'s map (the lines, the stations named, you); the arrows pick a station, its card says the way and the fare; Enter rides, up at its door, no errors',
+    heavy: true,
+    async fn() {
+      await withGame(async (page, errors) => {
+        await page.goto(`http://localhost:${PORT}/?play=walk&seed=7&city=london&hour=12&weather=clear`);
+        await page.waitForFunction('window.__ready === true', null, { timeout: 30000 });
+        const from = await page.evaluate(async () => {
+          const T = window.__tradecraft, s = T.state, me = s.actors.find(a => a.who === s.player);
+          const { network } = await import('/src/sim/transit.js'), { townOf } = await import('/src/sim/cities/index.js'), { Z, section } = await import('/src/sim/map/street.js');
+          const town = townOf(s.map), row = s.map.row ?? 0, st = [...network(town).stations.keys()].map(k => k.split('|').map(Number)).filter(([r]) => r === row).sort((a, b) => Math.abs(a[1]) - Math.abs(b[1]))[0];
+          const d = section(town, st[1], row).doors.find(x => x.kind === 'metro');
+          Object.assign(me, { x: d.x, z: Z.front + 0.8 }); T.step(5);
+          return { row, x: d.x };
+        });
+        await page.waitForTimeout(300);
+        await page.keyboard.press('KeyR');
+        await page.waitForSelector('.mind.tube canvas.tube-map', { timeout: 5000 });
+        await page.keyboard.press('ArrowRight');
+        const card = await page.locator('.tube-card').textContent();
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(800);
+        const after = await page.evaluate(() => { const s = window.__tradecraft.state, me = s.actors.find(a => a.who === s.player); return { row: s.map.row ?? 0, x: Math.round(me.x), log: s.log.slice(-3).map(l => l.text).join(' | ') }; });
+        console.log(`      at ${from.row}/${Math.round(from.x)}: "${card}"; rode: now ${after.row}/${after.x}; ${after.log.slice(0, 160)}`);
+        assert(/minutes/.test(card) && /Ride there/.test(card), 'the picked station\'s card: the way, the minutes, the fare');
+        assert(after.x !== Math.round(from.x) || after.row !== from.row, 'rode there');
+        assert(errors.length === 0, errors.join('\n'));
+      });
+    },
+  },
+  {
     name: 'the campaign from the title: a first tour (a posting of your own locked), three juniors, day one in the flat, Hale on the telephone, straight in, the mind (Tab), a day at the embassy, no errors',
     heavy: true,
     async fn() {

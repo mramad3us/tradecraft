@@ -22,7 +22,8 @@ export const sectionFor = (map, i) => (map.kind === 'dojo' ? dojo(map.seed) : ma
 // one (i0 = i1 = null) grows as it's walked.
 //
 // Movement is a circle (RADIUS_M) against the blocker rectangles, axis by axis, so it slides along
-// walls. People don't block each other (a crowd would trap the player): passers-by steer round
+// walls; held against a corner with a way past it within NUDGE_M to one side (a door's frame caught on a
+// shoulder), it's eased round, sideways at the step's pace. People don't block each other (a crowd would trap the player): passers-by steer round
 // whoever's near (sim/crowd.js), and the player walks through a shoulder or two.
 import { section, sectionsAround, Z } from './map/street.js';
 import { dojo } from './map/dojo.js';
@@ -32,6 +33,7 @@ import { intoCar } from './traffic.js';
 
 export const BUCKET_M = 4;
 export const RADIUS_M = 0.25;
+export const NUDGE_M = 0.2;
 export const REACH_M = 70;                                         // sections within this of the focus are in play
 export const DROP_M = 115;                                         // and dropped beyond this
 export const WALL_BIN_M = 8;                                        // (the walls' bins along the street, for lines of sight)
@@ -120,6 +122,15 @@ export function move(state, a, dx, dz) {
   else {
     if (dx && !hit(a.x + dx, a.z)) a.x += dx;
     if (dz && !hit(a.x, a.z + dz)) a.z += dz;
+    // (nothing gained: a corner's edge in the way, a gap just to one side of it; the nearer side first)
+    if (a.x === x0 && a.z === z0) {
+      const zway = Math.abs(dz) >= Math.abs(dx), st = Math.abs(zway ? dz : dx);
+      for (let off = 0.05; off <= NUDGE_M + 1e-9 && a.x === x0 && a.z === z0; off += 0.05) for (const sg of [1, -1]) {
+        // (the way on is clear from off to that side; the sidestep toward it is clear)
+        const gap = zway ? !hit(a.x + sg * off, a.z + dz) : !hit(a.x + dx, a.z + sg * off), side = zway ? !hit(a.x + sg * st, a.z) : !hit(a.x, a.z + sg * st);
+        if (gap && side) { if (zway) a.x += sg * st; else a.z += sg * st; break; }
+      }
+    }
   }
   return Math.hypot(a.x - x0, a.z - z0);
 }

@@ -46,6 +46,7 @@
 import { stream, int, pick, chance, range, weighted, hash } from './rng.js';
 import { sheet, streetLook } from './people.js';
 import { at, DAY, HOUR, MIN, calendar } from './clock.js';
+import { CABINET } from './medicine.js';
 
 export const KINDS = {
   sdr: { name: 'An asset meeting', scenario: 'sdr', about: 'Meet the asset clean: a surveillance detection run to the bench, and only sit down if nobody\'s on you.' },
@@ -202,7 +203,7 @@ export const goalOf = (p) => (p.level === 'junior' ? GOAL_JUNIOR : GOAL_INTEL);
 export function newCampaign(seed, character, city = 'moscow', level = 'handler', startMs = undefined) {
   const p = posting(seed, city, startMs, level);
   const c = { seed, character, posting: p, day: dayOf(p.startMs), assignments: [], done: [], plannedTo: dayOf(p.startMs) - 1, worked: {}, log: [], reviews: [], awake: p.startMs, next: { },
-    calls: [{ id: 'hale', at: p.startMs + CALL_S * 1000 }] };   // (day one: Hale on the telephone, the exercises or straight in: src/main.js)
+    calls: [{ id: 'hale', at: p.startMs + CALL_S * 1000 }], cabinet: { ...CABINET } };   // (day one: Hale on the telephone, the exercises or straight in: src/main.js; the bathroom cabinet's few things, sim/medicine.js)
   plan(c, p.startMs);
   return c;
 }

@@ -28,6 +28,7 @@ import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, KIND
 import { signOf } from '../places.js';
 import { reading, bookOf, readAnHour } from '../training.js';
 import { dress, wardrobeWays, unpack, DRESS_S } from '../clothes.js';
+import { kitWords, addSupply } from '../medicine.js';
 import { staffTick, think as staffThink } from '../interiors/staffing.js';
 import { follow } from '../crowd.js';
 import { arrived } from '../knowledge.js';
@@ -326,9 +327,11 @@ function use(state, bus, act, here = false) {
   }
   else if (act === 'eat') { say(state, bus, { kind: 'note', text: 'Bread, cheese, the kettle, the radio low: twenty minutes.' }); skip(state, bus, 20 * MIN); eat(state.people.me, state.time.ms, 20); }
   else if (act === 'wash') {
-    const p = state.people.me;
+    const p = state.people.me, cab = kitWords(c.cabinet);
     say(state, bus, { kind: 'note', text: p.bloody ? 'Hot water, a clean shirt, the stained one in a bag for the bin a long way from here.' : 'Hot water, a shave, a clean shirt.' });
     delete p.bloody;
+    // (the cabinet over the basin: what's in it, into your pockets: sim/medicine.js)
+    if (cab) { addSupply(p, c.cabinet); c.cabinet = {}; say(state, bus, { kind: 'note', text: `From the cabinet over the basin, into a pocket: ${cab}.` }); }
     skip(state, bus, 15 * MIN);
   }
 }
@@ -337,7 +340,7 @@ function use(state, bus, act, here = false) {
 const SPOT_LINE = {
   sleep: (state) => { const h = calendar(state.time.ms).hour; return [h >= 20 || h < 5 ? 'Your bed. {instinct}: sleep till seven.' : 'Your bed. {instinct}: a nap, a rest, or the night.', 'sleep']; },
   phone: () => ['The telephone. {instinct}: call Hale, about the exercises.', 'call'],
-  wash: (state) => [state.people.me.bloody ? 'The basin. {instinct}: wash the blood off, a clean shirt.' : 'The basin. {instinct}: wash, a clean shirt.', 'wash'],
+  wash: (state) => [`The basin${kitWords(state.campaign.cabinet) ? ', the cabinet over it' : ''}. {instinct}: ${state.people.me.bloody ? 'wash the blood off' : 'wash'}, a clean shirt${kitWords(state.campaign.cabinet) ? `; ${kitWords(state.campaign.cabinet)}, to take` : ''}.`, 'wash'],
   eat: () => ['The kitchen table. {instinct}: something to eat.', 'eat'],
   cook: () => ['The cooker. {instinct}: something to eat.', 'eat'],
   window: () => ['The window, over the street. {instinct}: look out, from behind the curtain.', 'window'],

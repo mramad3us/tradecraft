@@ -19,6 +19,7 @@
 // one, less the openings. Their heights are for the camera (north, 45° down): the outer north, east and
 // west walls stand to the ceiling (WALL_H); every other wall, the street side's and the ones between
 // rooms, is cut to CUT_H, so no wall hides the room behind it (the cutaway: DESIGN.md, Look).
+export const STEP_M = 0.4;                                          // (past a door out, the step the dark leaves the feet: counted as out, sim/interiors/use.js exitHere())
 export const WALL_H = 2.8, CUT_H = 1.0, WALL_T = 0.16, OUTER_T = 0.3;
 
 const r2 = (v) => Math.round(v * 100) / 100;

@@ -306,6 +306,7 @@ export function step(state, input = {}, bus) {
     notice(state, bus, me);                                         // (blood on you, seen: a face remembered: sim/notice.js)
     needsTick(state, bus, me);                                      // (hunger's clock, the calm coming back, frayed slips: sim/needs.js)
     learnTick(state);                                               // (the streets walked, known: sim/knowledge.js)
+    if (state.tick % (TICKS_PER_S * 60) === 0 && state.people[state.player]) bodyNotes(state, bus, heal(state.people[state.player], 1 / 1440, state.time.ms, { blood: false }));   // (your wounds, a minute on: sim/medicine.js)
     weatherTick(state, bus);                                        // (the weather turning, in the log: sim/weather.js)
     if (me?.gait === 'run' && !me.ai && !state.fight) slipUp(state, bus, me);
     const f = focusActor(state);
@@ -360,7 +361,11 @@ export function skip(state, bus, ms) {
   }
   const before = Math.floor(state.time.ms / AUTOSAVE_MS);
   state.time.ms += Math.round(ms / TICK_MS) * TICK_MS;
-  for (const p of Object.values(state.people)) { drift(p, state.time.ms); heal(p, ms / DAY, state.time.ms); }
+  for (const [who, p] of Object.entries(state.people)) {
+    drift(p, state.time.ms);
+    const notes = heal(p, ms / DAY, state.time.ms, { tended: who !== state.player });   // (off the map, people see their own doctors)
+    if (who === state.player) bodyNotes(state, bus, notes);
+  }
   const f = focusActor(state);
   if (f) populate(state, f.x);
   rehash(state);
@@ -411,6 +416,18 @@ export function bloodBeat(state, bus, a, s) {
     if (a.ai) a.ai.downUntil = state.time.ms + 2000;               // (held down while it lasts)
     if (!p.collapsedAt) { p.collapsedAt = state.time.ms; say(state, bus, { kind: 'note', text: a.who === state.player ? 'Your legs go. The pavement is very close, and then it\'s your cheek against it.' : `${shortName(state, a.who)} sways, and goes down.` }); }
   } else if (p.collapsedAt) delete p.collapsedAt;
+}
+
+/** What the days did to your body (sim/health.js heal()), in the log; dead of it (sepsis), the end. */
+function bodyNotes(state, bus, notes) {
+  for (const n of notes) say(state, bus, { kind: n.tone === 'warn' ? 'instinct' : 'note', text: n.text });
+  const p = state.people[state.player];
+  if (p?.dead && !state.scenario.outcome) {
+    const a = state.actors.find(x => x.who === state.player);
+    if (a) { a.gait = 'down'; a.vx = a.vz = 0; a.busy = null; }
+    say(state, bus, { kind: 'note', text: 'The fever takes the last of it. The room goes very far away.' });
+    Object.assign(state.scenario, { outcome: 'dead', ended: state.time.ms }); bus?.emit('scenario-end', 'dead');
+  }
 }
 
 /** The engine's paper for a player killed (sim/fight.js): what killed them, where, and when. */

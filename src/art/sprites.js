@@ -976,6 +976,17 @@ const HOLD = {
 
 const HELD_ROLES = new Set(['v', 'n', 'o', 'd', 'j', 'i', 'u']);
 
+/** A thing that's held, lying flat, as the UI draws it (src/ui/pockets.js): [[x, y, colour]], the grip at the left, the tip at the right. */
+export function heldIcon(kind) {
+  const shape = HELD[kind], C = colours({}), out = [];
+  if (!shape) return out;
+  if (shape.block) { for (const [a, b, r] of shape.block) out.push([a, 1 + b, C[r]]); return out; }
+  const line = [...shape.line], tip = line.length - 1;
+  line.forEach((r, k) => { if (r !== '.') out.push([k, 2, C[r]]); });
+  for (const [a, b, r] of shape.end ?? []) out.push([tip + a, 2 - b, C[r]]);
+  return out;
+}
+
 /** Draw a weapon (shape) out of the hand's part, pointing d (tilted up, if that way it'd mostly run off the cell), as part `part`. */
 function held(cells, W, H, hand, part, shape, d0) {
   const hs = [];

@@ -172,4 +172,23 @@ export default [
       }
     },
   },
+  {
+    name: 'interiors: out by walking, not placed: the flat\'s front door and the embassy\'s street door, head on or slantwise, let you out at once (the user: "The door to exit the embassy is finicky")',
+    fn() {
+      const rows = [];
+      for (const city of ['london', 'moscow']) for (const place of ['home', 'embassy']) for (const [dx, mx] of place === 'home' ? [[0.5, 0], [0.1, 0], [0.9, 0], [0.5, 0.15], [0.5, -0.15]] : [[0.5, 0], [0.1, 0], [0.9, 0], [-0.6, 0.4], [1.6, -0.4], [0.5, 0.3]]) {   // (the flat's coat rack and shoe rack stand either side of its door)
+        const seed = 4, c = newCampaign(seed, candidates(seed, city)[0], city), s = newGame({ seed, scenario: 'campaign', campaign: c }), bus = createBus();
+        c.calls = [];
+        start(s, bus);
+        if (place === 'embassy') { step(s, { act: ['desk:travel:embassy'] }, bus); for (let i = 0; i < 25; i++) step(s, {}, bus); step(s, { act: ['instinct'] }, bus); }
+        const me = playerActor(s), e = s.$world.sections.get(0).plan.exits[0], out = e.side === 's' ? 1 : -1, w = e.x1 - e.x0;
+        Object.assign(me, { x: e.x0 + dx * w, z: (out > 0 ? e.z0 : e.z1) - out * 1.7, busy: null });
+        let t = 0;
+        for (; t < 100 && s.map.kind === 'interior'; t++) step(s, { mx, mz: out }, bus);
+        rows.push(t < 100 ? (t / 20).toFixed(1) : 'STUCK');
+        assert(s.map.kind === 'street', `${city} ${place}: out from ${dx} across the door, slant ${mx} (at ${me.x.toFixed(2)}, ${me.z.toFixed(2)})`);
+      }
+      console.log(`      seconds to the street, from 1.7 m in (the flat's, five ways, then the embassy's, six, in two cities): ${rows.join(' ')}`);
+    },
+  },
 ];

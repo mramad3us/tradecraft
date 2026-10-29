@@ -38,7 +38,7 @@ import { GLASS_REACH_M, intoGlass } from './perception.js';
 import { stopNear, nextBus, linesOf, STOP_Z } from './buses.js';
 import { itemNear, pickUp } from './items.js';
 import { atKerb, taxiComing, hail } from './taxi.js';
-import { stationNear, metroName, destinations as metroWays } from './metro.js';
+import { stationNear, metroName, stationName, destinations as metroWays } from './metro.js';
 import { spotIn, ways, doWay } from './shops.js';
 import { pay } from './money.js';
 import { weaponOf } from './weapons.js';
@@ -178,7 +178,7 @@ function act1(state, bus, me, what, { toward = Math.cos(me.head ?? 0) >= 0 ? -1 
     else if (w.length) bus?.emit('shop', { shop: sp.door.shop, ways: w });
     return;
   }
-  if (what === 'metro') { const d = stationNear(state, me); if (d) bus?.emit('metro', { name: metroName(state), list: metroWays(state, d) }); return; }   // (where to: sim/metro.js)
+  if (what === 'metro') { const d = stationNear(state, me); if (d) bus?.emit('metro', { name: metroName(state), list: metroWays(state, d), from: { row: state.map.row ?? 0, i: Math.floor(d.x / SECTION_M), name: stationName(townOf(state.map), state.map.row ?? 0, Math.floor(d.x / SECTION_M)) } }); return; }   // (where to: sim/metro.js)
   if (what === 'pickup') {
     const it = itemNear(state, me), p = state.people[me.who];
     if (!it || !p) return;

@@ -3,6 +3,7 @@
 // map is drawn from (sim/map/interior.js). The scene decides what each does (the campaign's flat:
 // sim/scenarios/campaign.js); walking to a spot is the engine's busy walk (sim/game.js busy()).
 import { wayAcross } from './path.js';
+import { STEP_M } from './plan.js';
 
 export const SPOT_REACH_M = 1.1;
 
@@ -21,8 +22,14 @@ export function spotNear(state, a) {
   return best;
 }
 
-/** The way out actor a stands in, or null. */
-export const exitHere = (state, a) => planHere(state)?.exits.find(e => a.x >= e.x0 && a.x <= e.x1 && a.z >= e.z0 && a.z <= e.z1) ?? null;
+/**
+ * The way out actor a stands in, or null: the doorway, and the step beyond it up to where the dark stops
+ * the feet (sim/map/interior.js blocks it STEP_M past the door). The campaign looks once a second, and a
+ * walk crosses the doorway's band in under half of one: without the step, you could stand pressed against
+ * the dark just past it and never be let out (the user, 2026-10-28: "The door to exit the embassy is
+ * finicky, we have to really try to get out").
+ */
+export const exitHere = (state, a) => planHere(state)?.exits.find(e => a.x >= e.x0 && a.x <= e.x1 && (e.side === 's' ? a.z >= e.z0 && a.z <= e.z1 + STEP_M : a.z >= e.z0 - STEP_M && a.z <= e.z1)) ?? null;
 
 /** Walk actor a to a spot, round the walls and the furniture (sim/interiors/path.js), and face as it says there (the engine's busy walk). */
 export function walkTo(state, a, s) {

@@ -42,7 +42,7 @@ export function destinations(state, d) {
   const town = townOf(state.map), row = state.map.row ?? 0, i = Math.floor(d.x / SECTION_M);
   const all = route(town, row, i), names = all.map(s => stationName(town, s.row, s.i));
   // (two of a name: each with its street)
-  return all.map((s, k) => ({ id: `st${k}`, label: `${names[k]}${names.indexOf(names[k]) !== names.lastIndexOf(names[k]) ? `, on ${streetName(town, s.row)}` : ''}: ${s.lines.join(', change to ')}, ${s.minutes} min`, row: s.row, i: s.i, minutes: s.minutes, lines: s.lines, fare: FARE_USD }));
+  return all.map((s, k) => ({ id: `st${k}`, label: `${names[k]}${names.indexOf(names[k]) !== names.lastIndexOf(names[k]) ? `, on ${streetName(town, s.row)}` : ''}: ${s.lines.join(', change to ')}, ${s.minutes} min`, name: names[k], row: s.row, i: s.i, minutes: s.minutes, lines: s.lines, fare: FARE_USD }));
 }
 
 /** The ride: the fare, the minutes, the street there, you up the steps at its station's door; followers on foot lost. Returns the minutes, or nothing. */

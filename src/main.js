@@ -166,7 +166,7 @@ function launch(s, { hour = null } = {}) {
   bus.on('photo', (w) => { snapWanted = w; });                    // (sim/scenarios/watch.js: the frame, at the next draw)
   bus.on('shop', ({ shop, ways }) => ui.openChoices('SHOP', shopWord(shop).replace(/^the /, '').toUpperCase(), ways.map(w => ({ key: w.id, label: w.label })), (key) => acts.push(`shop:${key}`)));   // (sim/shops.js)
   bus.on('bus', ({ line, towards, list }) => ui.openChoices('BUS', `THE ${line}, FOR ${String(towards).toUpperCase()}: WHERE TO?`, list.map(d => ({ key: d.id, label: `${d.label.charAt(0).toUpperCase() + d.label.slice(1)} · ${price(state, d.fare)}` })), (key) => acts.push(`bus:${key}`)));   // (sim/buses.js)
-  bus.on('metro', ({ name, list }) => ui.openChoices(name === 'Underground' ? 'UNDERGROUND' : 'METRO', 'WHICH STATION?', list.map(d => ({ key: d.id, label: `${d.label} · ${price(state, d.fare)}` })), (key) => acts.push(`metro:${key}`)));   // (sim/metro.js)
+  bus.on('metro', (at) => ui.openTube(state, at, (key) => acts.push(`metro:${key}`)));   // (the network's map: src/ui/tubemap.js; sim/metro.js)
   bus.on('taxi', (list) => ui.openChoices('TAXI', 'WHERE TO?', list.map(d => ({ key: d.id, label: `${d.label.charAt(0).toUpperCase() + d.label.slice(1)} · ${price(state, d.fare)}` })), (key) => acts.push(`taxi:${key}`)));   // (sim/taxi.js; the fare, sim/money.js)
   bus.on('scenario-end', () => {
     if (s.scenario.kind === 'dojo' && s.scenario.chapter !== 'remembered') { try { localStorage.setItem(FARM_KEY, 'done'); } catch {} }   // (the lesson had: next time the Farm is a memory)

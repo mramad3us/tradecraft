@@ -13,7 +13,8 @@
 // rainwearOf(); without one, an umbrella in the hand or wet); an optician's glasses) is put on there and then, a change of clothes that
 // whoever was looking for the old ones looks past; what it replaced goes into the shop's bag. A thing
 // (GOODS: an umbrella, a penknife, a bottle of wine, a kitchen knife; a burner, a prepaid phone, counted
-// on p.burners: your own smartphone's taken for granted) goes into the hand if it's empty,
+// on p.burners: your own smartphone's taken for granted; a chemist's supplies, a grocer's bandages and
+// painkillers, counted on p.kit: sim/medicine.js) goes into the hand if it's empty,
 // a pocket if there's room (sim/items.js), else the bag. The bag (p.bag) is carried, and shows (a carrier
 // bag in the hand); at home it's unpacked (unpack()): clothes into the wardrobe, things into the drawer.
 // At the wardrobe (dress()): a piece put on (what it replaces hung up), a hat or glasses taken off,
@@ -21,6 +22,7 @@
 import { weaponOf } from './weapons.js';
 import { fits } from './items.js';
 import { hash } from './rng.js';
+import { SOLD, goodOf, addSupply, SUPPLIES } from './medicine.js';
 
 export const SLOTS = ['top', 'hat', 'glasses'];
 export const DRESS_S = 4 * 60;                                     // (changing, at home)
@@ -51,6 +53,7 @@ export const GOODS = {
   clothes: [['umbrella', 'an umbrella', 20]], tobacco: [['penknife', 'a penknife', 15]], phones: [['burner', 'a burner: a prepaid phone, no name on it', 25]],
   grocery: [['bottle', 'a bottle of wine', 8], ['kitchen', 'a kitchen knife', 12]], deli: [['bottle', 'a bottle of wine', 14]], beer: [['bottle', 'a bottle of beer', 3]],
 };
+for (const [shop, kinds] of Object.entries(SOLD)) for (const k of kinds) (GOODS[shop] ??= []).push([k, ...goodOf(k)]);
 
 /** A piece's name ("the camel coat", "the flat cap", "the sunglasses"). */
 export function nameOf(slot, look) {
@@ -86,6 +89,7 @@ export const railOf = (shop, p) => (RAIL[shop] ?? []).map(x => ({ ...x, name: x.
 /** A thing bought or taken: into the hand if empty, a pocket if there's room, else the bag. Where it went: 'hand' | 'pocket' | 'bag'. */
 export function carry(p, kind) {
   if (kind === 'burner') { p.burners = (p.burners ?? 0) + 1; return 'pocket'; }   // (a phone: in a pocket, whatever's there; counted, not placed)
+  if (kind === 'firstaid' || SUPPLIES[kind]) { addSupply(p, kind); return 'pocket'; }   // (a chemist's: the same)
   if (!p.hand && weaponOf(kind)) { p.hand = kind; return 'hand'; }
   if (fits(p, kind)) { (p.items ??= []).push(kind); return 'pocket'; }
   (p.bag ??= []).push({ item: kind });
