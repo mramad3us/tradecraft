@@ -67,7 +67,7 @@ function instinct(state, me) {
   if (me.glass) return L('glass', ['In the glass, the street behind you, all but the middle of it: that\'s your own back.', 'Straight in, the glass shows the road behind you. Hold {watch} and slant your eyes along it: the pavement behind.',
     'A shop window is a mirror with goods in it. Nobody minds anyone looking at the goods.']);
   if (me.busy) return L('busy', { window: 'To the shop window.', bench: 'A bench is a good seat for the street. Moving gets you up.',
-    lace: 'A shoelace: ten seconds to look back along the street, for free.', cross: 'Over you go.', pickup: 'Picking it up.',
+    lace: 'A shoelace: ten seconds to look back along the street, for free.', mobile: 'Your phone: head down, eyes up. Moving ends it.', cross: 'Over you go.', pickup: 'Picking it up.',
     pressure: 'Your hand hard on the wound. Hold still: moving lets go.', dress: 'Binding it.', tourniquet: 'The belt, tight.', splint: 'Splinting it: it takes a while.' }[me.busy.what] ?? 'Busy with it: moving stops it.');
   const wx = weatherLine(state, me);
   if (wx?.tone === 'note') return L(wx.id, wx.text, null, 'note');   // (running on ice or snow: before where the lanes go)

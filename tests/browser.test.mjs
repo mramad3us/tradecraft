@@ -29,7 +29,7 @@ async function withGame(fn) {
 
 export default [
   {
-    name: 'the campaign from the title: a first tour (a posting of your own locked), three juniors, day one in the flat, Hale on the telephone, straight in, the desk, a day at the embassy, no errors',
+    name: 'the campaign from the title: a first tour (a posting of your own locked), three juniors, day one in the flat, Hale on the telephone, straight in, the mind (Tab), a day at the embassy, no errors',
     heavy: true,
     async fn() {
       await withGame(async (page, errors) => {
@@ -48,13 +48,13 @@ export default [
         await page.waitForSelector('.sheet.call', { timeout: 30000 });
         await page.locator('.sheet.call button', { hasText: 'Straight in' }).click();
         await page.locator('.overlay:not([hidden]) .sheet.brief .go').click();   // (the posting's brief)
-        await page.keyboard.press('Tab');
-        await page.waitForSelector('.desk', { timeout: 5000 });
-        const ahead = await page.locator('.desk tr').count();
-        await page.evaluate(() => [...document.querySelectorAll('.desk button')].find(b => /Go to work/.test(b.textContent))?.click());
+        await page.keyboard.press('Tab');                                     // (the mind: what's ahead, the day's choices: src/ui/mind.js)
+        await page.waitForSelector('.mind', { timeout: 5000 });
+        const ahead = await page.locator('.mind .mind-row').count();
+        await page.evaluate(() => [...document.querySelectorAll('.mind button')].find(b => /Go to work/.test(b.textContent))?.click());
         await page.waitForTimeout(1500);
         const s = await page.evaluate(() => { const st = window.__tradecraft.state; return { hour: new Date(st.time.ms).getUTCHours(), cover: st.campaign.posting.cover, log: st.log.at(-1)?.text, map: st.map.kind }; });
-        console.log(`      start as: ${rungs.join(', ')}; ${names} officers, a ${level}; day one in the ${flat === 'home' ? 'flat' : flat}; ${ahead} assignments ahead on the desk; after work: cover ${s.cover}, on the ${s.map}; ${s.log}`);
+        console.log(`      start as: ${rungs.join(', ')}; ${names} officers, a ${level}; day one in the ${flat === 'home' ? 'flat' : flat}; ${ahead} assignments ahead in the mind; after work: cover ${s.cover}, on the ${s.map}; ${s.log}`);
         assert(rungs[0] === 'A first tour*' && /locked/.test(rungs[1]) && rungs[1].endsWith('!'), 'a first tour, the posting of your own locked');
         assert(names === 3 && level === 'junior' && flat === 'home' && ahead >= 2 && s.cover > 70 && s.map === 'street', 'picked, in the flat, the call, at the desk, a day worked, out of the embassy');
         assert(errors.length === 0, errors.join('\n'));

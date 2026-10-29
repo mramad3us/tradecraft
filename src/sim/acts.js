@@ -12,6 +12,9 @@
 //     a window is being stood at its pane with the eyes into it (glassAhead()), however you got
 //     there; the eyes can slant along it (E held).
 //   - 'bench': sit on a bench on the boulevard's path, until you move;
+//   - 'mobile': stop and look at your phone, head down over it, a while or till you move (not again within
+//     MOBILE_AGAIN_S); the street's own cover, everyone does it (the user, 2026-10-28: "Looking at smartphone
+//     should become a thing some NPCs do, and it should be an alternative to tying shoelaces when tailing");
 //   - 'lace': stop to tie a shoelace (not again within LACE_AGAIN_S: twice is a story);
 //   - 'cross': over the street at its zebra, or over the boulevard's far road at its own;
 //   - 'pickup': something lying within reach (sim/items.js), into the hand, stooping for it;
@@ -45,7 +48,7 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const IN_SHOP = { counter: 'counter', sit: 'table', wash: 'basin', back: 'backdoor' };
 const SHOP_COVER = { counter: (k) => (k === 'gym' || k === 'club' || k === 'school' ? 'ask at the desk' : 'go to the counter'), sit: () => 'have a coffee at the window', wash: () => 'wash at the basin', back: () => 'slip out the back door' };
 
-export const LACE_AGAIN_S = 40;
+export const LACE_AGAIN_S = 40, MOBILE_AGAIN_S = 25, MOBILE_S = 20;
 const TPS = 1000 / TICK_MS;
 
 export const laneMid = (lane) => (LANES[lane][0] + LANES[lane][1]) / 2;
@@ -125,15 +128,16 @@ export function paneAt(state, x, z, row = state.map.row) {
 /** The pane the actor is looking into, stood at it with the eyes into it, or null. */
 export const glassAhead = (state, a) => (intoGlass(a.head ?? 0) ? paneAt(state, a.x, a.z) : null);
 
-/** What gives the actor a reason to stop here: 'window' (a shop's glass at hand), 'bench' (a seat), 'lace', or null. */
+/** What gives the actor a reason to stop here: 'window' (a shop's glass at hand), 'bench' (a seat), 'mobile' (the phone), 'lace', or null. */
 export function coverHere(state, a) {
   if (!sectionAt(state, a.x)) return null;
   if (!a.glass && paneNear(state, a)) return 'window';
   if (benchNear(state, a) !== null) return 'bench';
+  if (state.time.ms - (state.scenario.mobileMs ?? -1e12) > MOBILE_AGAIN_S * 1000) return 'mobile';
   return state.time.ms - (state.scenario.laceMs ?? -1e12) > LACE_AGAIN_S * 1000 ? 'lace' : null;
 }
 
-const COVER = { window: 'look in the window', bench: 'sit on the bench', lace: 'tie a shoelace', cross: 'cross', taxi: 'hail a taxi', kiosk: 'buy a paper at the kiosk', phone: 'make a call from the phone box', shelter: 'wait for a bus', notices: 'read the notices' };
+const COVER = { window: 'look in the window', bench: 'sit on the bench', mobile: 'look at your phone', lace: 'tie a shoelace', cross: 'cross', taxi: 'hail a taxi', kiosk: 'buy a paper at the kiosk', phone: 'make a call from the phone box', shelter: 'wait for a bus', notices: 'read the notices' };
 
 /** What's at hand for T, the engine's: a shop window, a free seat, a zebra ({ act, text }), or null. */
 export function affordance(state, me) {
@@ -223,6 +227,10 @@ function act1(state, bus, me, what, { toward = Math.cos(me.head ?? 0) >= 0 ? -1 
     if (sx === null) return;
     me.busy = { what: 'bench', steps: [['go', sx, 13.3], ['go', sx, SEAT_Z], ['wait', 3600 * TPS, 'down', 'sit']], wait: 0 };
     say(state, bus, { kind: 'instinct', text: 'You sit, as people do on a boulevard. Moving gets you up.' });
+  } else if (what === 'mobile') {
+    state.scenario.mobileMs = state.time.ms;
+    me.busy = { what: 'mobile', steps: [['wait', MOBILE_S * TPS, me.face, 'phone']], wait: 0 };
+    say(state, bus, { kind: 'instinct', text: 'You stop and look at your phone, as people do, the street at the top of the screen.' });
   } else if (what === 'lace') {
     state.scenario.laceMs = state.time.ms;
     me.busy = { what: 'lace', steps: [['wait', 3 * TPS, me.face, 'crouch']], wait: 0 };

@@ -39,7 +39,7 @@ import { PX_PER_M } from './pixelart.js';
 export const PAD = 2;
 export const CELL = [24 + 2 * PAD, 34];
 export const FRAMES = ['idle0', 'idle1', 'walk0', 'walk1', 'walk2', 'walk3', 'run0', 'run1', 'run2', 'run3', 'sit', 'guard', 'punch', 'grab', 'reel',
-  'chamber', 'swing', 'hook', 'elbow', 'knee', 'kick', 'highkick', 'lowkick', 'throw', 'sweep', 'parry', 'slip', 'stagger', 'stun', 'hail'];
+  'chamber', 'swing', 'hook', 'elbow', 'knee', 'kick', 'highkick', 'lowkick', 'throw', 'sweep', 'parry', 'slip', 'stagger', 'stun', 'hail', 'phone'];
 /** The posed frames (a fight's, sim/cqcshow.js; an arm up for a taxi, sim/taxi.js): a gait of one of these is drawn as that frame. */
 export const FIGHT_FRAMES = FRAMES.slice(11);
 export const DIRS = ['down', 'up', 'right', 'left'];
@@ -65,7 +65,7 @@ function ramp(c) {
   }
   return { dark: 0x14151c, shade: c, base: c, light: c };
 }
-const FIXED = { e: 0x14151c, k: 0x14151c, g: 0xe7b84a, G: 0xb9862e, l: 0x6a7182, m: 0x8f96a6, c: 0xe8896a, q: 0x9e3c36, Q: 0x6e2a2e };
+const FIXED = { V: 0x95c1e3, e: 0x14151c, k: 0x14151c, g: 0xe7b84a, G: 0xb9862e, l: 0x6a7182, m: 0x8f96a6, c: 0xe8896a, q: 0x9e3c36, Q: 0x6e2a2e };
 // Blood worn (spec.blood: { face, clothes }; sim/health.js p.bloody): under the nose and down the chin,
 // and spots down the front.
 const BLOOD = {
@@ -743,6 +743,11 @@ function armFront(x0, kind, reach, side) {
     const up = ['......ss', '......ss', '.....tt.', '....tt..', '...tt...', '..tt....', '.tt.....', 'tt......', 'tt......', 't.......'];
     return side > 0 ? [x0, 10, up] : [x0 - 6, 10, up.map(r => [...r].reverse().join(''))];
   }
+  // (a phone looked at: the forearm in to the chest, the hands together under it)
+  if (reach === 'phone') {
+    const bent = ['tt....', 'tt....', 'tt....', '.tt...', '..ttss'];
+    return side < 0 ? [x0, 19, bent] : [x0 - 4, 19, bent.map(r => [...r].reverse().join(''))];
+  }
   const len = 5 + reach, rows = [];
   rows.push(side < 0 ? '.t' : 't.');
   for (let i = 0; i < len; i++) rows.push(kind === 'tee' && i >= 2 || kind === 'dress' && i >= 1 ? 'ss' : 'tt');
@@ -862,6 +867,7 @@ const POSES = {
   stagger: { bob: 1, reach: [-1, 1], swing: [-1, 1], front: 0, side: ['back', 'stand'], lean: -2 },
   stun: { bob: 2, reach: [0, 0], swing: [0, 0], front: 0, side: ['stand', 'stand'], lean: -1 },
   hail: { bob: 0, reach: [0, 'up'], swing: ['hail', 0], front: 0, side: ['stand', 'stand'], over: true, armOver: true },
+  phone: { bob: 0, reach: ['phone', 'phone'], swing: [2, 2], front: 0, side: ['stand', 'stand'], head: 1, phone: true },   // (looking at a phone: the head bowed to it)
 };
 
 function compose(spec, dir, frame) {
@@ -907,6 +913,7 @@ function compose(spec, dir, frame) {
     hand = part;
     if (r !== 'up') draw(armFront(16, kind, r, 1), 0, bob);
   }
+  if (P.phone && view !== 'up') draw(view === 'right' ? [12, 21, ['kk', 'kV', 'kk']] : [9, 23, ['kkkk', 'kVVk', 'kkkk']], view === 'right' ? lean : 0, bob);   // (the phone, its screen lit)
   if (spec.carry && view !== 'up') {                              // in the hand nearest the camera's left
     const item = spec.carry === 'briefcase'
       ? (view === 'right' ? [10, 25, ['.kk.', 'xxxxx', 'xxxxx', 'xxxxx', 'XXXXX']] : [3, 25, ['.kk.', 'xxxx', 'xxxx', 'xxxx', 'XXXX']])
@@ -917,7 +924,7 @@ function compose(spec, dir, frame) {
   const rain = spec.rainwear;
   if (rain === 'umbrella') draw(view === 'right' ? T.umbrella.shaft.right : T.umbrella.shaft.down, view === 'right' ? lean : 0, bob);
   // The head and everything on it.
-  const hb = bob + (P.sit ? 0 : 0);
+  const hb = bob + (P.head ?? 0);
   draw(pick(T.head) ?? T.head.down, lean, hb);
   if (view !== 'up') draw(pick(T.face), lean, hb, true);
   if (spec.beard && view !== 'up') draw(pick(T.beard), lean, hb);
@@ -940,7 +947,8 @@ function compose(spec, dir, frame) {
     if (l === 'up') draw(armFront(5, kind, 'up', -1), 0, bob);
     if (r === 'up') draw(armFront(16, kind, 'up', 1), 0, bob);
   }
-  if (spec.hand && view !== 'up' && HELD[spec.hand]) held(cells, W, H, hand, ++part, HELD[spec.hand], view === 'right' ? (HOLD[frame] ?? [0, 1]) : [0, 1]);
+  if (spec.hand && view !== 'up' && HELD[spec.hand] && !(spec.hand === 'umbrella' && spec.rainwear === 'umbrella')) held(   // (an umbrella up is the canopy and its shaft, not the furled one)
+    cells, W, H, hand, ++part, HELD[spec.hand], view === 'right' ? (HOLD[frame] ?? [0, 1]) : [0, 1]);
   return cells;
 }
 

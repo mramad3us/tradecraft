@@ -18,7 +18,7 @@ export const dark = (state, a) => !!a && lightBand(lightHere(state, a.x, a.z)) =
 /** People within r of actor a (passers-by and agents alike), a and the player aside. */
 export const around = (state, a, r) => (a ? state.actors.filter(o => o !== a && o.who !== state.player && !o.hidden && Math.hypot(o.x - a.x, o.z - a.z) < r).length : 0);
 /** Whether the player's doing something with a reason to it: a window, a bench, a kiosk, a phone box, a shelter, a café's table. */
-export const busyAtSomething = (a) => !!a && (!!a.glass || ['bench', 'kiosk', 'phone', 'shelter', 'notices', 'lace', 'window'].includes(a.busy?.what) || a.inside?.way === 'sit');
+export const busyAtSomething = (a) => !!a && (!!a.glass || ['bench', 'kiosk', 'phone', 'shelter', 'notices', 'lace', 'mobile', 'window'].includes(a.busy?.what) || a.inside?.way === 'sit');
 
 /** Hale's aside in a lesson (sim/hale.js ASIDES): once, after afterS seconds, when he's said nothing for twenty. */
 export const aside = (id, afterS) => ({ id: 'aside', when: (s) => secs(s) >= afterS && !s.tutor?.queue.length && s.time.ms - (s.tutor?.busyUntil ?? 0) > 20000, say: ASIDES[id] });

@@ -9,9 +9,11 @@
 // sim/weapons.js: a penknife, a bottle, an umbrella).
 //
 // Bought (sim/shops.js): a piece off a shop's rail (RAIL, by the kind of shop: a clothes shop's coats,
-// jackets, jumpers and hats; an optician's glasses) is put on there and then, a change of clothes that
+// jackets, jumpers and hats, a hood on the parka and the anorak for the rain (the view's: src/render/view.js
+// rainwearOf(); without one, an umbrella in the hand or wet); an optician's glasses) is put on there and then, a change of clothes that
 // whoever was looking for the old ones looks past; what it replaced goes into the shop's bag. A thing
-// (GOODS: an umbrella, a penknife, a bottle of wine, a kitchen knife) goes into the hand if it's empty,
+// (GOODS: an umbrella, a penknife, a bottle of wine, a kitchen knife; a burner, a prepaid phone, counted
+// on p.burners: your own smartphone's taken for granted) goes into the hand if it's empty,
 // a pocket if there's room (sim/items.js), else the bag. The bag (p.bag) is carried, and shows (a carrier
 // bag in the hand); at home it's unpacked (unpack()): clothes into the wardrobe, things into the drawer.
 // At the wardrobe (dress()): a piece put on (what it replaces hung up), a hat or glasses taken off,
@@ -32,11 +34,11 @@ const HATS = { fedora: 'fedora', cap: 'flat cap', beanie: 'beanie', peaked: 'pea
 const GLASSES = { specs: 'reading glasses', shades: 'sunglasses' };
 
 // What's on the rails, by the kind of shop: { id, slot, name, look, usd }.
-const top = (id, kind, color, usd, extra = {}) => ({ id, slot: 'top', look: { kind, color, trim: extra.trim ?? 0x23252f, ...(extra.belt ? { belt: extra.belt } : {}) }, usd, name: extra.name });
+const top = (id, kind, color, usd, extra = {}) => ({ id, slot: 'top', look: { kind, color, trim: extra.trim ?? 0x23252f, ...(extra.belt ? { belt: extra.belt } : {}), ...(extra.hood ? { hood: true } : {}) }, usd, name: extra.name });
 export const RAIL = {
   clothes: [
     top('coat-charcoal', 'coat', 0x353947, 160), top('coat-camel', 'coat', 0x8f6345, 180), top('coat-navy', 'coat', 0x283f6b, 150),
-    top('trench', 'coat', 0xd6ad7a, 170, { belt: 0x8f6345, name: 'the beige trench coat' }), top('parka', 'coat', 0x4f5b3a, 130, { trim: 0x47302a, name: 'the olive parka' }),
+    top('trench', 'coat', 0xd6ad7a, 170, { belt: 0x8f6345, name: 'the beige trench coat' }), top('parka', 'coat', 0x4f5b3a, 130, { trim: 0x47302a, name: 'the olive parka', hood: true }), top('anorak', 'jacket', 0x283f6b, 90, { name: 'the navy anorak', hood: true }),
     top('jacket-black', 'jacket', 0x23252f, 140, { name: 'the black leather jacket' }), top('jacket-brown', 'jacket', 0x6b4636, 140, { name: 'the brown leather jacket' }),
     top('jumper-grey', 'sweater', 0x6a7182, 45), top('jumper-navy', 'sweater', 0x283f6b, 45), top('jumper-maroon', 'sweater', 0x6e2a2e, 45),
     { id: 'cap', slot: 'hat', look: { kind: 'cap', color: 0x6b4636, band: 0x47302a }, usd: 25 }, { id: 'beanie-black', slot: 'hat', look: { kind: 'beanie', color: 0x23252f, band: 0x23252f }, usd: 15 },
@@ -46,7 +48,7 @@ export const RAIL = {
 };
 // Things a shop sells, by its kind: [kind (sim/weapons.js), what it is, $].
 export const GOODS = {
-  clothes: [['umbrella', 'an umbrella', 20]], tobacco: [['penknife', 'a penknife', 15]],
+  clothes: [['umbrella', 'an umbrella', 20]], tobacco: [['penknife', 'a penknife', 15]], phones: [['burner', 'a burner: a prepaid phone, no name on it', 25]],
   grocery: [['bottle', 'a bottle of wine', 8], ['kitchen', 'a kitchen knife', 12]], deli: [['bottle', 'a bottle of wine', 14]], beer: [['bottle', 'a bottle of beer', 3]],
 };
 
@@ -83,6 +85,7 @@ export const railOf = (shop, p) => (RAIL[shop] ?? []).map(x => ({ ...x, name: x.
 
 /** A thing bought or taken: into the hand if empty, a pocket if there's room, else the bag. Where it went: 'hand' | 'pocket' | 'bag'. */
 export function carry(p, kind) {
+  if (kind === 'burner') { p.burners = (p.burners ?? 0) + 1; return 'pocket'; }   // (a phone: in a pocket, whatever's there; counted, not placed)
   if (!p.hand && weaponOf(kind)) { p.hand = kind; return 'hand'; }
   if (fits(p, kind)) { (p.items ??= []).push(kind); return 'pocket'; }
   (p.bag ??= []).push({ item: kind });

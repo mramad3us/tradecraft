@@ -33,8 +33,6 @@ import { shortName, statusLine } from '../sim/fight.js';
 import { weaponOf, bare } from '../sim/weapons.js';
 import { placed, fits } from '../sim/items.js';
 import { options as aidOptions, bodyLine } from '../sim/aid.js';
-import { agenda as agendaOf, heatWord as heatWordOf, places as placesOf, KINDS as KINDS_, goalOf } from '../sim/campaign.js';
-import { streetName as streetNameOf } from '../sim/map/street.js';
 import { calendar as calendarOf, DAY as DAY_MS } from '../sim/clock.js';
 import { bleedRate, bloodOf, bandOf, BLOOD } from '../sim/health.js';
 import { RANK as RANKS } from '../sim/instinct.js';
@@ -50,6 +48,7 @@ import { LESSONS, FARM, lessonOf, numberOf, nextLesson } from '../sim/tutorial/i
 import { READ_S, WORD_S } from '../sim/tutorial/earpiece.js';
 import { HEARSAY } from '../sim/hale.js';
 import { plaque, place } from './plaque.js';
+import { openMind } from './mind.js';
 
 // (a place's glyph on its plaque; how far, in the plaque's few letters: "2 streets north" → "2 ST N")
 const PLACE_ICON = { embassy: 'star', home: 'house', safe: 'key' };
@@ -656,6 +655,7 @@ export function createUI({ input, cb }) {
       list.length ? el('table', { className: 'skills' }, el('tbody', {}, list)) : el('p', { textContent: `Nothing to fight with. Things lie about: ${input.label('use')} picks one up.` }),
       // (a shop's bag, in the other hand: what's in it goes home, into the wardrobe and the drawer: sim/clothes.js)
       p.bag?.length ? el('p', { textContent: `In a shop's bag, for home: ${p.bag.map(x => x.item ? (weaponOf(x.item)?.name ?? x.item) : x.name).join(', ')}.` }) : null,
+      el('p', { className: 'note', textContent: `Your phone, in a pocket${p.burners ? `; and ${p.burners === 1 ? 'a burner' : `${p.burners} burners`}, prepaid, no name on ${p.burners === 1 ? 'it' : 'them'}` : ''}.` }),
       el('p', { className: 'note', textContent: `1–9: the first button on its row. ${input.label('gun')} takes out the next thing, or puts it away; in a fight, drawing costs you the exchange (you can only cover while you do). ${input.label('inventory')} or ${input.label('menu')} to close.` })));
     card.hidden = false;
     card.dataset.kind = 'inventory';
@@ -700,6 +700,7 @@ export function createUI({ input, cb }) {
   addEventListener('keydown', (e) => {
     if (!ask.hidden && askKeys) askKeys(e);
     else if (!talkbox.hidden) { const n = digit(e); if (n >= 1 && n <= TALK_CHOICES.length) { e.preventDefault(); cb.talk?.(TALK_CHOICES[n - 1].id); } }
+    else if (!card.hidden && card.dataset.kind === 'mind') { const n = digit(e); if (n && card.$mindKey?.({ key: String(n) })) e.preventDefault(); }   // (the mind's leaves: src/ui/mind.js)
     else if (!card.hidden && ['aid', 'inventory', 'choices'].includes(card.dataset.kind)) { const n = digit(e); const b = n && card.querySelector(`button[data-n="${n}"]`); if (b) { e.preventDefault(); b.click(); } }
   });
 
@@ -785,40 +786,10 @@ export function createUI({ input, cb }) {
     paper.querySelector('.go').focus();
   }
 
-  /** The desk (Tab, in the campaign's hub): today, the posting's gauges, what's ahead, and the day's choices, each a button that closes it and does it. */
-  function openDesk(state, act) {
-    const c = state.campaign, p = c.posting, now = state.time.ms, k = calendarOf(now), go = (cmd) => () => { closeOverlays(); act(cmd); };
-    const items = agendaOf(c, now).slice(0, 6), today = Math.floor(now / DAY_MS);
-    const row = (a, when) => {
-      const T = a.trip && p.trips?.find(t => t.id === a.who);       // (a first tour's trip abroad: its city, its man)
-      const name = T ? `${cityById(T.city).name}, ${T.asset?.codename ?? T.target?.name}` : a.kind === 'sdr' ? p.assets.find(s => s.id === a.who)?.codename : p.targets.find(t => t.id === a.who)?.name;
-      const sameDay = Math.floor(a.start / DAY_MS) === today;
-      return el('tr', {}, el('td', { textContent: `${dateText(a.from).slice(0, -5)}, ${clockText(a.from)}` }), el('td', { textContent: `${KINDS_[a.kind].name}: ${name}` }),
-        el('td', {}, sameDay ? el('button', { className: 'small', onclick: go(`go:${a.id}`), title: a.brief }, when === 'now' ? 'go now' : `go (at ${clockText(a.start)})`) : el('span', { className: 'where', textContent: 'later' })));
-    };
-    const workday = k.weekday < 5 && k.hour < 18 && !c.worked[today];
-    card.replaceChildren(el('div', { className: 'sheet charsheet desk' },
-      el('span', { className: 'stamp', textContent: 'STATION' }),
-      el('h2', { textContent: `${dateText(now)}, ${clockText(now)}` }),
-      el('p', { className: 'note', textContent: `${state.people.me.name}, ${p.job}. The posting: ${p.subject} (${p.goal}).` }), el('hr'),
-      el('p', { textContent: `Heat: ${heatWordOf(p.heat)}. Cover standing: ${p.cover}/100. Intelligence: ${p.intelligence} of the ${goalOf(p)} wanted. In the bank: $${p.money.bank ?? 0}; the operational fund: $${p.money.fundLeft ?? p.money.fund}.` }),
-      el('p', { textContent: p.level === 'junior' ? `No network of your own: you're MI5's liaison. Watched with MI5's people: ${p.targets.map(t => `${t.name}${t.wary ? ' (wary)' : ''}`).join('; ')}. Abroad: ${p.trips.map(t => `${cityById(t.city).name}${t.planned ? '' : ', later in the tour'}`).join('; ')}.`
-        : `The network: ${p.assets.map(s => `${s.codename} (${s.role}, trust ${s.trust}${s.burned ? ', compromised' : ''})`).join('; ')}. Watched: ${p.targets.map(t => `${t.name}${t.wary ? ' (wary)' : ''}`).join('; ')}.` }),
-      el('h3', { className: 'section', textContent: 'Ahead' }),
-      items.length ? el('table', { className: 'skills' }, el('tbody', {}, items.map(({ a, when }) => row(a, when)))) : el('p', { textContent: 'Nothing planned. Days like this are for the cover job.' }),
-      items[0] ? el('p', { className: 'note', textContent: items[0].a.brief }) : null,
-      el('h3', { className: 'section', textContent: 'Places' }),
-      el('div', { className: 'deskacts' }, ...placesOf(c).filter(pl => pl.row !== (state.map.row ?? 0)).map(pl => el('button', { className: 'small', onclick: go(`travel:${pl.id}`), title: `${streetNameOf(p.mapSeed, pl.row)}` }, `To ${pl.label}`))),
-      el('h3', { className: 'section', textContent: 'The day' }),
-      el('div', { className: 'deskacts' },
-        workday ? el('button', { className: 'small', onclick: go('work') }, 'Go to work (till 18:00)') : null,
-        el('button', { className: 'small', onclick: go('sleep') }, k.hour >= 20 || k.hour < 6 ? 'Sleep (till 7:00)' : 'Home, and sleep (till 7:00 tomorrow)'),
-        el('button', { className: 'small', onclick: go('low') }, 'Lie low for a day'),
-        el('button', { className: 'small', onclick: () => closeOverlays() }, 'Walk')),
-      ...(c.log.length ? [el('h3', { className: 'section', textContent: 'Lately' }), ...c.log.slice(-4).reverse().map(e => el('p', { className: 'note', textContent: `${dateText(e.ms).slice(0, -5)}: ${e.text}` }))] : []),
-      el('p', { className: 'note', textContent: `${input.label('mindmap')} or ${input.label('menu')} to close.` })));
-    card.hidden = false;
-    card.dataset.kind = 'desk';
+  /** Tab: the mind (src/ui/mind.js), on a leaf; act(cmd) a desk command (null: walk on). */
+  const mindOn = {};
+  function openMindUI(state, act, leaf = 'ahead') {
+    openMind(card, state, leaf, { el, act: (cmd) => { closeOverlays(); if (cmd) act(cmd); }, label: (k) => input.label(k), on: mindOn });
     menu.hidden = log.hidden = true;
   }
 
@@ -924,5 +895,5 @@ export function createUI({ input, cb }) {
     setTimeout(() => f.remove(), 1600);
   }
 
-  return { frame, fit, flash, openInventory, openAid, openDesk, openChoices, showCandidates, showPaper, showCall, showTitle, showTutorial, toggleKeys, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
+  return { frame, fit, flash, openInventory, openAid, openMind: openMindUI, openChoices, showCandidates, showPaper, showCall, showTitle, showTutorial, toggleKeys, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
 }

@@ -1,7 +1,7 @@
 // TRADECRAFT sim: the campaign's hub (sim/campaign.js): between assignments, the posting's city from your
 // own door, the campaign's clock, your character as the campaign has them (wounds, blood and all).
 // Walk where you like; the instinct says what's next ("SKVORETS at 19:31: leave by 18:50"); Tab opens
-// the desk (src/ui/ui.js openDesk()), whose choices come back as actions:
+// the mind (src/ui/mind.js: Ahead, its choices), which come back as actions:
 //   - 'desk:work': the embassy until 18:00, a working day (cover standing up);
 //   - 'desk:sleep': home, and sleep till 7:00;
 //   - 'desk:low': lie low for a day (heat down);
@@ -30,6 +30,7 @@ import { reading, bookOf, readAnHour } from '../training.js';
 import { dress, wardrobeWays, unpack, DRESS_S } from '../clothes.js';
 import { staffTick, think as staffThink } from '../interiors/staffing.js';
 import { follow } from '../crowd.js';
+import { arrived } from '../knowledge.js';
 import { planOf } from '../map/interior.js';
 import { spotNear, spotOf, exitHere, walkTo, SPOT_REACH_M } from '../interiors/use.js';
 import { hash } from '../rng.js';
@@ -143,6 +144,7 @@ export const campaignHub = {
     // (let ring, it stops: Hale, most likely; his number's on the pad by it, and he'll be glad to hear from you)
     if (call?.rang && now - call.rang > RING_S * 1000) { call.done = now; call.missed = true; say(state, bus, { kind: 'note', text: 'The telephone stops. Hale, most likely: his number\'s on the pad by it.' }); }
     if (state.map.place === 'embassy') staffTick(state, bus, state.$world.sections.get(0));   // (its people through the day: sim/interiors/staffing.js)
+    if (arrived(state)) say(state, bus, { kind: 'note', text: 'There.' });   // (the waypoint reached, and cleared: sim/knowledge.js)
     state.scenario.prompt = instinct(state, c, now);
   },
 
@@ -176,6 +178,12 @@ export const campaignHub = {
   goal(state) {
     if (state.map.kind !== 'street' || state.scenario.window) return null;   // (in the flat, the way out's the door; at its window, nowhere)
     const c = state.campaign, p = c.posting, now = state.time.ms, k = calendar(now);
+    // (a waypoint set on the mind's map first: sim/knowledge.js)
+    const w = c.waypoint, me0 = state.actors.find(a => a.who === state.player);
+    if (w && me0) {
+      const far = w.row === state.map.row ? `${Math.round(Math.abs(w.x - me0.x))} m` : rowsText(w.row - state.map.row);
+      return { row: w.row, x: w.x, z: w.z ?? Z.front, name: w.label, far, kind: w.kind === 'home' ? 'home' : w.kind === 'work' ? 'embassy' : w.kind === 'safe' ? 'safe' : 'way', label: `${w.label} · ${far}` };
+    }
     const pl = k.weekday < 5 && !c.worked[Math.floor(now / DAY)] && k.hour >= 7 && k.hour < WORK.to - 2 ? p.embassy : k.hour >= 22 || k.hour < 5 || fatigue(c, now).v ? p.home : null;
     const me = state.actors.find(a => a.who === state.player);
     if (!pl || pl.x === undefined || !me || (pl.row === state.map.row && Math.abs(me.x - pl.x) < 4)) return null;

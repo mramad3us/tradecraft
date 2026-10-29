@@ -130,7 +130,7 @@ export function createCrowd(scene) {
       const slot = slotOf(p.key, p.look);
       const f = p.gait === 'walk' ? `walk${Math.floor(p.stride / STEP_M.walk) % 4}`
         : p.gait === 'run' ? `run${Math.floor(p.stride / STEP_M.run) % 4}`
-        : p.gait === 'sit' || p.gait === 'crouch' ? 'sit' : FIGHT.has(p.gait) ? p.gait : p.gait === 'down' ? 'reel' : `idle${((Math.floor((p.t ?? t) * 2 + p.phase) % 2) + 2) % 2}`;   // (game time runs negative before 2026: the Farm's 2007)
+        : p.gait === 'sit' || p.gait === 'crouch' ? 'sit' : p.gait === 'phone' || p.gait === 'hail' ? p.gait : FIGHT.has(p.gait) ? p.gait : p.gait === 'down' ? 'reel' : `idle${((Math.floor((p.t ?? t) * 2 + p.phase) % 2) + 2) % 2}`;   // (game time runs negative before 2026: the Farm's 2007)
       const sit = p.gait === 'sit';                                 // (a crouch is the same pose, on the ground)
       if (p.gait === 'down') {                                      // (on their back, the head away from whoever they faced)
         const s = p.face === 'left' ? -1 : 1;

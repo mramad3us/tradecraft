@@ -79,11 +79,20 @@ import { hash as hashOf } from '../sim/rng.js';
 /**
  * Under what falls, some open an umbrella and some put a hood up (by who they are, so the same people
  * the same way; more of both the heavier it comes; a full hand can't hold an umbrella, nor can anyone
- * in a gale). Only how they're drawn: what it does to faces is the sim's (sim/weather.js weatherMods()).
+ * in a gale). An umbrella in the hand (yours, bought: sim/clothes.js; the user, 2026-10-28: "how do i use
+ * my umbrella, it's raining") is up whenever something falls, a gale aside; and you never have one you
+ * don't own, only a hood. Only how they're drawn: what it does to faces is the sim's (sim/weather.js
+ * weatherMods()).
  */
-function rainwearOf(w, who, hand) {
+function rainwearOf(w, who, hand, own = false, look = null) {
   if (!w || !FALLS.has(w.kind) || !w.level) return null;
+  if (hand === 'umbrella') return (w.wind ?? 0) < 3 ? 'umbrella' : null;
   const v = hashOf('rainwear', who) % 100, lv = w.level;
+  // (a hood only on what has one: the user, "no hood for clothes that don't have a hood though". Yours by
+  // your clothes (a parka, an anorak: sim/clothes.js); someone else's coat, jacket or jumper, some of them)
+  const hooded = look?.top?.hood || (!own && ['coat', 'jacket', 'sweater'].includes(look?.top?.kind) && hashOf('hood', who) % 100 < 40);
+  if (own) return hooded ? 'hood' : null;
+  if (!hooded) return !hand && (w.wind ?? 0) < 3 && v < (w.kind === 'snow' ? 6 + lv * 4 : 18 + lv * 14) ? 'umbrella' : null;
   const umbrella = w.kind === 'snow' ? 6 + lv * 4 : 18 + lv * 14, hood = w.kind === 'snow' ? 18 + lv * 12 : 10 + lv * 8;
   if (!hand && (w.wind ?? 0) < 3 && v < umbrella) return 'umbrella';
   return v < umbrella + hood ? 'hood' : null;
@@ -453,7 +462,7 @@ export function createView({ parent, bus, month = () => 11 }) {
       if (!look) continue;
       // (blood worn, what's in the hand, and the rainwear the weather puts on them are part of the look: their own sheet)
       // (a named person's sheet keyed by their look too, so a change of clothes is drawn: sim/clothes.js; a shop's bag in the hand)
-      const P = a.who && state.people[a.who], bl = P?.bloody, hand = P?.hand, rain = rainwearOf(wx, a.who ?? a.seed, hand), bag = P?.bag?.length ? 'bag' : null;
+      const P = a.who && state.people[a.who], bl = P?.bloody, hand = P?.hand, rain = rainwearOf(wx, a.who ?? a.seed, hand, a.who === state.player, look), bag = P?.bag?.length ? 'bag' : null;
       const base = a.who ? `${a.who}#${lookKey(look)}` : a.seed;
       const key = bl || hand || rain || bag ? `${base}~${bl ? Object.keys(bl).sort().join('') : ''}~${hand ?? ''}~${rain ?? ''}~${bag ?? ''}` : base;
       people.push({ key, look: bl || hand || rain || bag ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}), ...(rain ? { rainwear: rain } : {}), ...(bag ? { carry: 'bag' } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S) });

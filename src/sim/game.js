@@ -47,6 +47,7 @@ import { lessonOf } from './tutorial/index.js';
 import { startTutor, tutorTick } from './tutorial/earpiece.js';
 import * as traffic from './traffic.js';
 import { notice } from './notice.js';
+import { learnTick } from './knowledge.js';
 import { needsTick, strain } from './needs.js';
 import { weatherAt, footing, weatherTick, parseWeather, SLIP_S } from './weather.js';
 import { shortName } from './fight.js';
@@ -304,6 +305,7 @@ export function step(state, input = {}, bus) {
     for (const a of state.actors) if (a.who) bloodBeat(state, bus, a, 1);
     notice(state, bus, me);                                         // (blood on you, seen: a face remembered: sim/notice.js)
     needsTick(state, bus, me);                                      // (hunger's clock, the calm coming back, frayed slips: sim/needs.js)
+    learnTick(state);                                               // (the streets walked, known: sim/knowledge.js)
     weatherTick(state, bus);                                        // (the weather turning, in the log: sim/weather.js)
     if (me?.gait === 'run' && !me.ai && !state.fight) slipUp(state, bus, me);
     const f = focusActor(state);

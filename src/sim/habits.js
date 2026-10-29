@@ -12,7 +12,8 @@
 //     ('exit');
 //   - 'cross': at a zebra's kerb, a look both ways (wide);
 //   - 'turn': at a lane's mouth, before he turns into it, a look back along the street;
-//   - 'pause': he stops, on his phone: no look, but a test of nerve for whoever stops with him;
+//   - 'pause': he stops, on his phone (head down over it: the sprites' 'phone'): no look, but a test of
+//     nerve for whoever stops with him;
 //   - 'sit': on the boulevard's path, a while on a bench (civilians: a check is no habit of theirs).
 // All but the pause are checks (stop.check: a follower looks away). How often, by style (STYLES): a
 // calm man, a wary one. A detour only where its way is clear (checked
@@ -126,7 +127,7 @@ export function withHabits(seed, route, r, style = 'calm') {
           }
           continue;
         }
-        if (range(r, 0, 1) < H.pause) marks.push([i, { kind: 'pause', ticks: ticks(r, 4, 7), face: 'down' }]);
+        if (range(r, 0, 1) < H.pause) marks.push([i, { kind: 'pause', ticks: ticks(r, 4, 7), face: 'down', gait: 'phone' }]);   // (head down over a phone, as half the street is)
         else if (H.looks) marks.push([i, { kind: 'look', check: true, ticks: ticks(r, 2, 3.5), face: backOf(ux, uz), slowM: range(r, ...H.tell) }]);
       }
     }

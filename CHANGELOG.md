@@ -4,6 +4,20 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc35 (2026-10-28)
+
+- **Your umbrella.** Hold it (it's in your hand when you buy it; G takes it out if you've put it away) and when it rains or snows it's up over your head; in a gale it stays furled. You used not to be able to open one at all, and were sometimes drawn under one you didn't own.
+- **Hoods only on hooded clothes.** You put a hood up only if what you're wearing has one: the olive parka on a clothes shop's rail does, and so does a new navy anorak. Other people's hoods come with their coats, jackets and jumpers, some of them.
+
+- **The mind (Tab).** Tab no longer opens a desk of papers: it opens your officer's mind, in the HUD's dark glass, on four leaves (1 to 4). Ahead: the assignments and the day's choices. The city: a map of London as you know it, drawn in the game's own pixels, the streets you've walked with their names and the lanes off them, and every shop, bank, club, school, station and stop you've passed, coloured by kind (each kind can be hidden); you, and your waypoint. People: your network, the men you watch, your colleagues. Where you stand: below.
+- **Waypoints.** Pick a place on the mind's map and make it your waypoint: the pointer at the edge of the picture leads there, street by street, and clears when you're at its door. Your flat, the embassy and the safe houses also offer the way there (the metro or a taxi).
+- **You learn the city.** A street becomes known as you walk it (whatever's within forty metres of you), with everything on it; your flat, the embassy and the safe houses are known from day one. A trip abroad doesn't add to your London.
+- **What your officer believes.** Heat and cover standing aren't numbers on a gauge any more: they're your officer's read, in words ("A face or two you've seen more than once. Probably nothing."), and how sure they are of it. A junior on day one is guessing; weeks on the posting, a posting of their own, a sharp eye and good Tradecraft make the read truer and surer. It can be wrong.
+
+- **Phones.** People on the street stop for their phones now: head down, both hands at the chest, the screen lit. And so can you. "Look at your phone" is cover, offered by the instinct before a shoelace: up to twenty seconds, or till you move, and to someone looking back it reads as ordinary as a shop window nearly does (a shoelace twice looks like a story; a phone doesn't, but not twice in half a minute). The man you're tailing pauses on his phone too. (It makes tailing a careful man a little easier: in the tests' evenings he made a follower of a Handler's skill 13% of the time, against 25% before.)
+- **Burners.** A phone shop sells burners: a prepaid phone, no name on it. You carry them (the inventory counts them); what they're for, calling your people, comes with the network.
+- Tests: knowledge (the posting's places known from the start; a street walked known, its shops with it; the waypoint where the pointer leads, cleared there); belief (words, not numbers; a junior guesses, surer with weeks; a Handler surer); browser (Tab opens the mind).
+
 ## v0.1.0-rc34 (2026-10-28)
 
 - **Your account.** The posting's bank account opens with your first month's salary already in it (a junior's $5,400, a Handler's $7,200), salary is paid in on the 1st as before, and on promotion the account comes with you. Cash on you is what pays on the street.

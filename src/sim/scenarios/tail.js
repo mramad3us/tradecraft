@@ -374,7 +374,7 @@ function goHome(state, t) {
 function autoplay(state, me, bus) {
   const sc = state.scenario, p = sc.prompt;
   if (sc.outcome || !p || me.ai.cover || me.ai.hold > state.time.ms) return;
-  if (p.tone === 'urgent' && (p.act === 'window' || p.act === 'lace' || p.act === 'bench') && state.tick % TPS === 1) agentCover(state, bus, me, p.act);
+  if (p.tone === 'urgent' && (p.act === 'window' || p.act === 'lace' || p.act === 'mobile' || p.act === 'bench') && state.tick % TPS === 1) agentCover(state, bus, me, p.act);
 }
 
 /** Cover for an agent player (the autoplay, or T in autoplay): a short detour or a stop, then on. */
@@ -389,6 +389,7 @@ function agentCover(state, bus, me, what) {
     pts = [here, { row, x: gx, z: me.z, w: 0 }, { row, x: gx, z: p.z + 0.65, w: 0 }];
     stop = { kind: 'window', ticks: 5 * TPS, face: 'up', glass: true };
   } else if (what === 'lace') { stop = { kind: 'lace', ticks: 3 * TPS, face: me.face, gait: 'crouch' }; state.scenario.laceMs = state.time.ms; }
+  else if (what === 'mobile') { stop = { kind: 'mobile', ticks: 6 * TPS, face: me.face, gait: 'phone' }; state.scenario.mobileMs = state.time.ms; }
   else if (what === 'bench') {
     const seats = (sectionAt(state, me.x)?.props ?? []).filter(p => p.kind === 'bench').flatMap(p => p.seats).filter(x => !seatTaken(state, x, me)).sort((a, b) => Math.abs(a - me.x) - Math.abs(b - me.x));
     if (!seats.length) return;
@@ -548,13 +549,14 @@ function coverNow(state, me) {
   const ac = me.ai?.cover;                                          // (an agent player's cover: a stop)
   if (ac) {
     if (state.scenario.scan && ac.since >= state.scenario.scan.ms) return { why: 'stopping short as he looked', v: 2 };
-    return { window: { why: 'busy at a shop window', v: -3 }, bench: { why: 'sitting on a bench', v: -3 }, lace: { why: 'tying a shoelace', v: -1 } }[ac.what] ?? null;
+    return { window: { why: 'busy at a shop window', v: -3 }, bench: { why: 'sitting on a bench', v: -3 }, mobile: { why: 'looking at a phone', v: -2 }, lace: { why: 'tying a shoelace', v: -1 } }[ac.what] ?? null;
   }
   const b = me.busy, s = b?.steps[0], scan = state.scenario.scan;
   if (b && scan && b.since >= scan.ms) return { why: 'stopping short as he looked', v: 2 };
   if (me.glass) return scan && me.glass.since >= scan.ms ? { why: 'stopping short as he looked', v: 2 } : { why: 'busy at a shop window', v: -3 };
   if (b?.what === 'bench' && me.gait === 'sit') return { why: 'sitting on a bench', v: -3 };
   if (b?.what === 'lace' && s?.[0] === 'wait') return { why: 'tying a shoelace', v: -1 };
+  if (b?.what === 'mobile' && s?.[0] === 'wait') return { why: 'looking at a phone', v: -2 };   // (the street's own: everyone does it)
   if (b?.what === 'kiosk' && s?.[0] === 'wait') return { why: 'reading a paper at the kiosk', v: -2 };   // (sim/acts.js spotNear())
   if (b?.what === 'phone' && s?.[0] === 'wait') return { why: 'on the phone in a phone box', v: -3 };
   if (b?.what === 'shelter' && s?.[0] === 'wait') return { why: 'waiting for a bus', v: -3 };

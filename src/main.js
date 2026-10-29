@@ -160,7 +160,7 @@ function launch(s, { hour = null } = {}) {
   bus.on('assignment', (id) => setTimeout(() => launchAssignment(s, id), 0));
   bus.on('papers', (list) => showPapers(list));
   bus.on('call', (id) => setTimeout(() => openCall(s, id), 0));    // (the flat's telephone: Hale)
-  bus.on('desk-open', () => setTimeout(() => ui.openDesk(s, (cmd) => acts.push(`desk:${cmd}`)), 0));   // (the chief's office at the embassy: the desk, what's on)
+  bus.on('desk-open', () => setTimeout(() => ui.openMind(s, (cmd) => acts.push(`desk:${cmd}`), 'ahead'), 0));   // (the chief's office at the embassy: what's on, the mind's first leaf)
   bus.on('wardrobe', (list) => setTimeout(() => list.length ? ui.openChoices('WARDROBE', 'WHAT TO WEAR, WHAT TO KEEP', list, (key) => acts.push(`desk:dress:${key}`)) : ui.closeOverlays(), 0));   // (the flat's wardrobe: sim/clothes.js)
   bus.on('bed', (list) => ui.openChoices('BED', 'HOW LONG?', list, (key) => acts.push(`desk:${key}`)));   // (the flat's bed by day: sim/scenarios/campaign.js)
   bus.on('photo', (w) => { snapWanted = w; });                    // (sim/scenarios/watch.js: the frame, at the next draw)
@@ -291,8 +291,8 @@ input.onAction((action) => {
     return;
   }
   if (action === 'mindmap') {                                      // (Tab: in the campaign's hub, the desk: sim/scenarios/campaign.js)
-    if (open === 'desk') ui.closeOverlays();
-    else if (!open && state.scenario.kind === 'campaign') ui.openDesk(state, (cmd) => acts.push(`desk:${cmd}`));
+    if (open === 'mind') ui.closeOverlays();
+    else if (!open && state.scenario.kind === 'campaign') ui.openMind(state, (cmd) => acts.push(`desk:${cmd}`));   // (Tab: the mind, src/ui/mind.js)
     return;
   }
   if (action === 'inventory') { if (open === 'inventory') ui.closeOverlays(); else if (!open) ui.openInventory(state, (cmd) => acts.push(`inv:${cmd}`)); return; }   // (I: what you carry)
