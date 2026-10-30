@@ -6,9 +6,10 @@
 //     embassy;
 //   - 'desk:sleep': sleep till 7:00: T at the flat's bed, late;
 //   - 'desk:low': lie low for a day (heat down): the mind's one choice of the day;
-//   - 'desk:go:<id>': an assignment, from the mind: wait (the clock skipped) until its start if it's later
-//     today, and go: the game tells the bus ('assignment'), and the UI launches it (src/main.js) with the
-//     campaign's context (sim/campaign.js context());
+//   - 'desk:go:<id>': a trip abroad, from the mind (flown out): wait (the clock skipped) until its start if
+//     it's later today, and go: the game tells the bus ('assignment'), and the UI launches it (src/main.js)
+//     with the campaign's context (sim/campaign.js context()). An assignment in the posting's own city is
+//     walked to instead (below);
 //   - 'desk:travel:<place>': to the flat, the embassy, a safe house: the metro or a taxi (sim/campaign.js
 //     trip(): the minutes it takes), and the place's street, from its door.
 // Nothing in play sends the last, nor work or sleep from anywhere but the desk and the bed (the user,
@@ -32,6 +33,13 @@
 // engine's travel takes them along or loses them by its way (tailOver()); lying low at a safe house with
 // them on you shows them its door (the station's cable the next morning: sim/campaign.js pass()); an
 // asset meeting begun with them still on you has them for its team (sim/campaign.js context()).
+// **Assignments where they happen** (the user, 2026-10-29: "we should be able to go to our mission without
+// using the fast travel shortcut in TAB"): one in the posting's own city has its place (sim/places.js
+// missionPlace(): his office's door, the bench, the café). The instinct says where and when to be off
+// (by how many streets away it is), the pointer leads there from LEAD_H before, and at it (MISSION_AT_M)
+// in its hour (windowOf()) T begins it (begin()): the scene is played there, from where you stand, and
+// whoever's on you then is a meeting's team, or nobody (the walk there was the run). A tail: you wait
+// across from his door till he comes out. Missed its hour, it's missed (sim/campaign.js agenda()).
 import { TICK_MS, DAY, HOUR, MIN, calendar, clockText } from '../clock.js';
 import { heatKey, addHeat } from '../heat.js';
 import { say } from '../log.js';
@@ -39,8 +47,8 @@ import { Z, streetName } from '../map/street.js';
 import { townOf, cityById } from '../cities/index.js';
 import { skip, newMap } from '../game.js';
 import { eat, soothe } from '../needs.js';
-import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, watched, KINDS, WORK } from '../campaign.js';
-import { signOf } from '../places.js';
+import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, watched, KINDS, WORK, TRAVEL } from '../campaign.js';
+import { signOf, missionPlace } from '../places.js';
 import { reading, bookOf, readAnHour } from '../training.js';
 import { dress, wardrobeWays, unpack, DRESS_S } from '../clothes.js';
 import { kitWords, addSupply } from '../medicine.js';
@@ -84,7 +92,7 @@ export const campaignHub = {
     state.actors.push({ id: 'a0', who: 'me', seed: null, row, x, z, vx: 0, vz: 0, face: flat ? 'left' : 'down', head: flat ? Math.PI : Math.PI / 2, gait: 'idle', stride: 0, stuck: 0, ai: null });
     state.scenario = { kind: 'campaign', prompt: null, outcome: null, began: state.time.ms };
     const street = streetName(townOf({ seed: p.mapSeed, city: p.city }), row);
-    say(state, null, { kind: 'note', text: c.where ? `${clockText(state.time.ms)}, ${flat ? 'the flat' : street}.` : `${state.people.me.name}, ${p.job}. Day one of the posting: ${clockText(state.time.ms)}, the flat the embassy rents you on ${street}. Boxes not yet unpacked. Tab: the desk.` });
+    say(state, null, { kind: 'note', text: c.where ? `${clockText(state.time.ms)}, ${flat ? 'the flat' : street}.` : `${state.people.me.name}, ${p.job}. Day one of the posting: ${clockText(state.time.ms)}, the flat the embassy rents you on ${street}. Boxes not yet unpacked. Tab: your mind, what's ahead and where.` });
   },
 
   /** Begun on a street (where an assignment left you), or a game from before the watchers: out, as from a door. */
@@ -100,18 +108,7 @@ export const campaignHub = {
     // (heat: the street's (state.heat, what they wrote down) into the campaign's, which the days, lying
     // low and arrests then move (sim/campaign.js pass(), lieLow()), and back after: until())
     c.posting.heat = heatNow(state);
-    const until = (to, text) => {                                  // (the clock skipped to `to`, the calendar's consequences told)
-      if (to <= now) return;
-      if (text) say(state, bus, { kind: 'note', text });
-      const out = state.scenario.tail && to - now > HOUR;             // (hours on, on the street: whoever was on you then isn't the question now)
-      if (out) dropTeam(state);
-      skip(state, bus, to - now);
-      if (out && state.map.kind === 'street') outing(state, 'street');
-      const papers = pass(c, now, state.time.ms);
-      state.heat[heatKey('embassy', c.posting.country)] = c.posting.heat;
-      if (papers.length) bus?.emit('papers', papers);
-      if (c.over && !state.scenario.outcome) { Object.assign(state.scenario, { outcome: c.over.why, ended: state.time.ms }); bus?.emit('scenario-end', c.over.why); }
-    };
+    const until = (to, text) => passTo(state, bus, to, text);
     if (what === 'work') {
       const to = work(c, now), here = state.map.place === 'embassy';
       if (to === now) return say(state, bus, { kind: 'instinct', text: 'Not a working day, or it\'s over: nobody at the embassy wants you now.' });
@@ -158,6 +155,7 @@ export const campaignHub = {
     else if (what === 'go') {
       const a = c.assignments.find(x => x.id === id && x.status === 'open');
       if (!a) return;
+      if (!a.trip) { const at = missionPlace(c, a); return say(state, bus, { kind: 'instinct', text: `That one's on foot: ${at ? lower(at.label) : 'its place'}, at ${clockText(a.from)}. The pointer has the way.` }); }
       if (now < a.start) {
         if (Math.floor(a.start / DAY) !== Math.floor(now / DAY)) return say(state, bus, { kind: 'instinct', text: 'That\'s another day. Sleep on it.' });
         until(a.start, `You kill the time till ${clockText(a.start)}, and go.`);
@@ -246,6 +244,12 @@ export const campaignHub = {
     if (w && me0) {
       const far = w.row === state.map.row ? `${Math.round(Math.abs(w.x - me0.x))} m` : rowsText(w.row - state.map.row);
       return { row: w.row, x: w.x, z: w.z ?? Z.front, name: w.label, far, kind: w.kind === 'home' ? 'home' : w.kind === 'work' ? 'embassy' : w.kind === 'safe' ? 'safe' : 'way', label: `${w.label} · ${far}` };
+    }
+    // (the next assignment here, from LEAD_H before you'd be off for it till its hour's over)
+    const nx = agenda(c, now).find(x => !x.a.trip)?.a, at = nx && missionPlace(c, nx);
+    if (at && me0 && now >= leaveBy(state, nx, at) - LEAD_H * HOUR && now <= windowOf(nx)[1] && !atMission(state, me0, nx, at)) {
+      const far = at.row === state.map.row ? `${Math.round(Math.abs(at.x - me0.x))} m` : rowsText(at.row - state.map.row);
+      return { row: at.row, x: at.x, z: at.z, name: at.label, far, kind: 'way', label: `${at.label} · ${far}` };
     }
     const pl = k.weekday < 5 && !c.worked[Math.floor(now / DAY)] && k.hour >= 7 && k.hour < WORK.to - 2 ? p.embassy : k.hour >= 22 || k.hour < 5 || fatigue(c, now).v ? p.home : null;
     const me = state.actors.find(a => a.who === state.player);
@@ -362,6 +366,7 @@ function use(state, bus, act, here = false) {
   if (act === 'home') return enterHome(state, bus, 'door');
   if (act === 'unwindow') return backFromWindow(state, bus);
   if (act === 'embassy') return enterEmbassy(state, bus);
+  if (String(act).startsWith('begin:')) return begin(state, bus, act.slice(6));
   const kind = { phone: 'phone', call: 'phone', sleep: 'sleep', wash: 'wash', eat: 'eat', window: 'window', read: 'read', work: 'desk', chief: 'chief', dress: 'dress' }[act], s = kind && spotOf(state, kind);
   if (!s) return;
   if (!here && Math.hypot(me.x - s.x, me.z - s.z) > SPOT_REACH_M) { walkTo(state, me, s); state.scenario.using = { act, spot: kind }; return; }
@@ -431,6 +436,62 @@ function goTo(state, bus, to, note = null, z = -2.6) {
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 // ---------- watched in your own hours ----------
+
+/**
+ * The clock skipped to `to`, the calendar's consequences told (sim/campaign.js pass(): papers, the plan,
+ * the missed), and the campaign's heat (c.posting.heat, the street's taken into it first by the caller,
+ * then moved by what the time brought) back to the street's.
+ */
+function passTo(state, bus, to, text) {
+  const c = state.campaign, now = state.time.ms;
+  if (to <= now) return;
+  if (text) say(state, bus, { kind: 'note', text });
+  const out = state.scenario.tail && to - now > HOUR;               // (hours on, on the street: whoever was on you then isn't the question now)
+  if (out) dropTeam(state);
+  skip(state, bus, to - now);
+  if (out && state.map.kind === 'street') outing(state, 'street');
+  const papers = pass(c, now, state.time.ms);
+  state.heat[heatKey('embassy', c.posting.country)] = c.posting.heat;
+  if (papers.length) bus?.emit('papers', papers);
+  if (c.over && !state.scenario.outcome) { Object.assign(state.scenario, { outcome: c.over.why, ended: state.time.ms }); bus?.emit('scenario-end', c.over.why); }
+}
+
+/** When an assignment's place takes T: a tail from a little before he's out till just after; a meeting till near the bench's end; a photograph a while into his window. */
+export const windowOf = (a) => [a.from - BEGIN_EARLY_MIN * MIN, a.kind === 'sdr' ? a.to - 3 * MIN : a.from + (a.kind === 'tail' ? 2 : 5) * MIN];
+export const BEGIN_EARLY_MIN = 15, LEAD_H = 3;
+export const MISSION_AT_M = { tail: 30, sdr: 40, watch: 40 };
+/** Whether you're at an assignment's place (on its street, within MISSION_AT_M of it). */
+function atMission(state, me, a, at) {
+  return !!at && !!me && state.map.kind === 'street' && !state.scenario.window && state.map.seed === state.campaign.posting.mapSeed && (state.map.row ?? 0) === at.row && Math.abs(me.x - at.x) <= MISSION_AT_M[a.kind];
+}
+/** Your street, as far as the way to anywhere goes: the street's, or the flat's or the embassy's. */
+const rowHere = (state) => state.map.kind === 'street' ? state.map.row ?? 0 : state.map.place === 'embassy' ? state.campaign.posting.embassy.row : state.campaign.posting.home.row;
+/** When to be off for an assignment from here: its window's opening, less the way there (a wait, and minutes a street: sim/campaign.js TRAVEL). */
+const leaveBy = (state, a, at) => windowOf(a)[0] + BEGIN_EARLY_MIN * MIN / 2 - (TRAVEL.waitMin + Math.abs(at.row - rowHere(state)) * TRAVEL.perRowMin) * MIN;
+const farText = (state, me, at) => at.row === rowHere(state) && state.map.kind === 'street' && me ? `${Math.round(Math.abs(at.x - me.x))} m ${at.x > me.x ? 'east' : 'west'}` : rowsText(at.row - rowHere(state));
+const lower = (s) => s.charAt(0).toLowerCase() + s.slice(1);
+
+/**
+ * At an assignment's place in its hour: T, and it begins, played there (src/main.js launches its scene
+ * with the campaign's context: sim/campaign.js context(); the scene puts you where you stand, a.me). A
+ * tail: you wait across from his door till he comes out (the clock to his hour). Whoever's on you now is
+ * a meeting's team, or nobody.
+ */
+function begin(state, bus, id) {
+  const c = state.campaign, a = c.assignments.find(x => x.id === id && x.status === 'open');
+  if (!a || state.scenario.outcome) return;
+  c.posting.heat = heatNow(state);
+  if (a.kind === 'tail' && state.time.ms < a.from) passTo(state, bus, a.from, `You wait across from his door. ${clockText(a.from)}: it opens.`);
+  const me = state.actors.find(x => x.who === state.player);
+  if (state.scenario.outcome || state.people.me.dead || a.status !== 'open' || !me) return;
+  const t = state.scenario.tail;
+  a.tailedBy = t && !t.teamLost && t.crew.some(x => x.id) ? t.team : 'none';   // (the meeting's team: sim/campaign.js context())
+  a.me = { x: me.x, z: me.z };
+  a.began = state.time.ms;
+  c.character = structuredClone(state.people.me);
+  c.posting.heat = heatNow(state);
+  bus?.emit('assignment', a.id);
+}
 
 const heatNow = (state) => state.heat[heatKey('embassy', state.campaign.posting.country)] ?? state.campaign.posting.heat;
 const outingDice = (state, door) => stream('outing', state.campaign.seed, door, Math.floor(state.time.ms / HOUR));   // (the hour's: the window shows the faces you'll meet)
@@ -563,9 +624,24 @@ function instinct(state, c, now) {
   const next = agenda(c, now)[0];
   const k = calendar(now), today = Math.floor(now / DAY), worked = c.worked[today];
   if (next) {
-    const a = next.a, name = a.kind === 'sdr' ? c.posting.assets.find(s => s.id === a.who)?.codename : c.posting.targets.find(t => t.id === a.who)?.name;
-    if (next.when === 'now') return L(`now-${a.id}`, 'warn', `${KINDS[a.kind].name}: ${name}, now. {mindmap} the desk, and go.`);
-    if (a.start - now < 3 * HOUR) return L(`soon-${a.id}`, 'note', `${name} at ${clockText(a.from)}: be off by ${clockText(a.start)}. {mindmap}: the desk.`);
+    const a = next.a, T = a.trip && c.posting.trips?.find(t => t.id === a.who);
+    const name = T ? T.asset?.codename ?? T.target?.name : a.kind === 'sdr' ? c.posting.assets.find(s => s.id === a.who)?.codename : c.posting.targets.find(t => t.id === a.who)?.name;
+    if (T) {                                                          // (a trip abroad: flown out, from the mind)
+      if (next.when === 'now') return L(`now-${a.id}`, 'warn', `${cityById(T.city).name}: ${name}, now. {mindmap}, and go.`);
+      if (a.start - now < LEAD_H * HOUR) return L(`soon-${a.id}`, 'note', `${cityById(T.city).name}, ${name} at ${clockText(a.from)}: {mindmap} by ${clockText(a.start)}, and go.`);
+    } else {                                                          // (here: walked to, and begun at its place)
+      const at = missionPlace(c, a), w = windowOf(a);
+      if (at && atMission(state, me, a, at)) {
+        if (now >= w[0] && now <= w[1]) return L(`begin-${a.id}`, 'warn', BEGIN_LINE[a.kind](name, a), `begin:${a.id}`);
+        if (now < w[0]) return L(`early-${a.id}`, 'note', `${at.label}: ${name}, at ${clockText(a.from)}. Early. From ${clockText(w[0])} you can begin; till then, don't stand about.`);
+      }
+      if (at && now > w[1]) return L(`late-${a.id}`, 'warn', `${name}: too late. ${LATE_LINE[a.kind]}`);
+      if (at) {
+        const off = leaveBy(state, a, at), far = farText(state, me, at);
+        if (now >= off) return L(`now-${a.id}`, 'warn', `${KINDS[a.kind].name}: ${name}, at ${clockText(a.from)}. ${at.label}, ${far}: go now. The pointer has the way.`);
+        if (off - now < LEAD_H * HOUR) return L(`soon-${a.id}`, 'note', `${name} at ${clockText(a.from)}: ${lower(at.label)}, ${far}. Be off by ${clockText(off)}.`);
+      }
+    }
   }
   // (a face you've marked as a tail, about you still: what it means in your own hours)
   const tl = state.scenario.tail;
@@ -582,5 +658,11 @@ function instinct(state, c, now) {
   if (k.hour >= 23 || k.hour < 5) return L('late', 'calm', `${clockText(now)}. ${state.map.place === 'home' ? 'Bed, sooner or later.' : 'Home to bed, sooner or later: the pointer has the way.'}`);
   return next ? L(`later-${next.a.id}`, 'calm', `Next: ${KINDS[next.a.kind].name.toLowerCase()}, ${dayWord(next.a.from, now)} at ${clockText(next.a.from)}.`) : null;   // (how hot you are is the officer's guess, the mind's: sim/belief.js)
 }
+const BEGIN_LINE = {
+  tail: (name) => `Across the street from ${name}'s door. {instinct}: wait for him to come out, and follow.`,
+  sdr: (name, a) => `${name}'s bench, from ${clockText(a.from)}. Only if you're clean. {instinct}: the meeting.`,
+  watch: (name, a) => `The café: ${name}, due between ${clockText(a.from)} and ${clockText(a.to)}. {instinct}: somewhere to watch it from.`,
+};
+const LATE_LINE = { tail: 'He\'s out of his door and away.', sdr: 'The bench is as good as empty.', watch: 'Whatever passed outside the café, you weren\'t there for it.' };
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const dayWord = (ms, now) => { const d = Math.floor(ms / DAY) - Math.floor(now / DAY); return d === 0 ? 'today' : d === 1 ? 'tomorrow' : DAYS[calendar(ms).weekday]; };

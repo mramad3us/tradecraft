@@ -69,7 +69,7 @@ export const watchTest = {
     return {
       title: 'A PHOTOGRAPH',
       body: [
-        `${state.people[state.player].name}: the station wants a photograph. Arkady Volkov, of the defence ministry's procurement office, meets someone this afternoon outside ${shopWord(sc.cafeShop)} on ${streetName(townOf(state.map), 0)}, ${sc.cafeAlong}. Between ${clockText(sc.window[0])} and ${clockText(sc.window[1])}, they think.`,
+        `${state.people[state.player].name}: the station wants a photograph. Arkady Volkov, of the defence ministry's procurement office, meets someone this afternoon outside ${shopWord(sc.cafeShop)} on ${streetName(townOf(state.map), sc.row ?? 0)}, ${sc.cafeAlong}. Between ${clockText(sc.window[0])} and ${clockText(sc.window[1])}, they think.`,
         'Volkov: grey hair, round glasses, a dark coat, a briefcase. Who he meets, nobody knows: that\'s what the photograph is for. Both faces, together.',
         'He won\'t be alone. The FSB minds its procurement officers, and the minder will be looking at faces round the café before Volkov comes. Don\'t stand about in the open, don\'t stare, and don\'t let him see a camera. A shop window, a kiosk, a café\'s window across the way: reasons to be where you are.',
       ].map(t => sub(state, t)),
@@ -87,14 +87,16 @@ export const watchTest = {
     const me = C ? { ...structuredClone(C.player), id: 'me' } : asOfficer(handler(r), character);
     state.people[me.id] = me;
     state.player = me.id;
-    state.map = { kind: 'street', seed: C ? C.mapSeed : Math.floor(range(r, 0, 4294967296)), row: 0, i0: null, i1: null, crowd: 1, city: C?.city ?? city ?? undefined };
+    // (a campaign's photograph is at the café the station named, walked to: sim/places.js missionPlace(); R its street)
+    const R = C?.at?.row ?? 0;
+    state.map = { kind: 'street', seed: C ? C.mapSeed : Math.floor(range(r, 0, 4294967296)), row: R, i0: null, i1: null, crowd: 1, city: C?.city ?? city ?? undefined };
     const town = townOf(state.map);
     // The café: a café's, a bar's, a restaurant's door on this street, near the middle.
     const doors = [-2, -1, 0, 1, 2, 3].flatMap(i => sectionOf(town, 0, i).doors).filter(d => d.kind === 'shop' && d.z === Z.front);
-    const cafe = doors.find(d => ['cafe', 'restaurant', 'bar'].includes(d.shop)) ?? doors[0] ?? { x: 40, shop: 'cafe' };
-    const side = chance(r, 0.5) ? -1 : 1;
-    const startX = cafe.x + side * range(r, 55, 80);
-    state.actors.push({ id: 'a0', who: me.id, seed: null, row: 0, x: startX, z: LINE.F, vx: 0, vz: 0, face: side < 0 ? 'right' : 'left', head: side < 0 ? 0 : Math.PI, gait: 'idle', stride: 0, stuck: 0, ai: null });
+    const cafe = C?.at ? { x: C.at.x, shop: C.at.shop ?? 'cafe' } : doors.find(d => ['cafe', 'restaurant', 'bar'].includes(d.shop)) ?? doors[0] ?? { x: 40, shop: 'cafe' };
+    const side = C?.me ? Math.sign(C.me.x - cafe.x) || 1 : chance(r, 0.5) ? -1 : 1;
+    const startX = C?.me ? C.me.x : cafe.x + side * range(r, 55, 80);
+    state.actors.push({ id: 'a0', who: me.id, seed: null, row: R, x: startX, z: C?.me?.z ?? LINE.F, vx: 0, vz: 0, face: side < 0 ? 'right' : 'left', head: side < 0 ? 0 : Math.PI, gait: 'idle', stride: 0, stuck: 0, ai: null });
     // (when he's due: the desk's window in a campaign, else WINDOW_MIN from now)
     const t0 = state.time.ms, win = C?.meetFrom ? [C.meetFrom, C.meetTo] : [t0 + WINDOW_MIN[0] * MIN, t0 + WINDOW_MIN[1] * MIN];
     const due = win[0] + range(r, 0, Math.max(60000, win[1] - win[0] - 2 * MIN));
@@ -105,15 +107,15 @@ export const watchTest = {
     state.people.minder = sheet({ id: 'minder', name: `an FSB officer (${describe(minderLook, 'm')})`, sex: 'm', cls: 'spook', os: 35, look: minderLook, skills: { awareness: [11, 1], deception: [10, 1], cqc: [14, 1] } });
     state.people.minder.known = false; state.people.minder.seen = describe(minderLook, 'm');
     // The minder: at his post across the road, there from the start, looking at faces.
-    const post = { row: 0, x: cafe.x - side * range(r, 8, 16), z: LINE.N };
-    const m = makeAgent(state, { who: 'minder', row: 0, x: post.x + side * 40, z: LINE.N, speed: 1.3, face: side < 0 ? 'right' : 'left' });
-    setRoute(state, m, withEnd(routeFrom(town, { row: 0, x: m.x, z: m.z }, post), { kind: 'post', ticks: 3600 * TPS, face: 'up', gait: 'idle', wide: true }));
+    const post = { row: R, x: cafe.x - side * range(r, 8, 16), z: LINE.N };
+    const m = makeAgent(state, { who: 'minder', row: R, x: post.x + side * 40, z: LINE.N, speed: 1.3, face: side < 0 ? 'right' : 'left' });
+    setRoute(state, m, withEnd(routeFrom(town, { row: R, x: m.x, z: m.z }, post), { kind: 'post', ticks: 3600 * TPS, face: 'up', gait: 'idle', wide: true }));
     state.scenario = {
-      kind: 'watch', phase: 'wait', cafe: { x: cafe.x, z: Z.front + 0.8 }, cafeShop: cafe.shop, cafeAlong: Math.abs(cafe.x - startX) > 30 ? `${Math.round(Math.abs(cafe.x - startX) / 10) * 10} m ${cafe.x > startX ? 'east' : 'west'} of you` : 'right here',
+      kind: 'watch', row: R, phase: 'wait', cafe: { x: cafe.x, z: Z.front + 0.8 }, cafeShop: cafe.shop, cafeAlong: Math.abs(cafe.x - startX) > 30 ? `${Math.round(Math.abs(cafe.x - startX) / 10) * 10} m ${cafe.x > startX ? 'east' : 'west'} of you` : 'right here',
       side, due, window: win, began: t0, spawned: false, minder: m.id,
       subject: C?.target?.name ?? null, suspicion: 0, made: false, loiterS: 0, stareS: 0, scanAt: 0, witnessS: 0, witnessed: false, photo: null, shots: 0, rolls: 0, prompt: null, outcome: null, meetEnd: null,
     };
-    tell(state, null, { kind: 'note', text: `${me.name}. ${clockText(t0)}, ${streetName(town, 0)}. Volkov is due at ${shopWord(cafe.shop)} between ${clockText(state.scenario.window[0])} and ${clockText(state.scenario.window[1])}.` });
+    tell(state, null, { kind: 'note', text: `${me.name}. ${clockText(t0)}, ${streetName(town, R)}. Volkov is due at ${shopWord(cafe.shop)} between ${clockText(state.scenario.window[0])} and ${clockText(state.scenario.window[1])}.` });
   },
 
   anchors(state) { const sc = state.scenario; return [sc.cafe.x]; },
@@ -124,7 +126,7 @@ export const watchTest = {
     const sc = state.scenario;
     // (the meeting over, each his own way: Volkov on, the contact back the way he came)
     if (phase === 'end' && (stop.kind === 'meet' || stop.kind === 'meetc')) {
-      try { setRoute(state, a, routeFrom(townOf(state.map), { row: rowOf(state, a), x: a.x, z: a.z }, { row: 0, x: a.x + (stop.kind === 'meet' ? sc.side : -sc.side) * 150, z: LINE.F })); } catch {}
+      try { setRoute(state, a, routeFrom(townOf(state.map), { row: rowOf(state, a), x: a.x, z: a.z }, { row: sc.row ?? 0, x: a.x + (stop.kind === 'meet' ? sc.side : -sc.side) * 150, z: LINE.F })); } catch {}
     }
     if (stop.kind !== 'meet' || a.who !== 'volkov') return;
     if (phase === 'start' && sc.phase === 'walk') {
@@ -177,7 +179,7 @@ export const watchTest = {
   goal(state) {
     const sc = state.scenario, me = playerOf(state);
     if (sc.outcome || !me || Math.abs(sc.cafe.x - me.x) < 30) return null;
-    return { row: 0, x: sc.cafe.x, z: sc.cafe.z, label: `the café · ${Math.round(Math.abs(sc.cafe.x - me.x))} m` };
+    return { row: sc.row ?? 0, x: sc.cafe.x, z: sc.cafe.z, label: `the café · ${Math.round(Math.abs(sc.cafe.x - me.x))} m` };
   },
 
   result(state) {
@@ -203,10 +205,11 @@ function spawn(state) {
   const sc = state.scenario, town = townOf(state.map), r = state.rng, s = sc.side;
   sc.spawned = true; sc.phase = 'walk';
   const spot = sc.cafe;
-  const v = makeAgent(state, { who: 'volkov', row: 0, x: spot.x - s * range(r, 120, 160), z: LINE.F, speed: 1.25 });
-  setRoute(state, v, withEnd(routeFrom(town, { row: 0, x: v.x, z: v.z }, { row: 0, x: spot.x - 0.5, z: spot.z }), { kind: 'meet', ticks: MEET_S * TPS, face: 'right', gait: 'idle' }));
-  const c = makeAgent(state, { who: 'contact', row: 0, x: spot.x + s * range(r, 120, 170), z: LINE.F, speed: 1.3 });
-  setRoute(state, c, withEnd(routeFrom(town, { row: 0, x: c.x, z: c.z }, { row: 0, x: spot.x + 0.6, z: spot.z }), { kind: 'meetc', ticks: (MEET_S + 25) * TPS, face: 'left', gait: 'idle' }));
+  const R = sc.row ?? 0;
+  const v = makeAgent(state, { who: 'volkov', row: R, x: spot.x - s * range(r, 120, 160), z: LINE.F, speed: 1.25 });
+  setRoute(state, v, withEnd(routeFrom(town, { row: R, x: v.x, z: v.z }, { row: R, x: spot.x - 0.5, z: spot.z }), { kind: 'meet', ticks: MEET_S * TPS, face: 'right', gait: 'idle' }));
+  const c = makeAgent(state, { who: 'contact', row: R, x: spot.x + s * range(r, 120, 170), z: LINE.F, speed: 1.3 });
+  setRoute(state, c, withEnd(routeFrom(town, { row: R, x: c.x, z: c.z }, { row: R, x: spot.x + 0.6, z: spot.z }), { kind: 'meetc', ticks: (MEET_S + 25) * TPS, face: 'left', gait: 'idle' }));
 }
 
 /** The minder looks over the faces: you, if he can see you, weighed by what you're doing. */
@@ -236,7 +239,7 @@ function made(state, bus, roll, why) {
   // (Volkov is told: he walks past the café without stopping; the contact turns back)
   const v = actorOf(state, 'volkov'), c = actorOf(state, 'contact'), town = townOf(state.map);
   for (const a of [v, c].filter(Boolean)) {
-    try { setRoute(state, a, routeFrom(town, { row: rowOf(state, a), x: a.x, z: a.z }, { row: 0, x: a.x + (a === v ? sc.side : -sc.side) * 140, z: LINE.F })); } catch {}
+    try { setRoute(state, a, routeFrom(town, { row: rowOf(state, a), x: a.x, z: a.z }, { row: sc.row ?? 0, x: a.x + (a === v ? sc.side : -sc.side) * 140, z: LINE.F })); } catch {}
   }
   sc.phase = sc.phase === 'meet' ? 'after' : sc.phase;
   if (!sc.meetEnd) sc.meetEnd = state.time.ms;

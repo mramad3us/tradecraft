@@ -3,7 +3,8 @@
 // and the information should also be in a revamped and adjusted UI"; "a section with an actual map (known
 // only again, it's our mind) where we can select waypoints"). Not paper: the HUD's own dark glass, its
 // headings the picture's plaques (src/ui/plaque.js). Four leaves:
-//   - **Ahead:** the assignments, today's with their way to go; the next one's brief; the day's one choice,
+//   - **Ahead:** the assignments, each where it is (sim/places.js missionPlace(): walked to; make it the
+//     waypoint), a trip abroad's way to go (flown out); the next one's brief; the day's one choice,
 //     lying low (the user, 2026-10-29: no going to work or home from here, "it would skip all the gameplay
 //     like shaking watchers": the embassy's desk and the flat's bed are walked to, as everywhere is).
 //   - **The city:** the map in your head (sim/knowledge.js: the streets you've walked, what's on them, the
@@ -16,6 +17,7 @@
 import { plaque } from './plaque.js';
 import { text as glyphs, textWidth } from '../art/pixelart.js';
 import { knownPlaces, knownStreets, setWaypoint, KINDS } from '../sim/knowledge.js';
+import { missionPlace } from '../sim/places.js';
 import { readOf } from '../sim/belief.js';
 import { agenda, KINDS as AKINDS, goalOf } from '../sim/campaign.js';
 import { clockText, dateText, DAY } from '../sim/clock.js';
@@ -28,7 +30,7 @@ import { streetName, SECTION_M, Z } from '../sim/map/street.js';
 import { sectionOf } from '../sim/city.js';
 import { callWays, nextMeeting } from '../sim/phone.js';
 
-export const KIND_COLOUR = { home: 0xe7b84a, work: 0x5d8fc2, safe: 0x76ad4c, food: 0xe8896a, clothes: 0x7a4a86, books: 0x2f6b62, bank: 0xb9862e, club: 0xc95c45, school: 0x3b6296, phones: 0x95c1e3, optician: 0x8f96a6, chemist: 0x356f42, other: 0x6a7182, metro: 0x9e3c36, bus: 0xc4bba9 };
+export const KIND_COLOUR = { job: 0xd36bd0, home: 0xe7b84a, work: 0x5d8fc2, safe: 0x76ad4c, food: 0xe8896a, clothes: 0x7a4a86, books: 0x2f6b62, bank: 0xb9862e, club: 0xc95c45, school: 0x3b6296, phones: 0x95c1e3, optician: 0x8f96a6, chemist: 0x356f42, other: 0x6a7182, metro: 0x9e3c36, bus: 0xc4bba9 };
 const LEAVES = [['ahead', 'Ahead'], ['city', 'The city'], ['people', 'People'], ['stand', 'Where you stand']];
 const M_PER_PX = 3, ROW_PX = 22, NAME_PX = 92;
 
@@ -41,7 +43,7 @@ export function openMind(host, state, leaf = 'ahead', deps) {
   const show = (to) => openMind(host, state, to, deps);
   const tabs = el('div', { className: 'mind-tabs' }, ...LEAVES.map(([id, name], k) => el('button', { className: `mind-tab${id === leaf ? ' on' : ''}`, onclick: () => show(id), title: `${k + 1}` }, name)));
   const title = el('div', { className: 'mind-head' }, pix(copy(plaque({ text: 'THE MIND', sub: me.name.toUpperCase(), style: 'way', icon: 'eye', notch: false })), 2), tabs);
-  const body = el('div', { className: 'mind-body' }, ...(leaf === 'city' ? cityLeaf(state, deps, show) : leaf === 'people' ? peopleLeaf(state, deps, show) : leaf === 'stand' ? standLeaf(state, deps) : aheadLeaf(state, deps)));
+  const body = el('div', { className: 'mind-body' }, ...(leaf === 'city' ? cityLeaf(state, deps, show) : leaf === 'people' ? peopleLeaf(state, deps, show) : leaf === 'stand' ? standLeaf(state, deps) : aheadLeaf(state, deps, show)));
   host.replaceChildren(el('div', { className: 'mind' }, title, body, el('p', { className: 'mind-foot' }, `${deps.label('mindmap')} or ${deps.label('menu')} to close · 1–4 the leaves`)));
   host.hidden = false;
   host.dataset.kind = 'mind';
@@ -55,15 +57,18 @@ function copy(pl) { const cv = document.createElement('canvas'); cv.width = pl.w
 function pix(cv, k) { cv.style.width = `${cv.width * k}px`; cv.style.height = `${cv.height * k}px`; cv.style.imageRendering = 'pixelated'; return cv; }
 
 // ---------- Ahead ----------
-function aheadLeaf(state, { el, act }) {
+function aheadLeaf(state, { el, act }, show) {
   const c = state.campaign, now = state.time.ms, today = Math.floor(now / DAY), items = agenda(c, now).slice(0, 6);
   const who = (a) => { const T = a.trip && c.posting.trips?.find(t => t.id === a.who); return T ? `${cityById(T.city).name}, ${T.asset?.codename ?? T.target?.name}` : a.kind === 'sdr' ? c.posting.assets.find(s => s.id === a.who)?.codename : c.posting.targets.find(t => t.id === a.who)?.name; };
   return [
     el('h3', {}, `${dateText(now)}, ${clockText(now)}`),
     items.length ? el('div', { className: 'mind-list' }, ...items.map(({ a, when }) => {
-      const sameDay = Math.floor(a.start / DAY) === today;
-      return el('div', { className: 'mind-row' }, el('span', { className: 'when' }, `${dateText(a.from).slice(0, -5)}, ${clockText(a.from)}`), el('span', { className: 'what' }, `${AKINDS[a.kind].name}: ${who(a)}`),
-        sameDay ? el('button', { className: 'mind-go', title: a.brief, onclick: () => act(`go:${a.id}`) }, when === 'now' ? 'Go now' : `Go, at ${clockText(a.start)}`) : el('span', { className: 'later' }, 'later'));
+      const sameDay = Math.floor(a.start / DAY) === today, at = missionPlace(c, a), w = c.waypoint;
+      // (here: where it is, and the waypoint to it; a trip abroad: flown out, from here)
+      const way = at ? el('button', { className: 'mind-go', title: a.brief, onclick: () => { setWaypoint(c, { ...at, kind: 'job' }); show('ahead'); } }, w && w.row === at.row && w.x === at.x ? 'The waypoint' : 'Make it the waypoint')
+        : sameDay ? el('button', { className: 'mind-go', title: a.brief, onclick: () => act(`go:${a.id}`) }, when === 'now' ? 'Fly out now' : `Fly out, at ${clockText(a.start)}`) : el('span', { className: 'later' }, 'later');
+      return el('div', { className: 'mind-row' }, el('span', { className: 'when' }, `${dateText(a.from).slice(0, -5)}, ${clockText(a.from)}`),
+        el('span', { className: 'what' }, `${AKINDS[a.kind].name}: ${who(a)}`, at ? el('span', { className: 'where' }, at.label) : null), way);
     })) : el('p', { className: 'mind-note' }, 'Nothing planned. Days like this are for the cover job.'),
     items[0] ? el('p', { className: 'mind-brief' }, items[0].a.brief) : null,
     el('h3', {}, 'The day'),
@@ -148,7 +153,7 @@ function cityLeaf(state, deps, show) {
   const W8 = c.waypoint;
   // (a place: a square of its colour, on its side of the street; the posting's own and the metro bigger, edged)
   for (const pl of shown) {
-    const col = KIND_COLOUR[pl.kind] ?? 0x8f96a6, x = X(pl.x), y = Y(pl.row) + (pl.z > 2 ? 4 : -4), big = ['home', 'work', 'safe', 'metro'].includes(pl.kind);
+    const col = KIND_COLOUR[pl.kind] ?? 0x8f96a6, x = X(pl.x), y = Y(pl.row) + (pl.z > 2 ? 4 : -4), big = ['home', 'work', 'safe', 'metro', 'job'].includes(pl.kind);
     if (big) { px(x - 3, y - 3, 7, 7, 0x14151c); px(x - 2, y - 2, 5, 5, col); px(x - 2, y - 2, 5, 1, 0xf6f4ee); }
     else { px(x - 2, y - 2, 5, 5, 0x14151c); px(x - 1, y - 1, 3, 3, col); }
   }

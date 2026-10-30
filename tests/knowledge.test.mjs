@@ -13,7 +13,7 @@ import { assert } from './helpers.mjs';
 
 export default [
   {
-    name: 'knowledge: the posting\'s places known from the start; a street walked known, and its shops; a waypoint is where the pointer leads, cleared on arrival',
+    name: 'knowledge: the posting\'s places (and the assignments\') known from the start; a street walked known, and its shops; a waypoint is where the pointer leads, cleared on arrival',
     fn() {
       const c = newCampaign(51, candidates(51, 'london', 'junior')[0], 'london', 'junior');
       c.calls = [];
@@ -23,8 +23,8 @@ export default [
       step(s, { act: ['desk:travel:embassy'] }, bus);
       const me = playerActor(s), x0 = me.x;
       for (let t = 0; t < 20 * 60; t++) step(s, { mx: 1 }, bus);   // (a minute east along the embassy's street)
-      const row = s.map.row, walked = Math.round(me.x - x0), after = knownPlaces(c), shops = after.filter(pl => !['home', 'work', 'safe'].includes(pl.kind));
-      assert(['home', 'work', 'safe'].every(k => kinds0.has(k)) && before.every(pl => ['home', 'work', 'safe'].includes(pl.kind)), 'the flat, the embassy, the safe houses: known, and nothing else, before a step');
+      const row = s.map.row, walked = Math.round(me.x - x0), after = knownPlaces(c), shops = after.filter(pl => !['home', 'work', 'safe', 'job'].includes(pl.kind));
+      assert(['home', 'work', 'safe', 'job'].every(k => kinds0.has(k)) && before.every(pl => ['home', 'work', 'safe', 'job'].includes(pl.kind)), 'the flat, the embassy, the safe houses, the assignments\' places: known, and nothing else, before a step');
       assert(knows(c, row, Math.floor(me.x / SECTION_M)) && knows(c, row, Math.floor(x0 / SECTION_M)) && shops.length > 0 && knownStreets(c).length === 1, 'the street walked, known, and its shops');
       // (the waypoint: the first shop known; the pointer leads there; there, it's gone)
       const pl = shops[0];

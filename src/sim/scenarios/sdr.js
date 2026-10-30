@@ -90,7 +90,7 @@ export const sdr = {
     return subAll(state, {
       title: 'MEETING: SOLOVEY',
       body: [
-        `SOLOVEY works in the Ministry of Defence and has been ours for two years. Tonight he'll sit on a bench in ${g.place}, ${rowsText(g.row)}, from ${clockText(g.from)} until ${clockText(g.to)}. Bald, glasses, a brown coat, a newspaper.`,
+        `SOLOVEY works in the Ministry of Defence and has been ours for two years. Tonight he'll sit on a bench in ${g.place}, ${rowsText(g.row - (state.map.row ?? 0))}, from ${clockText(g.from)} until ${clockText(g.to)}. Bald, glasses, a brown coat, a newspaper.`,
         'The FSB follows embassy staff when it likes. Some evenings nobody. Some evenings two of them, close, not caring if you see. Some evenings a proper team you won\'t see unless you look.',
         'Find out which, before you go near him. Check your back the way people do: a shop window, a crossing, a reason to turn. Glance over your shoulder if you must, but they\'ll see you do it.',
         'If they\'re on you, lose them where they can\'t see you do it, or don\'t go. Walking them to him ends him. Running, doubling back, crossing anywhere: they write it all down, and then they know what you are.',
@@ -113,11 +113,14 @@ export const sdr = {
     state.people[me.id] = me;
     state.player = me.id;
     state.people.solovey = sheet({ id: 'solovey', name: C?.asset?.codename ?? 'SOLOVEY', sex: 'm', look: C?.asset?.look ?? SOLOVEY_LOOK, persistent: true, skills: { awareness: [3, 0], cqc: [2, 0] } });
-    state.map = { kind: 'street', seed: C ? C.mapSeed : Math.floor(range(r, 0, 4294967296)), row: 0, i0: null, i1: null, crowd: 1, city: C?.city ?? city ?? undefined };
-    state.actors.push({ id: 'a0', who: me.id, seed: null, x: 0, z: -2.6, vx: 0, vz: 0, face: 'right', head: 0, gait: 'idle', stride: 0, stuck: 0, ai: null });
-    const meet = placeMeeting(state, r);
+    // (a campaign's meeting is at the bench the campaign chose, walked to: sim/places.js missionPlace(); you, where you stood)
+    const R = C?.at?.row ?? 0, town = C ? townOf({ seed: C.mapSeed, city: C.city }) : null;
+    state.map = { kind: 'street', seed: C ? C.mapSeed : Math.floor(range(r, 0, 4294967296)), row: R, i0: null, i1: null, crowd: 1, city: C?.city ?? city ?? undefined };
+    const look = C?.me ? Math.sign(C.at.x - C.me.x) || 1 : 1;
+    state.actors.push({ id: 'a0', who: me.id, seed: null, x: C?.me?.x ?? 0, z: C?.me?.z ?? -2.6, vx: 0, vz: 0, face: look > 0 ? 'right' : 'left', head: look > 0 ? 0 : Math.PI, gait: 'idle', stride: 0, stuck: 0, ai: null });
+    const meet = C?.at ? { row: R, i: Math.floor(C.at.x / SECTION_M), x: C.at.x, z: C.at.z, seat: C.at.seats[0], seat2: C.at.seats.at(-1), seats: C.at.seats.slice(), place: placeName(town, R, C.at.x, 14) } : placeMeeting(state, r);
     meet.from = C?.meetFrom ?? state.time.ms + Math.round(range(r, ...MEET_AFTER_MIN) * 60) * 1000;
-    meet.to = meet.from + MEET_FOR_MIN * 60000;
+    meet.to = C?.meetTo ?? meet.from + MEET_FOR_MIN * 60000;                // (a campaign's: its own window, sim/campaign.js plan())
     // The team, if there is one: its people, how they keep (who's the eye, who backs up, a spare).
     const crew = crewFor(state, team, r);
     state.scenario = {
@@ -125,7 +128,7 @@ export const sdr = {
       prompt: null, outcome: null, began: state.time.ms, met: false, burned: false,
       role: C?.asset?.role ?? null, campaign: !!C,
     };
-    say(state, null, { kind: 'note', text: sub(state, `${me.name}. ${clockText(state.time.ms)}, out of the embassy on ${streetName(townOf(state.map), 0)}. SOLOVEY: ${meet.place}, ${rowsText(meet.row)}, from ${clockText(meet.from)}.`) });
+    say(state, null, { kind: 'note', text: sub(state, C?.at ? `${me.name}. ${clockText(state.time.ms)}, ${meet.place}. SOLOVEY: the bench, from ${clockText(meet.from)}.` : `${me.name}. ${clockText(state.time.ms)}, out of the embassy on ${streetName(townOf(state.map), 0)}. SOLOVEY: ${meet.place}, ${rowsText(meet.row)}, from ${clockText(meet.from)}.`) });
   },
 
   // The team picks you up as you come out: behind you, off the screen's edge.

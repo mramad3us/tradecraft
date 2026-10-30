@@ -173,29 +173,32 @@ export const tail = {
       const [look, tell] = looks.splice(int(r, looks.length), 1)[0];
       state.people[`twin${i}`] = { ...sheet({ id: `twin${i}`, name: 'a man in a grey coat', sex: 'm', look, skills: { awareness: [2, 0] } }), tell };
     }
-    state.map = { kind: 'street', seed: C ? C.mapSeed : seedFrom(r), row: 0, i0: null, i1: null, crowd: 1, city: C?.city ?? city ?? undefined };
+    // (a campaign's tail is at his office's door on the posting's streets, walked to: sim/places.js officeOf(); R its street)
+    const R = C?.at?.row ?? 0;
+    state.map = { kind: 'street', seed: C ? C.mapSeed : seedFrom(r), row: R, i0: null, i1: null, crowd: 1, city: C?.city ?? city ?? undefined };
     const seed = townOf(state.map);
     // His office: a door near the middle of the street.
-    const door = [0, 1].flatMap(i => sectionOf(seed, 0, i).doors).find(d => d.x > 14 && d.x < 26 && d.kind !== 'arch' && d.z === Z.front) ?? { x: 20 };
+    const door = C?.at ? { x: C.at.x } : [0, 1].flatMap(i => sectionOf(seed, 0, i).doors).find(d => d.x > 14 && d.x < 26 && d.kind !== 'arch' && d.z === Z.front) ?? { x: 20 };
     // His bench: ten streets and more away, a few hundred metres along.
-    const dir = chance(r, 0.6) ? -1 : 1, row = dir * (MEET_ROWS[0] + int(r, MEET_ROWS[1] - MEET_ROWS[0] + 1));
+    const dir = chance(r, 0.6) ? -1 : 1, row = R + dir * (MEET_ROWS[0] + int(r, MEET_ROWS[1] - MEET_ROWS[0] + 1));
     const along = door.x + (chance(r, 0.7) ? 1 : -1) * range(r, ...MEET_EAST_M);
     const bench = benchNear(seed, row, along);
     const meet = { row, x: bench.seats[0], z: 12.96, seat2: bench.seats.at(-1), place: null, seats: bench.seats.slice() };   // (the contact at the far end)
     // The way there, his way: a little roundabout always; a wary man much more.
-    const route = withEnd(withHabits(seed, planRoute(seed, { row: 0, x: door.x, z: Z.front + 0.3 }, meet, { walker: hash(seed, 'orlov'), evasive: ev.wary ? 4 : 1, rng: r }), r, ev.wary ? 'wary' : 'calm'),
+    const route = withEnd(withHabits(seed, planRoute(seed, { row: R, x: door.x, z: Z.front + 0.3 }, meet, { walker: hash(seed, 'orlov'), evasive: ev.wary ? 4 : 1, rng: r }), r, ev.wary ? 'wary' : 'calm'),
       { kind: 'meet', ticks: 75 * TPS, face: 'down', gait: 'sit' });
     route.stops.unshift({ kind: 'leave', s: 0, ticks: 2 * TPS, face: 'down' });
-    const t = makeAgent(state, { who: 'orlov', row: 0, x: door.x, z: Z.front + 0.3, speed: range(r, 1.2, 1.4), f: range(r, -0.6, 0.6), face: 'down' });
+    const t = makeAgent(state, { who: 'orlov', row: R, x: door.x, z: Z.front + 0.3, speed: range(r, 1.2, 1.4), f: range(r, -0.6, 0.6), face: 'down' });
     setRoute(state, t, route);
-    // We wait on his pavement, behind the way he'll go: his first way along the street.
+    // We wait on his pavement, behind the way he'll go: his first way along the street. Walked to, where we stand.
     const first = route.pts.find(p => Math.abs(p.x - door.x) > 3), dirX = first ? Math.sign(first.x - door.x) : 1;
-    const mePlace = { id: 'a0', who: me.id, seed: null, row: 0, x: door.x - dirX * range(r, 17, 22), z: LINE.F, vx: 0, vz: 0, face: dirX > 0 ? 'right' : 'left', head: dirX > 0 ? 0 : Math.PI, gait: 'idle', stride: 0, stuck: 0, ai: null };
+    const stand = C?.me ? { x: C.me.x, z: C.me.z } : { x: door.x - dirX * range(r, 17, 22), z: LINE.F }, look = Math.sign(door.x - stand.x) || dirX;
+    const mePlace = { id: 'a0', who: me.id, seed: null, row: R, x: stand.x, z: stand.z, vx: 0, vz: 0, face: look > 0 ? 'right' : 'left', head: look > 0 ? 0 : Math.PI, gait: 'idle', stride: 0, stuck: 0, ai: null };
     state.actors.unshift(mePlace);
     state.scenario = {
       kind: 'tail', evening: ev.id, ev: C ? ev : undefined, campaign: !!C, what: C?.target?.what ?? undefined, wary: ev.wary, phase: 'tail', target: t.id, contact: null, twins: [], meet,
       seats: meet.seats.map(x => ({ row: meet.row, x })),           // (his bench, kept for them: nobody else sits there)
-      marked: t.id, lastSeen: { row: 0, x: t.x, z: t.z, ms: state.time.ms }, lastSeenT: state.time.ms, unseenS: 0, keepS: 0, findS: 0, startX: door.x,
+      marked: t.id, lastSeen: { row: R, x: t.x, z: t.z, ms: state.time.ms }, lastSeenT: state.time.ms, unseenS: 0, keepS: 0, findS: 0, startX: door.x, startRow: R,
       alert: ev.wary ? 25 : 0, sightings: [], scan: null, lastScanMs: null, tell: null, shop: null, warned: 0, mixups: 0, stillS: 0, mirrorMs: -1e12, gap: [],
       witnessS: 0, meetS: 0, closest: 1e9, farthest: 0, prompt: null, outcome: null, lead: null, rolls: 0, began: state.time.ms, turn: null,
       streets: route.rows, routeM: Math.round(route.length), markUntil: state.time.ms + MARKER_S * 1000, lookAt: null, looked: {},
@@ -367,7 +370,7 @@ function dryClean(state, t) {
 /** Made: he turns for home, the way he came. */
 function goHome(state, t) {
   const seed = townOf(state.map);
-  setRoute(state, t, routeFrom(seed, { row: rowOf(state, t), x: t.x, z: t.z }, { row: 0, x: state.scenario.startX, z: LINE.F }));
+  setRoute(state, t, routeFrom(seed, { row: rowOf(state, t), x: t.x, z: t.z }, { row: state.scenario.startRow ?? 0, x: state.scenario.startX, z: LINE.F }));
 }
 
 /** In autoplay: the player's character does what its instinct offers when it warns of a check. */

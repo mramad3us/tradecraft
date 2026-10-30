@@ -26,8 +26,9 @@
 // work), intelligence (the blue thing: DESIGN.md, Intelligence), money (salary, operational fund).
 // **The assignments** (plan()): the posting's schedule, made day by day as days begin, from the
 // mission types tested (KINDS): an asset meeting by way of a surveillance detection run (sdr: a bench
-// at a time, a window to be there in, the opposition's team by the heat), a tail on a target to his
-// meeting (tail: his door, his evening). Each has a window; missed, it costs (an asset's trust; a lead
+// at a time, a window to be there in, whoever's on you as you get there), a tail on a target to his
+// meeting (tail: his door, his evening), each at its place on the posting's streets (sim/places.js
+// missionPlace()), walked to. Each has a window; missed, it costs (an asset's trust; a lead
 // gone). The generator keeps them apart (never two at once), on working days' evenings and weekends,
 // every few days for each asset and target (CADENCE), one a day at most, and only references people
 // and places the posting has.
@@ -405,12 +406,14 @@ export function context(c, a) {
   // (a trip's in its own city, on its own streets; the opposition there knows you only as a visitor: TRIP_HEAT)
   const city = T?.city ?? p.city, heat = T ? TRIP_HEAT : p.heat;
   const ctx = { campaign: true, player: structuredClone(c.character), mapSeed: T?.mapSeed ?? p.mapSeed, startMs: a.start, assignment: a.id, city, country: CITY[city]?.country ?? p.country };
+  // (walked to: its place on the posting's streets, and where you stood when you began: sim/places.js, sim/scenarios/campaign.js begin())
+  if (!T && a.at) Object.assign(ctx, { at: a.at, me: a.me ?? null, startMs: a.began ?? a.start });
   if (a.kind === 'sdr') {
     const s = T ? T.asset : p.assets.find(x => x.id === a.who);
     // (the heat says how hard they're on you: nobody, an overt pair, a covert team)
     // (still on you from your own hours when it began: them; sim/scenarios/campaign.js)
     const rolled = weighted(r, [['none', Math.max(1, 70 - heat)], ['overt', 20 + heat * 0.3], ['covert', Math.max(0, heat - 25)]]), team = (!T && a.tailedBy) || rolled;
-    Object.assign(ctx, { asset: { codename: s.codename, look: s.look, sex: s.sex, role: s.role }, meetFrom: a.from, team, heat });
+    Object.assign(ctx, { asset: { codename: s.codename, look: s.look, sex: s.sex, role: s.role }, meetFrom: a.from, meetTo: a.to, team, heat });
   } else if (a.kind === 'tail' || a.kind === 'watch') {
     const t = T ? T.target : p.targets.find(x => x.id === a.who);
     Object.assign(ctx, { target: { name: t.name, what: t.what }, wary: !T && (t.wary || t.followed > 2), heat, meetFrom: a.from, meetTo: a.to });

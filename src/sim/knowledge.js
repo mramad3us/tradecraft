@@ -9,13 +9,15 @@
 // (KINDS: food, clothes, books, a bank, a gym or a club, a school, phones, an optician, a chemist,
 // anything else), a metro station's doors, a bus stop's shelter. The posting's own places are known from
 // the start: the flat, the embassy (where you work), the safe houses (sim/places.js puts their doors).
+// The assignments' places (sim/places.js missionPlace(): his office, the bench, the café) are known as the
+// station gives them: each open one in the posting's city, till it's done.
 // **The waypoint** (c.waypoint: { row, x, z, label, kind }): one place chosen on the mind's map; the goal
 // pointer leads there (sim/scenarios/campaign.js goal()) until you're at its door, or it's cleared.
 import { sectionOf } from './city.js';
 import { townOf } from './cities/index.js';
 import { SECTION_M, Z, streetName } from './map/street.js';
-import { places } from './campaign.js';
-import { signOf } from './places.js';
+import { places, KINDS as AKINDS } from './campaign.js';
+import { signOf, missionPlace } from './places.js';
 import { shopWord } from './shops.js';
 
 export const SEEN_M = 40, ARRIVED_M = 4;
@@ -24,7 +26,7 @@ const GROUP = {
   food: ['grocery', 'deli', 'vegetables', 'spices', 'butcher', 'bakery', 'sweets', 'manakish', 'cafe', 'restaurant', 'bar', 'pub', 'shawarma', 'kebab', 'chips', 'koshary', 'foul', 'juice', 'beer'],
   clothes: ['clothes', 'shoes'], books: ['books'], bank: ['bank', 'exchange'], club: ['gym', 'club'], school: ['school'], phones: ['phones'], optician: ['optician'], chemist: ['pharmacy'],
 };
-export const KINDS = { food: 'food and drink', clothes: 'clothes', books: 'books', bank: 'banks', club: 'gyms and clubs', school: 'schools', phones: 'phones', optician: 'opticians', chemist: 'chemists', other: 'other shops', metro: 'the metro', bus: 'bus stops', home: 'home', work: 'work', safe: 'safe houses' };
+export const KINDS = { job: 'the assignments', food: 'food and drink', clothes: 'clothes', books: 'books', bank: 'banks', club: 'gyms and clubs', school: 'schools', phones: 'phones', optician: 'opticians', chemist: 'chemists', other: 'other shops', metro: 'the metro', bus: 'bus stops', home: 'home', work: 'work', safe: 'safe houses' };
 const groupOf = (shop) => Object.keys(GROUP).find(g => GROUP[g].includes(shop)) ?? 'other';
 
 /** Once a second: the stretch round you, known (in the campaign's own city, on foot). */
@@ -45,6 +47,10 @@ export const knows = (c, row, i) => !!c.known?.[`${row}|${i}`];
 export function knownPlaces(c) {
   const town = townOf({ seed: c.posting.mapSeed, city: c.posting.city }), out = [];
   for (const pl of places(c)) if (pl.x !== undefined) out.push({ id: pl.id, kind: pl.id === 'home' ? 'home' : pl.id === 'embassy' ? 'work' : 'safe', label: signOf(pl), row: pl.row, x: pl.x, z: pl.z ?? Z.front, i: Math.floor(pl.x / SECTION_M) });
+  for (const a of c.assignments) {
+    const at = a.status === 'open' && missionPlace(c, a);
+    if (at) out.push({ id: `job:${a.id}`, kind: 'job', label: `${AKINDS[a.kind].name}: ${at.label.charAt(0).toLowerCase()}${at.label.slice(1)}`, row: at.row, x: at.x, z: at.z, i: Math.floor(at.x / SECTION_M) });
+  }
   for (const key of Object.keys(c.known ?? {})) {
     const [row, i] = key.split('|').map(Number), S = sectionOf(town, row, i);
     for (const d of S.doors) {

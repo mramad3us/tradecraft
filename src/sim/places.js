@@ -5,11 +5,19 @@
 // that place's, keeps them in the posting (row, i, x), and marks them on the town (sim/map/marks.js),
 // so its streets are drawn with them: the embassy's own building, the doors that are yours. Called
 // whenever a campaign's game is made or loaded (sim/game.js).
+// **Where the assignments happen** (missionPlace(); the user, 2026-10-29: "we should be able to go to our
+// mission without using the fast travel shortcut in TAB"): an assignment in the posting's own city has a
+// place on its streets (a.at: { row, x, z, kind, label }), chosen once from the campaign's seed and kept
+// with it: a tail at the target's office door (officeOf(): the same door every time he's followed), an
+// asset meeting at a bench (in a park, where the street has one), a photograph at the café he meets at.
+// A street within MISSION_ROWS of the flat, never the flat's own or the embassy's. You get there
+// yourself; at it in its hour, T begins it (sim/scenarios/campaign.js), and the scene is played there.
 import { sectionOf, forgetSections } from './city.js';
 import { townOf } from './cities/index.js';
 import { setMarks } from './map/marks.js';
 import { Z } from './map/layout.js';
-import { stream, int } from './rng.js';
+import { placeName, streetName } from './map/street.js';
+import { stream, int, pick } from './rng.js';
 
 export const SAFE_APART_M = 25;
 const placesOf = (p) => [p.embassy, p.home, ...p.safehouses];
@@ -58,3 +66,48 @@ function choose(c, town) {
 
 /** What a place is called on the street, over its door. */
 export const signOf = (pl) => (pl.id === 'embassy' ? 'US Embassy' : pl.id === 'home' ? 'Home' : 'Safe house');
+
+export const MISSION_ROWS = 6;
+const CAFES = ['cafe', 'restaurant', 'bar', 'pub', 'juice'];
+
+/** Where an assignment in the posting's city happens (a.at, chosen the first time): null for a trip abroad. */
+export function missionPlace(c, a) {
+  if (a.at !== undefined || a.trip) return a.at ?? null;
+  const p = c.posting, town = townOf({ seed: p.mapSeed, city: p.city });
+  if (a.kind === 'tail') { const t = p.targets.find(x => x.id === a.who); return (a.at = t ? officeOf(c, t) : null); }
+  const r = stream('mission-place', c.seed, a.id);
+  for (let k = 0; k < 12; k++) {
+    const row = rowFor(c, r), i0 = int(r, 8) - 3;
+    for (const i of [i0, i0 + 1, i0 - 1, i0 + 2]) {
+      const S = sectionOf(town, row, i);
+      if (a.kind === 'sdr') {
+        const b = (k < 6 ? S.band === 'park' : true) && pick(r, S.props.filter(q => q.kind === 'bench'));
+        if (b) return (a.at = { row, x: b.seats[0], z: 12.96, seats: b.seats.slice(), kind: 'bench', label: `A bench in ${placeName(town, row, b.x, 14)}` });
+      } else {
+        const d = pick(r, S.doors.filter(o => o.kind === 'shop' && o.z === Z.front && (k < 8 ? CAFES.includes(o.shop) : true)));
+        if (d) return (a.at = { row, x: d.x, z: Z.front + 0.8, shop: d.shop, kind: 'cafe', label: `Outside a ${d.shop === 'cafe' ? 'café' : d.shop} on ${streetName(town, row)}` });
+      }
+    }
+  }
+  return (a.at = null);
+}
+
+/** A target's office: a block's front door on a street of the posting's city, the same every time (t.office). */
+export function officeOf(c, t) {
+  if (t.office) return t.office;
+  const p = c.posting, town = townOf({ seed: p.mapSeed, city: p.city }), r = stream('office', c.seed, t.id);
+  const ours = (row, x) => [p.home, ...p.safehouses].some(pl => pl.row === row && Math.abs((pl.x ?? 1e9) - x) < SAFE_APART_M);
+  for (let k = 0; k < 12; k++) {
+    const row = rowFor(c, r), i0 = int(r, 8) - 3;
+    const doors = [i0, i0 + 1].flatMap(i => sectionOf(town, row, i).doors).filter(d => d.kind === 'entrance' && d.z === Z.front && !d.mosque && !ours(row, d.x));
+    if (doors.length) { const d = doors[int(r, doors.length)]; return (t.office = { row, x: d.x, z: d.z, kind: 'office', label: `${t.name}'s office on ${streetName(town, row)}` }); }
+  }
+  return (t.office = { row: p.embassy.row + 1, x: 20, z: Z.front, kind: 'office', label: `${t.name}'s office` });
+}
+
+// (a street for it: within MISSION_ROWS of the flat, not the flat's, not the embassy's)
+function rowFor(c, r) {
+  const p = c.posting, rows = [];
+  for (let d = -MISSION_ROWS; d <= MISSION_ROWS; d++) { const row = p.home.row + d; if (row !== p.home.row && row !== p.embassy.row) rows.push(row); }
+  return rows[int(r, rows.length)];
+}

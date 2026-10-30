@@ -306,6 +306,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .mind-row { display: grid; grid-template-columns: 11em 1fr auto; gap: 8px; align-items: center; padding: 3px 0; border-bottom: 1px solid #23252f; }
 .mind-row .when { color: #8f96a6; }
 .mind-row .later { color: #4c5262; }
+.mind-row .where { display: block; color: #8f96a6; font-size: 0.9em; }
 .mind-acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 4px 0; }
 .mind-acts button, .mind-go { background: #23252f; border: 1px solid #4c5262; color: #dfe2e8; padding: 3px 9px; cursor: pointer; border-radius: 2px; }
 .mind-acts button:hover, .mind-go:hover, .mind-tab:hover, .mind-kind:hover { border-color: #e7b84a; }

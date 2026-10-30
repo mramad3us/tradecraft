@@ -267,14 +267,14 @@ function postingPaper(c) {
     `The station wants ${p.goal}. With MI5's watchers, you'll follow the residency's people and photograph whom they meet: ${p.targets.map(t => t.name).join(' and ')}.`,
     `Twice in the tour another station will borrow you for a couple of days: ${p.trips.map(t => `${cityById(t.city).name}`).join(', then ')}. Flown out the morning of it, home the morning after.`,
     `Do it well (intelligence ${goalOf(p)}), keep the heat down, and the next posting is a station of your own.`,
-    'The embassy expects you nine to six on weekdays: the work is in the evenings. Tab is the desk: what\'s ahead, the day\'s choices.',
+    'The embassy expects you nine to six on weekdays: the work is in the evenings, where it happens. Tab is your mind: what\'s ahead and where, the city as you know it. You get there yourself.',
   ] };
   return { stamp: 'POSTING', title: `STATION ${cityById(p.city).name.toUpperCase()}`, go: 'Begin the posting', lines: [
     `${me.name}: ${p.job}. Diplomatic immunity: caught, you'd be expelled. The people you run wouldn't be so lucky.`,
     `The station wants ${p.goal}. Every meeting, every tail, is a step toward it.`,
     `Your network: ${p.assets.map(s => `${s.codename}, ${s.role}, in it for ${s.motive}`).join('; ')}.`,
     `Watched: ${p.targets.map(t => `${t.name}, ${t.what}`).join('; ')}.`,
-    'The embassy expects you nine to six on weekdays: the work is in the evenings. Tab is the desk: what\'s ahead, the day\'s choices. Heat cools if you let it.',
+    'The embassy expects you nine to six on weekdays: the work is in the evenings, where it happens. Tab is your mind: what\'s ahead and where, the city as you know it. You get there yourself. Heat cools if you let it.',
   ] };
 }
 

@@ -4,6 +4,10 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc51 (2026-10-29)
+
+- **Missions where they happen.** Every assignment in your posting's city now has a place on its streets, and you go there yourself: the target's office door for a tail (the same door each time), a bench in a park or on a boulevard for an asset meeting, a café, bar or restaurant for a photograph. They're spread over the dozen streets round your flat, not all on the embassy's street as before. Tab's Ahead lists each with its place and a "Make it the waypoint" button instead of Go; the city map shows them. The instinct tells you when to be off (by how many streets away it is: "GRACH at 19:07: a bench in the Ivanovsky garden, 3 streets south. Be off by 18:41."), the pointer leads there from three hours before, and at the place in its hour T begins it, played where you stand. For a tail you wait across from his door till he comes out. An asset meeting's team is now whoever is on you when you arrive, or nobody: the walk there is the surveillance detection run, so losing them on the way counts. Arrive too late and it's missed. Only the trips abroad are still launched from Tab ("Fly out"), since you can't walk to Beirut.
+
 ## v0.1.0-rc50 (2026-10-29)
 
 - **No more fast travel from Tab.** The mind's day had "Go to work, till six" and "Home, and sleep till seven" from wherever you stood, and its city map a "Go there" for your flat, the embassy and the safe houses: each skipped the street, and whoever was on it to shake. They're gone; the day's one choice is lying low. You work at your desk in the embassy and sleep in the flat's bed, and get to them (and to the safe houses) yourself: on foot, by bus, metro or taxi. The pointer still leads to the embassy on a working morning and home late or tired, and the instinct says so ("Home, and to bed: the pointer has the way") instead of pointing at Tab.
