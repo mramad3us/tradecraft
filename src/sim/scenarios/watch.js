@@ -19,6 +19,7 @@
 // or more, sharp; made, soft; missed, a blur. The best is kept; the UI keeps the frame (bus 'photo').
 // Outcomes: 'photo' (sharp, both), 'soft', 'seen' (witnessed: both in sight together for WITNESS_S),
 // 'missed', 'blown'.
+import { sigOf } from '../dossier.js';
 import { at, TICK_MS, MIN, clockText, dateText } from '../clock.js';
 import { handler, sheet, streetLook, describe, asOfficer } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
@@ -54,8 +55,20 @@ const CONTACT_LOOK = { skin: 'light', hair: { style: 'short', color: 0x47302a },
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
 const actorOf = (state, who) => state.actors.find(a => a.who === who);
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-/** The subject by the campaign's name for him (a target of the posting: sim/campaign.js), or Volkov. */
-const sub = (state, text) => { const n = state.scenario?.subject; return !n || !text ? text : text.replace(/Arkady Volkov/g, n).replace(/Volkov/g, n.split(' ').slice(-1)[0]); };
+/**
+ * The subject by the campaign's name for him (a target of the posting: sim/campaign.js), or Volkov; and in
+ * a campaign his look's words and the man he meets (sim/dossier.js), his city, his minders.
+ */
+const sub = (state, text) => {
+  const sc = state.scenario, n = sc?.subject;
+  if (!n || !text) return text;
+  let t = text.replace(/Arkady Volkov/g, n).replace(/Volkov/g, n.split(' ').slice(-1)[0]);
+  if (sc.sig) t = t.replace(/grey hair, round glasses, a dark coat, a briefcase/g, sc.sig.line.replace(/\.$/, '').toLowerCase()).replace(/grey hair, glasses, the briefcase/g, `the ${sc.sig.hat}, the ${sc.sig.coat}`);
+  if (sc.contactSig) t = t.replace(/the man in the camel coat/g, sc.contactSig.man).replace(/a man in a camel coat/g, sc.contactSig.man.replace(/^the /, 'a ').replace(/ the /, ' a ')).replace(/a camel coat/g, an(sc.contactSig.man.replace(/^the man in the /, '')));
+  return t.replace(/Moscow/g, CITY[state.map.city] ?? 'Moscow').replace(/The FSB/g, SERVICE[state.map.city] ?? 'The FSB');
+};
+const CITY = { moscow: 'Moscow', london: 'London', beirut: 'Beirut', cairo: 'Cairo' }, SERVICE = { moscow: 'The FSB', london: 'The residency', beirut: 'Hezbollah\'s security', cairo: 'The GIS' };
+const an = (w) => `${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}`;
 const tell = (state, bus, e) => say(state, bus, { ...e, text: sub(state, e.text) });
 
 export const watchTest = {
@@ -66,6 +79,7 @@ export const watchTest = {
 
   brief(state) {
     const sc = state.scenario;
+    if (sc.brief) return { title: sc.brief.title, body: sc.brief.body, footer: `Station ${CITY[state.map.city] ?? 'Moscow'} · ${dateText(sc.began)} · ${clockText(sc.began)}`, keys: watchTest.keys };   // (a campaign's: its own words, sim/dossier.js)
     return {
       title: 'A PHOTOGRAPH',
       body: [
@@ -74,9 +88,10 @@ export const watchTest = {
         'He won\'t be alone. The FSB minds its procurement officers, and the minder will be looking at faces round the café before Volkov comes. Don\'t stand about in the open, don\'t stare, and don\'t let him see a camera. A shop window, a kiosk, a café\'s window across the way: reasons to be where you are.',
       ].map(t => sub(state, t)),
       footer: `Station Moscow · ${dateText(sc.began)} · ${clockText(sc.began)}`,
-      keys: [['camera', 'a photograph (both of them in sight)'], ['watch', 'held: stop and watch'], ['instinct', 'does what your instinct offers'], ['use', 'what\'s at hand: a window, a kiosk, a café\'s ledge'], ['log', 'the log']],
+      keys: watchTest.keys,
     };
   },
+  keys: [['camera', 'a photograph (both of them in sight)'], ['watch', 'held: stop and watch'], ['instinct', 'does what your instinct offers'], ['use', 'what\'s at hand: a window, a kiosk, a café\'s ledge'], ['log', 'the log']],
 
   setup(state, { campaign: C = null, city = null, character = null } = {}) {
     const r = state.rng;
@@ -100,9 +115,11 @@ export const watchTest = {
     // (when he's due: the desk's window in a campaign, else WINDOW_MIN from now)
     const t0 = state.time.ms, win = C?.meetFrom ? [C.meetFrom, C.meetTo] : [t0 + WINDOW_MIN[0] * MIN, t0 + WINDOW_MIN[1] * MIN];
     const due = win[0] + range(r, 0, Math.max(60000, win[1] - win[0] - 2 * MIN));
-    state.people.volkov = sheet({ id: 'volkov', name: C?.target?.name ?? 'Arkady Volkov', sex: 'm', cls: 'civilian', look: SUBJECT_LOOK, persistent: true, skills: { awareness: [6, 0], cqc: [3, 0] } });
-    state.people.contact = sheet({ id: 'contact', name: 'a man in a camel coat', sex: 'm', cls: 'civilian', look: CONTACT_LOOK, skills: { awareness: [8, 0], cqc: [6, 0] } });
-    state.people.contact.known = false; state.people.contact.seen = 'the man in the camel coat';
+    // (a campaign's subject and the man he meets are his file's: sim/dossier.js)
+    const sLook = C?.target?.look ?? SUBJECT_LOOK, cLook = C?.target?.contact?.look ?? CONTACT_LOOK;
+    state.people.volkov = sheet({ id: 'volkov', name: C?.target?.name ?? 'Arkady Volkov', sex: 'm', cls: 'civilian', look: sLook, persistent: true, skills: { awareness: [6, 0], cqc: [3, 0] } });
+    state.people.contact = sheet({ id: 'contact', name: C?.target?.contact ? describe(cLook, 'm').replace(/^the /, 'a ').replace(/ the /, ' a ') : 'a man in a camel coat', sex: 'm', cls: 'civilian', look: cLook, skills: { awareness: [8, 0], cqc: [6, 0] } });
+    state.people.contact.known = false; state.people.contact.seen = C?.target?.contact ? describe(cLook, 'm') : 'the man in the camel coat';
     const minderLook = streetLook(r, 'm', 38); delete minderLook.carry;
     state.people.minder = sheet({ id: 'minder', name: `an FSB officer (${describe(minderLook, 'm')})`, sex: 'm', cls: 'spook', os: 35, look: minderLook, skills: { awareness: [11, 1], deception: [10, 1], cqc: [14, 1] } });
     state.people.minder.known = false; state.people.minder.seen = describe(minderLook, 'm');
@@ -113,7 +130,7 @@ export const watchTest = {
     state.scenario = {
       kind: 'watch', row: R, phase: 'wait', cafe: { x: cafe.x, z: Z.front + 0.8 }, cafeShop: cafe.shop, cafeAlong: Math.abs(cafe.x - startX) > 30 ? `${Math.round(Math.abs(cafe.x - startX) / 10) * 10} m ${cafe.x > startX ? 'east' : 'west'} of you` : 'right here',
       side, due, window: win, began: t0, spawned: false, minder: m.id,
-      subject: C?.target?.name ?? null, suspicion: 0, made: false, loiterS: 0, stareS: 0, scanAt: 0, witnessS: 0, witnessed: false, photo: null, shots: 0, rolls: 0, prompt: null, outcome: null, meetEnd: null,
+      subject: C?.target?.name ?? null, sig: C?.target?.look ? sigOf(sLook) : undefined, contactSig: C?.target?.contact ? sigOf(cLook) : undefined, brief: C?.brief, suspicion: 0, made: false, loiterS: 0, stareS: 0, scanAt: 0, witnessS: 0, witnessed: false, photo: null, shots: 0, rolls: 0, prompt: null, outcome: null, meetEnd: null,
     };
     tell(state, null, { kind: 'note', text: `${me.name}. ${clockText(t0)}, ${streetName(town, R)}. Volkov is due at ${shopWord(cafe.shop)} between ${clockText(state.scenario.window[0])} and ${clockText(state.scenario.window[1])}.` });
   },

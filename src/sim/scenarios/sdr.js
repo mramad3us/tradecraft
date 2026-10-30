@@ -87,6 +87,7 @@ export const sdr = {
   about: 'Walk to a meeting with a source. Find out whether the FSB is behind you, and don\'t take them to him. Each evening is different.',
   brief(state) {
     const sc = state.scenario, g = sc.meet;
+    if (sc.brief) return { title: sc.brief.title, body: sc.brief.body, footer: `Station ${CITY_NAME[state.map.city] ?? 'Moscow'} · ${dateText(sc.began)} · ${clockText(sc.began)}`, keys: sdr.keys };   // (a campaign's: its own words, sim/dossier.js)
     return subAll(state, {
       title: 'MEETING: SOLOVEY',
       body: [
@@ -96,9 +97,10 @@ export const sdr = {
         'If they\'re on you, lose them where they can\'t see you do it, or don\'t go. Walking them to him ends him. Running, doubling back, crossing anywhere: they write it all down, and then they know what you are.',
       ],
       footer: `Station Moscow · Thursday 5 November 2026 · ${clockText(sc.began)}`,
-      keys: [['watch', 'tapped: glance back; held: stop and look'], ['instinct', 'does what your instinct offers (sit with him, call it off)'], ['use', 'what\'s at hand (a window, a bench, a zebra)'], ['slow', 'held: stroll'], ['log', 'the log']],
+      keys: sdr.keys,
     });
   },
+  keys: [['watch', 'tapped: glance back; held: stop and look'], ['instinct', 'does what your instinct offers (sit with him, call it off)'], ['use', 'what\'s at hand (a window, a bench, a zebra)'], ['slow', 'held: stroll'], ['log', 'the log']],
 
   setup(state, opts = {}) {
     const { campaign: C = null, city = null } = opts;
@@ -126,7 +128,7 @@ export const sdr = {
     state.scenario = {
       kind: 'sdr', hour: hour.id, ...newTeam(state, team, crew, r), meet, seats: meet.seats.map(x => ({ row: meet.row, x })), phase: 'walk', asset: null,
       prompt: null, outcome: null, began: state.time.ms, met: false, burned: false,
-      role: C?.asset?.role ?? null, campaign: !!C,
+      role: C?.asset?.role ?? null, campaign: !!C, brief: C?.brief,
     };
     say(state, null, { kind: 'note', text: sub(state, C?.at ? `${me.name}. ${clockText(state.time.ms)}, ${meet.place}. SOLOVEY: the bench, from ${clockText(meet.from)}.` : `${me.name}. ${clockText(state.time.ms)}, out of the embassy on ${streetName(townOf(state.map), 0)}. SOLOVEY: ${meet.place}, ${rowsText(meet.row)}, from ${clockText(meet.from)}.`) });
   },

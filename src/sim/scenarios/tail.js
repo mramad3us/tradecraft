@@ -47,10 +47,11 @@ import { townOf } from '../cities/index.js';
 import { at, TICK_MS, calendar, dateText } from '../clock.js';
 import { handler, sheet, seedFrom, streetLook, describe, asOfficer } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
-import { say, speak } from '../log.js';
+import { say as logSay, speak } from '../log.js';
+import { CRAFT, sigOf, twinsOf } from '../dossier.js';
 import { skill } from '../skills.js';
 import { opposed, check } from '../checks.js';
-import { range, int, chance, pick, weighted, hash } from '../rng.js';
+import { range, int, chance, pick, weighted, hash, stream } from '../rng.js';
 import { act, offer, paneNear, seatTaken, crossingAt, crossingNear, say1 } from '../acts.js';
 import { settle, place, onStreet } from '../instinct.js';
 import { Z, SECTION_M, inLane, streetName } from '../map/street.js';
@@ -139,7 +140,8 @@ export const tail = {
   test: true,
   about: 'Follow a former GRU officer through Moscow to his meeting. Don\'t be seen twice. Each evening is different.',
   brief(state) {
-    const ev = eveningOf(state);
+    const ev = eveningOf(state), B = state.scenario.brief;
+    if (B) return { title: B.title, body: B.body, footer: `Station ${CITY_NAME[state.map.city] ?? 'Moscow'} · ${dateText(state.scenario.began)} · ${hhmm(ev.h, ev.m)}`, keys: tail.keys.map(([k, v]) => [k, sub(state, v)]) };   // (a campaign's: its own words, sim/dossier.js)
     return subAll(state, {
       title: 'TAILING: GENNADY ORLOV',
       body: [
@@ -149,9 +151,10 @@ export const tail = {
         `${ev.light} You'll see which man he is as he comes out. After that it's your eyes and your training: keep him in sight, keep people between you, keep his pace, and don't stop when he stops. Your instinct will talk you through it.`,
       ],
       footer: `Station Moscow · Tuesday 3 November 2026 · ${hhmm(ev.h, ev.m)}`,
-      keys: [['instinct', 'does what your instinct offers'], ['use', 'what\'s at hand (a window, a bench, a zebra)'], ['slow', 'held: stroll, to keep his pace'], ['watch', 'held: stop and look, the move keys turning your eyes (at a shop window, along its glass); on a grey coat, a close look'], ['log', 'the log']],
+      keys: tail.keys,
     });
   },
+  keys: [['instinct', 'does what your instinct offers'], ['use', 'what\'s at hand (a window, a bench, a zebra)'], ['slow', 'held: stroll, to keep his pace'], ['watch', 'held: stop and look, the move keys turning your eyes (at a shop window, along its glass); on a grey coat, a close look'], ['log', 'the log']],
 
   setup(state, { campaign: C = null, city = null, lesson = null, character = null } = {}) {
     const r = state.rng;
@@ -164,14 +167,17 @@ export const tail = {
     const me = C ? { ...structuredClone(C.player), id: 'me' } : asOfficer(handler(r), character);
     state.people[me.id] = me;
     state.player = me.id;
+    // (a campaign's target is his file's (sim/dossier.js): his look, how careful he is (CRAFT), the man he
+    // meets, the men who could be him from a few paces; the test's, Orlov)
+    const F = C?.target?.craft ? CRAFT[C.target.craft] : null, look = C?.target?.look ?? ORLOV_LOOK, cLook = C?.target?.contact?.look ?? CONTACT_LOOK;
     state.people.orlov = sheet({ id: 'orlov', name: C?.target?.name ?? 'Gennady Orlov', sex: 'm', cls: 'spook', os: 20,
-      skills: { pathfinding: [10, 0], awareness: [8, 1], deception: [8, 0], social: [5, 1], cqc: [10, 0] }, langs: { ru: 'native', en: 'basic' }, look: ORLOV_LOOK, persistent: true });   // (ex-GRU: he had the course, years ago)
-    state.people.contact = sheet({ id: 'contact', name: 'the man in the blue beanie', sex: 'm', cls: 'spook', os: 30,
-      skills: { pathfinding: [10, 2], awareness: [10, 2], deception: [10, 1], cqc: [15, 0] }, langs: { ru: 'native' }, look: CONTACT_LOOK, persistent: true });
-    const looks = TWIN_LOOKS.slice();
+      skills: { pathfinding: [F?.pathfinding ?? 10, 0], awareness: [F?.awareness ?? 8, 1], deception: [8, 0], social: [5, 1], cqc: [10, 0] }, langs: { ru: 'native', en: 'basic' }, look, persistent: true });   // (ex-GRU: he had the course, years ago)
+    state.people.contact = sheet({ id: 'contact', name: C?.target?.contact ? describe(cLook, 'm') : 'the man in the blue beanie', sex: 'm', cls: 'spook', os: 30,
+      skills: { pathfinding: [10, 2], awareness: [10, 2], deception: [10, 1], cqc: [15, 0] }, langs: { ru: 'native' }, look: cLook, persistent: true });
+    const looks = C?.target?.look ? twinsOf(look, stream('twins', C.target.name, C.startMs)) : TWIN_LOOKS.slice();
     for (let i = 0; i < TWINS; i++) {
-      const [look, tell] = looks.splice(int(r, looks.length), 1)[0];
-      state.people[`twin${i}`] = { ...sheet({ id: `twin${i}`, name: 'a man in a grey coat', sex: 'm', look, skills: { awareness: [2, 0] } }), tell };
+      const [tl, tell] = looks.splice(int(r, looks.length), 1)[0];
+      state.people[`twin${i}`] = { ...sheet({ id: `twin${i}`, name: 'a man in a grey coat', sex: 'm', look: tl, skills: { awareness: [2, 0] } }), tell };
     }
     // (a campaign's tail is at his office's door on the posting's streets, walked to: sim/places.js officeOf(); R its street)
     const R = C?.at?.row ?? 0;
@@ -185,23 +191,25 @@ export const tail = {
     const bench = benchNear(seed, row, along);
     const meet = { row, x: bench.seats[0], z: 12.96, seat2: bench.seats.at(-1), place: null, seats: bench.seats.slice() };   // (the contact at the far end)
     // The way there, his way: a little roundabout always; a wary man much more.
-    const route = withEnd(withHabits(seed, planRoute(seed, { row: R, x: door.x, z: Z.front + 0.3 }, meet, { walker: hash(seed, 'orlov'), evasive: ev.wary ? 4 : 1, rng: r }), r, ev.wary ? 'wary' : 'calm'),
+    const evasive = F ? (C.made ? 4 : F.evasive) : ev.wary ? 4 : 1;   // (how roundabout: his craft, or made of us before)
+    const route = withEnd(withHabits(seed, planRoute(seed, { row: R, x: door.x, z: Z.front + 0.3 }, meet, { walker: hash(seed, 'orlov'), evasive, rng: r }), r, ev.wary ? 'wary' : 'calm'),
       { kind: 'meet', ticks: 75 * TPS, face: 'down', gait: 'sit' });
     route.stops.unshift({ kind: 'leave', s: 0, ticks: 2 * TPS, face: 'down' });
     const t = makeAgent(state, { who: 'orlov', row: R, x: door.x, z: Z.front + 0.3, speed: range(r, 1.2, 1.4), f: range(r, -0.6, 0.6), face: 'down' });
     setRoute(state, t, route);
     // We wait on his pavement, behind the way he'll go: his first way along the street. Walked to, where we stand.
     const first = route.pts.find(p => Math.abs(p.x - door.x) > 3), dirX = first ? Math.sign(first.x - door.x) : 1;
-    const stand = C?.me ? { x: C.me.x, z: C.me.z } : { x: door.x - dirX * range(r, 17, 22), z: LINE.F }, look = Math.sign(door.x - stand.x) || dirX;
-    const mePlace = { id: 'a0', who: me.id, seed: null, row: R, x: stand.x, z: stand.z, vx: 0, vz: 0, face: look > 0 ? 'right' : 'left', head: look > 0 ? 0 : Math.PI, gait: 'idle', stride: 0, stuck: 0, ai: null };
+    const stand = C?.me ? { x: C.me.x, z: C.me.z } : { x: door.x - dirX * range(r, 17, 22), z: LINE.F }, facing = Math.sign(door.x - stand.x) || dirX;
+    const mePlace = { id: 'a0', who: me.id, seed: null, row: R, x: stand.x, z: stand.z, vx: 0, vz: 0, face: facing > 0 ? 'right' : 'left', head: facing > 0 ? 0 : Math.PI, gait: 'idle', stride: 0, stuck: 0, ai: null };
     state.actors.unshift(mePlace);
     state.scenario = {
       kind: 'tail', evening: ev.id, ev: C ? ev : undefined, campaign: !!C, what: C?.target?.what ?? undefined, wary: ev.wary, phase: 'tail', target: t.id, contact: null, twins: [], meet,
       seats: meet.seats.map(x => ({ row: meet.row, x })),           // (his bench, kept for them: nobody else sits there)
       marked: t.id, lastSeen: { row: R, x: t.x, z: t.z, ms: state.time.ms }, lastSeenT: state.time.ms, unseenS: 0, keepS: 0, findS: 0, startX: door.x, startRow: R,
-      alert: ev.wary ? 25 : 0, sightings: [], scan: null, lastScanMs: null, tell: null, shop: null, warned: 0, mixups: 0, stillS: 0, mirrorMs: -1e12, gap: [],
+      alert: F ? (C.made ? 25 : F.alert) : ev.wary ? 25 : 0, sightings: [], scan: null, lastScanMs: null, tell: null, shop: null, warned: 0, mixups: 0, stillS: 0, mirrorMs: -1e12, gap: [],
       witnessS: 0, meetS: 0, closest: 1e9, farthest: 0, prompt: null, outcome: null, lead: null, rolls: 0, began: state.time.ms, turn: null,
       streets: route.rows, routeM: Math.round(route.length), markUntil: state.time.ms + MARKER_S * 1000, lookAt: null, looked: {},
+      sig: C?.target?.look ? sigOf(look) : undefined, contactSig: C?.target?.contact ? sigOf(cLook) : undefined, brief: C?.brief, month: C ? calendar(state.time.ms).month : undefined,
     };
     // Autoplay: the player's character is the game's own follower, 20 m back in his footsteps.
     if (state.autoplay) {
@@ -296,7 +304,7 @@ export const eveningOf = (state) => state.scenario.ev ?? EVENINGS.find(e => e.id
 function campaignEvening(C) {
   const k = calendar(C.startMs), h = k.hour + k.minute / 60;
   return { id: 'campaign', h: k.hour, m: k.minute, wary: !!C.wary, w: 0,
-    light: `${h < 15.5 ? 'Broad daylight.' : h < 17 ? 'The light\'s going.' : 'It\'s dark, and the lamps are on.'}${C.wary ? ' He\'s been jumpy since the last time.' : ''}` };
+    light: `${h < 15.5 ? 'Broad daylight.' : h < 17 ? 'The light\'s going.' : 'It\'s dark, and the lamps are on.'}${C.made ? ' He\'s been jumpy since the last time.' : ''}` };
 }
 
 /**
@@ -306,10 +314,31 @@ function campaignEvening(C) {
 function sub(state, t) {
   const sc = state.scenario, name = state.people.orlov?.name ?? 'Gennady Orlov', family = name.split(' ').slice(-1)[0];
   if (typeof t !== 'string' || !sc?.campaign) return t;
+  if (sc.sig) t = sigWords(t, sc.sig, sc.contactSig, CITY_NAME[state.map.city] ?? 'Moscow', sc.month);
   return t.replace(/Gennady Orlov, 54\. Deputy head of procurement at a defence plant\. Twenty years ago an officer of the GRU, and he hasn't forgotten all of it\./, `${name}: ${sc.what ?? 'a man the station wants watched'}.`)
     .replace(/GENNADY ORLOV/g, name.toUpperCase()).replace(/Gennady Orlov/g, name).replace(/Orlov/g, family)
     .replace(/Station Moscow · Tuesday 3 November 2026/, `Station ${CITY_NAME[state.map.city] ?? 'Moscow'} · ${dateText(sc.began)}`);
 }
+/**
+ * The test's words for Orlov (grey coat, grey fedora, a briefcase; Moscow; the man in the blue beanie)
+ * in a campaign's target's own (sim/dossier.js sigOf(): "navy coat", "flat cap", "newspaper"; his city;
+ * the man he meets), wherever the scene says them: the instinct, the log, the endings.
+ */
+export function sigWords(t, s, c, city, month) {
+  const C = (w) => w.charAt(0).toUpperCase() + w.slice(1), an = (w) => `${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}`;
+  const carry = s.carry === 'walk' ? 'way he walks' : s.carry;
+  t = t.replace(/Grey coat, grey fedora, a briefcase/g, `${C(s.coat)}, ${s.hat}, ${an(carry)}`).replace(/grey coat, grey fedora, a briefcase/g, `${s.coat}, ${s.hat}, ${an(carry)}`)
+    .replace(/Grey coat, fedora, briefcase/g, `${C(s.coat)}, ${s.hatShort}, ${carry}`).replace(/grey coat, fedora, briefcase/g, `${s.coat}, ${s.hatShort}, ${carry}`)
+    .replace(/Fedora, briefcase/g, `${C(s.hatShort)}, ${carry}`).replace(/the grey fedora/g, `the ${s.hat}`).replace(/grey fedora/g, s.hat)
+    .replace(/the fedora/g, `the ${s.hatShort}`).replace(/the hat\b/g, `the ${s.hatShort}`).replace(/, a hat\./g, `, ${an(s.hatShort)}.`)
+    .replace(/[Gg]rey coats/g, (m) => (m[0] === 'G' ? C(s.coats) : s.coats)).replace(/[Gg]rey coat/g, (m) => (m[0] === 'G' ? C(s.coat) : s.coat))
+    .replace(/briefcase/g, carry).replace(/Moscow/g, city);
+  if (c) t = t.replace(/the man in the blue beanie/g, c.man).replace(/a man in a blue beanie/g, c.man.replace(/^the /, 'a ').replace(/ the /, ' a ')).replace(/blue beanie/g, c.man.replace(/^the man in the /, ''));
+  if (month) t = t.replace(/in November/g, `in ${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][month - 1]}`);
+  return t;
+}
+/** The scene's log, in the campaign's words (sub()). */
+const say = (state, bus, e) => logSay(state, bus, e && typeof e.text === 'string' ? { ...e, text: sub(state, e.text) } : e);
 const subAll = (state, o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Array.isArray(v) ? v.map(x => (typeof x === 'string' ? sub(state, x) : x)) : sub(state, v)]));
 const CITY_NAME = { moscow: 'Moscow', london: 'London', beirut: 'Beirut', cairo: 'Cairo' };
 
@@ -681,7 +710,7 @@ function second(state, bus, me, t, d) {
   if (sc.outcome) return;
   // (every rule that fires, and the engine's choice: the line up stays while it still applies: sim/instinct.js)
   const was = sc.prompt?.id;
-  sc.prompt = settle(sc.prompt, [...instinct(state, me, t, d, still)], state.time.ms);
+  sc.prompt = settle(sc.prompt, [...instinct(state, me, t, d, still)].map(l => l && { ...l, text: sub(state, l.text) }), state.time.ms);
   if (sc.prompt && sc.campaign) sc.prompt.text = sub(state, sc.prompt.text);
   if (sc.prompt?.log && sc.prompt.id !== was) say(state, bus, { kind: 'instinct', text: sc.prompt.text.replace(/\s*\{[a-z]+\}.*$/, '') });
 }

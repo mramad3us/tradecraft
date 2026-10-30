@@ -18,6 +18,7 @@ import { setMarks } from './map/marks.js';
 import { Z } from './map/layout.js';
 import { placeName, streetName } from './map/street.js';
 import { stream, int, pick } from './rng.js';
+import { DAY } from './clock.js';
 
 export const SAFE_APART_M = 25;
 const placesOf = (p) => [p.embassy, p.home, ...p.safehouses];
@@ -75,17 +76,23 @@ export function missionPlace(c, a) {
   if (a.at !== undefined || a.trip) return a.at ?? null;
   const p = c.posting, town = townOf({ seed: p.mapSeed, city: p.city });
   if (a.kind === 'tail') { const t = p.targets.find(x => x.id === a.who); return (a.at = t ? officeOf(c, t) : null); }
-  const r = stream('mission-place', c.seed, a.id);
-  for (let k = 0; k < 12; k++) {
+  // (never a place another assignment has had, two weeks either side: the same bench twice, or the same
+  // park, is how a network's found; with none fresh to be had, any)
+  const near = [...new Set([...c.assignments, ...c.done])].filter(x => x !== a && x.at && Math.abs(x.from - a.from) < 14 * DAY);
+  const used = new Set(near.map(x => x.at.label)), r = stream('mission-place', c.seed, a.id);
+  for (const strict of [true, false]) for (let k = 0; k < 12; k++) {
     const row = rowFor(c, r), i0 = int(r, 8) - 3;
     for (const i of [i0, i0 + 1, i0 - 1, i0 + 2]) {
       const S = sectionOf(town, row, i);
       if (a.kind === 'sdr') {
         const b = (k < 6 ? S.band === 'park' : true) && pick(r, S.props.filter(q => q.kind === 'bench'));
-        if (b) return (a.at = { row, x: b.seats[0], z: 12.96, seats: b.seats.slice(), kind: 'bench', label: `A bench in ${placeName(town, row, b.x, 14)}` });
+        // (its park by name, and its street: a city's parks can share a name)
+        const label = b && `A bench in ${placeName(town, row, b.x, 14)}, by ${streetName(town, row)}`;
+        if (b && (!strict || !used.has(label))) return (a.at = { row, x: b.seats[0], z: 12.96, seats: b.seats.slice(), kind: 'bench', label });
       } else {
         const d = pick(r, S.doors.filter(o => o.kind === 'shop' && o.z === Z.front && (k < 8 ? CAFES.includes(o.shop) : true)));
-        if (d) return (a.at = { row, x: d.x, z: Z.front + 0.8, shop: d.shop, kind: 'cafe', label: `Outside a ${d.shop === 'cafe' ? 'café' : d.shop} on ${streetName(town, row)}` });
+        const label = d && `Outside a ${d.shop === 'cafe' ? 'café' : d.shop} on ${streetName(town, row)}`;
+        if (d && (!strict || !used.has(label))) return (a.at = { row, x: d.x, z: Z.front + 0.8, shop: d.shop, kind: 'cafe', label });
       }
     }
   }
@@ -100,7 +107,9 @@ export function officeOf(c, t) {
   for (let k = 0; k < 12; k++) {
     const row = rowFor(c, r), i0 = int(r, 8) - 3;
     const doors = [i0, i0 + 1].flatMap(i => sectionOf(town, row, i).doors).filter(d => d.kind === 'entrance' && d.z === Z.front && !d.mosque && !ours(row, d.x));
-    if (doors.length) { const d = doors[int(r, doors.length)]; return (t.office = { row, x: d.x, z: d.z, kind: 'office', label: `${t.name}'s office on ${streetName(town, row)}` }); }
+    // (its words his file's, sim/dossier.js: "The trade delegation on Sretenka", "Rudnev's chambers on …")
+    const words = t.workplace ? t.workplace.replace(/^his /, `${t.name.split(' ').slice(-1)[0]}'s `) : `${t.name}'s office`;
+    if (doors.length) { const d = doors[int(r, doors.length)]; return (t.office = { row, x: d.x, z: d.z, kind: 'office', label: `${words.charAt(0).toUpperCase()}${words.slice(1)} on ${streetName(town, row)}` }); }
   }
   return (t.office = { row: p.embassy.row + 1, x: 20, z: Z.front, kind: 'office', label: `${t.name}'s office` });
 }

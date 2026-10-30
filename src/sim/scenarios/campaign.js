@@ -49,6 +49,7 @@ import { skip, newMap } from '../game.js';
 import { eat, soothe } from '../needs.js';
 import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, watched, KINDS, WORK, TRAVEL } from '../campaign.js';
 import { signOf, missionPlace } from '../places.js';
+import { fileOf, assetFile } from '../dossier.js';
 import { reading, bookOf, readAnHour } from '../training.js';
 import { dress, wardrobeWays, unpack, DRESS_S } from '../clothes.js';
 import { kitWords, addSupply } from '../medicine.js';
@@ -96,7 +97,13 @@ export const campaignHub = {
   },
 
   /** Begun on a street (where an assignment left you), or a game from before the watchers: out, as from a door. */
-  attach(state) { if (state.map.kind === 'street' && state.scenario.tail === undefined && !state.scenario.window) outing(state, 'street'); },
+  attach(state) {
+    // (the station's files on its people, for a posting begun before there were any: sim/dossier.js)
+    const c = state.campaign;
+    for (const t of c.posting.targets) fileOf(c, t);
+    for (const s of c.posting.assets) assetFile(c, s);
+    if (state.map.kind === 'street' && state.scenario.tail === undefined && !state.scenario.window) outing(state, 'street');
+  },
 
   act(state, bus, action) {
     const c = state.campaign;

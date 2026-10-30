@@ -18,6 +18,7 @@ import { plaque } from './plaque.js';
 import { text as glyphs, textWidth } from '../art/pixelart.js';
 import { knownPlaces, knownStreets, setWaypoint, KINDS } from '../sim/knowledge.js';
 import { missionPlace } from '../sim/places.js';
+import { briefOf } from '../sim/dossier.js';
 import { readOf } from '../sim/belief.js';
 import { agenda, KINDS as AKINDS, goalOf } from '../sim/campaign.js';
 import { clockText, dateText, DAY } from '../sim/clock.js';
@@ -70,7 +71,8 @@ function aheadLeaf(state, { el, act }, show) {
       return el('div', { className: 'mind-row' }, el('span', { className: 'when' }, `${dateText(a.from).slice(0, -5)}, ${clockText(a.from)}`),
         el('span', { className: 'what' }, `${AKINDS[a.kind].name}: ${who(a)}`, at ? el('span', { className: 'where' }, at.label) : null), way);
     })) : el('p', { className: 'mind-note' }, 'Nothing planned. Days like this are for the cover job.'),
-    items[0] ? el('p', { className: 'mind-brief' }, items[0].a.brief) : null,
+    // (the next one's brief, as the station wrote it: sim/dossier.js)
+    items[0] ? el('div', { className: 'mind-brief' }, el('p', { className: 'mind-brief-title' }, briefOf(c, items[0].a).title), ...briefOf(c, items[0].a).body.map(t => el('p', {}, t))) : null,
     el('h3', {}, 'The day'),
     el('div', { className: 'mind-acts' },
       el('button', { onclick: () => act('low') }, 'Lie low for a day'),

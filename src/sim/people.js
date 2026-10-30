@@ -122,7 +122,11 @@ const COLOUR_NAMES = {
   0xc95c45: 'rust', 0xe7b84a: 'yellow', 0x3b6296: 'blue', 0x5d8fc2: 'light blue', 0x7a4a86: 'purple', 0x356f42: 'green', 0xf6f4ee: 'white',
   0x8f96a6: 'pale grey',
 };
-const TOPS = { coat: 'coat', suit: 'suit', sweater: 'jumper', tee: 'T-shirt', dress: 'dress', jacket: 'jacket' };
+const TOPS = { coat: 'coat', suit: 'suit', sweater: 'jumper', tee: 'T-shirt', dress: 'dress', jacket: 'jacket', robe: 'galabeya' };
+/** A colour's name, as you'd remember it ("navy", "beige"); 'dark' for one without. */
+export const colourName = (c) => COLOUR_NAMES[c] ?? 'dark';
+/** A top's word ("coat", "jumper"). */
+export const topWord = (kind) => TOPS[kind] ?? 'coat';
 
 /** How you'd remember someone by their look: "the man in the beige coat", "the woman in the red beanie". */
 export function describe(look, sex = 'm') {

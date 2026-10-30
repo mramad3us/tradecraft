@@ -301,7 +301,9 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .mind-note, .mind-sure, .mind-foot { color: #8f96a6; font-size: calc(12px * var(--ui, 1)); }
 .mind-sure { font-style: italic; margin-top: -2px !important; }
 .mind-foot { margin: 10px 0 0; text-align: right; }
-.mind-brief { color: #b8bdc8; border-left: 2px solid #353947; padding-left: 8px; }
+.mind-brief { color: #b8bdc8; border-left: 2px solid #353947; padding-left: 8px; max-height: 15em; overflow-y: auto; }
+.mind-brief p { margin: 0 0 0.45em; }
+.mind-brief .mind-brief-title { color: #e7b84a; letter-spacing: 0.06em; }
 .mind-list { display: flex; flex-direction: column; gap: 2px; }
 .mind-row { display: grid; grid-template-columns: 11em 1fr auto; gap: 8px; align-items: center; padding: 3px 0; border-bottom: 1px solid #23252f; }
 .mind-row .when { color: #8f96a6; }

@@ -21,7 +21,8 @@
 // **The posting** (posting()): a city, its country, the cover (Second Secretary at the embassy), a
 // goal (a subject the agency wants intelligence on: SUBJECTS by city), the flat and the embassy (doors
 // on the city's streets), safe houses, the network (ASSETS: codenamed, each with a yield and a trust),
-// the opposition's targets (TARGETS: who to follow), and the gauges: heat (how much the opposition
+// the opposition's targets (who to follow: their files, names of the city's, and the briefs written from
+// them, sim/dossier.js), and the gauges: heat (how much the opposition
 // knows; sim/heat.js keeps it per legend and country), cover standing (the embassy's view of your
 // work), intelligence (the blue thing: DESIGN.md, Intelligence), money (salary, operational fund).
 // **The assignments** (plan()): the posting's schedule, made day by day as days begin, from the
@@ -55,6 +56,7 @@ import { stream, int, pick, chance, range, weighted, hash } from './rng.js';
 import { sheet, streetLook } from './people.js';
 import { at, DAY, HOUR, MIN, calendar } from './clock.js';
 import { CABINET } from './medicine.js';
+import { fileOf, assetFile, targetName, briefOf, CRAFT, ASSET_ROLES } from './dossier.js';
 
 export const KINDS = {
   sdr: { name: 'An asset meeting', scenario: 'sdr', about: 'Meet the asset clean: a surveillance detection run to the bench, and only sit down if nobody\'s on you.' },
@@ -167,6 +169,10 @@ export function posting(seed, city = 'moscow', startMs = at(2026, 11, 2, WAKE_H)
     return { id: `asset${i}`, codename, sex, role: pick(r, ROLES), motive: pick(r, MOTIVES), trust: 2 + int(r, 2), yield: 1, look: streetLook(r, sex, 35 + int(r, 25)), met: 0, last: null };
   });
   const targets = [{ id: 'target0', name: pick(r, ['Gennady Orlov', 'Viktor Lazarev', 'Oleg Sorokin', 'Pavel Rudnev']), what: `an officer of ${C.service}, under commercial cover`, wary: chance(r, 0.3), followed: 0, last: null, contact: null }];
+  // (who they are, of the city's: sim/dossier.js; drawn from streams of their own, so nothing else here moves)
+  const nr = stream('posting-names', seed, city);
+  for (const t of targets) Object.assign(t, { name: targetName(nr, city), wary: false });
+  for (const s of assets) s.role = pick(nr, ASSET_ROLES[city] ?? ASSET_ROLES.moscow);
   return {
     city, country: C.country, agency: 'CIA', rank: 'Handler', level: 'handler', job: C.cover, legend: 'embassy', subject, goal,
     // (the embassy on the street the missions start from, "out of the embassy"; the flat a few streets off)
@@ -186,13 +192,14 @@ export function posting(seed, city = 'moscow', startMs = at(2026, 11, 2, WAKE_H)
 function juniorPosting(seed, startMs) {
   const r = stream('posting', seed, 'junior'), C = CITY.london, day0 = dayOf(startMs);
   const mapSeed = Math.floor(range(r, 0, 4294967296)), names = RESIDENCY.slice();
-  const targets = [0, 1].map(i => ({ id: `target${i}`, name: names.splice(int(r, names.length), 1)[0], what: 'an officer of the Russian residency, under diplomatic cover', wary: false, followed: 0, last: null, contact: null }));
+  const nr = stream('posting-names', seed, 'junior');
+  const targets = [0, 1].map(i => ({ id: `target${i}`, name: (names.splice(int(r, names.length), 1)[0], targetName(nr, 'london')), what: 'an officer of the Russian residency, under diplomatic cover', wary: false, followed: 0, last: null, contact: null }));
   const order = TRIPS.slice();
   const trips = [0, 1].map(i => {
     const T = order.splice(int(r, order.length), 1)[0];
     const trip = { id: `trip${i}`, city: T.city, kind: T.kind, station: T.station, why: T.why, day: day0 + (i ? 15 + int(r, 4) : 6 + int(r, 3)), mapSeed: Math.floor(range(r, 0, 4294967296)), planned: false };
     if (T.kind === 'sdr') trip.asset = { codename: pick(r, CODENAMES), sex: 'm', role: pick(r, ROLES), look: streetLook(r, 'm', 35 + int(r, 25)) };
-    else trip.target = { name: pick(r, TRIP_TARGETS[T.city]), what: TRIP_WHAT[T.city] };
+    else trip.target = { id: `trip${i}-target`, name: (pick(r, TRIP_TARGETS[T.city]), targetName(nr, T.city)), what: TRIP_WHAT[T.city] };
     return trip;
   });
   return {
@@ -214,6 +221,8 @@ export function newCampaign(seed, character, city = 'moscow', level = 'handler',
   const p = posting(seed, city, startMs, level);
   const c = { seed, character, posting: p, day: dayOf(p.startMs), assignments: [], done: [], plannedTo: dayOf(p.startMs) - 1, worked: {}, log: [], reviews: [], awake: p.startMs, next: { },
     calls: [{ id: 'hale', at: p.startMs + CALL_S * 1000 }], cabinet: { ...CABINET } };   // (day one: Hale on the telephone, the exercises or straight in: src/main.js; the bathroom cabinet's few things, sim/medicine.js)
+  for (const t of p.targets) fileOf(c, t);                         // (the station's files on them: sim/dossier.js)
+  for (const s of p.assets) assetFile(c, s);
   plan(c, p.startMs);
   return c;
 }
@@ -408,6 +417,7 @@ export function context(c, a) {
   const ctx = { campaign: true, player: structuredClone(c.character), mapSeed: T?.mapSeed ?? p.mapSeed, startMs: a.start, assignment: a.id, city, country: CITY[city]?.country ?? p.country };
   // (walked to: its place on the posting's streets, and where you stood when you began: sim/places.js, sim/scenarios/campaign.js begin())
   if (!T && a.at) Object.assign(ctx, { at: a.at, me: a.me ?? null, startMs: a.began ?? a.start });
+  ctx.brief = briefOf(c, a);                                       // (its words: sim/dossier.js)
   if (a.kind === 'sdr') {
     const s = T ? T.asset : p.assets.find(x => x.id === a.who);
     // (the heat says how hard they're on you: nobody, an overt pair, a covert team)
@@ -415,8 +425,10 @@ export function context(c, a) {
     const rolled = weighted(r, [['none', Math.max(1, 70 - heat)], ['overt', 20 + heat * 0.3], ['covert', Math.max(0, heat - 25)]]), team = (!T && a.tailedBy) || rolled;
     Object.assign(ctx, { asset: { codename: s.codename, look: s.look, sex: s.sex, role: s.role }, meetFrom: a.from, meetTo: a.to, team, heat });
   } else if (a.kind === 'tail' || a.kind === 'watch') {
-    const t = T ? T.target : p.targets.find(x => x.id === a.who);
-    Object.assign(ctx, { target: { name: t.name, what: t.what }, wary: !T && (t.wary || t.followed > 2), heat, meetFrom: a.from, meetTo: a.to });
+    const t = fileOf(c, T ? T.target : p.targets.find(x => x.id === a.who), city);
+    // (his file: his look, his craft (how careful: Pathfinding, Awareness, his way, his checks), the man he meets)
+    const made = !T && (t.wary || t.followed > 2);                  // (he's seen someone on him before: jumpy since)
+    Object.assign(ctx, { target: { name: t.name, what: t.what, look: t.look, craft: t.craft, contact: t.meets }, wary: made || CRAFT[t.craft].wary, made, heat, meetFrom: a.from, meetTo: a.to });
   }
   return ctx;
 }
@@ -465,8 +477,9 @@ export function fold(c, a, sc, player, endMs, heatNow) {
       lines.push(`You saw ${t.name} meet his contact: intelligence +1.`);
       // (a lead: the contact identified, a man to watch in his own right)
       if (!t.led && p.targets.length < 3) {
-        const r = stream('lead', c.seed, a.id), name = CONTACTS.filter(n => !p.targets.some(x => x.name === n))[int(r, 3)];
-        p.targets.push({ id: `target${p.targets.length}`, name, what: `the man ${t.name} met, by the photograph the station matched`, wary: false, followed: 0, last: null, contact: null, nextDay: Math.floor(endMs / DAY) + 2 });
+        const r = stream('lead', c.seed, a.id), name = targetName(r, p.city);
+        // (the face the photograph showed: his look the contact's, sim/dossier.js)
+        p.targets.push({ id: `target${p.targets.length}`, name, what: `the man ${t.name} met, by the photograph the station matched`, lead: t.id, look: t.meets?.look ? structuredClone(t.meets.look) : undefined, wary: false, followed: 0, last: null, contact: null, nextDay: Math.floor(endMs / DAY) + 2 });
         t.led = true;
         lines.push(`A lead: the station puts a name to the man he met, ${name}. He'll be worth an evening of your own.`);
       }
