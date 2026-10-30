@@ -4,6 +4,10 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc50 (2026-10-29)
+
+- **No more fast travel from Tab.** The mind's day had "Go to work, till six" and "Home, and sleep till seven" from wherever you stood, and its city map a "Go there" for your flat, the embassy and the safe houses: each skipped the street, and whoever was on it to shake. They're gone; the day's one choice is lying low. You work at your desk in the embassy and sleep in the flat's bed, and get to them (and to the safe houses) yourself: on foot, by bus, metro or taxi. The pointer still leads to the embassy on a working morning and home late or tired, and the instinct says so ("Home, and to bed: the pointer has the way") instead of pointing at Tab.
+
 ## v0.1.0-rc49 (2026-10-29)
 
 - **Fixes from a bug hunt.** A fresh agent played this build headlessly for several in-game days in four cities (the campaign's own hours, transit, shops, police, the phone, the mind, assignments and the tutorial) and reproduced eleven problems; all are fixed below.

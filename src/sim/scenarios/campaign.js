@@ -1,15 +1,20 @@
 // TRADECRAFT sim: the campaign's hub (sim/campaign.js): between assignments, the posting's city from your
 // own door, the campaign's clock, your character as the campaign has them (wounds, blood and all).
 // Walk where you like; the instinct says what's next ("SKVORETS at 19:31: leave by 18:50"); Tab opens
-// the mind (src/ui/mind.js: Ahead, its choices), which come back as actions:
-//   - 'desk:work': the embassy until 18:00, a working day (cover standing up);
-//   - 'desk:sleep': home, and sleep till 7:00;
-//   - 'desk:low': lie low for a day (heat down);
+// the mind (src/ui/mind.js: Ahead, its choices), and the places' own spots act, each as an action:
+//   - 'desk:work': the day's work till 18:00, a working day (cover standing up): T at your desk in the
+//     embassy;
+//   - 'desk:sleep': sleep till 7:00: T at the flat's bed, late;
+//   - 'desk:low': lie low for a day (heat down): the mind's one choice of the day;
+//   - 'desk:go:<id>': an assignment, from the mind: wait (the clock skipped) until its start if it's later
+//     today, and go: the game tells the bus ('assignment'), and the UI launches it (src/main.js) with the
+//     campaign's context (sim/campaign.js context());
 //   - 'desk:travel:<place>': to the flat, the embassy, a safe house: the metro or a taxi (sim/campaign.js
-//     trip(): the minutes it takes), and the place's street, from its door;
-//   - 'desk:go:<id>': an assignment: wait (the clock skipped) until its start if it's later today, and
-//     go: the game tells the bus ('assignment'), and the UI launches it (src/main.js) with the
-//     campaign's context (sim/campaign.js context()).
+//     trip(): the minutes it takes), and the place's street, from its door.
+// Nothing in play sends the last, nor work or sleep from anywhere but the desk and the bed (the user,
+// 2026-10-29: "we should not have the option to just fast travel to work, it would skip all the gameplay
+// like shaking watchers etc., same with going back home"): you walk there, or take the metro, a bus, a
+// taxi, with whoever's on you. They're the engine's, still: the tests' quick way about.
 // Two places are walked into: the flat (up from your door: its bed, its telephone, its window) and the
 // embassy (in at its door, past the Marine and through the arch: your desk, where T is the day's work,
 // till six, and you're still at it when it's done; the chief's office, where T opens the desk; the
@@ -23,8 +28,8 @@
 // tailed's team on you (sim/scenarios/sdr.js: an overt pair, or a covert team), and the scene is theirs
 // as it is in the test: they follow you through lanes, shops, buses, taxis and the metro; you check your
 // back the same ways, and mark faces; what they write down costs FLAG_HEAT each, at once. Their sheet is
-// the scene's `tail`. From the flat's window, whoever waits for you by the kerb below is there to be seen. A trip
-// from the desk takes them along or loses them by its way (tailOver()); lying low at a safe house with
+// the scene's `tail`. From the flat's window, whoever waits for you by the kerb below is there to be seen. The
+// engine's travel takes them along or loses them by its way (tailOver()); lying low at a safe house with
 // them on you shows them its door (the station's cable the next morning: sim/campaign.js pass()); an
 // asset meeting begun with them still on you has them for its team (sim/campaign.js context()).
 import { TICK_MS, DAY, HOUR, MIN, calendar, clockText } from '../clock.js';
@@ -467,7 +472,7 @@ function seenGoing(state) {
 export const SEEN_GOING_MS = 10000;
 
 /**
- * A trip from the desk (sim/campaign.js trip()) with them on you: on foot the long way round, your
+ * The engine's travel ('desk:travel', sim/campaign.js trip()) with them on you: on foot the long way round, your
  * Pathfinding (+TRIP_FOOT_MOD) against their best Tracking; two stops on the metro, a leg of the metro's
  * (sim/metro.js stays(): an overt pair both, a covert team its eye); a taxi, theirs to keep (sim/taxi.js
  * keeps(): a covert team's own car, an overt pair a cab if one comes along). Indoors, whoever waits at
@@ -566,15 +571,15 @@ function instinct(state, c, now) {
   const tl = state.scenario.tail;
   if (tl && state.map.kind === 'street' && Object.values(tl.suspects).some(v => v >= 2)) return L('tail', 'warn', 'A tail, you\'d swear to it. Lose them before anywhere that matters (a safe house, an asset), or go about your day as if you hadn\'t seen them: everything you do, they write down.');
   const tired = fatigue(c, now);
-  if (tired.v) return L(`tired-${tired.word}`, tired.v <= -3 ? 'warn' : 'note', `${Math.floor(tired.h)} hours awake: ${tired.word}, ${tired.v} to everything. ${state.map.place === 'home' ? '{instinct}: to bed.' : '{mindmap}: the desk, and sleep.'}`, state.map.place === 'home' ? 'sleep' : null);
+  if (tired.v) return L(`tired-${tired.word}`, tired.v <= -3 ? 'warn' : 'note', `${Math.floor(tired.h)} hours awake: ${tired.word}, ${tired.v} to everything. ${state.map.place === 'home' ? '{instinct}: to bed.' : 'Home, and to bed: the pointer has the way.'}`, state.map.place === 'home' ? 'sleep' : null);
   // (in the flat, what's at hand: the bed, the telephone, the basin, the kitchen; at the embassy, your desk, the chief's)
   const s = (state.map.place === 'home' || state.map.place === 'embassy') && me && !me.busy && spotNear(state, me), line = s && SPOT_LINE[s.kind]?.(state);
   if (line) return L(`spot-${s.kind}`, 'calm', line[0], line[1]);
   const fd = state.map.place === 'home' && me && state.$world?.sections.get(0)?.plan?.exits[0];
   if (fd && Math.hypot(me.x - (fd.x0 + fd.x1) / 2, me.z - fd.z0) < 1.8) return L('front-door', 'calm', 'The front door. Through it, down the stairs and out onto the street.');
   if (state.map.place === 'embassy') return k.weekday < 5 && !worked && k.hour < WORK.to ? L('work-in', 'note', 'The station: through the arch, behind the vault door off the corridor. Your desk\'s in there.') : null;
-  if (k.weekday < 5 && !worked && k.hour >= 7 && k.hour < WORK.to - 2) return L('work', 'note', `A working day: the embassy expects you${k.hour < WORK.from ? ' at nine' : ''}. ${state.map.place === 'home' ? 'Out by the front door in the hall, and to its door' : 'Its door, {instinct}'}; or {mindmap}: the desk.`);
-  if (k.hour >= 23 || k.hour < 5) return L('late', 'calm', `${clockText(now)}. Bed, sooner or later: {mindmap}.`);
+  if (k.weekday < 5 && !worked && k.hour >= 7 && k.hour < WORK.to - 2) return L('work', 'note', `A working day: the embassy expects you${k.hour < WORK.from ? ' at nine' : ''}. ${state.map.place === 'home' ? 'Out by the front door in the hall, and to its door.' : 'The pointer has the way; at its door, {instinct}.'}`);
+  if (k.hour >= 23 || k.hour < 5) return L('late', 'calm', `${clockText(now)}. ${state.map.place === 'home' ? 'Bed, sooner or later.' : 'Home to bed, sooner or later: the pointer has the way.'}`);
   return next ? L(`later-${next.a.id}`, 'calm', `Next: ${KINDS[next.a.kind].name.toLowerCase()}, ${dayWord(next.a.from, now)} at ${clockText(next.a.from)}.`) : null;   // (how hot you are is the officer's guess, the mind's: sim/belief.js)
 }
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];

@@ -3,12 +3,13 @@
 // and the information should also be in a revamped and adjusted UI"; "a section with an actual map (known
 // only again, it's our mind) where we can select waypoints"). Not paper: the HUD's own dark glass, its
 // headings the picture's plaques (src/ui/plaque.js). Four leaves:
-//   - **Ahead:** the assignments, today's with their way to go; the next one's brief; the day's choices
-//     (work, sleep, lie low, walk on).
+//   - **Ahead:** the assignments, today's with their way to go; the next one's brief; the day's one choice,
+//     lying low (the user, 2026-10-29: no going to work or home from here, "it would skip all the gameplay
+//     like shaking watchers": the embassy's desk and the flat's bed are walked to, as everywhere is).
 //   - **The city:** the map in your head (sim/knowledge.js: the streets you've walked, what's on them, the
 //     posting's places), drawn in the picture's pixels: streets as you know them, a dot a place, coloured
 //     by what it is (KIND_COLOUR), you, the waypoint's flag. A place picked: what it is and where; set it as
-//     the waypoint (the goal pointer leads there), or clear it; the posting's places, go there.
+//     the waypoint (the goal pointer leads there), or clear it.
 //   - **People:** your network, the men you watch, your colleagues: as you know them.
 //   - **Where you stand:** your read of your heat and your cover (sim/belief.js: words, and how sure),
 //     the station's tally, your money, your body.
@@ -16,15 +17,14 @@ import { plaque } from './plaque.js';
 import { text as glyphs, textWidth } from '../art/pixelart.js';
 import { knownPlaces, knownStreets, setWaypoint, KINDS } from '../sim/knowledge.js';
 import { readOf } from '../sim/belief.js';
-import { agenda, places, KINDS as AKINDS, goalOf } from '../sim/campaign.js';
-import { calendar, clockText, dateText, DAY } from '../sim/clock.js';
+import { agenda, KINDS as AKINDS, goalOf } from '../sim/campaign.js';
+import { clockText, dateText, DAY } from '../sim/clock.js';
 import { needsWords } from '../sim/needs.js';
 import { fatigue } from '../sim/campaign.js';
 import { price, cashOf } from '../sim/money.js';
 import { cityById } from '../sim/cities/index.js';
 import { townOf } from '../sim/cities/index.js';
 import { streetName, SECTION_M, Z } from '../sim/map/street.js';
-import { trip } from '../sim/campaign.js';
 import { sectionOf } from '../sim/city.js';
 import { callWays, nextMeeting } from '../sim/phone.js';
 
@@ -56,9 +56,8 @@ function pix(cv, k) { cv.style.width = `${cv.width * k}px`; cv.style.height = `$
 
 // ---------- Ahead ----------
 function aheadLeaf(state, { el, act }) {
-  const c = state.campaign, now = state.time.ms, k = calendar(now), today = Math.floor(now / DAY), items = agenda(c, now).slice(0, 6);
+  const c = state.campaign, now = state.time.ms, today = Math.floor(now / DAY), items = agenda(c, now).slice(0, 6);
   const who = (a) => { const T = a.trip && c.posting.trips?.find(t => t.id === a.who); return T ? `${cityById(T.city).name}, ${T.asset?.codename ?? T.target?.name}` : a.kind === 'sdr' ? c.posting.assets.find(s => s.id === a.who)?.codename : c.posting.targets.find(t => t.id === a.who)?.name; };
-  const workday = k.weekday < 5 && k.hour < 18 && !c.worked[today];
   return [
     el('h3', {}, `${dateText(now)}, ${clockText(now)}`),
     items.length ? el('div', { className: 'mind-list' }, ...items.map(({ a, when }) => {
@@ -69,8 +68,6 @@ function aheadLeaf(state, { el, act }) {
     items[0] ? el('p', { className: 'mind-brief' }, items[0].a.brief) : null,
     el('h3', {}, 'The day'),
     el('div', { className: 'mind-acts' },
-      workday ? el('button', { onclick: () => act('work') }, 'Go to work, till six') : null,
-      el('button', { onclick: () => act('sleep') }, k.hour >= 20 || k.hour < 6 ? 'Sleep, till seven' : 'Home, and sleep till seven'),
       el('button', { onclick: () => act('low') }, 'Lie low for a day'),
       el('button', { onclick: () => act(null) }, 'Walk on')),
   ];
@@ -121,7 +118,7 @@ function peopleLeaf(state, deps, show) {
 
 // ---------- The city ----------
 function cityLeaf(state, deps, show) {
-  const { el, act } = deps, c = state.campaign, P = c.posting, on = (deps.on.kinds ??= Object.fromEntries(Object.keys(KINDS).map(k => [k, !['bus', 'other'].includes(k)])));
+  const { el } = deps, c = state.campaign, P = c.posting, on = (deps.on.kinds ??= Object.fromEntries(Object.keys(KINDS).map(k => [k, !['bus', 'other'].includes(k)])));
   const all = knownPlaces(c), streets = knownStreets(c), shown = all.filter(pl => on[pl.kind]);
   const town = townOf({ seed: P.mapSeed, city: P.city }), meA = state.actors.find(a => a.who === state.player);
   const here = state.map.kind === 'street' && state.map.seed === P.mapSeed ? { row: state.map.row ?? 0, x: meA?.x ?? 0 } : state.map.place === 'home' ? P.home : state.map.place === 'embassy' ? P.embassy : null;
@@ -171,11 +168,10 @@ function cityLeaf(state, deps, show) {
   cv.onclick = (e) => {
     const pl = pickAt(e);
     if (!pl) return;
-    const posting = places(c).find(q => q.id === pl.id), far = here && here.row !== undefined ? (pl.row === here.row ? `${Math.round(Math.abs(pl.x - (here.x ?? 0)))} m along` : `${Math.abs(pl.row - here.row)} ${Math.abs(pl.row - here.row) === 1 ? 'street' : 'streets'} ${pl.row < here.row ? 'north' : 'south'}`) : '';
+    const far = here && here.row !== undefined ? (pl.row === here.row ? `${Math.round(Math.abs(pl.x - (here.x ?? 0)))} m along` : `${Math.abs(pl.row - here.row)} ${Math.abs(pl.row - here.row) === 1 ? 'street' : 'streets'} ${pl.row < here.row ? 'north' : 'south'}`) : '';
     card.replaceChildren(el('h3', {}, pl.label), el('p', {}, `${streetName(town, pl.row)}${far ? `, ${far}` : ''}.`),
       el('div', { className: 'mind-acts' },
-        el('button', { onclick: () => { setWaypoint(c, pl); show('city'); } }, c.waypoint?.x === pl.x && c.waypoint?.row === pl.row ? 'The waypoint (set)' : 'Make it the waypoint'),
-        posting && posting.row !== (state.map.row ?? 0) ? el('button', { onclick: () => act(`travel:${posting.id}`) }, `Go there (${trip(state.map.row ?? 0, posting.row).how.split(',')[0]})`) : null));
+        el('button', { onclick: () => { setWaypoint(c, pl); show('city'); } }, c.waypoint?.x === pl.x && c.waypoint?.row === pl.row ? 'The waypoint (set)' : 'Make it the waypoint')));
   };
   const chips = el('div', { className: 'mind-kinds' }, ...Object.entries(KINDS).filter(([k]) => all.some(pl => pl.kind === k)).map(([k, word]) => el('button', { className: `mind-kind${on[k] ? ' on' : ''}`, style: `--dot: #${(KIND_COLOUR[k] ?? 0x8f96a6).toString(16).padStart(6, '0')}`, onclick: () => { on[k] = !on[k]; show('city'); } }, word)));
   return [
