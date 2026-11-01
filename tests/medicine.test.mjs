@@ -136,15 +136,15 @@ export default [
     },
   },
   {
-    name: 'medicine: a chemist\'s counter sells it all, a grocer\'s the everyday; a first-aid kit in a pocket; the flat\'s cabinet stocked on the first day',
+    name: 'medicine: a chemist\'s counter sells it all, a grocer\'s the everyday; a first-aid kit in the pockets; the flat\'s cabinet stocked on the first day',
     fn() {
-      const p = person();
+      const p = { ...person(), look: { top: { kind: 'coat', color: 0 } } };
       const sold = (shop) => (GOODS[shop] ?? []).map(([k]) => k);
       const at = carry(p, 'firstaid'); carry(p, 'sutures');
       const c = newCampaign(61, candidates(61, 'london', 'junior')[0], 'london', 'junior');
       console.log(`      a chemist's: ${sold('pharmacy').join(', ')}; a grocer's: ${sold('grocery').join(', ')}; bought: ${kitWords(p.kit)} (${at}); the cabinet: ${kitWords(c.cabinet)}`);
       assert(['firstaid', 'bandage', 'antiseptic', 'sutures', 'splint', 'tourniquet', 'painkillers', 'poultice', 'antibiotics'].every(k => sold('pharmacy').includes(k)) && sold('grocery').includes('bandage'), 'the counters');
-      assert(at === 'pocket' && p.kit.bandage === 4 && p.kit.sutures === 3 && !p.items?.length, 'counted, in a pocket');
+      assert(at === 'pocket' && p.kit.bandage === 4 && p.kit.sutures === 3 && !p.items?.length, 'counted, and in a coat\'s pockets there\'s room');
       assert(c.cabinet.bandage > 0, 'the cabinet');
     },
   },

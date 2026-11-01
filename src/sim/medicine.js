@@ -7,8 +7,11 @@
 // **Supplies** (SUPPLIES; p.kit: { kind: uses left }): bandages, antiseptic, a suture kit, a splint, a
 // tourniquet, painkillers, an arnica poultice, a course of antibiotics; a first-aid kit (KIT) is some of
 // the common ones. A chemist's counter sells them all, a grocer's bandages and painkillers (sim/clothes.js
-// GOODS); they're carried counted, not placed (sim/clothes.js carry()). The flat's bathroom cabinet has a few
-// from the first day (CABINET; taken at the basin: sim/scenarios/campaign.js).
+// GOODS). On you they're counted, and each takes up room in a pocket like anything else (packsOf(): a bandage
+// each, the rest by the bottle or the packet; sizes: sim/weapons.js SIZES; where: sim/items.js placed()):
+// what won't fit goes in the shop's bag (sim/clothes.js carry()), which is still on you, so it can be used
+// (kitOf(), onYou()), and goes in the bathroom cabinet at home. The cabinet has a few from the first day
+// (CABINET): they stay there till you take them, as many as you've room for (sim/clothes.js cabinetWays()).
 // **What wants care** (needsCare()): an open gash (a deep cut, an artery) neither stitched nor bandaged; an
 // infected wound; a broken arm or leg not splinted. Until it has it, it doesn't knit (knitOf(): a deep cut
 // open to the air doesn't close; an infected wound doesn't mend; an unsplinted break knits at half the
@@ -64,14 +67,32 @@ export const KNIT_STITCHED = 1.6, KNIT_UNSPLINTED = 0.5;
 const LIMBS = ['armL', 'armR', 'legL', 'legR'];
 const SIDE = { armL: 'left', armR: 'right', legL: 'left', legR: 'right' };
 
-/** Uses of a supply someone carries. */
-export const kitOf = (p, kind) => p?.kit?.[kind] ?? 0;
+/** Uses of a supply someone has on them: in their pockets, and in the shop's bag. */
+export const kitOf = (p, kind) => (p?.kit?.[kind] ?? 0) + (p?.bag?.find(x => x.supply === kind)?.n ?? 0);
+/** All the supplies on someone, pockets and bag: { kind: uses }. */
+export function onYou(p) {
+  const out = { ...p?.kit };
+  for (const x of p?.bag ?? []) if (x.supply) out[x.supply] = (out[x.supply] ?? 0) + x.n;
+  return out;
+}
+/** How so many uses of a supply come: the uses in each thing that takes up room (a bandage each; a bottle, a packet: [6, 2]). */
+export function packsOf(kind, n) {
+  const each = SUPPLIES[kind]?.uses ?? 1, out = [];
+  for (let left = n; left > 0; left -= each) out.push(Math.min(left, each));
+  return out;
+}
 
-/** Use one of a supply. Returns whether there was one. */
+/** Use one of a supply, from the bag only when the pockets have none. Returns whether there was one. */
 export function useSupply(p, kind) {
-  if (!(kitOf(p, kind) > 0)) return false;
-  if (!--p.kit[kind]) delete p.kit[kind];
-  if (!Object.keys(p.kit).length) delete p.kit;
+  if (p.kit?.[kind] > 0) {
+    if (!--p.kit[kind]) delete p.kit[kind];
+    if (!Object.keys(p.kit).length) delete p.kit;
+    return true;
+  }
+  const i = p.bag?.findIndex(x => x.supply === kind) ?? -1;
+  if (i < 0) return false;
+  if (!--p.bag[i].n) p.bag.splice(i, 1);
+  if (!p.bag.length) delete p.bag;
   return true;
 }
 

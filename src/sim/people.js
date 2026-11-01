@@ -179,6 +179,9 @@ export function asOfficer(p, character) {
   return p;
 }
 
+/** An officer in a scene's own clothes ({ top, legs, shoes }): their face and hair, its kit, no hat. Without a uniform, as they are. */
+export const uniformed = (character, uniform) => (character?.look && uniform ? { ...character, look: { ...character.look, ...uniform, hat: undefined, carry: undefined } } : character);
+
 /** A CIA officer at the rank of Handler (0.1.0's character): a spook with a mid-career Tradecraft. */
 export function handler(r) {
   const sex = chance(r, 0.5) ? 'f' : 'm';

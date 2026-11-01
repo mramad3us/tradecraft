@@ -25,6 +25,7 @@ import { mouthOf } from './map/street.js';
 import { townOf } from './cities/index.js';
 import { stream, hash, int, chance, pick, range, weighted } from './rng.js';
 import { WEAPONS, weaponOf, sizeOf } from './weapons.js';
+import { packsOf, useSupply, supplyWord } from './medicine.js';
 import { say } from './log.js';
 
 // Where things go on a person: SPACES, each so many, each holding so much (litres) of things no longer
@@ -33,6 +34,12 @@ import { say } from './log.js';
 // carried is placed (placed()) each thing in turn in the most hidden space with room for it (SPACES'
 // order), so nothing needs keeping of where it went. What shows: anything in the beltline without a
 // top over it (COVERS), and a pocket filled past BULGE of it (a bottle in a coat pocket).
+// **Everything takes room** (the user, 2026-10-31: "why are all these items … not taking any inventory
+// space ?"), not just what's fought with (things()): a named person's wallet and phone (ALWAYS: placed
+// first, so they're always where they were), any burners, the supplies of sim/medicine.js. The rest go
+// biggest first, so an order of buying can't strand a bottle behind some bandages, and each takes a space
+// where it won't show if there is one: everyday things never bulge a pocket while another has room. Only
+// what's fought with goes in the beltline: nobody tucks a bandage in their belt.
 export const SPACES = [
   { id: 'trousers', n: 2, l: 0.3, cm: 16, label: 'a trouser pocket' },
   { id: 'inside', n: 1, l: 0.4, cm: 26, label: 'the inside pocket', top: true },
@@ -43,26 +50,50 @@ export const POCKETED = new Set(['coat', 'jacket', 'suit']);      // (tops with 
 export const COVERS = new Set(['coat', 'jacket', 'suit', 'sweater']);   // (tops that hang over the beltline)
 export const BULGE = 0.6;
 
-/** Where each thing carried goes: [{ kind, at: space id | null (it doesn't fit), label, shows }]; and the spaces, filled. */
-export function placed(p, items = p.items ?? []) {
+export const ALWAYS = ['wallet', 'phone'];                         // (a named person's: what the rest makes room round)
+
+/** Everything on someone that takes up room: [{ kind, n: for a supply, the uses in it }]. */
+function things(p) {
+  const out = p.persistent ? ALWAYS.map(kind => ({ kind })) : [];
+  for (let i = 0; i < (p.burners ?? 0); i++) out.push({ kind: 'burner' });
+  for (const kind of p.items ?? []) out.push({ kind });
+  for (const [kind, n] of Object.entries(p.kit ?? {})) for (const uses of packsOf(kind, n)) out.push({ kind, n: uses });
+  return out;
+}
+
+/** Where each thing carried goes (and extra, kinds, as if carried too): [{ kind, n, at: space id | null (it doesn't fit), label, shows }]; and the spaces, filled. */
+export function placed(p, extra = []) {
   const top = p.look?.top?.kind, dress = top === 'dress', spaces = [];
   for (const S of SPACES) {
     if ((S.top && !POCKETED.has(top)) || (dress && (S.id === 'trousers' || S.belt))) continue;
     for (let i = 0; i < S.n; i++) spaces.push({ ...S, used: 0 });
   }
-  const out = items.map(kind => {
-    const [cm, l] = sizeOf(kind), sp = spaces.find(s => cm <= s.cm && s.used + l <= s.l + 1e-9 && !(s.one && s.n1));
-    if (sp) { sp.used += l; sp.n1 = (sp.n1 ?? 0) + 1; }
-    return { kind, sp };
-  });
+  const list = [...things(p), ...extra.map(kind => ({ kind }))];
+  const rank = (t) => (ALWAYS.includes(t.kind) ? Infinity : sizeOf(t.kind)[1]);
+  const room = (s, t, cm, l) => cm <= s.cm && s.used + l <= s.l + 1e-9 && !(s.one && s.n1) && (!s.belt || !!weaponOf(t.kind));
+  const hides = (s, l) => (s.belt ? COVERS.has(top) : s.used + l <= BULGE * s.l + 1e-9);
+  for (const t of [...list].sort((a, b) => rank(b) - rank(a))) {
+    const [cm, l] = sizeOf(t.kind), fit = spaces.filter(s => room(s, t, cm, l)), sp = fit.find(s => hides(s, l)) ?? fit[0];
+    if (sp) { sp.used += l; sp.n1 = (sp.n1 ?? 0) + 1; t.sp = sp; }
+  }
   return {
     spaces,
-    out: out.map(({ kind, sp }) => ({ kind, at: sp?.id ?? null, slot: sp ? spaces.indexOf(sp) : -1, label: sp?.label ?? null,
-      shows: !!sp && (sp.belt ? !COVERS.has(top) : sp.used > BULGE * sp.l), how: sp ? (sp.belt ? 'at your belt' : 'a bulge in your pocket') : null })),
+    out: list.map(({ kind, n, sp }) => ({ kind, n, at: sp?.id ?? null, slot: sp ? spaces.indexOf(sp) : -1, label: sp?.label ?? null,
+      shows: !!sp && (sp.belt ? !COVERS.has(top) : sp.used > BULGE * sp.l + 1e-9), how: sp ? (sp.belt ? 'at your belt' : 'a bulge in your pocket') : null })),
   };
 }
-/** Whether this thing would fit, on top of what's carried. */
-export const fits = (p, kind) => !!weaponOf(kind) && placed(p, [...(p.items ?? []), kind]).out.at(-1).at !== null;
+const nowhere = (P) => P.out.filter(o => o.at === null).length;
+/** Whether this thing would fit on top of what's carried, nothing else losing its place. */
+export const fits = (p, kind) => nowhere(placed(p, [kind])) === nowhere(placed(p));
+/** Whether so many more uses of a supply would. */
+export const fitsSupply = (p, kind, n) => nowhere(placed({ ...p, kit: { ...p.kit, [kind]: (p.kit?.[kind] ?? 0) + n } })) === nowhere(placed(p));
+/** The burners on someone, in pockets or the shop's bag; and one spent. */
+export const burnersOf = (p) => (p.burners ?? 0) + (p.bag?.filter(x => x.item === 'burner').length ?? 0);
+export function spendBurner(p) {
+  if (p.burners > 0) { if (!--p.burners) delete p.burners; return; }
+  const i = p.bag?.findIndex(x => x.item === 'burner') ?? -1;
+  if (i >= 0) { p.bag.splice(i, 1); if (!p.bag.length) delete p.bag; }
+}
 /** What shows of what's carried (not the hand's): [{ kind, how }]. */
 export const showing = (p) => placed(p).out.filter(o => o.shows);
 export const REACH_M = 1.1;                                        // close enough to pick up
@@ -167,10 +198,11 @@ export function draw(state, p, a) {
 
 /**
  * The player's hands and pockets, from a key or the inventory (sim/game.js): 'draw' (G: the next one
- * out, or put away), 'wield:<kind>' (that one out), 'stow' (put away), 'drop:<kind>'. A line in the log.
+ * out, or put away), 'wield:<kind>' (that one out), 'stow' (put away), 'drop:<kind>', 'discard:<kind>:<n>'
+ * (a supply or a burner thrown away, to make room: these don't lie about). A line in the log.
  */
 export function use(state, bus, a, cmd) {
-  const p = state.people[a.who], [verb, kind] = cmd.split(':'), was = p.hand;
+  const p = state.people[a.who], [verb, kind, arg] = cmd.split(':'), was = p.hand;
   if (verb === 'draw') {
     const now = draw(state, p, a), down = was && was !== now && !(p.items ?? []).includes(was);   // (held only: it went on the ground)
     const put = was && (down ? `You put ${weaponOf(was).name} down: it won't go in a pocket.` : `You put ${weaponOf(was).name} away.`);
@@ -187,6 +219,10 @@ export function use(state, bus, a, cmd) {
     else if (p.hand === kind) drop(state, p, a);
     else return;
     say(state, bus, { kind: 'note', text: `You drop ${weaponOf(kind).name}.` });
+  } else if (verb === 'discard' && kind) {
+    const n = Number(arg) || 1;
+    if (kind === 'burner') { for (let i = 0; i < n && p.burners > 0; i++) spendBurner(p); say(state, bus, { kind: 'note', text: `You throw away ${n === 1 ? 'a burner' : `${n} burners`}.` }); }
+    else { let gone = 0; while (gone < n && useSupply(p, kind)) gone++; if (gone) say(state, bus, { kind: 'note', text: `You throw away ${supplyWord(kind, gone)}.` }); }
   }
 }
 

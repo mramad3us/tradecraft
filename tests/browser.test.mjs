@@ -39,12 +39,12 @@ export default [
         await page.waitForTimeout(300);
         await page.keyboard.press('KeyI');
         await page.waitForSelector('.mind.pockets', { timeout: 5000 });
-        const seen = await page.evaluate(() => ({ pockets: document.querySelectorAll('.pk-pocket').length, things: [...document.querySelectorAll('.pk-thing .pk-name')].map(e => e.textContent), icons: document.querySelectorAll('.pk-thing canvas.pk-icon').length, first: document.querySelector('button[data-n="1"]')?.closest('.pk-thing')?.querySelector('.pk-name')?.textContent, kit: document.querySelector('.pk-kit')?.textContent }));
+        const seen = await page.evaluate(() => ({ pockets: document.querySelectorAll('.pk-pocket').length, things: [...document.querySelectorAll('.pk-thing .pk-name')].map(e => e.textContent), icons: document.querySelectorAll('.pk-thing canvas.pk-icon').length, first: document.querySelector('button[data-n="1"]')?.closest('.pk-thing')?.querySelector('.pk-name')?.textContent, kit: [...document.querySelectorAll('.pk-pocket .pk-name')].map(e => e.textContent).join(', ') }));
         await page.keyboard.press('Digit1');                                   // (the hand's: put away)
         await page.waitForTimeout(400);
         const after = await page.evaluate(() => { const s = window.__tradecraft.state, me = s.people[s.player]; return { hand: me.hand ?? null, items: me.items, open: !document.getElementById('card')?.hidden }; });
         console.log(`      ${seen.pockets} pockets; things ${seen.things.join(', ')} (${seen.icons} drawn; 1 is ${seen.first}); first aid: ${seen.kit}; 1: the hand ${after.hand ?? 'empty'}, carried ${after.items.join(', ')}`);
-        assert(seen.pockets >= 5 && seen.first === 'A penknife' && seen.icons === seen.things.length && /bandages/.test(seen.kit ?? ''), 'the pockets, the hand\'s thing first, each drawn, the kit');
+        assert(seen.pockets >= 5 && seen.first === 'A penknife' && seen.icons === seen.things.length && /Wallet/.test(seen.kit ?? '') && /Your phone/.test(seen.kit ?? '') && /andage/.test(seen.kit ?? ''), 'the pockets, the hand\'s thing first, each drawn; the wallet, the phone and the kit in the pockets');
         assert(after.hand === null && after.items.includes('penknife'), '1 put the penknife away');
         assert(errors.length === 0, errors.join('\n'));
       });

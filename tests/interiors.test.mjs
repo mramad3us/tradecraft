@@ -173,6 +173,36 @@ export default [
     },
   },
   {
+    name: 'interiors: the basin: T asks first; a wash takes nothing from the cabinet (the user: "i never asked to take the medication"); what\'s taken is chosen, one thing at a time; with nothing to choose, T just washes',
+    fn() {
+      const seed = 3, city = 'london', c = newCampaign(seed, candidates(seed, city)[0], city), s = newGame({ seed, scenario: 'campaign', campaign: c }), bus = createBus(), cards = [];
+      bus.on('basin', (list) => cards.push(list));
+      start(s, bus);
+      const me = playerActor(s), P = s.people.me, at = s.$world.sections.get(0).plan.spots.find(x => x.kind === 'wash'), was = JSON.stringify(c.cabinet);
+      Object.assign(me, { x: at.x, z: at.z, face: at.face ?? 'up' });
+      P.bloody = { clothes: 0 }; P.wet = 50;
+      for (let i = 0; i < 25; i++) step(s, {}, bus);
+      console.log(`      ${s.scenario.prompt?.text}`);
+      assert(s.scenario.prompt?.act === 'wash', `at the basin, T offers it (${s.scenario.prompt?.text})`);
+      const t0 = s.time.ms;
+      step(s, { act: ['instinct'] }, bus);
+      console.log(`      the card: ${cards[0]?.map(w => w.label).join('; ')}`);
+      assert(cards.length === 1 && cards[0][0].key === 'wash' && cards[0].length > 1 && JSON.stringify(c.cabinet) === was && !P.kit && s.time.ms - t0 < MIN, 'T only asks: the card, nothing taken, no time gone');
+      step(s, { act: ['desk:basin:wash'] }, bus);
+      assert(!P.bloody && !P.wet && s.time.ms - t0 >= 14 * MIN, 'washed, a quarter of an hour');
+      assert(JSON.stringify(c.cabinet) === was && !P.kit, `the cabinet as it was (${JSON.stringify(c.cabinet)}), nothing in your pockets`);
+      assert(!s.log.some(e => /cabinet/i.test(e.text)), 'and nothing in the log about it');
+      step(s, { act: ['desk:basin:take:bandage'] }, bus);
+      assert(P.kit?.bandage === 1 && c.cabinet.bandage === JSON.parse(was).bandage - 1 && cards.length === 2, 'one bandage, chosen; the card still open');
+      // (nothing in it and nothing to put back: no card, T washes)
+      P.kit = undefined; c.cabinet = {};
+      for (let i = 0; i < 3; i++) step(s, {}, bus);
+      const n = cards.length, t1 = s.time.ms;
+      step(s, { act: ['instinct'] }, bus);
+      assert(cards.length === n && s.time.ms - t1 >= 14 * MIN, 'nothing to choose: straight to the wash');
+    },
+  },
+  {
     name: 'interiors: out by walking, not placed: the flat\'s front door and the embassy\'s street door, head on or slantwise, let you out at once (the user: "The door to exit the embassy is finicky")',
     fn() {
       const rows = [];

@@ -26,7 +26,7 @@
 // ender in a bout (sim/cqc.js finish()) stops it, and the bout is lost, whatever it did; Hale sees to
 // that. A classmate killed by one ends the lesson ('dismissed').
 import { at, TICK_MS, dateText } from '../clock.js';
-import { recruit, asOfficer } from '../people.js';
+import { recruit, asOfficer, uniformed } from '../people.js';
 import { say, speak } from '../log.js';
 import { pick, int, stream } from '../rng.js';
 import { HEARSAY, haleStream } from '../hale.js';
@@ -123,7 +123,9 @@ export const dojoScenario = {
     state.time.ms = at(year, year === 2026 ? 4 : 9, 14, 10, 20);
     state.legend = { id: 'farm', name: 'Career trainee, the Farm', cover: 'none', floor: 0 };
     state.country = 'us';
-    const me = asOfficer(recruit(r, { id: 'me', cqc: [5, 2], os: 15 }), character);
+    // (the class's gym kit, whoever's playing: an officer's coat stays in their campaign, the user, 2026-10-31)
+    const me = recruit(r, { id: 'me', cqc: [5, 2], os: 15 }), uniform = { top: me.look.top, legs: me.look.legs, shoes: me.look.shoes };
+    asOfficer(me, uniformed(character, uniform));
     state.people.me = me;
     state.player = 'me';
     state.map = { kind: 'dojo', seed: int(r, 1e9), row: 0, i0: 0, i1: 0, crowd: 0 };
@@ -145,7 +147,7 @@ export const dojoScenario = {
     person('hale', SPOTS.instructor.x, SPOTS.instructor.z, 'down');
     cls.forEach((who, i) => person(who, SPOTS.class[i].x, SPOTS.class[i].z, 'down'));
     const remembered = chapter === 'remembered';
-    state.scenario = { kind: 'dojo', chapter: remembered ? 'remembered' : 'lesson', step: remembered ? STEPS.findIndex(s => s.bout) - 1 : -1, phase: 'ready', count: 0, misses: 0, bouts: [],
+    state.scenario = { kind: 'dojo', uniform, chapter: remembered ? 'remembered' : 'lesson', step: remembered ? STEPS.findIndex(s => s.bout) - 1 : -1, phase: 'ready', count: 0, misses: 0, bouts: [],
       weak: cls[0], even: cls[1], strong: cls[4], prompt: null, outcome: null, began: state.time.ms, show: 0 };
     say(state, null, { kind: 'note', text: remembered ? 'The Farm, years ago: floor polish, other people\'s effort, and Hale waiting on the mat. You remember the bouts best.' : `${me.name}, week six at the Farm. The hall smells of floor polish and other people's effort. Hale is waiting on the mat.` });
   },

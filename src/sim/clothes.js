@@ -13,16 +13,21 @@
 // rainwearOf(); without one, an umbrella in the hand or wet); an optician's glasses) is put on there and then, a change of clothes that
 // whoever was looking for the old ones looks past; what it replaced goes into the shop's bag. A thing
 // (GOODS: an umbrella, a penknife, a bottle of wine, a kitchen knife; a burner, a prepaid phone, counted
-// on p.burners: your own smartphone's taken for granted; a chemist's supplies, a grocer's bandages and
-// painkillers, counted on p.kit: sim/medicine.js) goes into the hand if it's empty,
-// a pocket if there's room (sim/items.js), else the bag. The bag (p.bag) is carried, and shows (a carrier
-// bag in the hand); at home it's unpacked (unpack()): clothes into the wardrobe, things into the drawer.
+// on p.burners; a chemist's supplies, a grocer's bandages and painkillers, counted on p.kit:
+// sim/medicine.js) goes into the hand if it's a weapon and that's empty, a pocket if there's room
+// (sim/items.js: burners and supplies take up room like anything else), else the bag. The bag (p.bag) is
+// carried, and shows (a carrier bag in the hand); at home it's unpacked (unpack()): clothes into the
+// wardrobe, things into the drawer, supplies into the bathroom cabinet.
 // At the wardrobe (dress()): a piece put on (what it replaces hung up), a hat or glasses taken off,
-// something carried left in the drawer, something in the drawer taken.
+// something carried left in the drawer, something in the drawer taken. A top with fewer pockets leaves
+// things with nowhere to go: they go in the bag (shed()), so at home they're put away.
+// At the basin (cabinetWays(), cabinetDo()): the cabinet over it, what's in it taken out one thing at a
+// time, if there's room, and what's on you put back. Nothing comes out of it unasked (the user,
+// 2026-10-31: "i never asked to take the medication when washing up").
 import { weaponOf } from './weapons.js';
-import { fits } from './items.js';
+import { fits, fitsSupply, placed, ALWAYS } from './items.js';
 import { hash } from './rng.js';
-import { SOLD, goodOf, addSupply, SUPPLIES } from './medicine.js';
+import { SOLD, KIT, goodOf, addSupply, SUPPLIES, packsOf, supplyWord } from './medicine.js';
 
 export const SLOTS = ['top', 'hat', 'glasses'];
 export const DRESS_S = 4 * 60;                                     // (changing, at home)
@@ -86,23 +91,90 @@ export function takeOff(p, slot) {
 /** A rail's pieces at a kind of shop, named, without what the person's wearing now. */
 export const railOf = (shop, p) => (RAIL[shop] ?? []).map(x => ({ ...x, name: x.name ?? nameOf(x.slot, x.look) })).filter(x => JSON.stringify(x.look) !== JSON.stringify(p?.look?.[x.slot]));
 
-/** A thing bought or taken: into the hand if empty, a pocket if there's room, else the bag. Where it went: 'hand' | 'pocket' | 'bag'. */
+const thingName = (k) => weaponOf(k)?.name ?? (k === 'burner' ? 'a burner' : k);
+/** What's in the shop's bag, in words: a thing, some supplies, a piece of clothing. */
+export const bagWord = (x) => (x.supply ? supplyWord(x.supply, x.n) : x.item ? thingName(x.item) : x.name);
+// (supplies into the bag: one entry a kind, so they stay counted)
+const bagSupply = (p, kind, n) => { const had = p.bag?.find(x => x.supply === kind); if (had) had.n += n; else (p.bag ??= []).push({ supply: kind, n }); };
+
+/** A thing bought or taken: a weapon into the hand if empty, then a pocket if there's room, else the bag. Where it went: 'hand' | 'pocket' | 'bag' | 'some' (a first-aid kit: part of each). */
 export function carry(p, kind) {
-  if (kind === 'burner') { p.burners = (p.burners ?? 0) + 1; return 'pocket'; }   // (a phone: in a pocket, whatever's there; counted, not placed)
-  if (kind === 'firstaid' || SUPPLIES[kind]) { addSupply(p, kind); return 'pocket'; }   // (a chemist's: the same)
+  if (kind === 'burner') {
+    if (fits(p, 'burner')) { p.burners = (p.burners ?? 0) + 1; return 'pocket'; }
+    (p.bag ??= []).push({ item: 'burner' });
+    return 'bag';
+  }
+  if (kind === 'firstaid' || SUPPLIES[kind]) {
+    let pocket = 0, bag = 0;
+    for (const [k, n] of Object.entries(kind === 'firstaid' ? KIT : { [kind]: SUPPLIES[kind].uses })) for (const uses of packsOf(k, n)) {
+      if (fitsSupply(p, k, uses)) { addSupply(p, { [k]: uses }); pocket++; } else { bagSupply(p, k, uses); bag++; }
+    }
+    return !bag ? 'pocket' : pocket ? 'some' : 'bag';
+  }
   if (!p.hand && weaponOf(kind)) { p.hand = kind; return 'hand'; }
   if (fits(p, kind)) { (p.items ??= []).push(kind); return 'pocket'; }
   (p.bag ??= []).push({ item: kind });
   return 'bag';
 }
 
-/** Home: the bag unpacked, clothes into the wardrobe, things into the drawer. Returns what was in it, in words, or null. */
-export function unpack(p) {
+/** A top changed: what no longer has anywhere to go (not the wallet and the phone, which stay with you whatever you wear), into the bag. Returns how many things. */
+export function shed(p) {
+  const gone = placed(p).out.filter(o => o.at === null && !ALWAYS.includes(o.kind));
+  for (const o of gone) {
+    if (o.kind === 'burner') { if (!--p.burners) delete p.burners; (p.bag ??= []).push({ item: 'burner' }); }
+    else if (SUPPLIES[o.kind]) { p.kit[o.kind] -= o.n; if (!(p.kit[o.kind] > 0)) delete p.kit[o.kind]; if (!Object.keys(p.kit).length) delete p.kit; bagSupply(p, o.kind, o.n); }
+    else { p.items.splice(p.items.indexOf(o.kind), 1); (p.bag ??= []).push({ item: o.kind }); }
+  }
+  return gone.length;
+}
+
+/** Home: the bag unpacked, clothes into the wardrobe, things into the drawer, supplies into the cabinet (the campaign's, if given). Returns what was in it, in words, or null. */
+export function unpack(p, cabinet = null) {
   if (!p.bag?.length) return null;
-  const words = p.bag.map(x => (x.item ? weaponOf(x.item)?.name ?? x.item : x.name));
-  for (const x of p.bag) { if (x.item) (p.stash ??= []).push(x.item); else (p.wardrobe ??= []).push(x); }
+  const words = p.bag.map(bagWord);
+  for (const x of p.bag) {
+    if (x.supply) { if (cabinet) cabinet[x.supply] = (cabinet[x.supply] ?? 0) + x.n; else addSupply(p, { [x.supply]: x.n }); }
+    else if (x.item) (p.stash ??= []).push(x.item);
+    else (p.wardrobe ??= []).push(x);
+  }
   delete p.bag;
   return words.length > 1 ? `${words.slice(0, -1).join(', ')} and ${words.at(-1)}` : words[0];
+}
+
+/** At the basin: [{ key, label, off: why not, if it can't }]: each thing in the cabinet to take, each supply on you to put back. */
+export function cabinetWays(p, cabinet) {
+  const out = [];
+  for (const [k, n] of Object.entries(cabinet ?? {})) {
+    if (!(n > 0) || !SUPPLIES[k]) continue;
+    const u = packsOf(k, n)[0];
+    out.push({ key: `take:${k}`, label: `Take ${supplyWord(k, u)}${n > u ? `, of the ${n} there` : ''}`, off: fitsSupply(p, k, u) ? null : 'no room about you' });
+  }
+  for (const [k, n] of Object.entries(p.kit ?? {})) {
+    if (!(n > 0) || !SUPPLIES[k]) continue;
+    const u = packsOf(k, n).at(-1);
+    out.push({ key: `put:${k}`, label: `Put ${supplyWord(k, u)} in the cabinet${n > u ? `, of the ${n} on you` : ''}` });
+  }
+  return out;
+}
+
+/** Do a cabinet's way (cabinetWays()), one thing at a time: a line for the log, or null if it couldn't be done. */
+export function cabinetDo(p, cabinet, key) {
+  const [what, k] = key.split(':');
+  if (what === 'take') {
+    const n = cabinet[k] ?? 0, u = packsOf(k, n)[0];
+    if (!u || !fitsSupply(p, k, u)) return null;
+    if (n > u) cabinet[k] = n - u; else delete cabinet[k];
+    addSupply(p, { [k]: u });
+    return `From the cabinet, into a pocket: ${supplyWord(k, u)}.`;
+  }
+  if (what === 'put') {
+    const n = p.kit?.[k] ?? 0, u = packsOf(k, n).at(-1);
+    if (!u) return null;
+    if (n > u) p.kit[k] = n - u; else { delete p.kit[k]; if (!Object.keys(p.kit).length) delete p.kit; }
+    cabinet[k] = (cabinet[k] ?? 0) + u;
+    return `Back in the cabinet: ${supplyWord(k, u)}.`;
+  }
+  return null;
 }
 
 /**
@@ -113,8 +185,8 @@ export function wardrobeWays(p) {
   const out = [];
   for (const x of p.wardrobe ?? []) out.push({ key: `wear:${x.id}`, label: `Put on ${x.name}${p.look?.[x.slot] ? `, for ${nameOf(x.slot, p.look[x.slot])}` : ''}` });
   for (const slot of ['hat', 'glasses']) if (p.look?.[slot] && p.look[slot].kind !== 'hijab') out.push({ key: `off:${slot}`, label: `Take off ${nameOf(slot, p.look[slot])}` });
-  for (const k of [p.hand, ...(p.items ?? [])].filter(Boolean)) out.push({ key: `leave:${k}`, label: `Leave ${weaponOf(k)?.name ?? k} in the drawer` });
-  (p.stash ?? []).forEach((k, i) => out.push({ key: `take:${i}`, label: `Take ${weaponOf(k)?.name ?? k} from the drawer` }));
+  for (const k of [p.hand, ...(p.items ?? [])].filter(Boolean)) out.push({ key: `leave:${k}`, label: `Leave ${thingName(k)} in the drawer` });
+  (p.stash ?? []).forEach((k, i) => out.push({ key: `take:${i}`, label: `Take ${thingName(k)} from the drawer` }));
   return out;
 }
 
@@ -139,14 +211,14 @@ export function dress(p, key) {
     if (p.hand === arg) p.hand = null;
     else { const i = (p.items ?? []).indexOf(arg); if (i < 0) return null; p.items.splice(i, 1); }
     (p.stash ??= []).push(arg);
-    return `${cap(weaponOf(arg)?.name ?? arg)} in the drawer.`;
+    return `${cap(thingName(arg))} in the drawer.`;
   }
   if (what === 'take') {
     const k = p.stash?.[Number(arg)];
     if (!k) return null;
     p.stash.splice(Number(arg), 1);
     const at = carry(p, k);
-    return `${cap(weaponOf(k)?.name ?? k)} from the drawer, ${at === 'hand' ? 'in your hand' : at === 'pocket' ? 'in a pocket' : 'in the bag'}.`;
+    return `${cap(thingName(k))} from the drawer, ${at === 'hand' ? 'in your hand' : at === 'pocket' ? 'in a pocket' : 'in the bag'}.`;
   }
   return null;
 }

@@ -35,7 +35,7 @@ import { say } from './log.js';
 import { populate, think, walk, facing, isPasserby, noticeAgent } from './crowd.js';
 import { look, headOf, faceOf, GLASS_MAX_DEG } from './perception.js';
 import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } from './agents.js';
-import { drift, asOfficer } from './people.js';
+import { drift, asOfficer, uniformed } from './people.js';
 import { heal, bleeding, bloodTick, bandOf, canStand, kill, BLOOD, COME_ROUND_S } from './health.js';
 import { PRESSURE_K, treat } from './aid.js';
 import { atKerb, destinations, ride, cabFor, hailedBy, board, rideTick, chaseTick, WALK_OFF_M } from './taxi.js';
@@ -110,11 +110,11 @@ export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = 
  * The player as someone else: a campaign's officer playing a lesson (the user, 2026-10-27: "gate the
  * tutorial behind the campaign, to make it linked to the character we pick"). Who they are (name, sex,
  * age, look, skills, Tradecraft, background, languages) is the officer's; what the scene gave them to
- * carry stays the scene's.
+ * carry stays the scene's, and so do the clothes, if it has its own (state.scenario.uniform: the Farm's).
  */
 export function wear(state, character) {
   const me = state.people[state.player];
-  if (me) asOfficer(me, character);
+  if (me) asOfficer(me, uniformed(character, state.scenario.uniform));
 }
 
 /** Attach the runtime world (state.$world) to a state, new or loaded, and fill the street if it's new. */

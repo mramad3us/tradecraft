@@ -25,6 +25,7 @@ import { clockText, dateText, DAY } from '../sim/clock.js';
 import { needsWords } from '../sim/needs.js';
 import { fatigue } from '../sim/campaign.js';
 import { price, cashOf } from '../sim/money.js';
+import { burnersOf } from '../sim/items.js';
 import { cityById } from '../sim/cities/index.js';
 import { townOf } from '../sim/cities/index.js';
 import { streetName, SECTION_M, Z } from '../sim/map/street.js';
@@ -104,7 +105,7 @@ function peopleLeaf(state, deps, show) {
       el('div', { className: 'mind-acts' }, ...ways.map(w => el('button', { className: `mind-why${w === why ? ' on' : ''}`, disabled: !w.ok, title: w.why, onclick: () => { deps.on.why = w.key; show('people'); } }, w.label))),
       why ? el('p', { className: 'mind-note' }, `${why.label}: ${why.why}.`) : el('p', { className: 'mind-note' }, 'Nothing to call about.'),
       el('div', { className: 'mind-acts' },
-        el('button', { disabled: !why || !(me.burners > 0), title: 'used once, and dumped: nothing to trace', onclick: () => act(`phone:${s.id}:burner:${why.key}`) }, `From a burner (${me.burners ?? 0} on you)`),
+        el('button', { disabled: !why || !(burnersOf(me) > 0), title: 'used once, and dumped: nothing to trace', onclick: () => act(`phone:${s.id}:burner:${why.key}`) }, `From a burner (${burnersOf(me)} on you)`),
         el('button', { disabled: !why, title: 'on their bill: the opposition reads such things', onclick: () => act(`phone:${s.id}:own:${why.key}`) }, 'From your own phone: traceable'),
         el('button', { onclick: () => { deps.on.call = null; show('people'); } }, 'Not now')));
   };
@@ -114,7 +115,7 @@ function peopleLeaf(state, deps, show) {
       el('div', { className: 'mind-acts' }, el('span', { className: 'what' }, `${s.codename}: ${s.role}, in it for ${s.motive}; ${trust(s.trust)}${s.burned ? `. Compromised: ${s.burnedBy === 'call' ? 'they looked at who you rang' : 'they saw you meet'}` : ''}.`),
         deps.on.call === s.id ? null : el('button', { className: 'mind-go', onclick: () => { deps.on.call = s.id; deps.on.why = null; show('people'); } }, 'Call…')),
       deps.on.call === s.id ? panel(s) : null)),
-    p.assets.length ? el('p', { className: 'mind-note' }, `A call to bring a meeting forward or put it off, or a word to keep them warm. ${me.burners ? `${me.burners} burner${me.burners === 1 ? '' : 's'} on you.` : 'No burners on you: a phone shop sells them.'}`) : null,
+    p.assets.length ? el('p', { className: 'mind-note' }, `A call to bring a meeting forward or put it off, or a word to keep them warm. ${burnersOf(me) ? `${burnersOf(me)} burner${burnersOf(me) === 1 ? '' : 's'} on you.` : 'No burners on you: a phone shop sells them.'}`) : null,
     el('h3', {}, 'Watched'),
     ...p.targets.map(t => el('p', {}, `${t.name}, ${t.what}.${t.wary ? ' Careful now: he knows someone was there.' : ''}${t.contact ? ' Seen meeting someone.' : ''}`)),
     el('h3', {}, 'The station'),

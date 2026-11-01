@@ -22,7 +22,13 @@ export default [
           start(g, null);
           const me = g.people[g.player], first = g.log.find(e => e.kind === 'note')?.text ?? '';
           const farm = L.scenario === 'dojo';
-          assert(me.name === me0.name && JSON.stringify(me.look) === JSON.stringify(me0.look) && JSON.stringify(me.skills) === JSON.stringify(me0.skills), `${city} ${L.id}: the officer, as they are`);
+          assert(me.name === me0.name && JSON.stringify(me.skills) === JSON.stringify(me0.skills), `${city} ${L.id}: the officer, as they are`);
+          if (!farm) assert(JSON.stringify(me.look) === JSON.stringify(me0.look), `${city} ${L.id}: dressed as they are`);
+          else {                                                       // (at the Farm: their face, in the class's kit, not their coat)
+            const cls = Object.values(g.people).filter(p => /^c\d$/.test(p.id));
+            assert(me.look.skin === me0.look.skin && JSON.stringify(me.look.hair) === JSON.stringify(me0.look.hair), `${city} farm: their own face`);
+            assert(me.look.top.kind === 'sweater' && !me.look.hat && cls.every(p => p.look.top.kind === me.look.top.kind && p.look.legs === me.look.legs && p.look.shoes === me.look.shoes), `${city} farm: the class's gym kit (${me.look.top.kind})`);
+          }
           assert(first.includes(me0.name) || !/^[A-Z][a-z]+ [A-Z][a-z]+[,.]/.test(first), `${city} ${L.id}: the first line names them ("${first.slice(0, 60)}")`);
           if (!farm) assert(g.map.city === city && (g.legend?.id !== 'embassy' || g.legend.name === c.posting.job),   // (an exercise with a cover of its own keeps it: Blown's)
              `${city} ${L.id}: in ${city} (${g.map.city}), as ${c.posting.job} (${g.legend?.name})`);

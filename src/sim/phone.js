@@ -16,6 +16,7 @@
 // compromised (sim/campaign.js pass(): each day after, they may be arrested). A compromised asset's own
 // line is watched: from your own phone to theirs, they're as good as gone (OWN_BURNED_HEAT on you).
 // The call takes CALL_S, head bowed over the phone (the sprites' 'phone' pose), on the street.
+import { burnersOf, spendBurner } from './items.js';
 import { stream, chance, range } from './rng.js';
 import { DAY, MIN, calendar, clockText, WEEKDAYS } from './clock.js';
 import { say } from './log.js';
@@ -49,12 +50,12 @@ const dayText = (ms, now) => ['today', 'tomorrow'][dayOf(ms) - dayOf(now)] ?? WE
 export function call(state, bus, id, phone, why) {
   const c = state.campaign, p = state.people[state.player], s = c?.posting.assets.find(a => a.id === id), now = state.time.ms;
   if (!s) return { ok: false };
-  if (phone === 'burner' && !(p.burners > 0)) return { ok: false, text: 'No burner on you: a phone shop sells them.' };
+  if (phone === 'burner' && !(burnersOf(p) > 0)) return { ok: false, text: 'No burner on you: a phone shop sells them.' };
   const way = callWays(c, s, now).find(w => w.key === why);
   if (!way?.ok) return { ok: false, text: way?.why };
   const lines = [];
   if (phone === 'burner') {
-    p.burners--; if (!p.burners) delete p.burners;
+    spendBurner(p);
     lines.push('A burner, a number from memory.');
   } else {
     lines.push('Your own phone: the embassy\'s Second Secretary, on their bill.');

@@ -35,7 +35,7 @@ import { hash } from './rng.js';
 import { say } from './log.js';
 import { eat, EAT_S } from './needs.js';
 import { price, pay, cashOf, BITE_USD } from './money.js';
-import { RAIL, GOODS, SLOTS, railOf, putOn, carry } from './clothes.js';
+import { RAIL, GOODS, SLOTS, railOf, putOn, carry, shed } from './clothes.js';
 import { weaponOf } from './weapons.js';
 import { train, learn, shelf, reading, readAnHour, bookOf, bookLine } from './training.js';
 import { cityById } from './cities/index.js';
@@ -228,12 +228,13 @@ export function insideTick(state, bus, me, scenario) {
     // (on there and then; what it replaced, and whatever was on it, folded into the shop's bag to take home: sim/clothes.js)
     const was = putOn(p, ins.piece);
     if (was) (p.bag ??= []).push(was);
+    if (ins.piece.slot === 'top') shed(p);                          // (fewer pockets: what's left over goes in the bag with it)
     if (ins.piece.slot === 'top' && p.bloody?.clothes !== undefined) { delete p.bloody.clothes; if (!Object.keys(p.bloody).length) delete p.bloody; }
     if (me.within) me.within.coat = true;                      // (out the door changed: the scene hears so)
     say(state, bus, { kind: 'note', text: `${ins.piece.name.charAt(0).toUpperCase() + ins.piece.name.slice(1)} on, there and then${was ? `; ${was.name} folded into the shop's bag` : ''}. Out you go, not as you came in.` });
   } else if (ins.good) {
     const at = carry(p, ins.good);
-    say(state, bus, { kind: 'note', text: `${ins.what.charAt(0).toUpperCase() + ins.what.slice(1)}: ${at === 'hand' ? 'in your hand' : at === 'pocket' ? 'in a pocket' : 'in the shop\'s bag, no room for it about you'}.` });
+    say(state, bus, { kind: 'note', text: `${ins.what.charAt(0).toUpperCase() + ins.what.slice(1)}: ${at === 'hand' ? 'in your hand' : at === 'pocket' ? 'in a pocket' : at === 'some' ? 'what would go in your pockets, and the rest in the shop\'s bag' : 'in the shop\'s bag, no room for it about you'}.` });
   } else if (ins.way === 'train' || ins.way === 'class') {
     // (the gym: fitness; the club: close combat; hungry after, as you would be)
     const g = ins.way === 'train' ? train(p, 'fitness', GYM_S / 3600, GYM_UP_TO) : train(p, 'cqc', CLASS_S / 3600, CLUB_UP_TO), what = ins.way === 'train' ? 'Fitness' : 'CQC';

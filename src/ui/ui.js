@@ -37,7 +37,7 @@ import { calendar as calendarOf, DAY as DAY_MS } from '../sim/clock.js';
 import { bleedRate, bloodOf, bandOf, BLOOD } from '../sim/health.js';
 import { openTubeMap } from './tubemap.js';
 import { openPockets } from './pockets.js';
-import { kitWords, painOf, painBand, feverOf } from '../sim/medicine.js';
+import { kitWords, onYou, painOf, painBand, feverOf } from '../sim/medicine.js';
 import { RANK as RANKS } from '../sim/instinct.js';
 import { weatherAt } from '../sim/weather.js';
 
@@ -619,7 +619,7 @@ export function createUI({ input, cb }) {
       // (the wounds as they stand, and what you have to tend them with: sim/medicine.js)
       el('div', { className: 'aid-body' },
         el('ul', { className: 'wounds' }, ...Object.keys(PARTS).filter(k => stateOf(p, k) !== 'unhurt' || injuriesOn(p, k)).map(k => el('li', { className: worst(k) }, el('b', {}, `${PARTS[k].name}: ${stateText(p, k)}`), injuriesOn(p, k, state.time.ms) ? el('span', {}, injuriesOn(p, k, state.time.ms)) : null))),
-        el('p', { className: 'aid-kit' }, `On you: ${kitWords(medic.kit) || 'nothing from a chemist\'s'}.`)),
+        el('p', { className: 'aid-kit' }, `On you: ${kitWords(onYou(medic)) || 'nothing from a chemist\'s'}.`)),
       list.length ? el('div', { className: 'glass-rows' }, ...numbered(list, o => o.ok).map(([o, n]) => el('div', { className: `glass-row${o.ok ? '' : ' none'}` },
         el('span', {}, n ? el('kbd', {}, String(n)) : null), el('span', { className: 'what' }, o.label), el('span', { className: 'why' }, o.why ?? ''),
         o.ok ? el('button', { dataset: { n }, onclick: go(o.key) }, 'Do it') : el('span')))) : el('p', {}, 'Nothing first aid can do: nothing bleeding, nothing open, nothing broken, nothing that hurts.'),
@@ -636,7 +636,7 @@ export function createUI({ input, cb }) {
     cv.style.width = `${pl.w * 2}px`; cv.style.height = `${pl.h * 2}px`; cv.style.imageRendering = 'pixelated';
     return cv;
   }
-  const CHOICE_ICON = { TAXI: 'right', BUS: 'right', SHOP: 'house', BED: 'house', WARDROBE: 'key', POLICE: 'star' };
+  const CHOICE_ICON = { TAXI: 'right', BUS: 'right', SHOP: 'house', BED: 'house', WARDROBE: 'key', BASIN: 'cross', POLICE: 'star' };
   /** [item, its number (1…, for the ones that can be chosen), or 0]. */
   const numbered = (list, ok = () => true) => { let k = 0; return list.map(o => [o, ok(o) ? ++k : 0]); };
 
@@ -644,7 +644,7 @@ export function createUI({ input, cb }) {
   function openChoices(stamp, title, list, act) {
     card.replaceChildren(el('div', { className: 'mind glass choices' },
       el('div', { className: 'mind-head' }, glassHead(stamp, title, CHOICE_ICON[stamp] ?? 'pin')),
-      el('div', { className: 'glass-list' }, ...list.map((o, i) => el('button', { className: 'item', dataset: { n: i + 1 }, onclick: () => { closeOverlays(); act(o.key); } }, el('kbd', {}, String(i + 1)), el('span', {}, o.label)))),
+      el('div', { className: 'glass-list' }, ...list.map((o, i) => el('button', { className: 'item', disabled: !!o.off, dataset: { n: i + 1 }, onclick: () => { closeOverlays(); act(o.key); } }, el('kbd', {}, String(i + 1)), el('span', {}, o.label), o.off ? el('small', {}, o.off) : null))),
       el('p', { className: 'mind-foot' }, `${list.length > 9 ? '1–9, 0' : '1–9'} or a click. ${input.label('menu')} to close.`)));
     card.hidden = false;
     card.dataset.kind = 'choices';
