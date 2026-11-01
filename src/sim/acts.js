@@ -22,6 +22,7 @@
 //   - 'lace': stop to tie a shoelace (not again within LACE_AGAIN_S: twice is a story);
 //   - 'cross': over the street at its zebra, or over the boulevard's far road at its own;
 //   - 'pickup': something lying within reach (sim/items.js), into the hand, stooping for it;
+//   - 'read': sat on a bench, in a shelter or at a café's ledge, a book of yours (sim/reading.js);
 //   - 'taxi': at the kerb, hail a taxi (sim/taxi.js): where to is the UI's to ask (the bus: 'taxi');
 //   - in a shop (sim/shops.js, walked into at its door): 'counter' (what it sells: which is the UI's to
 //     ask, the bus: 'shop'), 'table' (a café's ledge in its window: a coffee, or the book on the go), 'basin'
@@ -49,6 +50,7 @@ import { stationNear, metroName, stationName, destinations as metroWays } from '
 import { spotIn, ways, doWay } from './shops.js';
 import { pay } from './money.js';
 import { weaponOf } from './weapons.js';
+import { offer as bookOffer, open as openBook } from './reading.js';
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 // (in a shop: the spot's act, and the instinct's words for it)
@@ -175,6 +177,8 @@ const COVER = { window: 'look in the window', car: 'look in a parked car\'s wind
 
 /** What's at hand for T, the engine's: a shop window, a free seat, a zebra ({ act, text }), or null. */
 export function affordance(state, me) {
+  const book = bookOffer(state, me);                                // (sat somewhere, a book on you: sim/reading.js)
+  if (book) return book;
   if (!me || me.ai || me.busy || me.inside || me.glass || me.gait === 'sit') return null;
   const it = itemNear(state, me);
   if (it) return { act: 'pickup', text: ` {use} pick up ${weaponOf(it.kind)?.name ?? 'it'}.` };
@@ -206,6 +210,7 @@ export function act(state, bus, me, what, opts = {}) {
 }
 
 function act1(state, bus, me, what, { toward = Math.cos(me.head ?? 0) >= 0 ? -1 : 1, scenario = null } = {}) {
+  if (what === 'read') return openBook(state, bus, me);
   if (what === 'taxi') { if (atKerb(state, me)) hail(state, bus, me); return; }   // (an arm up: it stops, and asks where: sim/game.js)
   if (Object.values(IN_SHOP).includes(what)) {                     // (in a shop: one thing to do, done; more, the UI asks which)
     const sp = spotIn(state, me), w = sp && IN_SHOP[sp.kind] === what ? ways(state, sp.door, sp.kind) : [];

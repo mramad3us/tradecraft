@@ -28,6 +28,13 @@
 // read. The screen and the dice use the same function: what's dim on screen is what the character
 // isn't aware of.
 //
+// **What's felt** (sim/sense.js; the user, 2026-10-31: "a sort of intuition materialized by seeing what we're
+// not looking at"): for the player, state.mind.felt lays patches over what the eyes take in (feltPatches():
+// round someone they feel, and the way their quarry went), no wall in the way. visibility() takes them as it
+// takes the glass, so what's felt is on screen and in the rolls alike: inView() of someone felt is true.
+// Over SHARP_OS Tradecraft the all-round radius itself grows (sharpM()), steeply: at 95 the edge of the eye
+// is most of the picture.
+//
 // The player's memory (state.mind.seen, by actor id): [x, z, face, gait, stride, ms, look key], how
 // and where each was last seen; state.mind.at is the time of the last look. Looking is passive: every tick the player sees what their eyes take
 // in, and the record is renewed. Out of sight, the view draws them as they were, frozen and dimmed;
@@ -53,6 +60,8 @@ export const GLASS_REACH_M = 1.5;
 export const SEEN = 0.5;
 export const FORGET_M = 70;
 export const CIVILIAN_AWARENESS = 4;                               // a passer-by's eyes, for scenes that need them
+export const SHARP_OS = 50, SHARP_K = 1 / 200;                     // (Tradecraft past this widens the edge of the eye: (os − 50)² × this, in metres)
+export const TRAIL_R = 1.7, TRAIL_K = 0.42;                        // (where a quarry's been: a dim ribbon, not enough to see anyone by)
 
 const TAU = Math.PI * 2, RAD = Math.PI / 180;
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
@@ -69,15 +78,46 @@ export function faceOf(head) {
   return a > 0 ? 'down' : 'up';
 }
 
-/** Someone's eyes: { x, z, head, cone (half-angle), aware (m), glass (the pane looked in, or null) }. */
+/** What Tradecraft adds to the all-round radius, in metres: nothing to an ordinary officer, 10 at 95. */
+export const sharpM = (os = 0) => (os > SHARP_OS ? (os - SHARP_OS) ** 2 * SHARP_K : 0);
+
+/** Someone's eyes: { x, z, head, cone (half-angle), aware (m), glass (the pane looked in, or null), felt (the player's: feltPatches()) }. */
 export function eyes(state, a) {
   const sheet = a.who ? state.people[a.who] : null;
   const aw = sheet ? skill(sheet, 'awareness') : CIVILIAN_AWARENESS;
   return {
     x: a.x, z: a.z, head: a.head ?? headOf(a.face),
     cone: Math.min(CONE_MAX_DEG, CONE_DEG + CONE_PER_AWARENESS * aw) * Math.PI / 360,
-    aware: AWARE_M + AWARE_PER * aw, glass: a.glass?.z !== undefined ? a.glass : null,
+    aware: AWARE_M + AWARE_PER * aw + sharpM(sheet?.os), glass: a.glass?.z !== undefined ? a.glass : null,
+    felt: a.who && a.who === state.player ? feltPatches(state) : null,
   };
+}
+
+/** The patches of what's felt on this street now: [{ x, z, r, k }], or null. Each follows whoever it's round; a quarry's trail stays where he walked. */
+export function feltPatches(state) {
+  const F = state.mind?.felt;
+  if (!F) return null;
+  const now = state.time.ms, row = state.map.row ?? 0;
+  let out = null;
+  for (const id in F) {
+    const f = F[id];
+    if (f.until < now) continue;
+    const a = state.actors.find(o => o.id === id);
+    if (!a || (a.row ?? row) !== row) continue;
+    (out ??= []).push({ x: a.x + f.ox, z: a.z + f.oz, r: f.r, k: f.k });
+    for (const [x, z] of f.path ?? []) out.push({ x, z, r: TRAIL_R, k: TRAIL_K });
+  }
+  return out;
+}
+
+/** How much of (x, z) the patches lay open, 0 … 1: full in the middle, soft at the edge. */
+export function feltAt(patches, x, z) {
+  let v = 0;
+  for (const f of patches) {
+    const dx = x - f.x, dz = z - f.z, r2 = dx * dx + dz * dz;
+    if (r2 < f.r * f.r) v = Math.max(v, f.k * clamp01((f.r - Math.sqrt(r2)) / (f.r * 0.4)));
+  }
+  return v;
 }
 
 /** The sky for this tick (and the weather's toll on sight), kept so a tick's many looks share one sun (runtime only). */
@@ -182,6 +222,7 @@ export function visibility(state, e, x, z, light, walls = state.$world.walls) {
     const g = inGlass(state, e, x, z, light);
     if (g > v && lineClear(state, glassX(e, x, z), e.glass.z + (e.glass.south ? -0.06 : 0.06), x, z, walls)) v = g;
   }
+  if (e.felt && v < 1) v = Math.max(v, feltAt(e.felt, x, z));       // (what's felt: no wall in the way)
   return v;
 }
 
@@ -203,6 +244,11 @@ export function look(state, me, nearby) {
   for (const a of nearby) {
     if (a === me || a.hidden) continue;
     if (visibility(state, e, a.x, a.z) >= SEEN) mind.seen[a.id] = [r2(a.x), r2(a.z), a.face, a.gait, r2(a.stride), ms, a.who ?? a.seed];
+  }
+  // (whoever's felt further off than the eyes go: the sense has no reach of sight)
+  if (e.felt) for (const id in mind.felt) {
+    const a = state.actors.find(o => o.id === id);
+    if (a && !a.hidden && (a.row ?? state.map.row) === state.map.row && mind.seen[id]?.[5] !== ms && visibility(state, e, a.x, a.z) >= SEEN) mind.seen[id] = [r2(a.x), r2(a.z), a.face, a.gait, r2(a.stride), ms, a.who ?? a.seed];
   }
   for (const id in mind.seen) {
     const r = mind.seen[id];

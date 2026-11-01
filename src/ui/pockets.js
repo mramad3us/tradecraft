@@ -5,8 +5,8 @@
 // two places), everything in it (the wallet, the phone, burners, the first-aid supplies as well as what's
 // fought with: all of it takes room) drawn in the picture's pixels (src/art/sprites.js heldIcon()) and how
 // full it is. Beside it the hand, what fits nowhere, the shop's bag. A weapon's buttons: take it out, put it
-// away, drop it; 1–9 the first button of each, in order. A supply or a burner can be thrown away, by a click
-// only: a stray digit shouldn't cost you your bandages.
+// away, drop it; 1–9 the first button of each, in order. A supply, a burner or a book can be thrown away, by a
+// click only: a stray digit shouldn't cost you your bandages.
 import { plaque } from './plaque.js';
 import { heldIcon } from '../art/sprites.js';
 import { doll as figure, W as DOLL_W, H as DOLL_H } from '../art/doll.js';
@@ -16,13 +16,14 @@ import { worn } from '../sim/clothes.js';
 import { cashOf } from '../sim/money.js';
 import { bagWord } from '../sim/clothes.js';
 import { SUPPLIES, supplyWord } from '../sim/medicine.js';
+import { bookOf } from '../sim/training.js';
 
 const K = 2, ICON_K = 3;
 const hex = (c) => `#${c.toString(16).padStart(6, '0')}`;
 const GROUPS = [['coat', 'Coat pockets'], ['inside', 'The inside pocket'], ['trousers', 'Trouser pockets'], ['belt', 'The beltline']];
 // (the small things' own pictures: [rows], a letter a colour)
 const SUPPLY_PIX = {
-  wallet: ['bbbbbb', 'bBBBBb', 'bbbbbb', 'bbbbbb'], phone: ['nnnn', 'neen', 'neen', 'neen', 'nnnn'], burner: ['nnn', 'nen', 'nmn', 'nnn'],
+  book: ['qqqqqq', 'qwwwwq', 'qqqqqq', 'qqqqqq'], wallet: ['bbbbbb', 'bBBBBb', 'bbbbbb', 'bbbbbb'], phone: ['nnnn', 'neen', 'neen', 'neen', 'nnnn'], burner: ['nnn', 'nen', 'nmn', 'nnn'],
   bandage: ['.www.', 'wwwww', 'wmwmw', 'wwwww', '.www.'], antiseptic: ['.nn.', '.ww.', 'wqqw', 'wqqw', 'wwww'], sutures: ['....m', '...m.', '..m..', '.m...', 'n....'],
   splint: ['ooooooo', '.w.w.w.', 'ooooooo'], tourniquet: ['nnnnnnn', 'n.....i', 'nnnnnnn'], painkillers: ['wwww', 'wqqw', 'wwww'], poultice: ['ggggg', 'gGgGg', 'ggggg'], antibiotics: ['qqww', 'qqww'],
 };
@@ -42,16 +43,16 @@ export function openPockets(host, state, deps) {
         first[0].startsWith('drop:') ? null : el('button', { onclick: go(`drop:${kind}`) }, 'Drop')));
   };
   // (something small: its picture, its name, thrown away if it can be)
-  const small = ({ kind, n }) => {
-    const word = kind === 'wallet' ? `Wallet: ${deps.price(cashOf(p))}` : kind === 'phone' ? 'Your phone' : kind === 'burner' ? (n > 1 ? `${n} burners` : 'A burner') : cap(supplyWord(kind, n));
+  const small = ({ kind, n, id }) => {
+    const word = kind === 'book' ? bookOf(id).title : kind === 'wallet' ? `Wallet: ${deps.price(cashOf(p))}` : kind === 'phone' ? 'Your phone' : kind === 'burner' ? (n > 1 ? `${n} burners` : 'A burner') : cap(supplyWord(kind, n));
     return el('div', { className: 'pk-thing' }, pixIcon(SUPPLY_PIX[kind]), el('span', { className: 'pk-name' }, word),
-      ALWAYS.includes(kind) ? null : el('span', { className: 'pk-btns' }, el('button', { className: 'pk-bin', title: 'Throw it away, to make room', onclick: go(`discard:${kind}:${n}`) }, 'Bin')));
+      ALWAYS.includes(kind) ? null : el('span', { className: 'pk-btns' }, el('button', { className: 'pk-bin', title: kind === 'book' ? 'Leave it behind, to make room (what you\'ve read of it goes too)' : 'Throw it away, to make room', onclick: go(`discard:${kind}:${kind === 'book' ? id : n}`) }, 'Bin')));
   };
   // (what's in a place: a weapon by itself, the same small things together)
   const row = (list) => {
     const out = [];
     for (const o of list) {
-      if (weaponOf(o.kind)) { out.push({ ...o }); continue; }
+      if (weaponOf(o.kind) || o.kind === 'book') { out.push({ ...o }); continue; }
       const had = out.find(x => x.kind === o.kind);
       if (had) had.n += o.n ?? 1; else out.push({ ...o, n: o.n ?? 1 });
     }

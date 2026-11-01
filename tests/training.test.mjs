@@ -61,7 +61,10 @@ export default [
             if (kind === 'books') {
               // (and an hour of it over a coffee: at a café, 'read')
               const c = atShop(g, 'cafe', 'sit');
-              if (c) { step(g, { act: ['shop:read'] }, null); for (let t = 0; t < 40 && me.inside; t++) step(g, {}, null); assert(p.books[0].read === 1, `${city}: an hour's reading over a coffee`); }
+              if (c) { step(g, { act: ['shop:read'] }, null); for (let t = 0; t < 6; t++) step(g, { act: [`read:on:${p.books[0].id}`] }, null); step(g, { act: ['read:close'] }, null); for (let t = 0; t < 40 && me.inside; t++) step(g, {}, null); assert(p.books[0].read === 1 && !me.inside, `${city}: an hour's reading over a coffee, ten minutes at a time`);
+                // (a coffee already in hand: the book opened over it, the ledge kept through the ten minutes)
+                const cc = atShop(g, 'cafe', 'sit');
+                if (cc) { const r0 = p.books[0].read; step(g, { act: ['shop:sit'] }, null); step(g, { act: ['use'] }, null); step(g, { act: [`read:on:${p.books[0].id}`] }, null); assert(me.inside?.way === 'read' && p.books[0].read > r0, `${city}: read over the coffee in hand (${me.inside?.way})`); step(g, { act: ['read:close'] }, null); for (let t = 0; t < 40 && me.inside; t++) step(g, {}, null); } }
             }
             got = `${kind} ${fmt(mins, 0)} min`;
           }
@@ -74,7 +77,7 @@ export default [
     },
   },
   {
-    name: 'training: at home, the armchair and the book on the go: an hour of it; with nothing to read, nothing offered',
+    name: 'training: at home, the armchair and your books, ten minutes at a time; with nothing to read, nothing offered',
     fn() {
       const c = newCampaign(5, candidates(5, 'moscow')[0], 'moscow'); c.calls = [];
       const g = newGame({ seed: 5, scenario: 'campaign', campaign: c });
@@ -88,8 +91,8 @@ export default [
       const t0 = g.time.ms;
       for (let t = 0; t < 30; t++) step(g, {}, null);
       const offered = g.scenario.prompt?.act;
-      step(g, { act: ['instinct'] }, null);
-      console.log(`      no book: ${none ?? 'nothing offered'}; a book: ${offered}; after: ${g.log.at(-1)?.text}`);
+      for (let t = 0; t < 6; t++) step(g, { act: ['read:on:thinking'] }, null);
+      console.log(`      no book: ${none ?? 'nothing offered'}; a book: ${offered}; after: ${g.people.me.books[0].read} h`);
       assert(!none && offered === 'read' && g.people.me.books[0].read === 1 && (g.time.ms - t0) / 60000 >= 60, 'an hour at home with the book');
     },
   },

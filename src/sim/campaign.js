@@ -131,6 +131,65 @@ export const BACKGROUNDS = [
 const US = { f: ['Rebecca', 'Laura', 'Megan', 'Claire', 'Diane', 'Hannah', 'Julia', 'Sarah'], m: ['Daniel', 'Michael', 'Thomas', 'Andrew', 'Mark', 'Peter', 'James', 'Robert'],
   family: ['Price', 'Walker', 'Brennan', 'Hollis', 'Mercer', 'Dalton', 'Keane', 'Whitlock', 'Sutton', 'Garrett'] };
 
+// The files in debug mode (the user, 2026-10-31: "when dev mode is on, the carrer mode should allow us to
+// select a special character with 95 tradecraft, give them a reason for it, make it varied"). Each is its own
+// reason for being what no ordinary career makes, and so its own skills on top of DEFAULT_LEGEND: its ages, its
+// languages, its names. legendFile() draws one, a person of the same seed the same way.
+const DEFAULT_LEGEND = { deception: [15, 2], tracking: [15, 2], pathfinding: [15, 2], awareness: [15, 2], social: [10, 2], analysis: [10, 1], tech: [5, 1], medicine: [5, 1], cqc: [10, 2], weapons: [10, 1], fitness: [10, 1] };
+export const LEGENDS = [
+  { id: 'illegal', age: [58, 64], names: { f: ['Ruth Lindqvist', 'Marian Kessel'], m: ['Paul Ostrander', 'Henry Lindqvist'] }, langs: { ru: 'native', fr: 'fluent' },
+    text: 'Twenty-two years in Moscow under a dead Canadian\'s name, an illegal the Agency stopped admitting to in 2009. Came home in a swap. The debriefers stopped taking notes after a week: there was nobody left to give them to.',
+    skills: { deception: [20, 3], pathfinding: [20, 3], tracking: [18, 2], awareness: [20, 2], social: [15, 2] } },
+  { id: 'defector', age: [55, 62], names: { f: ['Irina Valk', 'Vera Sorin'], m: ['Anton Valk', 'Lev Sorin'] }, langs: { ru: 'native', de: 'fluent' },
+    text: 'Directorate S\'s best instructor, until a Tuesday in Vienna in 2011. Wrote the street syllabus half the SVR still learns from, and walked out through the consulate\'s side door with it in their head.',
+    skills: { tracking: [20, 3], deception: [20, 3], pathfinding: [20, 1], analysis: [15, 2], cqc: [15, 1] } },
+  { id: 'farm', age: [48, 57], names: { f: ['Grace Tolliver', 'Joan Marsh'], m: ['Walter Tolliver', 'Sam Marsh'] }, langs: {},
+    text: 'Sixteen years running denied-area training at the Farm. No student has followed them further than a block, and none has ever shaken them. The Agency sends them now only when it has run out of everyone else.',
+    skills: { deception: [20, 2], tracking: [20, 2], pathfinding: [20, 2], awareness: [20, 2], social: [15, 1], cqc: [15, 2], weapons: [15, 2], fitness: [15, 1] } },
+  { id: 'berlin', age: [66, 68], names: { f: ['Ingrid Bauer', 'Helen Roth'], m: ['Karl Bauer', 'Frank Roth'] }, langs: { de: 'native', ru: 'fluent' },
+    text: 'On the streets of East Berlin from 1985, when the Moscow Rules were new, and the last of that generation still walking. Called out of a retirement in Maine because nobody else remembers how it\'s done with no phone in your pocket.',
+    skills: { pathfinding: [20, 3], tracking: [20, 3], deception: [20, 1], analysis: [15, 3], fitness: [5, 0], cqc: [8, 0], tech: [0, 0] } },
+  { id: 'hostage', age: [58, 64], names: { f: ['Nora Haddad', 'Claire Aoun'], m: ['Elias Haddad', 'Thomas Aoun'] }, langs: { ar: 'fluent', fr: 'fluent' },
+    text: 'Three years a hostage in the Bekaa, blindfolded, in the dark. Learned who was in the room from the floorboards, and who was looking from the back of the neck. It never went away, and nobody at Langley can explain it.',
+    skills: { awareness: [20, 3], pathfinding: [18, 2], deception: [15, 3], medicine: [10, 2], fitness: [8, 0], social: [8, 0] } },
+  { id: 'meade', age: [50, 56], names: { f: ['Dana Whitcomb', 'Carol Pruitt'], m: ['Neil Whitcomb', 'Roy Pruitt'] }, langs: {},
+    text: 'Subject 17 of the remote viewing programme at Fort Meade, closed in 1995 as useless. The file says the results were chance. Someone who read it didn\'t think so, and has kept them on the books ever since, on no budget anyone can find.',
+    skills: { awareness: [20, 3], tracking: [20, 3], deception: [10, 0], pathfinding: [10, 0], social: [5, 0], cqc: [0, 1], weapons: [0, 0] } },
+  { id: 'naples', age: [38, 46], names: { f: ['Lucia Ferrante', 'Teresa Russo'], m: ['Marco Ferrante', 'Nino Russo'] }, langs: { it: 'native', es: 'working' },
+    text: 'A pickpocket at nine in the Stazione Centrale in Naples, where you feel a policeman\'s eyes or you don\'t eat. The Agency found them at twenty-six, with the Rome station chief\'s wallet.',
+    skills: { deception: [20, 3], tracking: [15, 3], awareness: [20, 3], social: [15, 3], cqc: [12, 2], fitness: [15, 2], analysis: [5, 0] } },
+  { id: 'a4', age: [47, 55], names: { f: ['Alison Reeve', 'Morag Dunn'], m: ['Colin Reeve', 'Ian Dunn'] }, langs: { en: 'native' },
+    text: 'Twenty years with A4, MI5\'s watchers, of whom they were the one the others asked about. Seconded to Grosvenor Square for six months in 2019. Nobody has mentioned sending them back.',
+    skills: { tracking: [20, 3], deception: [20, 2], awareness: [18, 2], pathfinding: [15, 1], social: [8, 0], weapons: [5, 0] } },
+  { id: 'tehran', age: [44, 52], names: { f: ['Sara Vance', 'Leila Cross'], m: ['David Vance', 'Adam Cross'] }, langs: { fa: 'fluent', ar: 'working' },
+    text: 'Burned in Tehran in 2014, and walked out over the mountains alone in midwinter with the whole of the ministry behind them. Nobody else has done it. Nobody asks how.',
+    skills: { pathfinding: [20, 3], deception: [18, 2], fitness: [15, 3], cqc: [15, 3], medicine: [10, 1], social: [8, 1] } },
+  { id: 'brat', age: [36, 44], names: { f: ['Isabel Thorne', 'Katya Ames'], m: ['Julian Thorne', 'Alex Ames'] }, langs: { ru: 'fluent', ar: 'working', fr: 'fluent', es: 'working' },
+    text: 'A diplomat\'s child, raised in embassies from Minsk to Damascus, whose mother taught them at six that the man at this kiosk was at the last kiosk too. Was reading streets before reading books.',
+    skills: { social: [20, 3], deception: [20, 2], awareness: [18, 3], tracking: [15, 2], analysis: [12, 1], cqc: [5, 1] } },
+  { id: 'deaf', age: [46, 54], names: { f: ['Ellen Sayer', 'Priya Nair'], m: ['Owen Sayer', 'Arjun Nair'] }, langs: { hi: 'fluent', ar: 'working' },
+    text: 'Deaf since a car bomb in Peshawar in 2009. Reads lips at forty metres, and a street by how the people in it move round what they\'re avoiding. The Agency tried to pension them off, once.',
+    skills: { awareness: [20, 3], tracking: [18, 3], social: [15, 2], analysis: [15, 1], pathfinding: [15, 3] } },
+  { id: 'chess', age: [41, 48], names: { f: ['Nino Abashidze', 'Tamar Gelashvili'], m: ['Levan Abashidze', 'Giorgi Gelashvili'] }, langs: { ru: 'native', en: 'fluent' },
+    text: 'A Soviet Georgian chess prodigy who left at seventeen and never played again. Reads a street as a board, thirty moves on, and has never yet been surprised by which way someone turned.',
+    skills: { analysis: [20, 3], pathfinding: [20, 3], tracking: [20, 1], deception: [15, 1], fitness: [5, 1], cqc: [0, 2], weapons: [0, 0] } },
+];
+
+/** A file from the basement (debug mode): someone of Tradecraft 95, with their reason (LEGENDS). n: another file for the same seed. */
+export function legendFile(seed, city = 'moscow', level = 'handler', n = 0) {
+  const r = stream('legend', seed, city, level, n), L = LEGENDS[(int(stream('legend', seed), LEGENDS.length) + n * 5) % LEGENDS.length], sex = chance(r, 0.5) ? 'f' : 'm', lang = CITY[city]?.lang ?? 'ru';   // (another file, another reason: every one of them before any twice)
+  const age = L.age[0] + int(r, L.age[1] - L.age[0] + 1), name = pick(r, L.names[sex]);
+  const langs = { en: 'native', [lang]: 'fluent', ...L.langs };
+  const p = sheet({ id: 'me', name, sex, cls: 'spook', os: 95, skills: structuredClone({ ...DEFAULT_LEGEND, ...L.skills }), langs, persistent: true });
+  p.age = age;
+  p.background = L.text;
+  p.legend = L.id;
+  const grey = age >= 50 && chance(r, 0.6);
+  p.look = { skin: pick(r, ['light', 'light', 'tan', 'brown', 'dark']), hair: { style: sex === 'f' ? pick(r, ['bun', 'long', 'bob', 'short']) : pick(r, age >= 45 ? ['short', 'bald', 'side', 'crew'] : ['short', 'side', 'crew']), color: grey ? pick(r, [0x8f96a6, 0xdfe2e8]) : pick(r, [0x2a1c18, 0x47302a, 0x6b4636, 0x14151c]) },
+    top: { kind: pick(r, ['coat', 'coat', 'jacket', 'suit']), color: pick(r, [0x353947, 0x4c5262, 0x47302a, 0x23252f, 0x6a7182]), trim: 0x23252f }, legs: 0x23252f, shoes: 0x14151c, ...(chance(r, 0.3) ? { glasses: 'specs' } : {}) };
+  return p;
+}
+
 /** Three officers to pick from, from the campaign's seed, at a level (LEVELS: a junior's younger, two points under on the street). */
 export function candidates(seed, city = 'moscow', level = 'handler') {
   const r = level === 'handler' ? stream('candidates', seed) : stream('candidates', seed, level), used = new Set(), junior = level === 'junior', core = junior ? 8 : 10;
@@ -455,6 +514,9 @@ export function fold(c, a, sc, player, endMs, heatNow) {
   c.done.push(a);
   c.character = { ...structuredClone(player), id: 'me' };
   const lines = [];
+  // (Tradecraft comes of doing it: a bonus per assignment that went well, DESIGN.md Q118; the rest of the growth is still to come)
+  const up = TRADECRAFT_UP[sc.outcome] ?? 0;
+  if (up && (c.character.os ?? 0) < 100) { c.character.os = Math.min(100, (c.character.os ?? 0) + up); lines.push(`Tradecraft ${c.character.os}: you do this a little better now, and it shows on the street.`); }
   if (a.trip) return foldTrip(c, a, sc, endMs, heatNow, lines);
   if (heatNow !== undefined) p.heat = Math.max(20, Math.min(100, heatNow));
   if (a.kind === 'sdr') {
@@ -502,6 +564,8 @@ export function fold(c, a, sc, player, endMs, heatNow) {
   plan(c, endMs);
   return { title: `${KINDS[a.kind].name.toUpperCase()}: ${String(sc.outcome ?? 'over').toUpperCase()}`, lines };
 }
+
+export const TRADECRAFT_UP = { clean: 2, seen: 2, photo: 2, soft: 1, right: 1 };   // (points of Tradecraft, by how an assignment ended)
 
 /** The posting's goal met: done (a Handler's), or promoted (a first tour's: promote()). */
 function goalMet(c, ms, lines) {

@@ -168,9 +168,10 @@ export const FINE_PALETTE = [
  * radius]] in pixels from the bottom left: each lamp's in the wet air). See the header.
  *
  * setFog(texture, x0, z0, w, h, dimK) dims what lies where a ground-plane mask says it's unseen (to dimK of its light): the mask
- * (one channel, 1 seen … 0 unseen) covers x0 … x0 + w, z0 … z0 + h in world metres, and each pixel
+ * (its red, 1 seen … 0 unseen) covers x0 … x0 + w, z0 … z0 + h in world metres, and each pixel
  * looks it up at the ground position under it (from the depth buffer: a wall's pixels at its foot, a
- * person's at their feet), dithered between seen and dimmed. setFog(null) turns it off.
+ * person's at their feet), dithered between seen and dimmed. A second channel says how much of what's shown is
+ * felt, not seen (sim/sense.js): dithered into a cold, pale tint. setFog(null) turns it off.
  */
 export function pixelStage({ background = 0x23252f, outline = true, palette = PALETTE, zoom = 1, res = RES, grade = 0, parent = document.body, autoFit = true } = {}) {
   let W = Math.round(res[0] / zoom), H = Math.round(res[1] / zoom);
@@ -290,6 +291,11 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
         float l = dot(c, vec3(0.30, 0.59, 0.11));
         return mix(vec3(l), c, 0.3) * dimK + vec3(0.010, 0.016, 0.032) * dimK / 0.48;
       }
+      // Felt, not seen (sim/sense.js): the place as the mind has it, cold and pale, lifted a little out of the dark.
+      vec3 feltTint(vec3 c) {
+        float l = dot(c, vec3(0.30, 0.59, 0.11));
+        return mix(c, vec3(0.60, 0.72, 0.95) * (l * 0.9 + 0.12), 0.72);
+      }
       vec3 nearest(vec3 c) {
         vec3 best = pal[0]; float bd = 1e9;
         for (int i = 0; i < 128; i++) {
@@ -309,8 +315,9 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
         vec3 wp = w4.xyz / w4.w;                                     // (the world under the pixel)
         bool unseen = false;
         if (fogOn > 0.5 && raw < 0.99999) {
-          float v = texture(tFog, (wp.xz - fogBox.xy) / fogBox.zw).r;
-          if (v < bayer(gl_FragCoord.xy)) { col = dim(col); unseen = true; }
+          vec2 fv = texture(tFog, (wp.xz - fogBox.xy) / fogBox.zw).rg;
+          if (fv.r < bayer(gl_FragCoord.xy)) { col = dim(col); unseen = true; }
+          else if (fv.g > bayer(gl_FragCoord.xy + vec2(2.0, 1.0))) col = feltTint(col);
         }
         if (outline > 0.5) {
           vec3 id = texture(tId, uv).rgb;

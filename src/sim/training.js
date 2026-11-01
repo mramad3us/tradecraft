@@ -43,9 +43,10 @@ export function learn(p, lang, hours, upTo = 'fluent') {
 }
 
 /**
- * The bookshops' books, by what they teach (`skill`), how long they take to read (`hours`, read an hour
- * at a sitting), how far they take you (`upTo`), their price in dollars (sim/money.js). A grammar of
- * the posting's language is the bookshop's too (`lang`: the city's own).
+ * The bookshops' books, by what they teach (`skill`), how long they take to read (`hours`: ten minutes at
+ * a time, sat somewhere: sim/reading.js), how far they take you (`upTo`), their price in dollars
+ * (sim/money.js). A grammar of the posting's language is the bookshop's too (`lang`: the city's own), and a
+ * novel, which teaches nothing.
  */
 export const BOOKS = [
   { id: 'firstaid', title: 'First Aid Manual', skill: 'medicine', hours: 8, upTo: 8, usd: 18 },
@@ -57,26 +58,33 @@ export const BOOKS = [
   { id: 'disguise', title: 'Stagecraft and Make-up', skill: 'deception', hours: 9, upTo: 8, usd: 15 },
   { id: 'maps', title: 'A Walker\'s Atlas of the City', skill: 'pathfinding', hours: 7, upTo: 8, usd: 12 },
   { id: 'grammar', title: 'A Grammar of the Language', lang: true, hours: 20, upTo: 'basic', usd: 22 },
+  // (and for nothing but the reading: sim/reading.js)
+  { id: 'karenina', title: 'Anna Karenina', hours: 34, usd: 9 },
+  { id: 'master', title: 'The Master and Margarita', hours: 16, usd: 9 },
+  { id: 'coldspy', title: 'The Spy Who Came In from the Cold', hours: 7, usd: 8 },
+  { id: 'havana', title: 'Our Man in Havana', hours: 7, usd: 8 },
 ];
 
 /** A book on the shelf of the bookshop at door x (three of them, and a grammar of the city's language), the same every time. */
 export function shelf(town, row, x) {
-  const k = hash(town, row, Math.round(x * 10), 'shelf'), skills = BOOKS.filter(b => !b.lang);
-  return [0, 1, 2].map(j => skills[(k + j * 3) % skills.length]).filter((b, j, l) => l.indexOf(b) === j).concat(BOOKS.filter(b => b.lang));
+  const k = hash(town, row, Math.round(x * 10), 'shelf'), skills = BOOKS.filter(b => b.skill), novels = BOOKS.filter(b => !b.skill && !b.lang);
+  return [0, 1, 2].map(j => skills[(k + j * 3) % skills.length]).filter((b, j, l) => l.indexOf(b) === j).concat(BOOKS.filter(b => b.lang), novels[k % novels.length]);
 }
 
-/** The book a person has on the go (the first not finished), or null. */
-export const reading = (p) => (p.books ?? []).find(b => b.read < bookOf(b.id).hours) ?? null;
 export const bookOf = (id) => BOOKS.find(b => b.id === id);
+/** Whether a book owned ({ id, read }) has been read to its end. */
+export const finished = (b) => b.read >= bookOf(b.id).hours;
 /** A book's title, its subject, its hours. */
-export const bookLine = (b) => `${b.title}: ${b.lang ? 'the language' : SKILLS[b.skill]?.name ?? b.skill}, ${b.hours} hours' reading`;
+export const bookLine = (b) => `${b.title}: ${b.lang ? 'the language' : b.skill ? SKILLS[b.skill]?.name ?? b.skill : 'a novel'}, ${b.hours} hours' reading`;
 
-/** An hour with the book on the go (lang: the city's, for a grammar): what it came to, in words; or null with nothing to read. */
-export function readAnHour(p, lang) {
-  const on = reading(p);
-  if (!on) return null;
-  const b = bookOf(on.id);
-  on.read += 1;
-  const g = b.lang ? learn(p, lang, 1, b.upTo) : train(p, b.skill, 1, b.upTo), done = on.read >= b.hours;
-  return `An hour with ${b.title}${done ? ', and the last page' : ` (${on.read} of ${b.hours})`}. ${g.gained ? (b.lang ? `Your ${lang === 'ru' ? 'Russian' : lang === 'ar' ? 'Arabic' : 'English'} is ${g.level} now.` : `${SKILLS[b.skill].name} up a point: ${g.base}.`) : g.toNext === null ? 'It\'s taught you all it can.' : `${Math.ceil(g.toNext)} hours more to the next point.`}`;
+/**
+ * Time with a book owned (on: { id, read }; lang: the city's, for a grammar): the hours on it, and what they
+ * teach, up to what it can; a book already read passes the time and no more. { gained, base, level, toNext, last: this was its end }.
+ */
+export function readFor(p, on, lang, hours) {
+  const b = bookOf(on.id), left = Math.max(0, b.hours - on.read), h = Math.min(hours, left);
+  if (!h) return { gained: 0, last: false, toNext: null };
+  on.read = Math.round((on.read + h) * 60) / 60;
+  const g = b.lang ? learn(p, lang, h, b.upTo) : b.skill ? train(p, b.skill, h, b.upTo) : { gained: 0, toNext: null };
+  return { ...g, last: on.read >= b.hours };
 }

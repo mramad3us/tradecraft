@@ -136,6 +136,9 @@ export const watchTest = {
   },
 
   anchors(state) { const sc = state.scenario; return [sc.cafe.x]; },
+  /** The minder's eyes, for the feel (sim/sense.js); the man you're here for, once he's out. */
+  eyesOn(state) { return [state.actors.find(a => a.id === state.scenario.minder)].filter(Boolean); },
+  quarry(state) { return [state.actors.find(a => a.who === 'volkov')].filter(Boolean); },
   toward(state, me) { return Math.sign(state.scenario.cafe.x - me.x) || 1; },
 
   /** A stop's start and end (sim/agents.js): the meeting begun; over. */

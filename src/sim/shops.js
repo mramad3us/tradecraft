@@ -17,7 +17,7 @@
 //     club's, the school's hours (sim/training.js; the hours skipped, as an action that takes time);
 //   - the ledge in the window (a café's, a bar's, a kebab shop's: WINDOW_TABLES): a coffee stood at it,
 //     watching the street through the glass (SIT_S, lived through: move, and you've had enough of it),
-//     or an hour there with the book on the go;
+//     or a coffee and a book, for as long as you like (sim/reading.js);
 //   - the basin (a café's toilet: TOILETS), the blood off your face (sim/notice.js);
 //   - the back door (where the shop has one: sim/backways.js): the yard behind and its gate, out of
 //     sight (YARD_S), and out in the lane beside the building (BACK_IN_M up it). Whoever waited at the
@@ -37,7 +37,9 @@ import { eat, EAT_S } from './needs.js';
 import { price, pay, cashOf, BITE_USD } from './money.js';
 import { RAIL, GOODS, SLOTS, railOf, putOn, carry, shed } from './clothes.js';
 import { weaponOf } from './weapons.js';
-import { train, learn, shelf, reading, readAnHour, bookOf, bookLine } from './training.js';
+import { train, learn, shelf, bookOf, bookLine } from './training.js';
+import { onYou, cardOf, PASTIME } from './reading.js';
+import { fits } from './items.js';
 import { cityById } from './cities/index.js';
 import { HOUR, DAY, calendar } from './clock.js';
 import { unitAt, SPOT_REACH_M } from './interiors/use.js';
@@ -48,14 +50,15 @@ export const YARD_S = 20;                                          // (the yard 
 // (what's done in a shop is an action that takes time: the clock skips it, and your feet are yours again at
 // once; the user, 2026-10-28: "went to buy a book in a bookstore, never came out even after 3 minutes".
 // Only the window's coffee is lived through, the street watched in real time, and moving ends it)
-export const LIVED = new Set(['sit']);
+export const LIVED = new Set(['sit', 'read']);
 export const WASH_S = 90;
 export const COAT_S = 150;
 export const SIT_S = 180;
 // (time put into yourself, the user, 2026-10-27: "time should feel like a currency, meaning gym (trains fitness),
 // karate class or other martial arts ... read a book (can buy books in bookstores to learn specific things),
 // take a language class": hours in, points out, sim/training.js)
-export const GYM_S = 90 * 60, CLASS_S = 120 * 60, LESSON_S = 90 * 60, READ_S = 60 * 60, BUY_S = 180;
+export const GYM_S = 90 * 60, CLASS_S = 120 * 60, LESSON_S = 90 * 60, READ_S = 12 * 3600, BUY_S = 180;   // (READ_S: the ledge's till you leave it)
+//
 export const GYM_USD = 8, CLASS_USD = 12, LESSON_USD = 15, GYM_UP_TO = 14, CLUB_UP_TO = 14;
 // (a month's membership of one gym or club: its sessions free till then; the user, 2026-10-28: "implement clubs with subscriptions")
 export const CLUB_MONTH_USD = { gym: 45, club: 70 }, MEMBER_DAYS = 30;
@@ -117,7 +120,7 @@ export function ways(state, d, spot = 'counter') {
   if (spot === 'wash') return TOILETS.has(d.shop) && p?.bloody ? [{ id: 'wash', label: p.bloody.face ? 'Wash the blood off your face' : 'Scrub at the stain on your coat' }] : [];
   if (spot === 'sit') {
     if (WINDOW_TABLES.has(d.shop)) out.push({ id: 'sit', label: `A coffee at the ledge in the window: three minutes, watching the street from inside (${price(state, BITE_USD)})` });
-    if (WINDOW_TABLES.has(d.shop) && p && reading(p)) out.push({ id: 'read', label: `An hour with ${bookOf(reading(p).id).title} and a coffee (${price(state, BITE_USD)})` });
+    if (WINDOW_TABLES.has(d.shop) && PASTIME.has(state.scenario.kind) && p?.books?.some(onYou)) out.push({ id: 'read', label: `A coffee at the ledge, and your book, for as long as you like (${price(state, BITE_USD)}, and another every forty minutes)` });
     return out;
   }
   out.push({ id: 'browse', label: 'A look at what they have, a question at the counter: a minute, nothing bought' });
@@ -195,6 +198,7 @@ export function doWay(state, bus, me, way, scenario) {
     read: 'A coffee at the ledge in the window, the book open on it.',
     train: 'The changing room, and the gym floor.', class: 'Into a gi, and on to the mat.', lesson: 'A classroom upstairs, a table, a teacher.',
   }[way] ?? (piece ? `Along the rail: ${piece.name}, the tags off at the till.` : good ? `${good[1].charAt(0).toUpperCase() + good[1].slice(1)}, paid for at the counter.` : book ? 'The book from the shelf, paid for at the counter.' : 'A look along the shelves, and a question at the counter.') });
+  if (way === 'read') bus?.emit('reading', cardOf(state, me));      // (ten minutes at a time: sim/reading.js)
   return true;
 }
 
@@ -244,9 +248,11 @@ export function insideTick(state, bus, me, scenario) {
     const lang = langHere(state), g = learn(p, lang, LESSON_S / 3600, 'fluent');
     say(state, bus, { kind: 'note', text: `Ninety minutes of ${LANG_NAME[lang] ?? 'the language'}: verbs, a newspaper read aloud, the teacher's patience. ${g.gained ? `Your ${LANG_NAME[lang]} is ${g.level} now.` : g.toNext === null ? 'There\'s nothing more the school can teach you.' : `${Math.ceil(g.toNext)} hours more to the next level.`}` });
   } else if (ins.book) {
-    (p.books ??= []).push({ id: ins.book, read: 0 });
-    say(state, bus, { kind: 'note', text: `${bookLine(bookOf(ins.book))}: paid for, and in your pocket.` });
-  } else if (ins.way === 'read') { eat(p, state.time.ms, 6); say(state, bus, { kind: 'note', text: readAnHour(p, langHere(state)) ?? 'Nothing left to read.' }); }
+    const room = fits(p, 'book');
+    (p.books ??= []).push({ id: ins.book, read: 0, at: room ? 'pocket' : 'bag' });
+    if (!room) (p.bag ??= []).push({ book: ins.book });
+    say(state, bus, { kind: 'note', text: `${bookLine(bookOf(ins.book))}: paid for, and ${room ? 'in a pocket' : 'in the shop\'s bag, no room for it about you'}.` });
+  } else if (ins.way === 'read') { eat(p, state.time.ms, 6); say(state, bus, { kind: 'note', text: 'You shut the book, and finish what\'s left in the cup.' }); }
   else if (ins.way === 'sit') { eat(p, state.time.ms, ins.cut ? 6 : 12); say(state, bus, { kind: 'note', text: ins.cut ? 'Half the coffee left on the ledge: you\'ve seen enough of the street.' : 'The coffee drunk, the street watched: whoever was out there for three minutes, you\'ve seen.' }); }
   else if (ins.way === 'eat') { eat(p, state.time.ms, 8); say(state, bus, { kind: 'note', text: 'Something hot, eaten standing up, and a minute of nobody looking at you. Better.' }); }
   else if (ins.way === 'wash' && p?.bloody) {

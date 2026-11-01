@@ -48,6 +48,8 @@ import { lessonOf } from './tutorial/index.js';
 import { startTutor, tutorTick } from './tutorial/earpiece.js';
 import * as traffic from './traffic.js';
 import { notice } from './notice.js';
+import { senseTick } from './sense.js';
+import * as reading from './reading.js';
 import { learnTick } from './knowledge.js';
 import { wetTick, wetDays } from './wet.js';
 import { needsTick, strain } from './needs.js';
@@ -201,13 +203,14 @@ export function step(state, input = {}, bus) {
       } else if (me?.busy?.what === 'shelter') say(state, bus, { kind: 'note', text: 'Too late: it\'s gone.' });
       continue;
     }
+    if (String(act).startsWith('read:')) { if (me && !state.fight) reading.act(state, bus, me, act.slice(5), scenario, skip); continue; }   // (a book, sat somewhere: sim/reading.js)
     if (act === 'draw') { if (state.fight) fight.drawMove(state, bus, scenario); else if (me) items.use(state, bus, me, 'draw'); continue; }   // (G: sim/items.js; in a fight, it costs the exchange)
     if (String(act).startsWith('inv:')) { if (me && !state.fight) items.use(state, bus, me, act.slice(4)); continue; }   // (the inventory's buttons)
     if (act === 'glance' && me && !me.glance) me.glance = Math.round(GLANCE_S * TICKS_PER_S);
     // R: what's at hand (sim/acts.js affordance()), whatever the scene's line offers; T is the line's own.
     if (act === 'use') {
       const here = !state.fight && !scenario.holds?.(state) && affordance(state, me);
-      if (here) doAct(state, bus, me, here.act, { toward: scenario.toward?.(state, me), scenario });
+      if (here?.act) doAct(state, bus, me, here.act, { toward: scenario.toward?.(state, me), scenario });
       continue;
     }
     scenario.act?.(state, bus, act);
@@ -311,6 +314,7 @@ export function step(state, input = {}, bus) {
     drips(state);
     for (const a of state.actors) if (a.who) bloodBeat(state, bus, a, 1);
     notice(state, bus, me);                                         // (blood on you, seen: a face remembered: sim/notice.js)
+    if (me && !me.ai) senseTick(state, bus, me, scenario);          // (eyes on you, whoever you're after, felt: sim/sense.js)
     needsTick(state, bus, me);                                      // (hunger's clock, the calm coming back, frayed slips: sim/needs.js)
     learnTick(state);                                               // (the streets walked, known: sim/knowledge.js)
     wetTick(state, bus, me);                                        // (rain on you, the cold, a cold: sim/wet.js)

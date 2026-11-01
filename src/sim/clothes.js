@@ -25,6 +25,7 @@
 // time, if there's room, and what's on you put back. Nothing comes out of it unasked (the user,
 // 2026-10-31: "i never asked to take the medication when washing up").
 import { weaponOf } from './weapons.js';
+import { bookOf } from './training.js';
 import { fits, fitsSupply, placed, ALWAYS } from './items.js';
 import { hash } from './rng.js';
 import { SOLD, KIT, goodOf, addSupply, SUPPLIES, packsOf, supplyWord } from './medicine.js';
@@ -93,7 +94,7 @@ export const railOf = (shop, p) => (RAIL[shop] ?? []).map(x => ({ ...x, name: x.
 
 const thingName = (k) => weaponOf(k)?.name ?? (k === 'burner' ? 'a burner' : k);
 /** What's in the shop's bag, in words: a thing, some supplies, a piece of clothing. */
-export const bagWord = (x) => (x.supply ? supplyWord(x.supply, x.n) : x.item ? thingName(x.item) : x.name);
+export const bagWord = (x) => (x.supply ? supplyWord(x.supply, x.n) : x.item ? thingName(x.item) : x.book ? bookOf(x.book).title : x.name);
 // (supplies into the bag: one entry a kind, so they stay counted)
 const bagSupply = (p, kind, n) => { const had = p.bag?.find(x => x.supply === kind); if (had) had.n += n; else (p.bag ??= []).push({ supply: kind, n }); };
 
@@ -122,6 +123,7 @@ export function shed(p) {
   const gone = placed(p).out.filter(o => o.at === null && !ALWAYS.includes(o.kind));
   for (const o of gone) {
     if (o.kind === 'burner') { if (!--p.burners) delete p.burners; (p.bag ??= []).push({ item: 'burner' }); }
+    else if (o.kind === 'book') { p.books.find(b => b.id === o.id).at = 'bag'; (p.bag ??= []).push({ book: o.id }); }
     else if (SUPPLIES[o.kind]) { p.kit[o.kind] -= o.n; if (!(p.kit[o.kind] > 0)) delete p.kit[o.kind]; if (!Object.keys(p.kit).length) delete p.kit; bagSupply(p, o.kind, o.n); }
     else { p.items.splice(p.items.indexOf(o.kind), 1); (p.bag ??= []).push({ item: o.kind }); }
   }
@@ -134,6 +136,7 @@ export function unpack(p, cabinet = null) {
   const words = p.bag.map(bagWord);
   for (const x of p.bag) {
     if (x.supply) { if (cabinet) cabinet[x.supply] = (cabinet[x.supply] ?? 0) + x.n; else addSupply(p, { [x.supply]: x.n }); }
+    else if (x.book) { const b = p.books?.find(o => o.id === x.book); if (b) b.at = 'home'; }   // (onto the flat's shelf: sim/reading.js)
     else if (x.item) (p.stash ??= []).push(x.item);
     else (p.wardrobe ??= []).push(x);
   }

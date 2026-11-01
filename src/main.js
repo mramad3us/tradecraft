@@ -20,7 +20,7 @@ import { createBus } from './sim/bus.js';
 import { toJSON, fromJSON } from './sim/state.js';
 import { TICK_MS, HOUR, MIN, stampText, hourOfDay, calendar } from './sim/clock.js';
 import { SCENARIOS } from './sim/scenarios/index.js';
-import { candidates, newCampaign, context, fold, heatWord, KINDS, LEVELS, levelOf, promote, goalOf } from './sim/campaign.js';
+import { candidates, legendFile, newCampaign, context, fold, heatWord, KINDS, LEVELS, levelOf, promote, goalOf } from './sim/campaign.js';
 import { cityById } from './sim/cities/index.js';
 import { shopWord } from './sim/shops.js';
 import { price } from './sim/money.js';
@@ -82,9 +82,15 @@ function pickOfficer(city = 'moscow', level = null) {
   const seed = randomSeed(), list = candidates(seed, city, level);
   home = null;
   ui.hideTitle();
-  ui.showCandidates(list, (i) => launch(newGame({ seed, scenario: 'campaign', version: VERSION, campaign: newCampaign(seed, list[i], city, level), weather: WEATHER })),
-    city, { cities: level === 'junior' ? null : (c) => pickOfficer(c, level), back: () => showTitle(), level,
-      levels: LEVELS.map((L, k) => ({ id: L.id, name: L.name, open: open(k), why: k ? `Opens when a game of yours reaches the rung above it${settings.debug ? ' (open: debug mode)' : ''}.` : null })), levelTo: (id) => pickOfficer(id === 'junior' ? 'london' : 'moscow', id) });
+  // (debug mode: a fourth file, Tradecraft 95, a different one each time: sim/campaign.js LEGENDS)
+  let n = 0;
+  const show = () => {
+    if (settings.debug) list[3] = legendFile(seed, city, level, n);
+    ui.showCandidates(list, (i) => launch(newGame({ seed, scenario: 'campaign', version: VERSION, campaign: newCampaign(seed, list[i], city, level), weather: WEATHER })),
+      city, { cities: level === 'junior' ? null : (c) => pickOfficer(c, level), back: () => showTitle(), level, another: settings.debug ? () => { n++; show(); } : null,
+        levels: LEVELS.map((L, k) => ({ id: L.id, name: L.name, open: open(k), why: k ? `Opens when a game of yours reaches the rung above it${settings.debug ? ' (open: debug mode)' : ''}.` : null })), levelTo: (id) => pickOfficer(id === 'junior' ? 'london' : 'moscow', id) });
+  };
+  show();
 }
 
 // The career's record across games (sim/campaign.js LEVELS): the highest rung any game reached.
@@ -164,6 +170,7 @@ function launch(s, { hour = null } = {}) {
   bus.on('desk-open', () => setTimeout(() => ui.openMind(s, (cmd) => acts.push(`desk:${cmd}`), 'ahead'), 0));   // (the chief's office at the embassy: what's on, the mind's first leaf)
   bus.on('wardrobe', (list) => setTimeout(() => list.length ? ui.openChoices('WARDROBE', 'WHAT TO WEAR, WHAT TO KEEP', list, (key) => acts.push(`desk:dress:${key}`)) : ui.closeOverlays(), 0));   // (the flat's wardrobe: sim/clothes.js)
   bus.on('basin', (list) => setTimeout(() => ui.openChoices('BASIN', 'WASH, OR THE CABINET', list, (key) => acts.push(`desk:basin:${key}`)), 0));   // (the flat's basin, and the cabinet over it: sim/clothes.js)
+  bus.on('reading', (c) => setTimeout(() => { if (state === s) ui.openChoices('BOOK', c.title, c.list, (key) => acts.push(`read:${key}`)); }, 0));   // (a book, ten minutes at a time: sim/reading.js)
   bus.on('bed', (list) => ui.openChoices('BED', 'HOW LONG?', list, (key) => acts.push(`desk:${key}`)));   // (the flat's bed by day: sim/scenarios/campaign.js)
   bus.on('photo', (w) => { snapWanted = w; });                    // (sim/scenarios/watch.js: the frame, at the next draw)
   bus.on('shop', ({ shop, ways }) => ui.openChoices('SHOP', shopWord(shop).replace(/^the /, '').toUpperCase(), ways.map(w => ({ key: w.id, label: w.label })), (key) => acts.push(`shop:${key}`)));   // (sim/shops.js)

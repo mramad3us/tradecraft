@@ -42,6 +42,7 @@ import { handler, sheet, streetLook, describe, passerby, asOfficer } from '../pe
 import { heatKey, addHeat } from '../heat.js';
 import { say, speak } from '../log.js';
 import { strain } from '../needs.js';
+import { feelOf } from '../sense.js';
 import { settle } from '../instinct.js';
 import { skill } from '../skills.js';
 import { opposed, check } from '../checks.js';
@@ -163,6 +164,11 @@ export const sdr = {
   },
 
   anchors(state) { return []; },
+
+  /** Who has their eyes on you, for the feel (sim/sense.js): the team. */
+  eyesOn(state) { return teamOf(state).crew.map(c => actorOf(state, c.id)).filter(Boolean); },
+  /** One of them felt beyond doubt: a face that's followed you, by the back of your neck (sighting()). Short of that it's a feeling, not evidence: a Handler still has to test it. */
+  onFelt(state, bus, a, roll, grade) { if (grade >= 2) sighting(state, bus, a, roll, true); },
 
   /** A shop window's glass, to run back the way you came. */
   toward(state) { return -state.scenario.heading.dir; },
@@ -471,6 +477,9 @@ const CAUGHT = { bloody: 'walk about bloody', armed: 'carry a weapon in your han
 const FLAGS = { changed: 'you went into a shop in one coat and came out in another', bloody: 'you walked about with blood on you', backway: 'you went into a shop and out the back', armed: 'you walked the street with a weapon showing', assaulted: 'you went for one of them', spoke: 'you spoke to one of them', ran: 'you ran', checked: 'you checked behind you', glassed: 'you used a shop window to check behind you', jaywalked: 'you crossed away from the zebra', doubled: 'you doubled back', taxi: 'you jumped into a taxi', doors: 'you stepped off as the doors closed', marked: 'you chalked a mark on a lamppost' };
 const SAW = { changed: 'saw you come out in another coat', bloody: 'saw the blood on you', backway: 'waited on a shop door for nothing', armed: 'saw the weapon on you', assaulted: 'took it from you', spoke: 'had a word from you', ran: 'saw you run', checked: 'saw you check behind you', glassed: 'saw you use a shop window to check behind you', jaywalked: 'saw you cross away from the zebra', doubled: 'saw you double back', taxi: 'saw you jump into a taxi', doors: 'saw you step off as the doors closed', marked: 'saw you chalk a lamppost' };
 export const FLAGS_MAX = 2;
+export const FELT_AGAIN_S = 20;                                    // (a face felt counts again after this: sim/sense.js)
+export const UNREMARKED_DC = 24;                                   // (what you do goes unremarked: Deception, Tradecraft on top, against this + their Awareness)
+const PLAIN_FACTS = new Set(['armed', 'bloody', 'assaulted', 'spoke']);
 export const ASSAULT_HEAT = 12;
 export const BACK_COVERED = 0.3;
 export const COAT_MISSED = { overt: 0.5, covert: 0.3 };              // (out the front in a new coat: they look past you)                                    // (a covert team with the back of a shop covered)
@@ -646,7 +655,7 @@ function look(state, bus, why, bonus = 0) {
     if (a === me || a.hidden || a.who === 'solovey' || !inView(state, a.id)) continue;
     const d = Math.hypot(a.x - me.x, a.z - me.z), crowd = near(state, a.x, a.z, 3).filter(o => o !== a && isPasserby(o)).length;
     const light = lightBand(lightHere(state, a.x, a.z));
-    const mods = [bonus && { why: { glance: 'a straight look', cross: 'crossing, looking both ways', window: 'in the glass', stop: 'stood, looking about', passive: 'not looking', kiosk: 'over the top of a paper', cafe: 'from a café window', phone: 'through a phone box\'s glass', shelter: 'waiting for a bus', notices: 'over the notices', alight: 'watching who gets off with you' }[why], v: bonus },
+    const mods = [bonus && { why: { glance: 'a straight look', cross: 'crossing, looking both ways', window: 'in the glass', stop: 'stood, looking about', passive: 'not looking', kiosk: 'over the top of a paper', book: 'over the top of a book', cafe: 'from a café window', phone: 'through a phone box\'s glass', shelter: 'waiting for a bus', notices: 'over the notices', alight: 'watching who gets off with you' }[why], v: bonus },
       d > 20 ? { why: 'far off', v: -3 } : d > 12 ? { why: 'a way off', v: -1 } : null, crowd >= 2 && { why: 'among people', v: -2 },
       light === 'dark' && { why: 'in the dark', v: -2 }, a.ai?.fromLane && state.time.ms - sc.sinceMap < 30000 && { why: 'up the lane after you', v: 4 }, a.ai?.fromBus && state.time.ms - sc.sinceMap < 30000 && { why: 'off the bus after you', v: 4 }, a.ai?.fromMetro && state.time.ms - sc.sinceMap < 30000 && { why: 'up the steps after you', v: 4 }, a.ai?.outOfCab && state.time.ms - a.ai.outOfCab < 30000 && { why: 'out of a car behind yours', v: 4 }, ...faces].filter(Boolean);
     const theirs = a.who ? skill(state.people[a.who], 'deception') : 2;
@@ -671,7 +680,7 @@ function snapshot(state, kind) {
 }
 
 /** A face we noticed: counted again when it's followed us (it copied a move of ours, or stayed with us). */
-function sighting(state, bus, a, roll) {
+function sighting(state, bus, a, roll, felt = false) {
   const sc = teamOf(state), me = playerOf(state), key = String(a.who ?? a.seed);
   const p = a.who ? state.people[a.who] : null, look = p?.look ?? null;
   const f = sc.faces[key] ??= { n: 0, look: a.who ? describe(look, p.sex) : null, crew: !!a.who?.startsWith('fsb'), last: null, rows: [], places: [] };
@@ -693,13 +702,16 @@ function sighting(state, bus, a, roll) {
   const sp = Math.hypot(me.vx, me.vz), ahead = sp > 0.5 ? ((a.x - me.x) * me.vx + (a.z - me.z) * me.vz) / sp > 3 : (a.x - me.x) * sc.heading.dir > 3;
   const was = sc.snap?.faces[a.id], still = Math.hypot(a.vx, a.vz) < 0.5, sn = sc.snap, d = Math.hypot(a.x - me.x, a.z - me.z);
   const behind = (a.x - me.x) * sc.heading.dir < -2 && sideOf(a.z) === sideOf(me.z);
-  const copied = f.last && was && sc.moves > f.last.moves && {
+  // (felt, clearly, and not again for a while: nobody's eyes stay on you by chance: sim/sense.js)
+  if (felt && state.time.ms - (f.feltMs ?? -1e12) < FELT_AGAIN_S * 1000) return;
+  if (felt) f.feltMs = state.time.ms;
+  const copied = felt || f.last && was && sc.moves > f.last.moves && {
     stop: was.moving && still && behind && d < 30,                 // (stood behind us when we stood: not anyone who happened to stop)
     cross: was.behind && was.side === sn.side && sideOf(a.z) === sideOf(me.z) && sideOf(me.z) !== sn.side && d > 3 && d < 40,   // (after us, not beside us)
     double: was.dir === -sc.heading.dir && (still || Math.sign(a.vx) === sc.heading.dir) && d < 40,
   }[sn.kind];
   const stayed = f.last && state.time.ms - f.last.ms >= STAYED_S * 1000 && (f.last.row !== row || Math.abs(me.x - f.last.x) >= STAYED_M);
-  if (f.last && (ahead || !(copied || stayed))) return;
+  if (f.last && ((ahead && !felt) || !(copied || stayed))) return;
   if (!copied && f.n >= 2) return;                                // (time alone makes a face familiar; only a copied move makes a tail)
   f.n++; f.last = { row, x: me.x, ms: state.time.ms, ax: a.x, az: a.z, moves: sc.moves };
   if (!f.rows.includes(row)) f.rows.push(row);
@@ -711,7 +723,7 @@ function sighting(state, bus, a, roll) {
   if (f.n === 2 && !sure) say(state, bus, { kind: 'roll', roll, text: `${cap(f.look)} again: ${f.places[0] === place ? 'here before, and here still' : `on ${f.places[0]} before, and now here`}. Could be nothing.` });
   else if (sure && !f.sure) {
     f.sure = true;
-    say(state, bus, { kind: 'roll', roll, text: `${cap(f.look)}, ${f.rows.length >= 2 ? 'three times now, and on two streets' : 'three times now'}. That's not Moscow being a small town. That's a tail.` });
+    say(state, bus, { kind: 'roll', roll, text: `${cap(f.look)}, ${f.rows.length >= 2 ? 'three times now, and on two streets' : 'three times now'}. That's not ${CITY_NAME[state.map.city] ?? 'Moscow'} being a small town. That's a tail.` });
   }
 }
 
@@ -725,6 +737,8 @@ function flag(state, bus, kind) {
   const w = sc.crew.map(c => actorOf(state, c.id)).find(a => a && !a.ai.steps.length && seesActor(state, a, me));
   if (!w) return false;
   sc.flagged[kind] = state.time.ms;
+  // (a master makes it look like nothing: what you do, not what shows on you, can pass for ordinary: the feel's dice, sim/sense.js)
+  if (!PLAIN_FACTS.has(kind) && check(stream('unremarked', state.seed, state.tick), { skill: 'deception', value: feelOf(state.people[state.player], 'deception'), dc: UNREMARKED_DC + skill(state.people[w.who], 'awareness') }).ok) return false;
   sc.flags.push({ kind, ms: state.time.ms, who: w.who });
   const look = describe(state.people[w.who].look, state.people[w.who].sex);
   say(state, bus, { kind: 'note', hidden: true, text: `${cap(look)} ${SAW[kind]}, and made a note of it.` });
@@ -823,6 +837,7 @@ export function teamSecond(state, bus, me) {
   if (sc.glassS === 1) { glassed(state, bus, me); look(state, bus, 'window', 0); }
   else if (sc.glassS && sc.glassS % 6 === 0) look(state, bus, 'window', 0);
   else if (!me.glass && sc.stillS >= 3 && sc.stillS % 6 === 3) look(state, bus, 'stop', -1);
+  else if (me.busy?.book && (sc.spotS = (sc.spotS ?? 0) + 1) % 6 === 1) look(state, bus, 'book', 1);   // (a book open: sim/reading.js)
   else if (me.inside?.way === 'sit' && (sc.spotS = (sc.spotS ?? 0) + 1) % 6 === 1) look(state, bus, 'cafe', 2);   // (a café's window: sim/shops.js)
   else if (['kiosk', 'phone', 'shelter', 'notices'].includes(me.busy?.what) && me.busy.steps?.[0]?.[0] === 'wait' && (sc.spotS = (sc.spotS ?? 0) + 1) % 6 === 1) look(state, bus, me.busy.what, me.busy.what === 'phone' || me.busy.what === 'shelter' ? 2 : 1);   // (a kiosk's paper, a phone box's glass: a natural stop, a look at the street: sim/acts.js)
   else if (state.tick % (8 * TPS) === 0) look(state, bus, 'passive', -3);

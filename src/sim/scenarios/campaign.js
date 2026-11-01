@@ -50,7 +50,7 @@ import { eat, soothe } from '../needs.js';
 import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, watched, KINDS, WORK, TRAVEL } from '../campaign.js';
 import { signOf, missionPlace } from '../places.js';
 import { fileOf, assetFile } from '../dossier.js';
-import { reading, bookOf, readAnHour } from '../training.js';
+import { open as openBook } from '../reading.js';
 import { dress, wardrobeWays, unpack, shed, cabinetWays, cabinetDo, DRESS_S } from '../clothes.js';
 import { kitWords } from '../medicine.js';
 import { call } from '../phone.js';
@@ -226,9 +226,18 @@ export const campaignHub = {
   onBus(state, bus, to, phase) { if (state.scenario.tail) sdr.onBus(state, bus, to, phase); },
   onMetro(state, bus, to, phase) { if (state.scenario.tail) sdr.onMetro(state, bus, to, phase); },
   onShop(state, bus, phase, way) { if (state.scenario.tail) sdr.onShop(state, bus, phase, way); },
+  eyesOn(state) { return state.scenario.tail ? sdr.eyesOn(state) : []; },   // (the feel: sim/sense.js)
+  onFelt(state, bus, a, roll, grade) { if (state.scenario.tail) sdr.onFelt(state, bus, a, roll, grade); },
   onInteract(state, bus, them, id) { if (state.scenario.tail) sdr.onInteract(state, bus, them, id); },
   carry(state, way) { return state.scenario.tail ? sdr.carry(state, way) : []; },
   mapChanged(state) { if (state.scenario.tail) sdr.mapChanged(state); },
+
+  /** Time spent in passing (a book, sim/reading.js): what the days bring, and whoever's on you still on you when you look up. */
+  pass(state, bus, ms) {
+    state.campaign.posting.heat = heatNow(state);
+    passTo(state, bus, state.time.ms + ms);
+    if (state.scenario.tail) state.scenario.tail.teamSeenMs = state.time.ms;
+  },
 
   /** At the window, your feet are the window's: nothing but T takes you from it. */
   holds(state) { return !!state.scenario.window; },
@@ -409,11 +418,7 @@ function use(state, bus, act, here = false) {
     campaignHub.act(state, bus, 'desk:work');
   }
   else if (act === 'chief') { say(state, bus, { kind: 'note', text: 'The chief looks up from a cable, takes his glasses off: "What have we got?"' }); bus?.emit('desk-open'); }   // (the desk: what's on, src/ui/ui.js)
-  else if (act === 'read') {                                       // (an hour with the book on the go: sim/training.js)
-    const p = state.people.me, lang = c.posting.city === 'london' ? 'ru' : cityById(c.posting.city).lang ?? 'ru';
-    skip(state, bus, 60 * MIN);
-    say(state, bus, { kind: 'note', text: readAnHour(p, lang) ?? 'Nothing left to read.' });
-  }
+  else if (act === 'read') openBook(state, bus, me);               // (ten minutes at a time, your own books: sim/reading.js)
   else if (act === 'eat') { say(state, bus, { kind: 'note', text: 'Bread, cheese, the kettle, the radio low: twenty minutes.' }); skip(state, bus, 20 * MIN); eat(state.people.me, state.time.ms, 20); }
   else if (act === 'wash') {
     // (the cabinet over the basin is yours to open or not: a card when it, or your pockets, have something for it)
@@ -444,7 +449,7 @@ const SPOT_LINE = {
   desk: (state) => { const c = state.campaign, k = calendar(state.time.ms); return k.weekday < 5 && !c.worked[Math.floor(state.time.ms / DAY)] && k.hour < WORK.to ? [`Your desk, the in-tray. {instinct}: the day's cables, till six.`, 'work'] : ['Your desk: nothing in the tray that won\'t keep till tomorrow.', null]; },
   chief: () => ['The chief\'s office. {instinct}: what\'s on.', 'chief'],
   dress: (state) => [wardrobeWays(state.people.me).length ? 'The wardrobe. {instinct}: what you wear, what you keep here.' : 'The wardrobe: nothing in it but hangers yet. The shops have more.', wardrobeWays(state.people.me).length ? 'dress' : null],
-  read: (state) => { const b = reading(state.people.me); return b ? [`The armchair. {instinct}: an hour with ${bookOf(b.id).title}.`, 'read'] : ['The armchair, and nothing to read but the takeaway menus. A bookshop would help.', null]; },
+  read: (state) => (state.people.me.books?.length ? ['The armchair, and your books. {instinct}: read, as long as you like.', 'read'] : ['The armchair, and nothing to read but the takeaway menus. A bookshop would help.', null]),
 };
 
 /** Arrive at a place: its street loaded, the player at its door (sim/game.js newMap()). */

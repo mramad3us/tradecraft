@@ -41,7 +41,9 @@
 //     setFog); the mask eases in quickly and out slowly (FOG_IN_S, FOG_OUT_S), as eyes do. What the
 //     eyes take in changes with the sim, so it's worked out again only when they've moved, turned or
 //     changed (or when the mask moves, or the light changes, once a game second); only the easing runs
-//     every frame. The light on
+//     every frame. What's felt, not seen (sim/sense.js: patches round someone, a quarry's trail) lifts the
+//     mask as sight does, through walls, and goes in its second channel, the stage's cold tint, easing out
+//     slower still (FELT_OUT_S), as a hunch does. The light on
 //     a cell is the open air's, but where a lamp's pool may reach (each lamp stamps the cells under
 //     it): those take lightLevel() with the lamps that reach them, the number checks read;
 //   - people as the player knows them: those seen this tick where they are, the rest where they were
@@ -72,7 +74,8 @@ import { focusActor, playerActor } from '../sim/game.js';
 import { SCENARIOS } from '../sim/scenarios/index.js';
 import { SCREEN_HALF_M } from '../sim/crowd.js';
 import { Z_BACK, Z_FRONT } from '../sim/map/dojo.js';
-import { eyes, visibility, openAir } from '../sim/perception.js';
+import { eyes, visibility, openAir, feltAt } from '../sim/perception.js';
+import { feltList } from '../sim/sense.js';
 import { sectionFor } from '../sim/world.js';
 import { weatherAt, sightM, FALLS } from '../sim/weather.js';
 import { hash as hashOf } from '../sim/rng.js';
@@ -112,7 +115,7 @@ export const LEAD_S = 0.35;                                         // how quick
 // (deep to the south: a facade whose foot is well below the picture shows its upper floors in it)
 export const FOG_N = [96, 128];                                    // cells: 48 × 64 m round the camera
 const FOG_AT = [-24, -18];                                         // the mask's corner from the camera, m
-const FOG_IN_S = 0.08, FOG_OUT_S = 0.4;
+const FOG_IN_S = 0.08, FOG_OUT_S = 0.4, FELT_OUT_S = 1.1;
 const LAMP_Y = 2.7;
 // The weather drawn: what falls by kind and level (rain's streaks, snow's flakes, dust's grit; sleet
 // is both, half each), splashes on wet ground, the haze's strength (by its far edge, the eye's reach
@@ -267,10 +270,10 @@ export function createView({ parent, bus, month = () => 11 }) {
   }
 
   // The fog: what the player's character is aware of, on the ground.
-  const [FNX, FNZ] = FOG_N, fogData = new Uint8Array(FNX * FNZ), fogVal = new Float32Array(FNX * FNZ).fill(1);
+  const [FNX, FNZ] = FOG_N, fogData = new Uint8Array(FNX * FNZ * 2), fogVal = new Float32Array(FNX * FNZ).fill(1), feltVal = new Float32Array(FNX * FNZ), feltAim = new Float32Array(FNX * FNZ);
   const fogAim = new Float32Array(FNX * FNZ), fogLight = new Float32Array(FNX * FNZ), fogIn = new Int16Array(FNX * FNZ);
   const fogLamps = Array.from({ length: FNX * FNZ }, () => []);   // per cell, the lamps whose pool may reach it
-  const fogTex = new THREE.DataTexture(fogData, FNX, FNZ, THREE.RedFormat, THREE.UnsignedByteType);
+  const fogTex = new THREE.DataTexture(fogData, FNX, FNZ, THREE.RGFormat, THREE.UnsignedByteType);
   fogTex.magFilter = fogTex.minFilter = THREE.LinearFilter;
   fogTex.generateMipmaps = false;
   let fogO = null, fogLitAt = -1e12, fogWalls = null, fogLast = performance.now(), fogTick = null;
@@ -284,10 +287,11 @@ export function createView({ parent, bus, month = () => 11 }) {
       // The mask moved (or the street changed): carry the eased values over, and find again the
       // walls each cell lies in and the light on each.
       if (fogO) {
-        const old = fogVal.slice(), sx = ox - fogO[0], sz = oz - fogO[1];
+        const old = fogVal.slice(), oldF = feltVal.slice(), sx = ox - fogO[0], sz = oz - fogO[1];
         for (let j = 0; j < FNZ; j++) for (let i = 0; i < FNX; i++) {
-          const pi = i + sx, pj = j + sz;
-          fogVal[j * FNX + i] = pi >= 0 && pi < FNX && pj >= 0 && pj < FNZ ? old[pj * FNX + pi] : 0;
+          const pi = i + sx, pj = j + sz, on = pi >= 0 && pi < FNX && pj >= 0 && pj < FNZ;
+          fogVal[j * FNX + i] = on ? old[pj * FNX + pi] : 0;
+          feltVal[j * FNX + i] = on ? oldF[pj * FNX + pi] : 0;
         }
       }
       fogO = [ox, oz]; fogWalls = W.walls; fogLitAt = -1e12;
@@ -317,22 +321,24 @@ export function createView({ parent, bus, month = () => 11 }) {
     }
     // What the eyes take in: again only when they've moved, turned or changed (or the mask, or the
     // light): stood still, at a window or a stop, the mask costs nothing.
-    const e = eyes(state, me), g = e.glass, key = `${e.x},${e.z},${e.head},${e.cone},${e.aware},${g ? `${g.x0},${g.x1},${g.z},${!!g.south}` : ''}`;
+    const e = eyes(state, me), g = e.glass, felt = e.felt, sight = felt ? { ...e, felt: null } : e;
+    const key = `${e.x},${e.z},${e.head},${e.cone},${e.aware},${g ? `${g.x0},${g.x1},${g.z},${!!g.south}` : ''},${felt ? felt.map(f => `${f.x.toFixed(1)}|${f.z.toFixed(1)}|${f.r}|${f.k}`).join(';') : ''}`;
     if (fogTick !== key) {
       fogTick = key;
       const walls = W.walls.filter(w => w.x1 > Math.min(e.x, x0) - 1 && w.x0 < Math.max(e.x, x0 + FNX * FOG_CELL_M) + 1 && w.z1 > Math.min(e.z, z0) - 1 && w.z0 < Math.max(e.z, z0 + FNZ * FOG_CELL_M) + 1);
       for (let j = 0, k = 0; j < FNZ; j++) {
         const z = z0 + (j + 0.5) * FOG_CELL_M;
         for (let i = 0; i < FNX; i++, k++) {
-          if (fogIn[k] >= 0) { fogAim[k] = 0; continue; }
-          fogAim[k] = visibility(state, e, x0 + (i + 0.5) * FOG_CELL_M, z, fogLight[k], walls);
+          if (fogIn[k] >= 0) { fogAim[k] = feltAim[k] = 0; continue; }
+          const x = x0 + (i + 0.5) * FOG_CELL_M, v = visibility(state, sight, x, z, fogLight[k], walls), p = felt ? feltAt(felt, x, z) : 0;
+          fogAim[k] = Math.max(v, p); feltAim[k] = Math.max(0, p - v);
         }
       }
       // A building's cells take its walls' feet: the facade's (the open cell south of them in their
       // column), and near its ends, the side walls' (the open cell beside them in their row).
       for (let i = 0; i < FNX; i++) {
-        let foot = 0;
-        for (let j = FNZ - 1; j >= 0; j--) { const k = j * FNX + i; if (fogIn[k] < 0) foot = fogAim[k]; else fogAim[k] = foot; }
+        let foot = 0, footF = 0;
+        for (let j = FNZ - 1; j >= 0; j--) { const k = j * FNX + i; if (fogIn[k] < 0) { foot = fogAim[k]; footF = feltAim[k]; } else { fogAim[k] = foot; feltAim[k] = footF; } }
       }
       for (let j = 0; j < FNZ; j++) {
         const row = j * FNX;
@@ -343,15 +349,19 @@ export function createView({ parent, bus, month = () => 11 }) {
             const ii = i + s * n;
             if (ii < 0 || ii >= FNX || fogIn[row + ii] < 0) break;
             fogAim[row + ii] = Math.max(fogAim[row + ii], v);
+            feltAim[row + ii] = Math.max(feltAim[row + ii], feltAim[row + i]);
           }
         }
       }
     }
-    const kin = 1 - Math.exp(-dt / FOG_IN_S), kout = 1 - Math.exp(-dt / FOG_OUT_S);
+    const kin = 1 - Math.exp(-dt / FOG_IN_S), kout = 1 - Math.exp(-dt / FOG_OUT_S), fout = 1 - Math.exp(-dt / FELT_OUT_S);
     for (let k = 0; k < fogVal.length; k++) {
-      const a = fogAim[k], v = fogVal[k];
-      fogVal[k] = v + (a - v) * (a > v ? kin : kout);
-      fogData[k] = Math.round(fogVal[k] * 255);
+      const a = fogAim[k], v = fogVal[k], b = feltAim[k], w = feltVal[k];
+      // (what's felt lets go slowly: the mask with it, or the patch would go dark under its own tint)
+      fogVal[k] = v + (a - v) * (a > v ? kin : b > 0 || w > 0.02 ? fout : kout);
+      feltVal[k] = w + (b - w) * (b > w ? kin : fout);
+      fogData[2 * k] = Math.round(fogVal[k] * 255);
+      fogData[2 * k + 1] = Math.round(feltVal[k] * 255);
     }
     fogTex.needsUpdate = true;
     // (unseen: dimmed by day, near black at night, so the edge of sight is a shadow)
@@ -381,7 +391,8 @@ export function createView({ parent, bus, month = () => 11 }) {
         const L = pc.looking ? LEAD_M.look : (pc.vx || pc.vz) ? LEAD_M.walk : [0, 0], h = pc.head ?? 0;
         // (into a shop's glass, what the eyes see is its mirror: the street behind, on the side they slant to)
         want[0] = Math.cos(h) * L[0]; want[1] = (pc.glass ? -1 : 1) * Math.sin(h) * L[1];
-        const w = SCENARIOS[state.scenario.kind]?.watch?.(state);
+        // (and, with nothing to follow, toward what's felt: the head doesn't turn, but the mind does; sim/sense.js)
+        const w = SCENARIOS[state.scenario.kind]?.watch?.(state) ?? feltList(state).filter(o => o.row === (state.map.row ?? 0)).sort((a, b) => Math.hypot(a.x - fx, a.z - fz) - Math.hypot(b.x - fx, b.z - fz))[0];
         if (w) { want[0] += (w.x - fx) * 0.5; want[1] += (w.z - fz) * 0.5; }
       }
       const mx = Math.max(0, SCREEN_HALF_M[0] - halfW - 0.5), mz = Math.max(0, SCREEN_HALF_M[1] - stage.H / PX_PER_M / 2 - 0.5);

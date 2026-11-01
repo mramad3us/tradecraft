@@ -22,6 +22,7 @@ export const STYLES = {
   seen: { face: 0xe2dac6, hi: 0xf6f4ee, lo: 0xc4bba9, ink: 0x14151c, glyph: 0x3b6296 },
   tail: { face: 0x9e3c36, hi: 0xc4574e, lo: 0x6e2a2e, ink: 0xf6f4ee, glyph: 0xf8e08a },
   way: { face: 0x23252f, hi: 0x353947, lo: 0x14151c, ink: 0xf6f4ee, glyph: 0xe7b84a },
+  felt: { face: 0x1f2e4a, hi: 0x3b6296, lo: 0x14151c, ink: 0xdfe8f6, glyph: 0x95c1e3 },    // (what's felt, not seen: sim/sense.js; the fog's own cold blue)
 };
 const INK = 0x14151c, SHADOW = 'rgba(20, 21, 28, 0.55)';
 
@@ -32,6 +33,7 @@ const ICONS = {
   key: ['01100', '10010', '01100', '00100', '00110'],
   eye: ['00000', '01110', '11011', '01110', '00000'],
   tube: ['01110', '10001', '11111', '10001', '01110'],
+  book: ['00000', '11011', '11111', '11111', '00000'],
   cross: ['00000', '00100', '01110', '00100', '00000'],
   pin: ['01110', '11011', '01110', '00100', '00100'],
   up: ['00100', '01110', '11111', '00100', '00100'],

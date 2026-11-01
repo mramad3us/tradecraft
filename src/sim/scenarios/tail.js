@@ -50,6 +50,7 @@ import { heatKey, addHeat } from '../heat.js';
 import { say as logSay, speak } from '../log.js';
 import { CRAFT, sigOf, twinsOf } from '../dossier.js';
 import { skill } from '../skills.js';
+import { feltOf, feelM, feelOf } from '../sense.js';
 import { opposed, check } from '../checks.js';
 import { range, int, chance, pick, weighted, hash, stream } from '../rng.js';
 import { act, offer, paneNear, seatTaken, crossingAt, crossingNear, say1 } from '../acts.js';
@@ -222,6 +223,18 @@ export const tail = {
   anchors(state) {
     const t = actorOf(state, state.scenario.target);
     return t && onMap(state, t) ? [t.x] : [];
+  },
+
+  /** Whom you're after, for the feel (sim/sense.js): him; at the meeting, the man he meets as well. */
+  quarry(state) { const sc = state.scenario; return state.time.ms < (sc.markUntil ?? 0) ? [] : [actorOf(state, sc.target), sc.phase === 'meet' ? actorOf(state, sc.contact) : null].filter(Boolean); },   // (not while the marker's over him: nothing to feel)
+  /** Whose eyes are on you: his, while he looks; a minder's, when he's taken an interest. */
+  eyesOn(state) { const sc = state.scenario; return [sc.scan ? actorOf(state, sc.target) : null, sc.hit?.eyes ? actorOf(state, sc.hit.minder) : null, actorOf(state, sc.contact)].filter(Boolean); },
+  /** He's felt: you know him from any grey coat, whoever you'd taken for him. */
+  onFelt(state, bus, a, roll, grade, why) {
+    const sc = state.scenario;
+    if (why !== 'quarry' || a.id !== sc.target || sc.marked === a.id) return;
+    if (sc.marked) { sc.mixupsKnown = (sc.mixupsKnown ?? 0) + 1; say(state, bus, { kind: 'instinct', text: 'That isn\'t him. You knew before you knew why: he\'s gone the other way.' }); }
+    sc.marked = a.id; sc.findS = 0;
   },
 
   /** On another street: what we knew of where he was is of the last one. */
@@ -586,6 +599,7 @@ function coverNow(state, me) {
   const b = me.busy, s = b?.steps[0], scan = state.scenario.scan;
   if (b && scan && b.since >= scan.ms) return { why: 'stopping short as he looked', v: 2 };
   if (me.glass) return scan && me.glass.since >= scan.ms ? { why: 'stopping short as he looked', v: 2 } : { why: 'busy at a shop window', v: -3 };
+  if (b?.book) return { why: 'reading, on a bench', v: -4 };          // (a book open: sim/reading.js)
   if (b?.what === 'bench' && me.gait === 'sit') return { why: 'sitting on a bench', v: -3 };
   if (b?.what === 'lace' && s?.[0] === 'wait') return { why: 'tying a shoelace', v: -1 };
   if (b?.what === 'mobile' && s?.[0] === 'wait') return { why: 'looking at a phone', v: -2 };   // (the street's own: everyone does it)
@@ -640,7 +654,8 @@ function keep(state, bus, t, d, why = null, passing = null) {
 /** Keeping him at a distance: Tracking against this difficulty. */
 function keepDC(state, t, d) {
   const light = lightBand(lightHere(state, t.x, t.z));
-  return 8 + Math.round(Math.max(0, d - KEEP_M) * 0.8) + 2 * crowdAround(state, t, 3) + (light === 'dark' ? 3 : light === 'dim' ? 1 : 0);
+  // (the feel keeps him further off: half of how far it reaches, sim/sense.js)
+  return 8 + Math.round(Math.max(0, d - Math.max(KEEP_M, feelM(state.people[state.player], 'tracking') / 2)) * 0.8) + 2 * crowdAround(state, t, 3) + (light === 'dark' ? 3 : light === 'dim' ? 1 : 0);
 }
 
 const crowdAround = (state, who, r) => near(state, who.x, who.z, r).filter(o => isPasserby(o) && !o.hidden).length;
@@ -665,6 +680,8 @@ function second(state, bus, me, t, d) {
   }
   // Whom we take for him.
   if (sc.marked && !actorOf(state, sc.marked)) { sc.marked = null; sc.findS = 0; }   // (a twin who's walked off)
+  const felt = feltOf(state, t.id);                                // (felt, on any street: sim/sense.js; you know where he's gone)
+  if (felt) { sc.lastSeenT = state.time.ms; if (sc.marked === t.id) sc.lastSeen = { row: rowOf(state, t), x: t.x, z: t.z, ms: state.time.ms }; if (sc.turn && sc.turn.row === rowOf(state, me)) sc.turn.seen = true; }
   if (inView(state, t.id)) {
     sc.lastSeenT = state.time.ms;
     if (sc.marked === t.id) sc.lastSeen = { row: rowOf(state, t), x: t.x, z: t.z, ms: state.time.ms };
@@ -782,6 +799,9 @@ function whereIs(me, o) {
   return `${on}, ${how}${side}`;
 }
 
+/** How far off a meeting's seen: WITNESS_M, and a master of the trade reads it from further (the feel past 20, a metre for two). */
+const witnessM = (state) => WITNESS_M + Math.max(0, (feelOf(state.people[state.player], 'tracking') - 20) / 2);
+
 function meeting(state, bus, me, t, d) {
   const sc = state.scenario, c = actorOf(state, sc.contact);
   const together = c && c.gait === 'sit' && Math.abs(c.x - t.x) < 3.5;
@@ -803,7 +823,7 @@ function meeting(state, bus, me, t, d) {
     }
     say(state, bus, { kind: 'roll', roll: r, text: 'The man with the newspaper glances at you over it, and goes back to the football.' });
   }
-  if (d < WITNESS_M && inView(state, t.id) && inView(state, c.id)) sc.witnessS++;
+  if (d < witnessM(state) && inView(state, t.id) && inView(state, c.id)) sc.witnessS++;
   if (sc.witnessS >= WITNESS_S) {
     sc.lead = sub(state, `${clockOf(state)}: Orlov met a man in a blue beanie on a bench on the boulevard. Something passed between them in a newspaper.`);
     say(state, bus, { kind: 'note', text: 'A newspaper changes hands on the bench. He leaves it lighter by an envelope. That\'s the meeting, and you saw it.' });
@@ -837,7 +857,7 @@ function* instinct(state, me, t, d, still) {
   if (sc.phase === 'meet' && sc.contact && seen) {
     const c = actorOf(state, sc.contact), both = c && inView(state, c.id);
     if (c && Math.hypot(c.x - me.x, c.z - me.z) < CONTACT_M + 1) yield L('meet-close', 'urgent', 'Too close to the bench. The other one is a professional.');
-    if (both && d < WITNESS_M) yield L('meet-watch', 'note', ['Someone\'s sat down with him. Watch, and don\'t be seen watching.', 'That\'s the meeting. Hold still, eyes on the bench.']);
+    if (both && d < witnessM(state)) yield L('meet-watch', 'note', ['Someone\'s sat down with him. Watch, and don\'t be seen watching.', 'That\'s the meeting. Hold still, eyes on the bench.']);
     else if (!both) yield L('meet-see', 'warn', 'He\'s meeting someone. Get them both in view: hold {watch} and look.');
     else yield L('meet-near', 'warn', `He's meeting someone, ${Math.round(d)} m off. Closer, but not too close.`);
     return;
@@ -869,6 +889,15 @@ function* instinct(state, me, t, d, still) {
     yield wd < 14 ? L('twin-close', 'warn', 'Closer than you\'d like. Is that the briefcase? Hard to say from here.') : L('status', 'calm', `${Math.round(wd)} m behind him.`);
     return;
   }
+  // Felt, not seen: where he's gone, however far (sim/sense.js).
+  const felt = feltOf(state, t.id);
+  if (felt && rowOf(state, t) !== rowOf(state, me)) {
+    const rows = rowOf(state, t) - rowOf(state, me), dx = Math.round(t.x - me.x);
+    yield L('felt-away', 'calm', `You know where he's gone: ${Math.abs(rows) === 1 ? 'a street' : `${Math.abs(rows)} streets`} ${rows < 0 ? 'north' : 'south'}${Math.abs(dx) > 8 ? `, ${Math.abs(dx)} m ${dx > 0 ? 'east' : 'west'}` : ''}.`);
+    return;
+  }
+  if (felt && t.hidden) { yield L('felt-in', 'calm', `He's indoors, ${Math.round(d)} m off. You'd know if he came out.`); return; }
+  if (felt && d > 24) { yield L('felt-far', 'calm', [`${Math.round(d)} m on, and you couldn't lose him if you tried. He can't see you from there: stay out of his eyes.`, `${Math.round(d)} m. He's yours from here, and he'll never look this far back.`]); return; }
   // Through a lane to another street: known only if we saw him take it.
   if (rowOf(state, t) !== rowOf(state, me) && sc.turn?.seen && sc.turn.row === rowOf(state, me)) {
     const w = sc.turn, inLane = me.x > w.x0 - 0.5 && me.x < w.x1 + 0.5 && (w.north ? me.z < Z.front : me.z > Z.south);

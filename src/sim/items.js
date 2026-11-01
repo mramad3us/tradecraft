@@ -26,6 +26,7 @@ import { townOf } from './cities/index.js';
 import { stream, hash, int, chance, pick, range, weighted } from './rng.js';
 import { WEAPONS, weaponOf, sizeOf } from './weapons.js';
 import { packsOf, useSupply, supplyWord } from './medicine.js';
+import { bookOf } from './training.js';
 import { say } from './log.js';
 
 // Where things go on a person: SPACES, each so many, each holding so much (litres) of things no longer
@@ -58,6 +59,7 @@ function things(p) {
   for (let i = 0; i < (p.burners ?? 0); i++) out.push({ kind: 'burner' });
   for (const kind of p.items ?? []) out.push({ kind });
   for (const [kind, n] of Object.entries(p.kit ?? {})) for (const uses of packsOf(kind, n)) out.push({ kind, n: uses });
+  for (const b of p.books ?? []) if ((b.at ?? 'pocket') === 'pocket') out.push({ kind: 'book', id: b.id });   // (a paperback: a coat's pocket, not a pair of jeans'; sim/reading.js)
   return out;
 }
 
@@ -78,7 +80,7 @@ export function placed(p, extra = []) {
   }
   return {
     spaces,
-    out: list.map(({ kind, n, sp }) => ({ kind, n, at: sp?.id ?? null, slot: sp ? spaces.indexOf(sp) : -1, label: sp?.label ?? null,
+    out: list.map(({ kind, n, id, sp }) => ({ kind, n, id, at: sp?.id ?? null, slot: sp ? spaces.indexOf(sp) : -1, label: sp?.label ?? null,
       shows: !!sp && (sp.belt ? !COVERS.has(top) : sp.used > BULGE * sp.l + 1e-9), how: sp ? (sp.belt ? 'at your belt' : 'a bulge in your pocket') : null })),
   };
 }
@@ -221,7 +223,11 @@ export function use(state, bus, a, cmd) {
     say(state, bus, { kind: 'note', text: `You drop ${weaponOf(kind).name}.` });
   } else if (verb === 'discard' && kind) {
     const n = Number(arg) || 1;
-    if (kind === 'burner') { for (let i = 0; i < n && p.burners > 0; i++) spendBurner(p); say(state, bus, { kind: 'note', text: `You throw away ${n === 1 ? 'a burner' : `${n} burners`}.` }); }
+    if (kind === 'book') {                                           // (not thrown: left, with what you'd read of it. 'discard:book:<id>')
+      const i = (p.books ?? []).findIndex(b => b.id === arg);
+      if (i >= 0) { p.books.splice(i, 1); say(state, bus, { kind: 'note', text: `You leave ${bookOf(arg).title} on a wall, for whoever wants it.` }); }
+    }
+    else if (kind === 'burner') { for (let i = 0; i < n && p.burners > 0; i++) spendBurner(p); say(state, bus, { kind: 'note', text: `You throw away ${n === 1 ? 'a burner' : `${n} burners`}.` }); }
     else { let gone = 0; while (gone < n && useSupply(p, kind)) gone++; if (gone) say(state, bus, { kind: 'note', text: `You throw away ${supplyWord(kind, gone)}.` }); }
   }
 }

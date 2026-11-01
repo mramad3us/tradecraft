@@ -51,6 +51,50 @@ export default [
     },
   },
   {
+    name: 'the feel and the book: debug mode\'s fourth file picked and played; a book in a pocket; on a bench, R reads on ten minutes at a time; no errors',
+    heavy: true,
+    async fn() {
+      await withGame(async (page, errors) => {
+        await page.addInitScript(() => localStorage.setItem('tradecraft.debug', '1'));
+        await page.goto(`http://localhost:${PORT}/`);
+        await page.waitForFunction("!document.getElementById('title').hidden", null, { timeout: 30000 });
+        await page.locator('#title .campaign').click();
+        await page.waitForSelector('.cand.legend', { timeout: 30000 });
+        const one = await page.locator('.cand.legend').innerText();
+        await page.locator('button', { hasText: 'Another file' }).click();
+        await page.waitForTimeout(100);
+        const two = await page.locator('.cand.legend').innerText();
+        await page.locator('.cand.legend').click();
+        await page.waitForFunction('window.__ready === true && window.__tradecraft.state?.scenario.kind === "campaign"', null, { timeout: 30000 });
+        const os = await page.evaluate(() => { const s = window.__tradecraft.state; return s.people[s.player].os; });
+        assert(os === 95 && /Tradecraft 95/.test(one) && one !== two, `the file: ${one.slice(0, 60)}`);
+        await page.goto(`http://localhost:${PORT}/?play=walk&seed=4&city=london&hour=12&weather=clear`);
+        await page.waitForFunction('window.__ready === true', null, { timeout: 30000 });
+        await page.evaluate(() => { const T = window.__tradecraft, s = T.state, me = s.actors.find(a => a.who === s.player); s.people[s.player].books = [{ id: 'maps', read: 0 }]; T.step(2); });
+        await page.keyboard.press('KeyI');
+        await page.waitForSelector('.mind.pockets', { timeout: 5000 });
+        const things = await page.evaluate(() => [...document.querySelectorAll('.pk-thing .pk-name')].map(e => e.textContent).join(', '));
+        await page.keyboard.press('KeyI');
+        assert(/Atlas/.test(things), `the book in a pocket: ${things}`);
+        const seated = await page.evaluate(() => { const T = window.__tradecraft, s = T.state, me = s.actors.find(a => a.who === s.player), b = [...s.$world.sections.values()].flatMap(x => x.props).find(p => p.kind === 'bench'); if (!b) return false; Object.assign(me, { x: b.seats[0], z: 13.3 }); T.step(2); return true; });
+        if (seated) {                                                   // (a street with a bench in play)
+          await page.keyboard.press('KeyR');
+          await page.waitForFunction(() => { const s = window.__tradecraft.state; return s.actors.find(a => a.who === s.player).gait === 'sit'; }, null, { timeout: 8000 });
+          await page.waitForTimeout(200);
+          const t0 = await page.evaluate(() => window.__tradecraft.state.time.ms);
+          await page.keyboard.press('KeyR');
+          await page.waitForSelector('.choices', { timeout: 5000 });
+          await page.keyboard.press('Digit1');
+          await page.waitForTimeout(500);
+          const after = await page.evaluate((t) => { const s = window.__tradecraft.state; return { mins: (s.time.ms - t) / 60000, read: s.people[s.player].books[0].read, open: !!document.querySelector('.choices') }; }, t0);
+          assert(after.mins >= 10 && after.mins < 11 && after.read > 0.16 && after.open, `ten minutes, and the card again: ${JSON.stringify(after)}`);
+          console.log(`      ${one.split('\n')[0]}, then ${two.split('\n')[0]}; ${things}; on the bench: ${fmt(after.mins, 1)} min, ${fmt(after.read, 2)} h read`);
+        } else console.log(`      ${one.split('\n')[0]}; ${things}; no bench in play here`);
+        assert(errors.length === 0, errors.join('\n'));
+      });
+    },
+  },
+  {
     name: 'the Underground at a station\'s door: R opens the network\'s map (the lines, the stations named, you); the arrows pick a station, its card says the way and the fare; Enter rides, up at its door, no errors',
     heavy: true,
     async fn() {

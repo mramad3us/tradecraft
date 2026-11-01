@@ -31,7 +31,7 @@ export const SOLID_GUARD = 0.8;
 // a pocket is here. The wallet, the phone, a burner, and sim/medicine.js's supplies, a bandage each, the
 // rest by the bottle or the packet: sim/items.js things())
 export const SIZES = {
-  wallet: [11, 0.1], phone: [15, 0.1], burner: [11, 0.07],
+  wallet: [11, 0.1], phone: [15, 0.1], burner: [11, 0.07], book: [18, 0.35],
   bandage: [8, 0.08], antiseptic: [12, 0.12], sutures: [14, 0.12], splint: [24, 0.4], tourniquet: [15, 0.12], painkillers: [10, 0.04], poultice: [12, 0.08], antibiotics: [10, 0.04],
   penknife: [10, 0.03], boxcutter: [15, 0.04], switchblade: [12, 0.04], screwdriver: [20, 0.06], kitchen: [30, 0.15], finka: [25, 0.12], combat: [30, 0.2],
   bottle: [24, 0.6], brokenbottle: [18, 0.4], brick: [11, 0.7], hammer: [30, 0.5], spanner: [25, 0.25], chain: [22, 0.8], bikelock: [30, 1.5],

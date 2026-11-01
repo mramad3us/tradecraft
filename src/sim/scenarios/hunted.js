@@ -55,6 +55,8 @@ const actorOf = (state, id) => state.actors.find(a => a.id === id);
 const rowsText = (dr) => (dr === 0 ? 'on this street' : `${Math.abs(dr)} street${Math.abs(dr) > 1 ? 's' : ''} ${dr < 0 ? 'north' : 'south'}`);
 
 export const hunted = {
+  /** Whoever's looking for you, for the feel (sim/sense.js). */
+  eyesOn(state) { return state.scenario.hunters.map(id => state.actors.find(a => a.id === id)).filter(Boolean); },
   name: '4. Blown',
   test: true,
   about: 'Your network is rolled up and they have your face. A car waits across the city for an hour and a quarter. Get to it, and don\'t get taken.',
