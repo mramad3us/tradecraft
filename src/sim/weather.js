@@ -60,7 +60,11 @@ export const RAMP_MIN_H = 0.25;                                    // and over t
 export const NEAR_SPELL_H = 1.5;                                   // the sky's overcast this long either side of a spell
 export const SKY_TURN_H = 3;                                       // a day's sky turns into the next's over this long either side of midnight
 export const SKY_CLOUD = { clear: 0.1, broken: 0.5, overcast: 0.9 };
-export const GROUND_H = 120;                                       // the ground remembers this many hours of weather
+export const GROUND_H = 240;                                       // the ground remembers this many hours of weather (ten days: a cold fortnight keeps its snow)
+// Old snow goes dirty (the user, 2026-11-03: "snow lingering after a snowy day for many days if temperatures stay
+// low (with degrees of snow, dirty snow if it's old)"): its age, hours since it last fell fresh (SNOW_FRESH_LEVEL
+// or harder), rain on it ageing it SLUSH_AGE_H more an hour; dirty from DIRT_FROM_H, all of it by DIRT_FULL_H.
+export const SNOW_FRESH_LEVEL = 1, SLUSH_AGE_H = 6, DIRT_FROM_H = 18, DIRT_FULL_H = 90, PACK_AGE_H = 120;
 export const COVER_LYING = 0.3;                                    // snow lying: white underfoot
 export const COVER_DEEP = 0.9;                                     // deep snow
 export const ICE_BELOW_C = -0.5;                                   // wet ground freezes below this
@@ -249,9 +253,10 @@ function airAt(town, city, ms) {
   return { kind, level, wind, dir, cloud, temp };
 }
 
-// One hour of weather on the ground: g ({ cover, wet }) after an hour of air a.
+// One hour of weather on the ground: g ({ cover, wet, age }) after an hour of air a.
 function settle(g, a) {
-  let { cover, wet } = g;
+  let { cover, wet, age = PACK_AGE_H } = g;
+  age = a.kind === 'snow' && a.level >= SNOW_FRESH_LEVEL ? 0 : age + 1 + (a.kind === 'rain' || a.kind === 'sleet' ? SLUSH_AGE_H : 0);   // (fresh snow; or older by an hour, faster under rain)
   if (a.kind === 'snow') cover += SETTLE[a.level] * (a.temp < 0 ? 1 : 0.6);
   else if (a.kind === 'sleet') { cover += SLEET_SETTLE[a.level] * (a.temp < 1 ? 1 : 0.3); wet = 1; }
   else if (a.kind === 'rain') { wet = 1; cover -= RAIN_MELT * a.level; }
@@ -259,7 +264,7 @@ function settle(g, a) {
   if (melting) cover -= MELT_PER_C * (a.temp - MELT_ABOVE_C);
   if (!FALLS.has(a.kind)) wet -= DRY_PER_H + DRY_PER_C * Math.max(0, a.temp) + DRY_PER_WIND * a.wind;
   if (melting) wet = Math.max(wet, 0.7);                          // (slush)
-  return { cover: Math.max(0, Math.min(1.5, cover)), wet: Math.max(0, Math.min(1, wet)) };
+  return { cover: Math.max(0, Math.min(1.5, cover)), wet: Math.max(0, Math.min(1, wet)), age: cover > 0.02 ? age : 0 };
 }
 
 /** The ground at the start of hour H (hours since 2026-01-01): { cover, wet }. */
@@ -267,7 +272,7 @@ function groundAt(town, city, H) {
   const k = `${town}|${H}`, hit = grounds.get(k);
   if (hit) return hit;
   const C = climateOf(city), start = H - GROUND_H;
-  let g = { cover: C.pack[calendar(start * HOUR).month - 1], wet: 0 };
+  let g = { cover: C.pack[calendar(start * HOUR).month - 1], wet: 0, age: PACK_AGE_H };   // (the climate's pack: old snow)
   for (let h = start; h < H; h++) g = settle(g, airAt(town, city, (h + 0.5) * HOUR));
   return keep(grounds, k, g, 2000);
 }
@@ -278,7 +283,8 @@ export function weather(town, city, ms) {
   const g0 = groundAt(town, city, H), g1 = groundAt(town, city, H + 1);
   const cover = g0.cover + (g1.cover - g0.cover) * f, wet = g0.wet + (g1.wet - g0.wet) * f;
   const rime = FALLS.has(a.kind) || cover >= COVER_LYING ? 0 : Math.max(0, Math.min(1, (RIME_BELOW_C - a.temp) / RIME_FULL_C)) * (1 - 0.6 * a.cloud);
-  return finish({ ...a, cover, wet, ice: wet > 0.3 && a.temp < ICE_BELOW_C, rime }, city, ms);
+  const dirt = cover > 0.02 ? Math.max(0, Math.min(1, (g0.age - DIRT_FROM_H) / (DIRT_FULL_H - DIRT_FROM_H))) : 0;   // (how dirty the snow lying is, 0 fresh … 1 old and grey)
+  return finish({ ...a, cover, wet, dirt, ice: wet > 0.3 && a.temp < ICE_BELOW_C, rime }, city, ms);
 }
 
 // ---------- pins (the debug override, the tests') ----------

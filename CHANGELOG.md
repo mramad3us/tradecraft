@@ -4,6 +4,14 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.5 (2026-11-03)
+
+- **Dress for the day.** Each day has its feel from its temperature, freezing to hot, and the city's passers-by dress for it: coats and beanies in a Moscow freeze, T-shirts and dresses in a Cairo heat, a mix on a mild day. Robes and uniforms stay as they are. You're held to it too: dressed for another season, you're easier to pick out (+1 a step, up to +3: a T-shirt in a freeze is +3, a coat in the heat +2), and so is an umbrella in your hand under a clear sky (+1).
+- **Your warmth.** You have a body temperature now. Out of doors it drifts by the air, the wind's chill, how wet you are, the midday sun and what you're wearing. Running warms you, and inside you come back to normal. Below 36 °C you shiver, below 35 it's hypothermia (slower, −3 to every roll), below 31 you go down, below 28 you die. Above 39.5 it's heat exhaustion, above 41 heat stroke. Your body holds what it can: overdressed on a warm day you're too hot, and no worse. At −15 °C in a breeze, a T-shirt gives you some 17 minutes before hypothermia; a coat and a hat keep you going for hours. Wet through in a jumper at 5 °C in the rain, about three and a half hours. A coat in Cairo's 38 °C midday sun, an hour and a half to heat exhaustion. The log, the sheet and the watch (the temperature is on it now) keep you told.
+- **Streets that remember the weather.** The ground now remembers ten days, so a cold spell keeps its snow. Old snow goes grey as it lies, roads first, roofs last, and a fresh fall whitens it again. The puddles painted into the streets (London had extra) are gone: puddles now appear only where the ground is actually wet, so a dry week has none.
+- **Hats sit on short hair.** Under a hat, a short cut drew tufts a pixel outside the head, which under a police cap read as long hair. Now a crew cut shows nothing under a hat, and a short cut a pixel at the temples, inside the outline.
+- Tests: `tests/thermal.test.mjs` (the cold and the heat by clothing, wind and wet, and what they do; passers-by dressed for the day; dressed for another season and an umbrella in the sun; old snow, and a dry July). The sepsis test now waits it out indoors: twenty November days outdoors, the cold got them first.
+
 ## v0.1.4 (2026-11-03)
 
 - **The city map, readable.** Tab's city leaf showed every street you knew at once, crushed into the box. Now it's a window on your street and two either side, centred on you (on the flat's or the embassy's door when you're inside), about 350 m across, drawn big enough to read. The arrows (on screen, or the arrow keys) move it, + and − zoom (five steps, 240 to 790 m across), and C centres it on you again. It stays where you left it between openings.

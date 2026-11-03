@@ -14,6 +14,7 @@
 import { stream, int, pick, chance, weighted, next, hash } from './rng.js';
 import { DAY } from './clock.js';
 import { cityById } from './cities/index.js';
+import { dressFor } from './thermal.js';
 
 export const GAUGES = ['fear', 'trust', 'affinity'];
 export const GAUGE_MAX = 5;
@@ -139,7 +140,7 @@ export function describe(look, sex = 'm') {
 }
 
 /** A passer-by, the same every time for a seed (in a city: 'moscow' by default): a civilian sheet with a look. */
-export function passerby(seed, city = 'moscow') {
+export function passerby(seed, city = 'moscow', band = null) {
   const r = stream('passerby', seed), P = cityById(city).people;
   const sex = chance(r, 0.52) ? 'f' : 'm';
   const age = 18 + int(r, 60);
@@ -151,6 +152,7 @@ export function passerby(seed, city = 'moscow') {
     langs: P.langs(r),
     look: P.look(r, sex, age),
   });
+  if (band) { const d = stream('dress', seed); p.look = dressFor(p.look, band, sex, () => next(d)); }   // (dressed for the day: sim/thermal.js; a stream of its own)
   // (how they'd do in a fight, 0–8: most never had a lesson; a stream of its own, so who they are doesn't change)
   const q = stream('passerby-cqc', seed);
   p.skills.cqc = [int(q, 4) + (chance(q, sex === 'm' ? 0.3 : 0.15) ? int(q, 5) : 0), 0];

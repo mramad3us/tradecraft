@@ -580,13 +580,13 @@ export const WX_LAMPS = 10;
  * is churned to slush), wxLamps (the lamps the wet ground mirrors: x, z, strength, their heads' height).
  */
 export const WX = {
-  wxCover: { value: 0 }, wxRime: { value: 0 }, wxWet: { value: 0 }, wxPuddles: { value: 0 }, wxSky: { value: new THREE.Color(0, 0, 0) },
+  wxCover: { value: 0 }, wxDirt: { value: 0 }, wxRime: { value: 0 }, wxWet: { value: 0 }, wxPuddles: { value: 0 }, wxSky: { value: new THREE.Color(0, 0, 0) },
   wxRoad: { value: new THREE.Vector4(1e9, 1e9, 1e9, 1e9) }, wxLamps: { value: Array.from({ length: WX_LAMPS }, () => new THREE.Vector4()) },
 };
 const WX_GLSL = /* glsl */`
   varying vec3 vWxPos;
   varying float vWxUp;
-  uniform float wxCover, wxRime, wxWet, wxPuddles;
+  uniform float wxCover, wxDirt, wxRime, wxWet, wxPuddles;
   uniform vec3 wxSky;
   uniform vec4 wxRoad;
   uniform vec4 wxLamps[${WX_LAMPS}];
@@ -639,7 +639,9 @@ const wxPatch = (shader) => {
           float c = wxCover * (vWxPos.y > 0.3 ? 1.5 : road ? 0.9 : 1.0) * 1.3 - 0.12;
           float n = wxNoise(g * 1.3) * 0.6 + wxNoise(g * 4.7) * 0.4;
           float lie = smoothstep(n - 0.05, n + 0.05, c);
-          diffuseColor.rgb = mix(diffuseColor.rgb, road ? vec3(${SLUSH}) : vec3(${SNOW}), lie);
+          // (old snow greyed and browned, the pavement's and the road's most, the roofs' least: sim/weather.js dirt)
+          vec3 sn = mix(road ? vec3(${SLUSH}) : vec3(${SNOW}), vec3(0.47, 0.45, 0.42), wxDirt * (vWxPos.y > 0.3 ? 0.35 : road ? 1.0 : 0.75) * (0.7 + 0.3 * n));
+          diffuseColor.rgb = mix(diffuseColor.rgb, sn, lie);
           wxPuddle *= 1.0 - lie; wxRim *= 1.0 - lie;
         }
       }`)

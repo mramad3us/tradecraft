@@ -93,6 +93,7 @@ export default [
       me.injuries = [{ part: 'armL', kind: 'cut', name: 'a deep cut on the left arm', ms: g.time.ms, until: g.time.ms + 10 * DAY, bleed: 0, rate: 3, deep: true, infection: 20 }];
       const lines = [], said = bodyLine(g)?.text;
       let days = 0;
+      const meA = g.actors.find(a => a.who === g.player); meA.inside = { way: 'sit', until: Infinity };   // (in out of the weather: on the street, twenty November days, the cold would see to them first: sim/thermal.js)
       while (!me.dead && days < 20) { skip(g, null, DAY); days++; }
       for (const l of g.log.filter(x => /infect|fever|delirious/.test(x.text ?? ''))) lines.push(l.text);
       console.log(`      the instinct: "${said}"; dead after ${days} days: ${me.dead?.why}; the scene: ${g.scenario.outcome}; the log: ${lines.map(t => `"${t}"`).join(' ')}`);

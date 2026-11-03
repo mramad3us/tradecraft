@@ -27,7 +27,7 @@
 //      weather (sim/weather.js): the log says when it turns; running on snow or ice, a slip, maybe.
 //   7. The clock advances; an autosave is due every 30 game minutes ('autosave' on the bus).
 import { seedRng, chance, stream } from './rng.js';
-import { TICK_MS, MIN, DAY, dateText } from './clock.js';
+import { TICK_MS, MIN, DAY, dateText, hourOfDay } from './clock.js';
 import { SAVE_SCHEMA } from './state.js';
 import { attach, refocus, rehash, move, near, exitAt } from './world.js';
 import { Z, placeName } from './map/street.js';
@@ -54,7 +54,8 @@ import * as reading from './reading.js';
 import { learnTick } from './knowledge.js';
 import { wetTick, wetDays } from './wet.js';
 import { needsTick, strain } from './needs.js';
-import { weatherAt, footing, weatherTick, parseWeather, SLIP_S } from './weather.js';
+import { weatherAt, footing, weatherTick, parseWeather, SLIP_S, FALLS } from './weather.js';
+import { live as thermalLive, dayBand, offSeason, stageOf } from './thermal.js';
 import { shortName } from './fight.js';
 import { drips } from './blood.js';
 import { glassAhead, affordance, act as doAct } from './acts.js';
@@ -262,7 +263,8 @@ export function step(state, input = {}, bus) {
       if (n > 1) { mx /= n; mz /= n; }
       const run = input.run && bandOf(mine) !== 'shock';             // (in shock from the blood lost, no running)
       const foot = footing(weatherAt(state));                        // (slower going in snow: sim/weather.js)
-      const speed = run ? RUN_MS * foot.run : (input.slow ? STROLL_MS : WALK_MS) * foot.walk;
+      const slow = stageOf(mine)?.slow ?? 1;                         // (hypothermia, heat exhaustion: slower: sim/thermal.js)
+      const speed = (run ? RUN_MS * foot.run : (input.slow ? STROLL_MS : WALK_MS) * foot.walk) * slow;
       me.vx = mx * speed; me.vz = mz * speed;
       me.gait = n > 0.01 ? (run ? 'run' : 'walk') : 'idle';
       if (n > 0.01) { me.head = Math.atan2(mz, mx); me.face = facing(me.vx, me.vz, me.face); }
@@ -323,6 +325,7 @@ export function step(state, input = {}, bus) {
     needsTick(state, bus, me);                                      // (hunger's clock, the calm coming back, frayed slips: sim/needs.js)
     learnTick(state);                                               // (the streets walked, known: sim/knowledge.js)
     wetTick(state, bus, me);                                        // (rain on you, the cold, a cold: sim/wet.js)
+    bodyHeat(state, bus, me, 1 / 60);                               // (the core's warmth, the day's dress: sim/thermal.js)
     metro.stepsTick(state);                                         // (whoever rode with you, up the steps after you: sim/metro.js)
     chaseTick(state);                                               // (whoever kept your taxi in sight, out of their car behind you: sim/taxi.js)
     if (scenario.police && !state.tutor) { police.patrolTick(state); police.eyeTick(state, bus); }   // (ordinary law: sim/police.js)
@@ -384,12 +387,27 @@ export function skip(state, bus, ms) {
   for (const [who, p] of Object.entries(state.people)) {
     drift(p, state.time.ms);
     const notes = heal(p, ms / DAY, state.time.ms, { tended: who !== state.player });   // (off the map, people see their own doctors)
-    if (who === state.player) { wetDays(p, ms / DAY, state.time.ms); bodyNotes(state, bus, notes); }
+    if (who === state.player) { wetDays(p, ms / DAY, state.time.ms); bodyNotes(state, bus, notes); const me = playerActor(state); if (me) bodyHeat(state, bus, me, ms / MIN, true); }
   }
   const f = focusActor(state);
   if (f && !recycle(state, f.x, ms)) populate(state, f.x);         // (long enough, and the street's crowd is all new: sim/crowd.js recycle())
   rehash(state);
   if (Math.floor(state.time.ms / AUTOSAVE_MS) !== before) bus?.emit('autosave', 'skip');
+}
+
+/**
+ * The player's warmth, minutes of it (once a second, a second's; a skip, all of it, in the air as it is
+ * when the skip begins): out of doors, the weather's; in a room, a shop, a car, none. And what the day
+ * expects you to wear, kept on the sheet for anyone looking (p.$season: sim/notice.js). sim/thermal.js.
+ */
+function bodyHeat(state, bus, me, minutes, skipped = false) {
+  const p = me && state.people[me.who];
+  if (!p || p.dead) return;
+  const out = state.map.kind === 'street' && !me.inside && !me.cab, w = out ? weatherAt(state) : null, hour = hourOfDay(state.time.ms), band = dayBand(state);
+  p.$season = band && out ? { off: offSeason(p.look, band), umbrella: p.hand === 'umbrella' && !FALLS.has(w.kind) && (w.cloud ?? 0) < 0.5 && hour > 7 && hour < 19 } : null;
+  thermalLive(p, w, minutes, { hour, running: !skipped && me.gait === 'run',
+    say: (t) => t && say(state, bus, { kind: 'note', text: t }),
+    kill: (why) => { kill(p, state.time.ms, why); diedOf(state, bus); } });
 }
 
 /**
@@ -441,13 +459,19 @@ export function bloodBeat(state, bus, a, s) {
 /** What the days did to your body (sim/health.js heal()), in the log; dead of it (sepsis), the end. */
 function bodyNotes(state, bus, notes) {
   for (const n of notes) say(state, bus, { kind: n.tone === 'warn' ? 'instinct' : 'note', text: n.text });
+  if (state.people[state.player]?.dead) diedOf(state, bus);
+}
+
+// (the body's end, in its own words: a fever's, the cold's, the heat's)
+const DIED = { 'the cold': 'The shivering stops, and with it the cold. You sit down in the snow, and that\'s the end of it.', 'the heat': 'The heat takes the last of it. The street goes white, and very far away.' };
+/** Dead of the body (a fever, the cold, the heat): down where you are, the words, the end. */
+function diedOf(state, bus) {
   const p = state.people[state.player];
-  if (p?.dead && !state.scenario.outcome) {
-    const a = state.actors.find(x => x.who === state.player);
-    if (a) { a.gait = 'down'; a.vx = a.vz = 0; a.busy = null; }
-    say(state, bus, { kind: 'note', text: 'The fever takes the last of it. The room goes very far away.' });
-    Object.assign(state.scenario, { outcome: 'dead', ended: state.time.ms }); bus?.emit('scenario-end', 'dead');
-  }
+  if (!p?.dead || state.scenario.outcome) return;
+  const a = state.actors.find(x => x.who === state.player);
+  if (a) { a.gait = 'down'; a.vx = a.vz = 0; a.busy = null; if (a.ai) a.ai.downUntil = Infinity; }
+  say(state, bus, { kind: 'note', text: DIED[p.dead.why] ?? 'The fever takes the last of it. The room goes very far away.' });
+  Object.assign(state.scenario, { outcome: 'dead', ended: state.time.ms }); bus?.emit('scenario-end', 'dead');
 }
 
 /** The engine's paper for a player killed (sim/fight.js): what killed them, where, and when. */

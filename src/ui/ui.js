@@ -59,6 +59,7 @@ import { options as shootOptions, targets as shootTargets, odds as shootOdds, gu
 import { said as gunSaid, armOf, modelOf as gunModel } from '../sim/firearms.js';
 import { openMind } from './mind.js';
 import { outcomeWord } from '../sim/outcomes.js';
+import { dayBand, stageOf } from '../sim/thermal.js';
 
 // (a place's glyph on its plaque; how far, in the plaque's few letters: "2 streets north" → "2 ST N")
 const PLACE_ICON = { embassy: 'star', home: 'house', safe: 'key' };
@@ -235,7 +236,7 @@ export function createUI({ input, cb }) {
     put(watch.querySelector('.hand'), held ? `in hand: ${bare(held)}` : '');
     if (me && state.map?.kind === 'street') put(watch.querySelector('.place'), placeName(townOf(state.map), state.map.row ?? 0, me.x, me.z));
     else put(watch.querySelector('.place'), SCENARIOS[state.scenario.kind]?.place?.(state) ?? '');
-    put(watch.querySelector('.sky'), weatherAt(state).words);      // (the weather, in a few words: sim/weather.js)
+    { const w = weatherAt(state); put(watch.querySelector('.sky'), w.indoors || w.temp === undefined ? w.words : `${w.words}, ${Math.round(w.temp)}°`); }   // (the weather, in a few words, and the temperature: sim/weather.js)
     // (a lesson's checklist, under the watch: redrawn only when a step's done)
     const tu = state.tutor, L = tu && lessonOf(tu.lesson);
     if (L) {
@@ -652,6 +653,7 @@ export function createUI({ input, cb }) {
             injuriesOn(p, k, state.time.ms) ? el('small', { textContent: injuriesOn(p, k, state.time.ms) }) : null))),
           bodyWords(p) ? el('p', { className: 'blood pale', textContent: `${bodyWords(p).slice(2).replace(/^./, c => c.toUpperCase())}. What it costs shows in a roll's modifiers.` }) : null,
           p.strain ? el('p', { className: 'blood pale', textContent: `Tired: ${p.strain} to every skill, until you sleep.` }) : null,
+          stageOf(p) ? el('p', { className: 'blood shock', textContent: `${Math.round((p.core ?? 37) * 10) / 10} °C: ${({ shivering: 'shivering', hypothermia: 'hypothermia', severe: 'hypothermia, badly', collapse: 'collapsed with the cold', hot: 'too hot', exhaustion: 'heat exhaustion', stroke: 'heat stroke' })[stageOf(p).id] ?? stageOf(p).id}: get ${p.core < 37 ? 'warm' : 'cool'}, and soon.` }) : null,   // (the cold or the heat in you: sim/thermal.js)
           el('p', { className: `blood ${bandOf(p)}`, textContent: `Blood ${Math.round(bloodOf(p))}%: ${BAND_WORDS[bandOf(p)]}${bleedRate(p, state.time.ms) ? `; bleeding ${bleedRate(p, state.time.ms) >= 8 ? 'fast' : bleedRate(p, state.time.ms) >= 0.8 ? 'steadily' : 'a little'} (${input.label('aid')}: first aid)` : ''}.` }),
           el('p', { className: 'note', textContent: `Fitness ${fit}: the body takes ${fit ? `${Math.round(100 * fit / FITNESS_K)}% more` : 'only what it takes'} before it gives.` }))),
       el('p', { className: 'note', textContent: `${input.label('sheet')} or ${input.label('menu')} to close.` }),
@@ -722,7 +724,7 @@ export function createUI({ input, cb }) {
     const them = atHand(state);
     if (!them) return false;
     askFor = them;
-    const p = them.who ? state.people[them.who] : null, q = !p && them.seed !== null ? passerby(them.seed, state.map.city) : null;
+    const p = them.who ? state.people[them.who] : null, q = !p && them.seed !== null ? passerby(them.seed, state.map.city, dayBand(state)) : null;
     const whoText = p ? (p.known === false ? p.seen : p.name) : q ? describe(q.look, q.sex) : 'someone';
     const show = (list, sub) => {
       ask.replaceChildren(el('div', { className: 'who', textContent: whoText.charAt(0).toUpperCase() + whoText.slice(1) }),

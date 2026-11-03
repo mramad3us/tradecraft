@@ -51,6 +51,7 @@ import { skill } from './skills.js';
 import { chance, pick, range } from './rng.js';
 import { DAY, HOUR } from './clock.js';
 import { painOf, painBand, feverOf, infectDays, infectionOf, needsCare, knitOf, expire, scarOf, careWords, broken, INFECTION } from './medicine.js';
+import { thermalMods, thermalDown } from './thermal.js';
 
 export const PARTS = {
   head: { name: 'Head', takes: 6 },
@@ -97,7 +98,7 @@ const level = (s) => STATES.indexOf(s);
  * torso and the legs, the body's work (CQC, Fitness); the arms, what's done with the hands.
  */
 export function mods(p, key) {
-  const out = [];
+  const out = [...thermalMods(p)];                                 // (the cold or the heat in you: sim/thermal.js)
   // (fever, from an infected wound; pain, but not in a fight: adrenaline, you feel it after; sim/medicine.js)
   const fever = feverOf(p), pain = key === 'cqc' ? null : painBand(painOf(p, stateOf, Object.keys(PARTS)));
   if (fever) out.push({ why: fever.word, v: fever.v });
@@ -214,7 +215,7 @@ export const injuriesOn = (p, part, ms = null) => [...(p.injuries ?? []).filter(
 
 /** Whether this person can grapple (two working arms) and stand (one working leg at least). */
 export const canGrapple = (p) => ARMS.every(k => stateOf(p, k) !== 'out' && !p.tourniquets?.[k]);
-export const canStand = (p) => !p.dead && bloodOf(p) >= BLOOD.collapse && LEGS.some(k => stateOf(p, k) !== 'out') && stateOf(p, 'torso') !== 'out' && stateOf(p, 'head') !== 'out';
+export const canStand = (p) => !p.dead && !thermalDown(p) && bloodOf(p) >= BLOOD.collapse && LEGS.some(k => stateOf(p, k) !== 'out') && stateOf(p, 'torso') !== 'out' && stateOf(p, 'head') !== 'out';
 
 /** Dead, at game time ms, of `why` ('a blow to the head', …). */
 export function kill(p, ms, why) { p.dead ??= { ms, why }; }

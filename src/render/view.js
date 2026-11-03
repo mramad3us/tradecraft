@@ -103,6 +103,7 @@ function rainwearOf(w, who, hand, own = false, look = null) {
   return v < umbrella + hood ? 'hood' : null;
 }
 import { TICK_MS } from '../sim/clock.js';
+import { dayBand } from '../sim/thermal.js';
 
 export const RES = [640, 360];
 export const LAMP_SLOTS = 10;
@@ -145,8 +146,8 @@ export function createView({ parent, bus, month = () => 11 }) {
   const blood = createBlood(scene);
   const traffic = createTraffic(scene);
   const items = createItems(scene);                                // (things lying about: src/render/items.js)
-  const looks = new Map();                                         // passer-by seed → look (generated once)
-  let city = null;
+  const looks = new Map();                                         // passer-by seed (and the day's band) → look (generated once)
+  let city = null, band = null;
   const building = new Map();                                     // i → a section's build under way: { gen, x0, x1 }
   // (a section's shaders compiled as soon as it's built, not at its first frame on screen: the GPU's side
   // compiles them meanwhile, and Chrome on Windows takes long over each one; three caches them by kind)
@@ -376,7 +377,7 @@ export function createView({ parent, bus, month = () => 11 }) {
 
   /** Draw the state. prev: id → [x, z, stride] at the last tick; alpha: how far into this one. */
   function frame(state, prev, alpha, t) {
-    city = state.map.city;                                         // (passers-by dress as their city does)
+    city = state.map.city; band = dayBand(state);                   // (passers-by dress as their city does, and for the day)
     cutaway(state);
     const ms = state.time.ms, wx = weatherAt(state), S = state.map.kind === 'interior' ? indoors(sky(ms, geoOf(state.map), wx), state.$world?.sections.get(0)?.plan?.mood) : sky(ms, geoOf(state.map), wx), W = state.$world;
     const lamps = W.lamps;
@@ -511,12 +512,13 @@ export function createView({ parent, bus, month = () => 11 }) {
   // The weather, each frame: on the surfaces (WX) and in the composite (setWeather()).
   const proj = new THREE.Vector3(), lin = new THREE.Color();
   function weather(state, w, S, near, f, alpha) {
-    if (w.indoors) { WX.wxCover.value = WX.wxRime.value = WX.wxWet.value = WX.wxPuddles.value = 0; stage.setWeather(null); return; }
+    if (w.indoors) { WX.wxCover.value = WX.wxDirt.value = WX.wxRime.value = WX.wxWet.value = WX.wxPuddles.value = 0; stage.setWeather(null); return; }
     const falls = FALLS.has(w.kind), L = w.level, sleet = w.kind === 'sleet';
     // (how bright the open air is, 0 night … 1 day: what falls and the haze are lit by it)
     const air = Math.max(0, Math.min(1, (openAir(state) - 0.06) / 0.9)), lit = (c, lo = 0.3) => c.map(v => v * (lo + (1 - lo) * air));
     const dusk = (day, night) => day.map((v, j) => night[j] + (v - night[j]) * air);   // (the haze: its night colour to its day's)
     WX.wxCover.value = w.cover;
+    WX.wxDirt.value = w.dirt ?? 0;                                   // (old snow's grime: sim/weather.js)
     WX.wxRime.value = w.rime;
     WX.wxWet.value = w.wet;
     WX.wxPuddles.value = Math.max(0, Math.min(1, (w.wet - 0.45) / 0.55)) * (falls ? 0.3 + 0.25 * L : 0.4) * (state.map.city === 'cairo' ? 0.3 : 1);
@@ -564,8 +566,9 @@ export function createView({ parent, bus, month = () => 11 }) {
     return hat && ['hijab', 'skullcap'].includes(hat.kind) ? { ...rest, hat } : rest;
   }
   function lookOf(seed) {
-    if (!looks.has(seed)) { looks.set(seed, passerby(seed, city).look); if (looks.size > 600) looks.delete(looks.keys().next().value); }
-    return looks.get(seed);
+    const k = band ? `${seed}|${band}` : seed;                         // (dressed for the day: sim/thermal.js dayBand())
+    if (!looks.has(k)) { looks.set(k, passerby(seed, city, band).look); if (looks.size > 600) looks.delete(looks.keys().next().value); }
+    return looks.get(k);
   }
 
   /**

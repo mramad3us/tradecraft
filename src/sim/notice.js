@@ -19,6 +19,7 @@ import { seesActor } from './perception.js';
 import { DAY } from './clock.js';
 import { showing } from './items.js';
 import { SNEEZE_MOD } from './wet.js';
+import { SEASON_MOD, SEASON_MAX, UMBRELLA_MOD } from './thermal.js';
 
 export const SEEN_M = 10;
 export const BLOOD_HEAT_S = 20;
@@ -40,6 +41,9 @@ export function mods(p) {
   if (p?.sneezeS) out.push({ why: 'a sneeze, a head turned', v: SNEEZE_MOD });   // (a cold's: sim/wet.js)
   if (s.belt) out.push({ why: 'something at your belt', v: BELT_MOD });
   else if (s.bulge) out.push({ why: 'a bulge in your pocket', v: BULGE_MOD });
+  // (dressed for another season; an umbrella under a clear sky: the day's, sim/thermal.js, kept on the sheet by the second)
+  if (p?.$season?.off) out.push({ why: 'dressed for another season', v: Math.min(SEASON_MAX, p.$season.off * SEASON_MOD) });
+  if (p?.$season?.umbrella) out.push({ why: 'an umbrella under a clear sky', v: UMBRELLA_MOD });
   return out;
 }
 

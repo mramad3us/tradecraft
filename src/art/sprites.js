@@ -934,7 +934,9 @@ function compose(spec, dir, frame) {
   if (rain === 'hood') {}                                          // (the hood's over it all)
   else if (!(hat && cropped)) draw(hair[view] ?? hair.down, lean, hb);
   else if (view === 'up') draw(hair.up, lean, hb);
-  else draw([4, 12, view === 'right' ? ['hhhh', 'hhh.', 'hh..'] : ['hh...........hh', 'h.............h']], lean, hb);
+  // (under a hat, a short cut shows only at the temples, inside the head's outline: a crew cut not at all; the
+  // tufts once stood a pixel outside it, and under a peaked cap read as long hair: the user, 2026-11-03)
+  else if (style !== 'crew') draw(view === 'right' ? [5, 12, ['hh.', 'h..']] : [4, 12, ['.h...........h.', 'h.............h']], lean, hb);
   if (spec.glasses && view !== 'up') draw(T.glasses[spec.glasses][view], lean, hb);
   if (spec.blood?.face && view !== 'up') draw(BLOOD.face[view], lean, hb, true);
   if (spec.blood?.clothes && view !== 'up') draw(BLOOD.clothes[view], lean, bob, true);

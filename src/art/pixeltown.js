@@ -941,7 +941,7 @@ export function cell(i, j, s = 0) {
 // the section's own dice, inside it.
 function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox = 0, calm = false, look = null, zebraKind = 'white', rowSeed = 0, leaves = 0, city = null, areas = [], bays = [] }) {
   const r = rng(seed);
-  const london = city === 'london', wet = london ? -0.035 : 0;          // (London's pavements rain-dark)
+  const london = city === 'london', wet = 0;                         // (London's pavements were painted rain-dark, wet in a dry week: the weather darkens them now, by the ground's wet: src/render/view.js)
   const dust = city === 'cairo' ? 1 : city === 'beirut' ? 0.45 : 0;    // (sand in the gutters, on the kerbs)
   const DUST = 0xc4a882;
   const SL = 0xc4bba9, AS = 0x4c5262, K = rowSeed;
@@ -1177,15 +1177,19 @@ function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox =
     drift(Z(zK1) + 3, 1, 6); drift(Z(zK2) - 2, -1, 5); drift(2, 1, 4); drift(Z(z1) - 1, -1, 3);
     for (let i = 0; i < W * 2 * dust; i++) px(Math.floor(r() * W), Math.floor(r() * Z(z1)), 1, 1, tone(DUST, (r() - 0.5) * 0.1));
   }
-  // Puddles, where the ground sags: by the kerbs, now and then on a pavement. The sky in them, a dark
-  // rim along their far edge.
+  // Puddles were painted here, where the ground sags, and stood wet in a hot dry week (the user, 2026-11-03:
+  // "some streets like london have permanent puddles which need to disappear when the weather has been dry for
+  // a while"). The weather's puddles are the street's now (src/render/view.js wxPuddles, by the ground's wet:
+  // sim/weather.js groundAt()); the loop still draws its dice, unpainted, so the rest of the clutter stands
+  // where it always did.
+  const PAINT_PUDDLES = false;
   for (let n = 0, count = dust ? 0 : 1 + Math.floor(r() * 4) + (london ? 3 : 0); n < count; n++) {
     const rw = 7 + Math.floor(r() * 15), rh = 3 + Math.floor(r() * 3), cx = rw + 2 + Math.floor(r() * (W - 2 * rw - 4));
     const where = r(), cy = where < 0.4 ? Z(zK2) - rh - 2 : where < 0.7 ? Z(zK1) + rh + 3 : where < 0.85 ? Z(zK2) + rh + 4 : Z(zB) + Math.floor((Z(zK1) - Z(zB)) * (0.3 + r() * 0.4));
     const s = seed + 7 + n;
     for (let j = -rh; j <= rh; j++) for (let i = -rw; i <= rw; i++) {
       const e = (i / rw) ** 2 + (j / rh) ** 2 + (noise((cx + i) / 3, (cy + j) / 3, s) - 0.5) * 0.8;
-      if (e > 1) continue;
+      if (e > 1 || !PAINT_PUDDLES) continue;
       px(cx + i, cy + j, 1, 1, e > 0.8 && j < 0 ? 0x353947 : (i - j * 2) % 9 === 0 && e < 0.6 ? 0xb8bdc8 : j < -rh / 3 ? 0x6a7182 : 0x8f96a6);
     }
   }

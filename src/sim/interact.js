@@ -33,6 +33,7 @@ import { armsOf } from './items.js';
 import { nudge } from './people.js';
 import { LINE } from './city.js';
 import { rowOf } from './agents.js';
+import { dayBand } from './thermal.js';
 
 export const REACH_M = 1.8;
 export const GRAB_CQC = 9;
@@ -87,7 +88,7 @@ function hurtNow(state, them) {
 /** Make sure they have a sheet in state.people (a passer-by is made one from their seed: kept from now on). */
 export function person(state, them) {
   if (them.who) return state.people[them.who];
-  const p = passerby(them.seed, state.map.city);
+  const p = passerby(them.seed, state.map.city, dayBand(state));   // (as they're dressed today: sim/thermal.js)
   p.known = false; p.seen = describe(p.look, p.sex);                // (a stranger: their name's not ours to know)
   p.items = armsOf(them.seed, p.sex);                                // (what they carry, if anything: sim/items.js)
   state.people[p.id] ??= p;
