@@ -37,11 +37,14 @@ export const SHAPES = {
   shovel: ['        sss', 'wwwwwwwwsss', '        sss'],
   bikelock: ['ssss', 's  s', 's  s', 'yyyy'],
   chain: ['s s s s s', ' s s s s '],
+  pistol: ['ssssss', 'ss    '],                                    // (any gun: sim/firearms.js)
+  mag: ['ssss'],
 };
 
 /** The pixels of one item: [{ x, z, c }] in metres, its outline first. */
 function pixels(it) {
-  const rows = SHAPES[it.kind] ?? SHAPES.stick, h = hash(it.id), P = 1 / PX_PER_M;
+  const kind = String(it.kind).startsWith('mag-') ? 'mag' : /#/.test(it.kind) ? 'pistol' : it.kind;   // (a gun's or a magazine's id: sim/firearms.js)
+  const rows = SHAPES[kind] ?? SHAPES.stick, h = hash(it.id), P = 1 / PX_PER_M;
   const along = h % 2 === 0, flip = (h >> 1) % 2 === 1;
   const W = Math.max(...rows.map(r => r.length)), H = rows.length, on = new Set(), out = [];
   const at = (i, j) => {                                             // (template column i, row j → metres)

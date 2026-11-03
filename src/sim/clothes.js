@@ -25,6 +25,7 @@
 // time, if there's room, and what's on you put back. Nothing comes out of it unasked (the user,
 // 2026-10-31: "i never asked to take the medication when washing up").
 import { weaponOf } from './weapons.js';
+import { armName } from './firearms.js';
 import { bookOf } from './training.js';
 import { fits, fitsSupply, placed, ALWAYS } from './items.js';
 import { hash } from './rng.js';
@@ -92,7 +93,7 @@ export function takeOff(p, slot) {
 /** A rail's pieces at a kind of shop, named, without what the person's wearing now. */
 export const railOf = (shop, p) => (RAIL[shop] ?? []).map(x => ({ ...x, name: x.name ?? nameOf(x.slot, x.look) })).filter(x => JSON.stringify(x.look) !== JSON.stringify(p?.look?.[x.slot]));
 
-const thingName = (k) => weaponOf(k)?.name ?? (k === 'burner' ? 'a burner' : k);
+const thingName = (k) => weaponOf(k)?.name ?? armName(k) ?? (k === 'burner' ? 'a burner' : k);
 /** What's in the shop's bag, in words: a thing, some supplies, a piece of clothing. */
 export const bagWord = (x) => (x.supply ? supplyWord(x.supply, x.n) : x.item ? thingName(x.item) : x.book ? bookOf(x.book).title : x.name);
 // (supplies into the bag: one entry a kind, so they stay counted)

@@ -20,7 +20,8 @@
 //      their targets, and every ROUTE_EVERY ticks walk the trail anew.
 //   4. Everyone else thinks: passers-by on the street mind the player (sim/crowd.js); the scenario's
 //      own characters decide what they'll do next tick.
-//   5. The scenario's rules (its checks and events).
+//   5. A fight's exchange played out, a gun's step (sim/shooting.js: in its mode, time stands still while
+//      the player chooses one, and runs for its time once chosen), then the scenario's rules (its checks and events).
 //   6. Once a second: the map's sections follow the focus (and whatever else the scenario anchors),
 //      and the crowd's bubble is kept round the focus: its street and the streets either side. The
 //      weather (sim/weather.js): the log says when it turns; running on snow or ice, a slip, maybe.
@@ -58,6 +59,7 @@ import { shortName } from './fight.js';
 import { drips } from './blood.js';
 import { glassAhead, affordance, act as doAct } from './acts.js';
 import * as fight from './fight.js';
+import * as shooting from './shooting.js';
 import * as interact from './interact.js';
 import * as talk from './talk.js';
 import * as items from './items.js';
@@ -204,8 +206,10 @@ export function step(state, input = {}, bus) {
       continue;
     }
     if (String(act).startsWith('read:')) { if (me && !state.fight) reading.act(state, bus, me, act.slice(5), scenario, skip); continue; }   // (a book, sat somewhere: sim/reading.js)
-    if (act === 'draw') { if (state.fight) fight.drawMove(state, bus, scenario); else if (me) items.use(state, bus, me, 'draw'); continue; }   // (G: sim/items.js; in a fight, it costs the exchange)
-    if (String(act).startsWith('inv:')) { if (me && !state.fight) items.use(state, bus, me, act.slice(4)); continue; }   // (the inventory's buttons)
+    if (act === 'draw') { if (state.fight) fight.drawMove(state, bus, scenario); else if (me && !state.shoot && !shooting.quickDraw(state, bus, me)) items.use(state, bus, me, 'draw'); continue; }   // (G: sim/items.js, a gun's in its time: sim/shooting.js; in a fight, it costs the exchange)
+    if (act === 'aim') { shooting.toggle(state, bus); continue; }   // (X: shooting, in stop motion: sim/shooting.js)
+    if (String(act).startsWith('shoot:')) { shooting.choose(state, bus, act.slice(6)); continue; }
+    if (String(act).startsWith('inv:')) { if (me && !state.fight && !state.shoot && !(/^(wield|stow)(:|$)/.test(act.slice(4)) && shooting.quickDraw(state, bus, me, act.slice(4).split(':')[1] ?? null))) items.use(state, bus, me, act.slice(4)); continue; }   // (the inventory's buttons; a gun's out or away in its time: sim/shooting.js)
     if (act === 'glance' && me && !me.glance) me.glance = Math.round(GLANCE_S * TICKS_PER_S);
     // R: what's at hand (sim/acts.js affordance()), whatever the scene's line offers; T is the line's own.
     if (act === 'use') {
@@ -215,10 +219,10 @@ export function step(state, input = {}, bus) {
     }
     scenario.act?.(state, bus, act);
   }
-  // A fight waiting for a choice, a conversation: time stands still (sim/fight.js, sim/talk.js).
-  if (state.fight?.phase === 'choose' || state.talk) return;
+  // A fight waiting for a choice, a conversation, a shot being readied: time stands still (sim/fight.js, sim/talk.js, sim/shooting.js).
+  if (state.fight?.phase === 'choose' || state.talk || state.shoot?.phase === 'choose') return;
   if (me?.inside && LIVED.has(me.inside.way) && (input.mx || input.mz)) Object.assign(me.inside, { until: state.time.ms, cut: true });   // (the window's coffee: moving, you've had enough of it: sim/shops.js)
-  if (state.fight || scenario.holds?.(state) || me?.inside || me?.cab) input = { act: me?.cab ? [] : input.act };   // (a fight, the scenario, a shop or a taxi has the player's feet)
+  if (state.fight || state.shoot || scenario.holds?.(state) || me?.inside || me?.cab) input = { act: me?.cab ? [] : input.act };   // (a fight, a shot, the scenario, a shop or a taxi has the player's feet)
   if (me?.inside?.long && !me.inside.skipped) { me.inside.skipped = true; skip(state, bus, me.inside.until - state.time.ms); }   // (what's done in a shop, however it was chosen: an action that takes time, the clock skipped)
   if (me?.inside) insideTick(state, bus, me, scenario);
   if (me && state.map.kind === 'street') withinTick(state, bus, me, scenario);   // (in at a shop's door, or out: sim/shops.js)
@@ -305,6 +309,7 @@ export function step(state, input = {}, bus) {
   }
   // 5. A fight played out (sim/fight.js); the scenario; and what's at hand, for the instinct's line (runtime: sim/acts.js).
   fight.tick(state, bus, scenario);
+  shooting.tick(state, bus);                                       // (a gun's step played out, a quick draw: sim/shooting.js)
   scenario.tick?.(state, bus);
   if (state.tutor) tutorTick(state, bus);                          // (a lesson: Hale in your ear: sim/tutorial/earpiece.js)
   state.$offer = me && !state.fight && !scenario.holds?.(state) ? affordance(state, me) : null;   // (nothing's at hand in a fight, or while the scene has your feet)

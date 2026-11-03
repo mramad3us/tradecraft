@@ -947,6 +947,7 @@ function compose(spec, dir, frame) {
     if (l === 'up') draw(armFront(5, kind, 'up', -1), 0, bob);
     if (r === 'up') draw(armFront(16, kind, 'up', 1), 0, bob);
   }
+  if (spec.hand && /#/.test(spec.hand) && !spec.hand.startsWith('mag-')) spec = { ...spec, hand: 'pistol' };   // (a gun's id: its picture's the pistol's)
   if (spec.hand && view !== 'up' && HELD[spec.hand] && !(spec.hand === 'umbrella' && spec.rainwear === 'umbrella')) held(   // (an umbrella up is the canopy and its shaft, not the furled one)
     cells, W, H, hand, ++part, HELD[spec.hand], view === 'right' ? (HOLD[frame] ?? [0, 1]) : [0, 1]);
   return cells;
@@ -966,6 +967,7 @@ const HELD = {
   pipe: { line: 'vvvvvvvvvv' }, crowbar: { line: 'vvvvvvvvv', end: [[1, 1, 'v'], [0, 1, 'v']] }, stick: { line: 'oooooooooo' },
   umbrella: { line: 'nuuuuuuuuu', end: [[0, 1, 'u'], [-1, 1, 'u']] }, shovel: { line: 'ooooooo', end: [[1, 0, 'v'], [1, 1, 'v'], [1, -1, 'v'], [2, 0, 'v'], [2, 1, 'v'], [2, -1, 'v']] },
   bikelock: { line: 'iv', end: [[1, 1, 'v'], [1, -1, 'v'], [2, 1, 'v'], [2, -1, 'v'], [3, 0, 'v']] }, chain: { line: 'v.v.v.v' },
+  pistol: { line: 'nnnn', end: [[-3, 1, 'n'], [-3, 2, 'n']] },   // (a gun, any model: sim/firearms.js; the slide forward, the grip in the hand)
 };
 /** Which way what's held points, by frame (side on): [dx, dy], x forward, y down. Anything else hangs. */
 const HOLD = {
@@ -978,7 +980,7 @@ const HELD_ROLES = new Set(['v', 'n', 'o', 'd', 'j', 'i', 'u']);
 
 /** A thing that's held, lying flat, as the UI draws it (src/ui/pockets.js): [[x, y, colour]], the grip at the left, the tip at the right. */
 export function heldIcon(kind) {
-  const shape = HELD[kind], C = colours({}), out = [];
+  const shape = HELD[/#/.test(kind ?? '') && !String(kind).startsWith('mag-') ? 'pistol' : kind], C = colours({}), out = [];
   if (!shape) return out;
   if (shape.block) { for (const [a, b, r] of shape.block) out.push([a, 1 + b, C[r]]); return out; }
   const line = [...shape.line], tip = line.length - 1;

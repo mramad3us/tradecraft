@@ -21,6 +21,8 @@ import { toJSON, fromJSON } from './sim/state.js';
 import { TICK_MS, HOUR, MIN, stampText, hourOfDay, calendar } from './sim/clock.js';
 import { SCENARIOS } from './sim/scenarios/index.js';
 import { haleCall } from './sim/hale.js';
+import { options as shootOptions } from './sim/shooting.js';
+import { newGun, newMag, isGun } from './sim/firearms.js';
 import { candidates, legendFile, newCampaign, context, fold, heatWord, KINDS, LEVELS, levelOf, promote, goalOf } from './sim/campaign.js';
 import { cityById } from './sim/cities/index.js';
 import { shopWord } from './sim/shops.js';
@@ -149,6 +151,7 @@ function stop() {
 function launch(s, { hour = null } = {}) {
   stop();
   state = s;
+  if (settings.debug) armDebug(s);                                 // (debug mode: the station's pistol on you, to try the guns: sim/firearms.js)
   lastPhoto = null; snapWanted = null;
   bus = createBus();
   view = createView({ parent: ui.frame, bus, month: () => calendar(s.time.ms).month });   // (the season: the trees' leaves, the hedges', the fallen ones)
@@ -244,6 +247,14 @@ function launchAssignment(s, id) {
   launch(newGame({ seed: randomSeed(), scenario: KINDS[a.kind].scenario, version: VERSION, campaign: c, context: context(c, a), weather: WEATHER }));
 }
 
+/** Debug mode: the player has a gun on them (the station's SIG, loaded, a spare magazine and a box of rounds), if they've none. */
+function armDebug(s) {
+  const p = s.people?.[s.player];
+  if (!p || isGun(p.hand) || (p.items ?? []).some(isGun) || (p.stash ?? []).some(isGun)) return;
+  (p.items ??= []).push(newGun(p, 'p229'), newMag(p, 'p229', 13));
+  p.rounds = { ...(p.rounds ?? {}), '9x19': (p.rounds?.['9x19'] ?? 0) + 20 };
+}
+
 /** An assignment over: its outcome into the campaign, the debrief, and back to the hub where it left you. */
 function backToPosting(s) {
   const c = s.campaign, a = c.assignments.find(x => x.id === s.assignment);
@@ -318,10 +329,19 @@ input.onAction((action) => {
   }
   if (action === 'inventory') { if (open === 'inventory') ui.closeOverlays(); else if (!open) ui.openInventory(state, (cmd) => acts.push(`inv:${cmd}`)); return; }   // (I: what you carry)
   if (action === 'gun' && !open && !paused) acts.push('draw');     // (G: draw the next weapon carried, or put it away: sim/items.js)
+  if (action === 'aim' && !open && !paused) acts.push('aim');      // (X: shooting, in stop motion, in or out: sim/shooting.js)
   if (action === 'pause' && !open) paused = !paused;
   if (action === 'help') ui.toggleKeys();                           // ("?": the keys, shown or folded)
   if ((action === 'instinct' || action === 'use' || action === 'glance' || action === 'camera') && !open && !paused) acts.push(action);   // (P: a photograph, where a scene has a camera: sim/scenarios/watch.js)
   if ((action === 'hit' || action === 'grapple' || action === 'guard') && !open && !paused) acts.push(input.poll().run ? `${action}+` : action);   // (Shift held: an edge spent)
+});
+addEventListener('keydown', (e) => {                               // (shooting's choice, time standing still: a digit, a step: sim/shooting.js options())
+  if (!running || ui.overlay() || paused || e.repeat || state?.shoot?.phase !== 'choose') return;
+  const m = /^(?:Digit|Numpad)([1-9])$/.exec(e.code), o = m && shootOptions(state)[Number(m[1]) - 1];
+  if (o) { e.preventDefault(); acts.push(`shoot:${o.key}`); return; }
+  // (the move keys, by where they sit: left and right the target across the picture, up and down the head, the body, the legs)
+  const mv = { KeyA: 'pick:-1', ArrowLeft: 'pick:-1', KeyD: 'pick:1', ArrowRight: 'pick:1', KeyW: 'part:-1', ArrowUp: 'part:-1', KeyS: 'part:1', ArrowDown: 'part:1' }[e.code];
+  if (mv) { e.preventDefault(); acts.push(`shoot:${mv}`); }
 });
 addEventListener('keydown', (e) => {                               // debug mode: the clock moves on
   if (!running || !settings.debug || ui.overlay() || e.repeat) return;

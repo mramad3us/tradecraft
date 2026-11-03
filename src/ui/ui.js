@@ -55,6 +55,8 @@ import { LESSONS, FARM, lessonOf, numberOf, nextLesson } from '../sim/tutorial/i
 import { READ_S, WORD_S } from '../sim/tutorial/earpiece.js';
 import { HEARSAY } from '../sim/hale.js';
 import { plaque, place } from './plaque.js';
+import { options as shootOptions, targets as shootTargets, odds as shootOdds, gunsOf } from '../sim/shooting.js';
+import { said as gunSaid, armOf, modelOf as gunModel } from '../sim/firearms.js';
 import { openMind } from './mind.js';
 
 // (a place's glyph on its plaque; how far, in the plaque's few letters: "2 streets north" → "2 ST N")
@@ -91,6 +93,8 @@ export function createUI({ input, cb }) {
   const intent = el('div', { className: 'intent', hidden: true });   // in a fight: what they're about to do, if we read it
   const bout = el('div', { className: 'bout', hidden: true });       // in a fight: the two of them, the score, the edges
   const moves = el('div', { className: 'moves', hidden: true });    // in a fight: the three moves and their keys, while we choose
+  const gunPanel = el('div', { className: 'moves gunpanel', hidden: true });   // shooting: the steps to choose from, time standing still (sim/shooting.js)
+  const reticle = el('canvas', { className: 'plaque reticle', hidden: true });   // shooting: over the target picked, the part, the odds, how far
   const ask = el('div', { className: 'ask', hidden: true });           // F's menu, over whoever's within reach
   const reach = el('div', { className: 'reach', hidden: true });       // a key over whoever's within reach
   const talkbox = el('div', { className: 'ask talkbox', hidden: true }); // a conversation, over them (time stands still)
@@ -101,7 +105,7 @@ export function createUI({ input, cb }) {
   const goal = el('canvas', { className: 'plaque goal', hidden: true });   // where you're going, when it's off the picture (src/ui/plaque.js)
   const prompt = el('div', { className: 'prompt', hidden: true });
   const veil = el('div', { className: 'bloodveil' });                 // (the blood lost: the world dims and reddens at the edges)
-  const hud = el('div', { id: 'hud' }, veil, signs, tags, feltTags, marker, bubble, intent, ...states, you, pointed, speech, reach, ask, talkbox, bout, moves, goal, prompt, watch, toasts, earpiece, keys, banner);
+  const hud = el('div', { id: 'hud' }, veil, signs, tags, feltTags, marker, bubble, intent, ...states, you, pointed, speech, reach, ask, talkbox, bout, moves, gunPanel, reticle, goal, prompt, watch, toasts, earpiece, keys, banner);
   const menu = el('div', { className: 'overlay', hidden: true });
   const log = el('div', { className: 'overlay', hidden: true });
   const paper = el('div', { className: 'overlay', hidden: true });     // a brief, a result
@@ -134,7 +138,8 @@ export function createUI({ input, cb }) {
     const k = (a) => `<kbd>${input.label(a)}</kbd>`;
     keys.classList.toggle('folded', !keysOpen);
     if (!keysOpen) { keys.innerHTML = '<kbd>?</kbd> keys'; return; }
-    keys.innerHTML = mode === 'fight' ? `${k('hit')} hit · ${k('grapple')} grab · ${k('guard')} cover · ${k('run')} held: spend an edge · ${k('gun')} draw · ${k('interact')} your read · ${k('log')} log · ${k('pause')} pause`
+    keys.innerHTML = mode === 'shoot' ? `<kbd>1</kbd>–<kbd>9</kbd> a step (time stands still till you choose) · ${k('left')}${k('right')} the target · ${k('up')}${k('down')} head, body, legs · ${k('aim')} leave it · ${k('log')} log`
+      : mode === 'fight' ? `${k('hit')} hit · ${k('grapple')} grab · ${k('guard')} cover · ${k('run')} held: spend an edge · ${k('gun')} draw · ${k('interact')} your read · ${k('log')} log · ${k('pause')} pause`
       : mode === 'talk' ? `<kbd>1</kbd>–<kbd>4</kbd> say · ${k('menu')} leave it there`
       : `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look (tap: glance) · ${k('instinct')} instinct · ${k('use')} use what's at hand · ${k('interact')} people · ${k('aid')} first aid · ${k('inventory')} carry · ${k('gun')} draw · ${k('sheet')} sheet · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
   };
@@ -214,10 +219,12 @@ export function createUI({ input, cb }) {
   // (every frame: the frame's width read before anything's written, and text written only when it
   // changes, so the HUD forces no layout of its own and leaves the page's untouched when nothing moves)
   const put = (node, text) => { if (node.textContent !== text) node.textContent = text; };
+  // (a gun's step under way, as the panel and the instinct's line say it)
+  const DOING = { draw: 'Drawing', holster: 'Putting it away', safety: 'The safety', rack: 'Racking the slide', release: 'The slide release', dropMag: 'The magazine out', stowMag: 'The magazine out, into a pocket', insertMag: 'A magazine in', clear: 'Clearing the jam', check: 'Checking it', chamber1: 'A round in, by hand', aim: 'Coming round onto the target', fire: 'The recoil, the muzzle coming down' };
   /** view: { posOf(id) → [x, z] as drawn, camera { x, z } }, for the marker over a scenario's target. */
   function update(state, paused, view) {
     here = state.map?.city ?? null;
-    const mode = state.fight && !state.fight.ended ? 'fight' : state.talk ? 'talk' : 'street';
+    const mode = state.shoot ? 'shoot' : state.fight && !state.fight.ended ? 'fight' : state.talk ? 'talk' : 'street';
     if (mode !== hintsFor) keyHints(mode);
     const fw = frame.clientWidth, watchL = watch.offsetLeft, watchB = watch.offsetTop + watch.offsetHeight;   // (read before anything's written: the watch's corner, for the way's plaque)
     put(watch.querySelector('.time'), clockText(state.time.ms));
@@ -417,6 +424,27 @@ export function createUI({ input, cb }) {
           : fi.adv.a ? [el('div', { className: 'move spend', title: 'Held with a move, an edge: a hit lands double; a grab shrugs off a punch; a cover hits back, and keeps the edge' },
           el('kbd', { textContent: input.label('run') }), el('span', { textContent: `+ a key: an edge (${fi.adv.a}); with a cover, hit back` }))] : []));
     }
+    // Shooting (sim/shooting.js): the steps, each its key and its time, while time stands still; over the
+    // target picked, the part aimed at, the odds of a hit now, and how far.
+    const sh = state.shoot, meS = sh && state.actors.find(a => a.who === state.player), pS = meS && state.people[meS.who];
+    gunPanel.hidden = !sh;
+    if (sh) {
+      const opts = sh.phase === 'choose' ? shootOptions(state) : [];
+      const gkey = JSON.stringify([sh.phase, sh.doing?.what, opts.map(o => [o.key, o.label, o.ms, o.off])]);
+      if (gunPanel.dataset.key !== gkey) {
+        gunPanel.dataset.key = gkey;
+        gunPanel.replaceChildren(...(sh.phase === 'choose'
+          ? opts.map((o, i) => el('div', { className: `move${o.off ? ' off' : ''}`, title: o.off ? `Pulled now: ${o.off}` : '' }, el('kbd', { textContent: String(i + 1) }), el('span', { textContent: `${o.label[0].toLowerCase()}${o.label.slice(1)} · ${(o.ms / 1000).toFixed(1)} s${o.off ? ` (${o.off})` : ''}` })))
+          : [el('div', { className: 'move spend', textContent: `${DOING[sh.doing?.what] ?? 'on it'}…` })]));
+      }
+    }
+    const tS = sh && meS ? shootTargets(state, meS).find(o => o.key === sh.pick) : null;
+    reticle.hidden = !tS || !view?.camera;
+    if (tS && view?.camera) {
+      const at = tS.key.startsWith('item:') ? [tS.x, tS.z] : view.posOf(tS.key) ?? [tS.x, tS.z], o = shootOdds(state, meS, pS);
+      const part = tS.key.startsWith('item:') ? (tS.name ?? 'it') : { head: 'head', torso: 'body', legs: 'legs' }[sh.part];
+      place(reticle, plaque({ text: `${part} ${o ? Math.round(o.p * 100) : 0}%`, sub: `${Math.round(tS.d)} m${sh.aim?.key === tS.key ? ' · aimed' : ''}`, style: 'tail', icon: 'aim' }), RES[0] / 2 + (at[0] - view.camera.x) * 16, RES[1] / 2 + (at[1] - view.camera.z) * 16 - 2.6 * 16, fw / RES[0]);
+    }
     // The instinct: always a line, its tone in its border; {key} in the text shows as that key.
     // What's at hand (the engine's: sim/acts.js affordance(), on R) ends the line, whatever it offers on T.
     // (in a fight, someone stunned, dazed or staggered: the engine's line on it comes first: sim/fight.js)
@@ -426,7 +454,8 @@ export function createUI({ input, cb }) {
     const shopLine = inShop && { id: 'inside', tone: 'calm', text: { back: 'Across the yard, between the bins, to the gate: out in the lane beside in a moment.', wash: `In ${shopW}'s toilet, the bolt across, cleaning up.`, eat: `In ${shopW}, eating, your back to the wall.`, coat: `In ${shopW}, the coat on, the tags off.`, sit: `At ${shopW}'s window, a coffee, the street outside: who stops when you do? Move, and you've had enough of it.`, read: `At ${shopW}'s window, the book open, the street at the edge of the page.` }[inShop.way] ?? `In ${shopW}, at the counter.` };
     const sceneP = shopLine && sc.prompt?.tone !== 'urgent' ? shopLine : sc.prompt;
     const body = bodyLine(state), scene = sceneP && body && RANKS[body.tone] <= RANKS[sceneP.tone] ? sceneP : body ?? sceneP;
-    const sp = !sc.outcome && ((state.fight?.phase === 'choose' && statusLine(state)) || scene), off = !sc.outcome && state.$offer && state.$offer.act !== sp?.act ? state.$offer : null;
+    const gunLine = sh && { id: 'shoot', tone: 'urgent', text: sh.phase === 'choose' ? `Time stands still. ${(() => { const g = gunsOf(pS)[0]; return g ? (armOf(pS, g.id)?.known ? gunSaid(pS, g.id) : `${gunModel(g.id).short}: you don't know what's in it.`) : ''; })()}` : `${DOING[sh.doing?.what] ?? 'On it'}…` };
+    const sp = !sc.outcome && (gunLine || (state.fight?.phase === 'choose' && statusLine(state)) || scene), off = !sc.outcome && state.$offer && state.$offer.act !== sp?.act ? state.$offer : null;
     // (the offer a chip of its own after the line, not run on into its sentence)
     const p = sp || off ? { tone: sp?.tone ?? 'calm', text: (sp?.text ?? '').trim(), offer: off ? off.text.trim() : '' } : null;
     prompt.hidden = !p;
@@ -437,6 +466,7 @@ export function createUI({ input, cb }) {
     }
     // (the move panel sits above the instinct, however many lines it runs to)
     if (!moves.hidden) moves.style.bottom = `${p ? 58 + prompt.offsetHeight + 8 : 96}px`;
+    if (!gunPanel.hidden) gunPanel.style.bottom = `${p ? 58 + prompt.offsetHeight + 8 : 58}px`;   // (shooting's steps over the instinct's line)
     if (!earpiece.hidden) earpiece.style.bottom = `${(p ? 58 + prompt.offsetHeight + 8 : 58) + (moves.hidden ? 0 : moves.offsetHeight + 8)}px`;   // (Hale over the instinct's line, which he supplements)
     // (a log line's 16 s run while the game does: not under a brief, a sheet, a paper or the pause)
     const real = performance.now(), cover = overlay();

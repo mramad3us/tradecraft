@@ -25,6 +25,7 @@ import { mouthOf } from './map/street.js';
 import { townOf } from './cities/index.js';
 import { stream, hash, int, chance, pick, range, weighted } from './rng.js';
 import { WEAPONS, weaponOf, sizeOf } from './weapons.js';
+import { BOX, isArm, isGun, isMag, armOf, moveArm } from './firearms.js';
 import { packsOf, useSupply, supplyWord } from './medicine.js';
 import { bookOf } from './training.js';
 import { say } from './log.js';
@@ -60,6 +61,7 @@ function things(p) {
   for (const kind of p.items ?? []) out.push({ kind });
   for (const [kind, n] of Object.entries(p.kit ?? {})) for (const uses of packsOf(kind, n)) out.push({ kind, n: uses });
   for (const b of p.books ?? []) if ((b.at ?? 'pocket') === 'pocket') out.push({ kind: 'book', id: b.id });   // (a paperback: a coat's pocket, not a pair of jeans'; sim/reading.js)
+  for (const [cal, n] of Object.entries(p.rounds ?? {})) for (let left = n; left > 0; left -= BOX) out.push({ kind: 'rounds', cal, n: Math.min(BOX, left) });   // (loose rounds, a box at a time: sim/firearms.js)
   return out;
 }
 
@@ -75,7 +77,7 @@ export function placed(p, extra = []) {
   const room = (s, t, cm, l) => cm <= s.cm && s.used + l <= s.l + 1e-9 && !(s.one && s.n1) && (!s.belt || !!weaponOf(t.kind));
   const hides = (s, l) => (s.belt ? COVERS.has(top) : s.used + l <= BULGE * s.l + 1e-9);
   for (const t of [...list].sort((a, b) => rank(b) - rank(a))) {
-    const [cm, l] = sizeOf(t.kind), fit = spaces.filter(s => room(s, t, cm, l)), sp = fit.find(s => hides(s, l)) ?? fit[0];
+    const [cm, l] = sizeOf(t.kind), fit = spaces.filter(s => room(s, t, cm, l)), sp = (isGun(t.kind) && fit.find(s => s.belt && hides(s, l))) || (fit.find(s => hides(s, l)) ?? fit[0]);   // (a gun in its holster at the beltline, if a top hangs over it: sim/firearms.js DRAW)
     if (sp) { sp.used += l; sp.n1 = (sp.n1 ?? 0) + 1; t.sp = sp; }
   }
   return {
@@ -161,6 +163,12 @@ export function pickUp(state, p, a, it) {
   const i = items.dropped.indexOf(it);
   if (i >= 0) items.dropped.splice(i, 1); else items.taken[it.id] = state.time.ms;
   let off = null;
+  if (it.arms) {                                                    // (a gun or a magazine: its state comes with it, sim/firearms.js; someone else's, a question till checked)
+    moveArm(it, p, it.kind);
+    const g = armOf(p, it.kind);
+    if (g?.type === 'gun') { if (g.by !== p.id) g.known = false; g.by = p.id; }
+  }
+  if (isMag(it.kind)) { (p.items ??= []).push(it.kind); if (placed(p).out.find(o => o.kind === it.kind)?.at) return null; p.items.pop(); }   // (a magazine goes in a pocket, if there's room)
   if (p.hand) off = stow(p) ? null : drop(state, p, a);
   p.hand = it.kind;
   return off;
@@ -182,6 +190,7 @@ export function drop(state, p, a, kind = p.hand) {
   if (p.hand === kind) p.hand = null;
   const items = state.items ??= { taken: {}, dropped: [] };
   const it = { id: `d${hash(state.tick, a.id, kind)}`, kind, row: state.map.row ?? 0, map: state.map.kind, x: round(a.x + range(state.rng, -0.4, 0.4)), z: round(a.z + range(state.rng, 0.1, 0.5)) };
+  if (isArm(kind)) { const g = armOf(p, kind); if (g?.type === 'gun') g.by = p.id; moveArm(p, it, kind); }   // (its state goes with it: sim/firearms.js)
   items.dropped.push(it);
   if (items.dropped.length > 60) items.dropped.shift();
   return it;

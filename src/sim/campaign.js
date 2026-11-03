@@ -57,6 +57,7 @@ import { sheet, streetLook } from './people.js';
 import { at, DAY, HOUR, MIN, calendar } from './clock.js';
 import { CABINET } from './medicine.js';
 import { fileOf, assetFile, targetName, briefOf, CRAFT, ASSET_ROLES } from './dossier.js';
+import { newGun, newMag, isGun } from './firearms.js';
 
 export const KINDS = {
   sdr: { name: 'An asset meeting', scenario: 'sdr', about: 'Meet the asset clean: a surveillance detection run to the bench, and only sit down if nobody\'s on you.' },
@@ -297,12 +298,23 @@ export const goalOf = (p) => (p.level === 'junior' ? GOAL_JUNIOR : GOAL_INTEL);
 /** A new campaign: the chosen character, the posting (at a level: LEVELS), day one. */
 export function newCampaign(seed, character, city = 'moscow', level = 'handler', startMs = undefined) {
   const p = posting(seed, city, startMs, level);
+  issue(character);
   const c = { seed, character, posting: p, day: dayOf(p.startMs), assignments: [], done: [], plannedTo: dayOf(p.startMs) - 1, worked: {}, log: [], reviews: [], awake: p.startMs, next: { },
     calls: [{ id: 'hale', at: p.startMs + CALL_S * 1000 }], cabinet: { ...CABINET } };   // (day one: Hale on the telephone, the exercises or straight in: src/main.js; the bathroom cabinet's few things, sim/medicine.js)
   for (const t of p.targets) fileOf(c, t);                         // (the station's files on them: sim/dossier.js)
   for (const s of p.assets) assetFile(c, s);
   plan(c, p.startMs);
   return c;
+}
+
+/**
+ * The station's pistol, in the flat's drawer from day one (DESIGN.md, Firearms: sim/firearms.js): a SIG P229,
+ * loaded (13 and one in the chamber), and a spare magazine. For the worst night; carried, it's found if
+ * you're searched (sim/police.js).
+ */
+export function issue(p) {
+  if ((p.stash ?? []).some(isGun) || (p.items ?? []).some(isGun) || isGun(p.hand)) return;
+  (p.stash ??= []).push(newGun(p, 'p229'), newMag(p, 'p229', 13));
 }
 
 export const CALL_S = 12;                                          // (day one: the telephone rings this long after you wake)

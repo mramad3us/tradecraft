@@ -16,7 +16,7 @@
 export const KEYS = {
   up: 'KeyW', left: 'KeyA', down: 'KeyS', right: 'KeyD', run: 'ShiftLeft', slow: 'AltLeft',
   interact: 'KeyF', inventory: 'KeyI', aid: 'KeyH', instinct: 'KeyT', watch: 'KeyE', sheet: 'KeyC', camera: 'KeyP',
-  hit: 'KeyK', grapple: 'KeyL', guard: 'Semicolon', gun: 'KeyG', use: 'KeyR',
+  hit: 'KeyK', grapple: 'KeyL', guard: 'Semicolon', gun: 'KeyG', aim: 'KeyX', use: 'KeyR',
   mindmap: 'Tab', log: 'KeyJ', pause: 'Space', menu: 'Escape',
 };
 const MOVE = { KeyW: [0, -1], ArrowUp: [0, -1], KeyS: [0, 1], ArrowDown: [0, 1], KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0] };
