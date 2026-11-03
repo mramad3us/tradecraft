@@ -34,7 +34,12 @@ import { callWays, nextMeeting } from '../sim/phone.js';
 
 export const KIND_COLOUR = { job: 0xd36bd0, home: 0xe7b84a, work: 0x5d8fc2, safe: 0x76ad4c, food: 0xe8896a, clothes: 0x7a4a86, books: 0x2f6b62, bank: 0xb9862e, club: 0xc95c45, school: 0x3b6296, phones: 0x95c1e3, optician: 0x8f96a6, chemist: 0x356f42, other: 0x6a7182, metro: 0x9e3c36, bus: 0xc4bba9 };
 const LEAVES = [['ahead', 'Ahead'], ['city', 'The city'], ['people', 'People'], ['stand', 'Where you stand']];
-const M_PER_PX = 3, ROW_PX = 22, NAME_PX = 92;
+const ROW_PX = 30, NAME_PX = 92, MAP_W = 320;                     // (a canvas this wide, drawn big: some 350 m across at the first zoom)
+// The city's window (the user, 2026-11-03: "the map should be zoomed in our position, showing 2 streets around
+// us maximum, and a zooming and arrows control to navigate if we need to see something out of frame, otherwise
+// the map is too crushed"): your street and ROWS_HALF either side, along it as much as fits at the zoom
+// (ZOOMS: metres a pixel), centred on you; the arrows (on the page, or the keyboard's) move it, + and − zoom.
+const ROWS_HALF = 2, ZOOMS = [0.75, 1.1, 1.6, 2.4, 3.6], ZOOM0 = 2, PAN = 0.7;
 
 /**
  * Open the mind on a leaf, into host (the HUD's card). deps: { el, act (a desk command), close, label (a
@@ -50,7 +55,7 @@ export function openMind(host, state, leaf = 'ahead', deps) {
   host.hidden = false;
   host.dataset.kind = 'mind';
   host.dataset.leaf = leaf;
-  host.$mindKey = (e) => { const n = Number(e.key); if (n >= 1 && n <= LEAVES.length) { show(LEAVES[n - 1][0]); return true; } return false; };
+  host.$mindKey = (e) => { const n = Number(e.key); if (n >= 1 && n <= LEAVES.length) { show(LEAVES[n - 1][0]); return true; } const f = leaf === 'city' && e.code && deps.on.mapKey?.(e.code); if (f) { f(); return true; } return false; };   // (the city's arrows, + and −, C: the window)
 }
 
 // (a plaque's canvas copied: the plaque's own is kept, and shared)
@@ -130,12 +135,20 @@ function cityLeaf(state, deps, show) {
   const all = knownPlaces(c), streets = knownStreets(c), shown = all.filter(pl => on[pl.kind]);
   const town = townOf({ seed: P.mapSeed, city: P.city }), meA = state.actors.find(a => a.who === state.player);
   const here = state.map.kind === 'street' && state.map.seed === P.mapSeed ? { row: state.map.row ?? 0, x: meA?.x ?? 0 } : state.map.place === 'home' ? P.home : state.map.place === 'embassy' ? P.embassy : null;
-  // The picture: the rows known (and the posting's), x across the stretches known.
-  const rows = [...new Set([...streets.map(s => s.row), ...all.map(pl => pl.row), ...(here ? [here.row] : [])])].sort((a, b) => a - b);
-  const xs = [...streets.flatMap(s => s.sections.flatMap(i => [i * SECTION_M, (i + 1) * SECTION_M])), ...all.map(pl => pl.x), ...(here?.x !== undefined ? [here.x] : [])];
-  const x0 = Math.min(...xs) - 20, x1 = Math.max(...xs) + 20, W = Math.min(560, Math.max(260, NAME_PX + Math.ceil((x1 - x0) / M_PER_PX) + 8)), H = rows.length * ROW_PX + 10;
-  const mpp = Math.max(M_PER_PX, (x1 - x0) / (W - NAME_PX - 8));
-  const X = (x) => Math.round(NAME_PX + (x - x0) / mpp), Y = (row) => 8 + rows.indexOf(row) * ROW_PX + 8;
+  // The window: the known rows within ROWS_HALF of its centre, x across what fits at its zoom (kept between openings: deps.on.view).
+  // (in the flat or the embassy, where you are is its door on its street: its place's x)
+  const atDoor = (k) => all.find(pl => pl.kind === k);
+  const me0 = here && here.x !== undefined ? here : (state.map.place === 'embassy' ? atDoor('work') : atDoor('home')) ?? here ?? P.home;
+  const V = (deps.on.view ??= { row: me0.row ?? 0, x: me0.x ?? 0, z: ZOOM0 });
+  const known = [...new Set([...streets.map(s => s.row), ...all.map(pl => pl.row), ...(here ? [here.row] : [])])].sort((a, b) => a - b);
+  const rows = known.filter(r => Math.abs(r - V.row) <= ROWS_HALF);
+  if (!rows.length) rows.push(V.row);
+  const W = MAP_W, H = rows.length * ROW_PX + 10, mpp = ZOOMS[V.z], span = (W - NAME_PX - 8) * mpp, x0 = V.x - span / 2;
+  const X = (x) => Math.round(NAME_PX + (x - x0) / mpp), Y = (row) => 8 + rows.indexOf(row) * ROW_PX + 10;
+  const inX = (x) => X(x) >= NAME_PX - 2 && X(x) <= W - 2;
+  const move = (dx, dr, dz = 0) => { V.x += dx * span * PAN; V.row += dr; V.z = Math.max(0, Math.min(ZOOMS.length - 1, V.z + dz)); show('city'); };
+  const centre = () => { Object.assign(V, { row: me0.row ?? 0, x: me0.x ?? 0 }); show('city'); };
+  deps.on.mapKey = (code) => ({ ArrowLeft: () => move(-1, 0), ArrowRight: () => move(1, 0), ArrowUp: () => move(0, -1), ArrowDown: () => move(0, 1), Equal: () => move(0, 0, -1), NumpadAdd: () => move(0, 0, -1), Minus: () => move(0, 0, 1), NumpadSubtract: () => move(0, 0, 1), KeyC: centre }[code]);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const g = cv.getContext('2d'), px = (x, y, w, h, col) => { g.fillStyle = `#${col.toString(16).padStart(6, '0')}`; g.fillRect(x, y, w, h); };
   px(0, 0, W, H, 0x14151c);
@@ -144,10 +157,13 @@ function cityLeaf(state, deps, show) {
     glyphs(px, 4, Y(row) - 2, name, s ? 0x8f96a6 : 0x4c5262);
     px(NAME_PX - 4, Y(row), 2, 1, 0x353947);
     for (const i of s?.sections ?? []) {
-      px(X(i * SECTION_M), Y(row) - 1, Math.max(1, X((i + 1) * SECTION_M) - X(i * SECTION_M)), 3, 0x4c5262);
+      const a0 = Math.max(NAME_PX, X(i * SECTION_M)), a1 = Math.min(W - 2, X((i + 1) * SECTION_M));
+      if (a1 <= a0) continue;                                        // (out of the window)
+      px(a0, Y(row) - 1, Math.max(1, a1 - a0), 3, 0x4c5262);
       // (its lanes north and south: a side street to the next street known, an alley thinner; a stub where it isn't)
       const S = sectionOf(town, row, i);
       for (const [gaps, dir] of [[S.gapsN ?? [], -1], [S.gapsS ?? [], 1]]) for (const gp of gaps) {
+        if (!inX((gp.x0 + gp.x1) / 2)) continue;
         const x = X((gp.x0 + gp.x1) / 2), to = rows.includes(row + dir) ? Y(row + dir) : Y(row) + dir * 6, a = Math.min(Y(row), to), b = Math.max(Y(row), to);
         px(x, a, gp.kind === 'side' ? 2 : 1, b - a, gp.kind === 'side' ? 0x4c5262 : 0x353947);
       }
@@ -155,21 +171,23 @@ function cityLeaf(state, deps, show) {
   }
   const W8 = c.waypoint;
   // (a place: a square of its colour, on its side of the street; the posting's own and the metro bigger, edged)
-  for (const pl of shown) {
-    const col = KIND_COLOUR[pl.kind] ?? 0x8f96a6, x = X(pl.x), y = Y(pl.row) + (pl.z > 2 ? 4 : -4), big = ['home', 'work', 'safe', 'metro', 'job'].includes(pl.kind);
+  const inView = shown.filter(pl => rows.includes(pl.row) && inX(pl.x));
+  for (const pl of inView) {
+    const col = KIND_COLOUR[pl.kind] ?? 0x8f96a6, x = X(pl.x), y = Y(pl.row) + (pl.z > 2 ? 5 : -5), big = ['home', 'work', 'safe', 'metro', 'job'].includes(pl.kind);
     if (big) { px(x - 3, y - 3, 7, 7, 0x14151c); px(x - 2, y - 2, 5, 5, col); px(x - 2, y - 2, 5, 1, 0xf6f4ee); }
     else { px(x - 2, y - 2, 5, 5, 0x14151c); px(x - 1, y - 1, 3, 3, col); }
   }
-  if (W8) { const x = X(W8.x), y = Y(W8.row) - 9; px(x, y, 1, 8, 0xf6f4ee); px(x + 1, y, 4, 3, 0xe7b84a); }
-  if (here) { const x = X(here.x ?? 0), y = Y(here.row); px(x - 2, y - 2, 5, 5, 0x14151c); px(x - 1, y - 1, 3, 3, 0xf6f4ee); }
-  const K = 2;
-  pix(cv, K);
+  if (W8 && rows.includes(W8.row) && inX(W8.x)) { const x = X(W8.x), y = Y(W8.row) - 9; px(x, y, 1, 8, 0xf6f4ee); px(x + 1, y, 4, 3, 0xe7b84a); }
+  if (here && rows.includes(me0.row) && inX(me0.x ?? 0)) { const x = X(me0.x ?? 0), y = Y(me0.row); px(x - 2, y - 2, 5, 5, 0x14151c); px(x - 1, y - 1, 3, 3, 0xf6f4ee); }
+  pix(cv, 2);
+  Object.assign(cv.style, { width: '100%', maxWidth: `${W * 3}px`, height: 'auto', margin: '0 auto' });   // (the window fits its box, its pixels big: nothing off to the side, nothing crushed)
   cv.className = 'mind-map';
+  cv.dataset.shown = String(inView.length);                          // (what's in the window, for the tests)
   const card = el('div', { className: 'mind-place' }, el('p', { className: 'mind-note' }, here ? 'You: the white square. Pick a place.' : 'Pick a place.'));
   const pickAt = (e) => {
     const r = cv.getBoundingClientRect(), mx = (e.clientX - r.left) / r.width * W, my = (e.clientY - r.top) / r.height * H;
     let best = null, bd = 7;
-    for (const pl of shown) { const d = Math.hypot(X(pl.x) - mx, Y(pl.row) - my); if (d < bd) { bd = d; best = pl; } }
+    for (const pl of inView) { const d = Math.hypot(X(pl.x) - mx, Y(pl.row) - my); if (d < bd) { bd = d; best = pl; } }
     return best;
   };
   cv.onmousemove = (e) => { const pl = pickAt(e); cv.title = pl ? `${pl.label} · ${streetName(town, pl.row)}` : ''; cv.style.cursor = pl ? 'pointer' : 'default'; };
@@ -184,6 +202,9 @@ function cityLeaf(state, deps, show) {
   const chips = el('div', { className: 'mind-kinds' }, ...Object.entries(KINDS).filter(([k]) => all.some(pl => pl.kind === k)).map(([k, word]) => el('button', { className: `mind-kind${on[k] ? ' on' : ''}`, style: `--dot: #${(KIND_COLOUR[k] ?? 0x8f96a6).toString(16).padStart(6, '0')}`, onclick: () => { on[k] = !on[k]; show('city'); } }, word)));
   return [
     el('p', { className: 'mind-note' }, `${cityById(P.city).name} as you know it: ${streets.length} ${streets.length === 1 ? 'street' : 'streets'} walked, ${all.filter(pl => !['bus', 'metro'].includes(pl.kind)).length} places.`),
+    el('div', { className: 'mind-acts mind-nav' }, ...[['◀', () => move(-1, 0), 'West (←)'], ['▶', () => move(1, 0), 'East (→)'], ['▲', () => move(0, -1), 'North (↑)'], ['▼', () => move(0, 1), 'South (↓)'], ['+', () => move(0, 0, -1), 'Closer (+)'], ['−', () => move(0, 0, 1), 'Further (−)']].map(([t, f, why]) => el('button', { onclick: f, title: why }, t)),
+      el('button', { onclick: centre, title: 'C' }, here ? 'Centre on you' : 'Centre on the flat'),
+      el('span', { className: 'mind-note' }, `${rows.length} of ${known.length} streets known · ${Math.round(span)} m across`)),
     el('div', { className: 'mind-mapbox' }, cv), chips,
     W8 ? el('div', { className: 'mind-acts' }, el('span', { className: 'mind-note' }, `The waypoint: ${W8.label}.`), el('button', { onclick: () => { setWaypoint(c, null); show('city'); } }, 'Clear it')) : null,
     card,

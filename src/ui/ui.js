@@ -753,7 +753,7 @@ export function createUI({ input, cb }) {
     if (!ask.hidden && askKeys) askKeys(e);
     else if (!talkbox.hidden) { const n = digit(e); if (n >= 1 && n <= TALK_CHOICES.length) { e.preventDefault(); cb.talk?.(TALK_CHOICES[n - 1].id); } }
     else if (!card.hidden && card.dataset.kind === 'tube') { if (card.$tubeKey?.(e)) e.preventDefault(); }   // (the Underground's map: src/ui/tubemap.js)
-    else if (!card.hidden && card.dataset.kind === 'mind') { const n = digit(e); if (n && card.$mindKey?.({ key: String(n) })) e.preventDefault(); }   // (the mind's leaves: src/ui/mind.js)
+    else if (!card.hidden && card.dataset.kind === 'mind') { const n = digit(e); if (n ? card.$mindKey?.({ key: String(n) }) : card.$mindKey?.({ code: e.code })) e.preventDefault(); }   // (the mind's leaves, the city's window: src/ui/mind.js)
     else if (!card.hidden && ['aid', 'inventory', 'choices'].includes(card.dataset.kind)) { const n = digit(e) || (/^(?:Digit|Numpad)0$/.test(e.code) ? 10 : 0); const b = n && card.querySelector(`button[data-n="${n}"]`); if (b) { e.preventDefault(); b.click(); } }   // (0: the tenth)
   });
 

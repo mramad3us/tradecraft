@@ -4,6 +4,10 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.4 (2026-11-03)
+
+- **The city map, readable.** Tab's city leaf showed every street you knew at once, crushed into the box. Now it's a window on your street and two either side, centred on you (on the flat's or the embassy's door when you're inside), about 350 m across, drawn big enough to read. The arrows (on screen, or the arrow keys) move it, + and − zoom (five steps, 240 to 790 m across), and C centres it on you again. It stays where you left it between openings.
+
 ## v0.1.3 (2026-11-03)
 
 - **Tradecraft grows of experience, slowly, and slower as it climbs.** A legend went from 95 to 97 on one tail. Now an assignment earns XP by its class, how it went, how hard it was (the target's craft, the team on you) and how risky (the station: Moscow 1.4, Beirut 1.3, Cairo 1.2, London 0.8; and your heat). Shaking off a team that was on you earns more than an evening nobody followed you (+6 an overt pair, +10 a covert team), and every roll of yours that goes your way earns a little (+0.1). Each point of Tradecraft costs more than the last: 8 XP at 20, 50 at 40, 312 at 60, some 7,700 at 95. So a beginner gains a point from a good tail, an officer at 40 needs four or five in London (fewer in Moscow), and a legend barely moves. The debrief says what you earned and how near the next point is.
