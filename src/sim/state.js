@@ -19,6 +19,7 @@
 //   weather (optional) { kind, level, wind, frost? }   a pinned weather (sim/weather.js): none, the
 //                              city's own, which is worked out from the map and the clock, never saved
 import { headOf } from './perception.js';
+import { disarm } from './firearms.js';
 
 export const SAVE_SCHEMA = 1;
 
@@ -45,6 +46,9 @@ export function upgradeState(s) {
   s.map.row ??= 0;
   s.mind ??= { seen: {} };
   for (const a of s.actors) { a.stride ??= 0; a.stuck ??= 0; a.head ??= headOf(a.face); }
+  // (0.1.11: guns are rare and hard to come by, and until now a campaign's only came from debug mode or the
+  // old issue: taken off the officer once; games made from now on start with the flag, and keep what they get)
+  if (!s.flags.gunsRare) { if (s.campaign) { disarm(s.people?.[s.player]); disarm(s.campaign.character); } s.flags.gunsRare = true; }
   s.schema = SAVE_SCHEMA;
   return s;
 }

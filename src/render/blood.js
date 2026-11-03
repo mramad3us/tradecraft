@@ -18,7 +18,7 @@ function* pixels(d) {
     const far = d.dx ? Math.pow(r(), 1.6) * (0.25 + d.n * 0.04) : r() * 0.08;   // (flung: most near, a few far)
     const x = d.x + d.dx * far + (r() - 0.5) * (0.12 + far * 0.5), z = d.z + (r() - 0.5) * (0.1 + far * 0.35);
     const big = !d.dx || far < 0.2 ? r() < 0.5 : r() < 0.15;
-    yield { x, z, big, shade: Math.floor(r() * 3) };
+    yield { x, z, big, shade: Math.floor(r() * 3), cut: (Math.imul(d.seed ^ (i + 1), 2654435761) >>> 0) / 4294967296 };   // (washed away: the pixels whose cut is under the decal's wash go first, sim/blood.js)
   }
 }
 
@@ -44,6 +44,7 @@ export function createBlood(scene) {
     for (const d of list) {
       const dry = Math.min(1, (state.time.ms - d.ms) / DRY_MS);
       for (const px of pixels(d)) {
+        if (px.cut < (d.wash ?? 0)) continue;
         for (const [ox, oz] of px.big ? [[0, 0], [P, 0]] : [[0, 0]]) {
           if (n >= MAX_PIXELS) break;
           m4.makeTranslation(Math.round((px.x + ox) * PX_PER_M) * P, 0.035, Math.round((px.z + oz) * PX_PER_M) * P);   // (over a mat, a line on it)

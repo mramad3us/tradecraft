@@ -162,7 +162,7 @@ export function arrest(state, bus, me) {
 /** Once a tick (sim/game.js): each gunner's next step, as its last one's time runs out. */
 export function tick(state, bus) {
   const me = playerOf(state);
-  for (const a of state.actors) if (a.ai?.gunner) gunner(state, bus, a, me);
+  for (const a of state.actors) { if (a.ai?.gunner) gunner(state, bus, a, me); if (!a.ai?.gunner && a.$aim && a !== me) delete a.$aim; }
 }
 
 function gunner(state, bus, a, me) {
@@ -192,7 +192,8 @@ function gunner(state, bus, a, me) {
   if (M.safety === 'manual' && g.safety) return step('safety');
   if (M.safety === 'selector' && g.mode === 'safe') return step('selector');
   if (!ready(g, M)) { const fix = canDo(p, id).find(k => ['clear', 'rack', 'release', 'insertMag', 'closeCyl'].includes(k)); if (fix) return step(fix); a.ai.gunner = null; return; }
-  if (G.hold || !seesActor(state, a, me)) { a.head = to; G.aimed = null; G.until = now + 250; return; }
+  if (G.hold || !seesActor(state, a, me)) { a.head = to; G.aimed = null; G.until = now + 250; delete a.$aim; return; }
+  a.$aim = { x: me.x, z: me.z, ms: G.aimed ?? now };                // (where the gun points, for the figure's pose: src/art)
   if (G.aimed === null || G.aimed === undefined) { G.aimed = now + aimMs(p, a, me.x, me.z, id); a.head = to; a.face = Math.abs(Math.cos(to)) > Math.abs(Math.sin(to)) ? (Math.cos(to) > 0 ? 'right' : 'left') : (Math.sin(to) > 0 ? 'down' : 'up'); G.until = G.aimed; return; }
   a.head = to;
   G.until = now + npcShot(state, bus, a, p, id, me, (now - G.aimed) / 1000);

@@ -70,6 +70,17 @@ export const CALIBRES = {
 };
 /** A calibre by its name ('9×19 mm Parabellum'). */
 export const calWord = (cal) => CALIBRES[cal]?.word ?? cal;
+/** Every gun, magazine and round off a person: in hand, carried, in the drawer (p.stash), and their states. */
+export function disarm(p) {
+  if (!p) return;
+  const arm = (k) => isGun(k) || isMag(k) || isBox(k);
+  if (arm(p.hand)) p.hand = null;
+  if (p.items) p.items = p.items.filter(k => !arm(k));
+  if (p.stash) p.stash = p.stash.filter(k => !arm(k));
+  if (p.stashN) for (const k of Object.keys(p.stashN)) if (isBox(k)) delete p.stashN[k];
+  delete p.arms; delete p.rounds;
+}
+
 /** A box of loose rounds, as a thing on the ground or in the drawer: `box-${calibre}` (its count kept beside it). */
 export const isBox = (id) => typeof id === 'string' && id.startsWith('box-') && !!CALIBRES[id.slice(4)];
 export const boxCal = (id) => (isBox(id) ? id.slice(4) : null);
@@ -95,8 +106,8 @@ export const MODELS = {
   glock17: P({ name: 'a Glock 17', short: 'Glock', cal: '9x19', cap: 17, safety: 'none', size: [20, 0.5], recoil: 0.95 }),
   glock19: P({ name: 'a Glock 19', short: 'Glock 19', cal: '9x19', cap: 15, safety: 'none', size: [18, 0.42] }),
   glock26: P({ name: 'a Glock 26', short: 'Glock 26', cal: '9x19', cap: 10, safety: 'none', size: [16, 0.33], acc: 1.15, recoil: 1.1 }),
-  p229: P({ name: 'a SIG P229', short: 'SIG', cal: '9x19', cap: 13, safety: 'none', size: [18, 0.5], acc: 0.95 }),
-  p226: P({ name: 'a SIG P226', short: 'P226', cal: '9x19', cap: 15, safety: 'none', size: [20, 0.55], acc: 0.95, recoil: 0.95 }),
+  p229: P({ name: 'a SIG P229', short: 'SIG', cal: '9x19', cap: 13, safety: 'none', decocker: true, size: [18, 0.5], acc: 0.95 }),
+  p226: P({ name: 'a SIG P226', short: 'P226', cal: '9x19', cap: 15, safety: 'none', decocker: true, size: [20, 0.55], acc: 0.95, recoil: 0.95 }),
   beretta92: P({ name: 'a Beretta 92', short: 'Beretta', cal: '9x19', cap: 15, size: [22, 0.6], acc: 0.95, recoil: 0.95 }),
   cz75: P({ name: 'a CZ 75', short: 'CZ', cal: '9x19', cap: 16, size: [21, 0.55], acc: 0.95, recoil: 0.95 }),
   browning: P({ name: 'a Browning Hi-Power', short: 'Browning', cal: '9x19', cap: 13, size: [20, 0.5] }),
@@ -142,6 +153,9 @@ export const BOX = 20, BOX_SIZE = [9, 0.12];                      // (loose roun
 
 export const WEAR = 0.0008;                                       // (condition lost a round fired)
 export const COND_SERVICE = 0.6, BROKEN = 0.25;
+// (a magazine's own condition, its spring and its lips: fresh MAG_FRESH; worn, it feeds badly, MAG_JAM a shot at none;
+// dropped on the ground, MAG_DROP_WEAR off; reconditioned at a table, sim/gunwork.js)
+export const MAG_FRESH = 0.95, MAG_JAM = 0.3, MAG_DROP_WEAR = 0.04;
 export const SERVICE_MIN = 30;
 export const MISFIRE = 0.002, MISFIRE_WORN = 0.05;                 // (a round that doesn't go off: new, and as the gun goes to BROKEN)
 export const JAM = 0.004, JAM_WORN = 0.12, JAM_LIMP = 0.03, LIMP_BELOW = 6;   // (a stoppage as it cycles; a weak grip's on a pistol, Weapon handling under LIMP_BELOW)
@@ -152,6 +166,7 @@ export const DOUBLE_SHARE = 0.3;                                   // (of stoppa
 // goes off (sim/shooting.js discharge()). A natural 1 is the hand's: under NAT1_DROP_BELOW Weapon handling a drop,
 // NAT1_DROP of the time; under NAT1_SHOT_BELOW (the untrained) a shot NAT1_SHOT of the time too, if it's ready;
 // the rest, and better hands always, a fumble.
+export const DA_GUARD = 5;                                          // (a fumble decocked: this much worse before it goes off, sim/firearms.js act())
 export const FUMBLE_K = 0.6, DROP_BY = 6, DISCHARGE_BY = 10, NAT1_DROP_BELOW = 10, NAT1_SHOT_BELOW = 5, NAT1_SHOT = 0.4, NAT1_DROP = 0.4;
 export const PACE = { min: 0.5, max: 1.6, per: 1 / 30 };          // (time × max − skill × per, between min and max)
 export const LONG_K = 1.15;                                         // (a long gun's actions, slower in the hands)
@@ -162,6 +177,7 @@ export const ACTIONS = {
   draw: { label: 'Draw', s: 1.2, dc: 8 },
   holster: { label: 'Put it away', s: 1.3, dc: 6 },
   safety: { label: 'Safety', s: 0.4, dc: 6 },
+  decock: { label: 'Decock: the hammer down', s: 0.4, dc: 5 },
   selector: { label: 'Selector', s: 0.4, dc: 6 },
   rack: { label: 'Rack the slide', s: 0.8, dc: 8 },
   dropMag: { label: 'Drop the magazine', s: 0.5, dc: 5 },
@@ -213,6 +229,7 @@ export function newGun(p, model, { rounds = undefined, chamber = true, safety = 
   const M = MODELS[model], id = `${model}#${nextId(p)}`, n = rounds === undefined ? M.cap : rounds;
   const g = { type: 'gun', model, mag: null, chamber: null, jam: null, locked: false, safety: M.safety === 'manual' ? safety : false, cond, known, by: p.id ?? null };
   if (M.safety === 'selector') g.mode = safety ? 'safe' : M.modes[0];
+  if (M.decocker) g.cocked = false;                                 // (a SIG carried as it should be: the hammer down)
   if (M.feed === 'cylinder') { g.cyl = Array.from({ length: M.cap }, (_, i) => (n !== null && i < n ? 'live' : null)); g.pos = M.cap - 1; g.open = false; }
   else if (M.feed === 'tube') { g.tube = n === null ? 0 : Math.min(M.cap, n); if (chamber && n !== null) g.chamber = 'live'; }
   else { if (n !== null) g.mag = newMag(p, model, n); if (chamber && n !== null) g.chamber = 'live'; }
@@ -227,6 +244,12 @@ export function newMag(p, model, n = 0) {
 }
 // (unique wherever it goes: its first holder's id, and their count)
 const nextId = (p) => { p.arms ??= {}; p.nextArm = (p.nextArm ?? 0) + 1; return `${p.id ?? 'x'}.${p.nextArm}`; };
+
+// (the thumb's work, safety, selector, decocker: the pace squared, so the skilled do it as the gun comes up, and
+// the untrained fumble for it: the user, 2026-11-03, "high skill makes this virtually instant")
+export const INSTANT = new Set(['safety', 'selector', 'decock']);
+/** An action's time on this gun for p, in ms (from: where it's drawn from), before any fumble. */
+export const stepMs = (p, id, action, from) => Math.round(baseOf(id, action, from).s * (INSTANT.has(action) ? pace(p) ** 2 : pace(p)) * 1000);
 
 /** Weapon handling's pace: a master's twice as fast as the trained, the untrained slower. */
 export const pace = (p) => Math.max(PACE.min, Math.min(PACE.max, PACE.max - skill(p, 'weapons') * PACE.per));
@@ -257,6 +280,7 @@ export function canDo(p, id, where = 'hand') {
   const out = [], loose = p.rounds?.[M.cal] ?? 0;
   if (M.safety === 'manual') out.push('safety');
   if (M.safety === 'selector') out.push('selector');
+  if (M.decocker && g.cocked && M.feed === 'mag') out.push('decock');
   if (M.feed === 'cylinder') {
     if (!g.open) out.push('openCyl');
     else { if (g.cyl.some(Boolean)) out.push('eject'); if (g.cyl.some(c => !c) && loose > 0) out.push('load1'); out.push('closeCyl'); }
@@ -296,12 +320,13 @@ export function act(rng, p, id, action, opts = {}) {
   if (!g || !M || !A) return { ms: 0, ok: false, text: 'Nothing to do that with.' };
   const base = action === 'fill' ? { s: A.s * (opts.n ?? 1), dc: A.dc } : baseOf(id, action, opts.from);
   const roll = check(rng, { skill: 'weapons', value: skill(p, 'weapons'), dc: base.dc, mods: opts.mods ?? [], body: p });
-  let s = base.s * pace(p);
+  let s = base.s * (INSTANT.has(action) ? pace(p) ** 2 : pace(p));
   if (!roll.ok) s *= 1 + FUMBLE_K;
   const out = { ms: Math.round(s * 1000), ok: roll.ok, roll, mishap: null, did: action, text: '' };
   // (a natural 1's own die: what the hand does with it, by the hand)
   const u = !roll.ok && roll.nat === 1 && roll.value < NAT1_DROP_BELOW ? next(rng) : 1;
-  const shot = !roll.ok && (roll.margin <= -DISCHARGE_BY || (roll.value < NAT1_SHOT_BELOW && u < NAT1_SHOT));
+  const da = M.decocker && !g.cocked;                                // (the hammer down: a fumbling finger has the long double-action pull to get through)
+  const shot = !roll.ok && (roll.margin <= -(DISCHARGE_BY + (da ? DA_GUARD : 0)) || (!da && roll.value < NAT1_SHOT_BELOW && u < NAT1_SHOT));
   const drop = !roll.ok && (shot || roll.margin <= -DROP_BY || u < (roll.value < NAT1_SHOT_BELOW ? NAT1_SHOT : 0) + NAT1_DROP);
   if (drop) {
     // (a mishap: what a fumbling hand does with a gun, worse the worse the hand)
@@ -312,8 +337,10 @@ export function act(rng, p, id, action, opts = {}) {
     if (out.mishap !== 'dropMag') return out;
   } else if (!roll.ok) out.fumbled = true;
   const mag = g.mag && armOf(p, g.mag), loose = p.rounds?.[M.cal] ?? 0;
+  if (M.decocker && (action === 'rack' || action === 'release' || action === 'chamber1')) g.cocked = true;   // (the slide's run: the hammer cocked)
   switch (action) {
     case 'safety': g.safety = !g.safety; out.text = g.safety ? 'Safety on.' : 'Safety off.'; break;
+    case 'decock': g.cocked = false; out.text = 'The hammer down: safe to carry, the first pull a long one.'; break;
     case 'selector': { const ring = ['safe', ...M.modes]; g.mode = ring[(ring.indexOf(g.mode) + 1) % ring.length]; out.text = `The selector to ${g.mode === 'safe' ? 'safe' : g.mode}.`; break; }
     case 'rack': {
       if (g.jam === 'double') { out.text = 'It won\'t close: two rounds fighting for the chamber. It wants clearing.'; break; }
@@ -328,7 +355,7 @@ export function act(rng, p, id, action, opts = {}) {
       break;
     }
     case 'release': if (mag && mag.n > 0) { mag.n--; g.chamber = 'live'; g.locked = false; out.text = 'It slams home on a fresh round.'; } break;
-    case 'dropMag': case 'stowMag': out.mag = g.mag; g.mag = null; out.text = action === 'dropMag' ? 'The magazine drops.' : 'Magazine out, and into a pocket.'; break;
+    case 'dropMag': case 'stowMag': out.mag = g.mag; if (action === 'dropMag' && mag) mag.cond = Math.max(0, (mag.cond ?? MAG_FRESH) - MAG_DROP_WEAR); g.mag = null; out.text = action === 'dropMag' ? 'The magazine drops.' : 'Magazine out, and into a pocket.'; break;
     case 'insertMag': {
       const m = opts.mag ?? sparesFor(p, g.model)[0];
       if (!m || g.mag) { out.text = 'No magazine for it.'; out.ok = false; break; }
@@ -360,7 +387,7 @@ export function act(rng, p, id, action, opts = {}) {
 export function said(h, id) {
   const g = armOf(h, id), M = modelOf(id), mag = g?.mag && armOf(h, g.mag);
   if (!g) return '';
-  const safe = M.safety === 'manual' ? `, safety ${g.safety ? 'on' : 'off'}` : M.safety === 'selector' ? `, ${g.mode === 'safe' ? 'on safe' : `on ${g.mode}`}` : '';
+  const safe = M.safety === 'manual' ? `, safety ${g.safety ? 'on' : 'off'}` : M.safety === 'selector' ? `, ${g.mode === 'safe' ? 'on safe' : `on ${g.mode}`}` : M.decocker ? `, the hammer ${g.cocked ? 'cocked' : 'down'} (no safety: a decocker)` : M.feed === 'cylinder' ? '' : ', no manual safety';
   const worn = g.cond < COND_SERVICE ? ', and it wants cleaning' : '';
   if (M.feed === 'cylinder') return `${M.short}: ${g.cyl.filter(c => c === 'live').length} of ${M.cap} loaded${g.open ? ', the cylinder open' : ''}${worn}.`;
   const ch = { live: 'one in the chamber', dud: 'a dud in the chamber', case: M.feed === 'tube' ? 'a spent case in the chamber' : 'a case stuck in the port', null: 'nothing in the chamber' }[g.chamber];
@@ -406,11 +433,12 @@ export function fire(rng, p, id) {
   g.cond = Math.max(0, g.cond - WEAR);
   if (M.action === 'pump' || M.action === 'bolt') { g.chamber = 'case'; return { fired: true, empty: g.tube === 0 }; }
   const mag = g.mag && armOf(p, g.mag);
-  if (chance(rng, jamChance(g, skill(p, 'weapons'), M))) {
+  if (chance(rng, jamChance(g, skill(p, 'weapons'), M) + (mag ? MAG_JAM * Math.max(0, 0.9 - (mag.cond ?? MAG_FRESH)) : 0))) {
     const double = chance(rng, DOUBLE_SHARE) && mag && mag.n > 0;
     g.chamber = double ? null : 'case'; g.jam = double ? 'double' : null;
     return { fired: true, stoppage: double ? 'double' : 'case' };
   }
+  if (M.decocker) g.cocked = true;                                  // (the slide's run back: the hammer cocked for the next)
   if (mag && mag.n > 0) { mag.n--; g.chamber = 'live'; return { fired: true }; }
   g.chamber = null; g.locked = !!mag && M.holdOpen;
   return { fired: true, empty: true };

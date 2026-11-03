@@ -35,6 +35,7 @@ import { Z, SECTION_M, mouthOf, inLane as inLaneG, laneLine } from './map/street
 import { near, blocked } from './world.js';
 import { seesActor, headOf, gazeInto, openAir, reach } from './perception.js';
 import { weatherAt, footing } from './weather.js';
+import { canStand, canRun, mobility } from './health.js';
 import { paneAt, seatTaken } from './acts.js';
 import { intoCar, carInWay } from './traffic.js';
 
@@ -123,6 +124,11 @@ export const PLANNERS = {
 /** An agent's route: its own (ai.route), or the one its plan makes (runtime: ai.$route). */
 export const routeOf = (state, a) => a.ai.route ?? a.ai.$route ?? (a.ai.plan ? (a.ai.$route = PLANNERS[a.ai.plan.kind](state, a.ai.plan)) : null);
 
+// (the legs by the speed: past RUN_GAIT_MS a run, its stride and its frames, src/render/crowd.js; someone fleeing a shot
+// runs, not a very fast walk: the user, 2026-11-03)
+export const RUN_GAIT_MS = 2.3;
+const gaitAt = (v) => (v > RUN_GAIT_MS ? 'run' : v > 0.05 ? 'walk' : 'idle');
+
 /** A new agent actor at a place, with a look's owner (who) or a passer-by's seed. */
 export function makeAgent(state, { who = null, seed = null, row, x, z, speed = 1.35, f = 0, face = 'right' }) {
   const a = { id: `a${state.nextActor++}`, who, seed, row, x, z, vx: 0, vz: 0, face, head: headOf(face), gait: 'idle', stride: 0, stuck: 0,
@@ -168,7 +174,7 @@ function walkDetour(state, a, v) {
   const step = Math.min(L, v * DT), nx = a.x + dx / L * step, nz = a.z + dz / L * step;
   if (intoCar(state, a.x, a.z, nx, nz) || blocked(state, nx, nz)) { a.vx = a.vz = 0; a.gait = 'idle'; return true; }   // (another in the way: wait)
   a.vx = (nx - a.x) / DT; a.vz = (nz - a.z) / DT; a.stride += step; a.x = nx; a.z = nz;
-  a.face = faceFor(a.vx, a.vz, a.face); if (!a.ai.eyesOn) a.head = Math.atan2(a.vz, a.vx); a.gait = 'walk';
+  a.face = faceFor(a.vx, a.vz, a.face); if (!a.ai.eyesOn) a.head = Math.atan2(a.vz, a.vx); a.gait = gaitAt(Math.hypot(a.vx, a.vz));
   return true;
 }
 
@@ -177,7 +183,8 @@ export function stepAgent(state, a, scenario, bus) {
   const ai = a.ai, x0 = a.x, z0 = a.z, row0 = a.row;
   if (ai.fighting) return;                                          // (in a fight, its feet are the fight's: sim/fight.js)
   if (ai.gunner) { a.vx = a.vz = 0; return; }                       // (a gun up: standing to shoot, sim/armed.js)
-  if (ai.downUntil > state.time.ms) { a.vx = a.vz = 0; a.gait = 'down'; return; }   // (knocked out: lying there a while)
+  const body = a.who && state.people[a.who];
+  if (ai.downUntil > state.time.ms || (body && !canStand(body))) { a.vx = a.vz = 0; a.gait = 'down'; return; }   // (knocked out: lying there a while; and down while they can't stand, whatever the clock says)
   if (ai.wait > 0) {
     a.vx = a.vz = 0;
     if (ai.visit) visitStep(a, ai.visit, ai.visit.ticks - ai.wait);
@@ -188,7 +195,8 @@ export function stepAgent(state, a, scenario, bus) {
   const stop = route?.stops?.[ai.stop];
   if (stop && stop.s <= ai.s + 1e-6) { startStop(state, a, stop, scenario, bus); return; }
   if (!route || ai.s >= route.length - 1e-6) { a.vx = a.vz = 0; a.gait = ai.sit ? 'sit' : 'idle'; return; }
-  let v = ai.speed * (ai.pace ?? 1) * footing(weatherAt(state)).walk;   // (slower going in snow: sim/weather.js)
+  let v = ai.speed * (ai.pace ?? 1) * footing(weatherAt(state)).walk * (body ? mobility(body, state.time.ms) : 1);   // (slower going in snow: sim/weather.js; and wounded, sim/health.js)
+  if (body && !canRun(body, state.time.ms)) v = Math.min(v, RUN_GAIT_MS * 0.95);   // (too hurt to run: a hurried limp at best)
   if (ai.detour && walkDetour(state, a, v)) return;
   if (stop && stop.slowM && stop.s - ai.s <= stop.slowM) {        // a tell: slowing before a check
     if (ai.told !== ai.stop) { ai.told = ai.stop; scenario?.onStop?.(state, a, stop, 'tell', bus); }
@@ -210,7 +218,7 @@ export function stepAgent(state, a, scenario, bus) {
   a.x = p.x; a.z = p.z; ai.s = s1;
   if (a.row !== row0) { a.vx = p.ux * v; a.vz = p.uz * v; }       // (through a seam: no leap of velocity)
   else { a.vx = (a.x - x0) / DT; a.vz = (a.z - z0) / DT; a.stride += Math.hypot(a.x - x0, a.z - z0); }
-  a.gait = Math.hypot(a.vx, a.vz) > 0.05 ? 'walk' : 'idle';
+  a.gait = gaitAt(Math.hypot(a.vx, a.vz));
   if (Math.hypot(p.ux, p.uz) > 0.5 && Math.hypot(a.vx, a.vz) > 0.05) { a.face = faceFor(p.ux, p.uz, a.face); if (!ai.eyesOn) a.head = Math.atan2(p.uz, p.ux); }
   if (stop && ai.s >= stop.s - 1e-6) startStop(state, a, stop, scenario, bus);
 }

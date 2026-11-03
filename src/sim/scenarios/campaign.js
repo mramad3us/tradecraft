@@ -48,6 +48,10 @@ import { townOf, cityById, FIRST_TOUR_CITY } from '../cities/index.js';
 import { skip, newMap } from '../game.js';
 import { eat, soothe } from '../needs.js';
 import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, watched, KINDS, WORK, TRAVEL, EXCUSES } from '../campaign.js';
+import { screen } from '../screening.js';
+import { ways as tableWays, work as gunWork } from '../gunwork.js';
+import { discharge } from '../shooting.js';
+import { N_M, HALL_M } from '../interiors/embassy.js';
 import { signOf, missionPlace } from '../places.js';
 import { fileOf, assetFile } from '../dossier.js';
 import { open as openBook } from '../reading.js';
@@ -120,7 +124,9 @@ export const campaignHub = {
       // (an assignment to be off for before six: out in time for it, with an excuse: sim/campaign.js work())
       const six = Math.floor(now / DAY) * DAY + WORK.to * HOUR, soon = c.assignments.filter(a => a.status === 'open' && !a.trip && windowOf(a)[1] > now && a.from < six + 2 * HOUR)
         .map(a => { const at = missionPlace(c, a); return at ? leaveBy(state, a, at) - SPARE_MIN * MIN : null; }).filter(t => t !== null && t < six).sort((x, y) => x - y)[0];
-      const to = work(c, now, soon ?? null), here = state.map.place === 'embassy', early = to < six;
+      const here = state.map.place === 'embassy';
+      if (!here || !state.scenario.screened) { state.scenario.screened = true; screen(state, bus, state.people.me, c); }   // (in the way every morning: through the arch, sim/screening.js)
+      const to = work(c, now, soon ?? null), early = to < six;
       if (to === now) return say(state, bus, { kind: 'instinct', text: 'Not a working day, or it\'s over: nobody at the embassy wants you now.' });
       until(to, here ? 'The day\'s cables, a meeting about the meetings, the canteen at one.' : 'The metro to the embassy, the guard\'s nod, the day\'s cables.');
       eat(state.people.me, state.time.ms - 4 * HOUR, 5);             // (lunch in the canteen: sim/needs.js)
@@ -139,6 +145,13 @@ export const campaignHub = {
       if (/^(wear|off):/.test(action.split(':').slice(2).join(':'))) skip(state, bus, DRESS_S * 1000);
       if (shed(p)) say(state, bus, { kind: 'note', text: `Fewer pockets in that. Put away, what won't go in them: ${unpack(p, c.cabinet ??= {})}.` });
       if (state.map.place === 'home') bus?.emit('wardrobe', wardrobeWays(p));   // (and the wardrobe still open: what else)
+    }
+    else if (what === 'table') {                                    // (the kitchen table's job, chosen: sim/gunwork.js; its time passes)
+      const key = action.split(':').slice(2).join(':'), me = state.actors.find(a => a.who === state.player);
+      if (key === 'eat') { use(state, bus, 'eat', true); return; }
+      const ms = gunWork(state, bus, state.people.me, key, { bang: (st, b, id) => discharge(st, b, me, st.people.me, id, 'rack', { fired: true }) });
+      if (ms) skip(state, bus, ms);
+      if (state.map.place === 'home' && tableWays(state.people.me).length) bus?.emit('table', [{ key: 'eat', label: 'Something to eat (20 min)' }, ...tableWays(state.people.me)]);   // (and still at the table: what else)
     }
     else if (what === 'basin') {                                    // (the basin's way, chosen: a wash, or the cabinet over it, one thing at a time)
       const key = action.split(':').slice(2).join(':');
@@ -206,6 +219,8 @@ export const campaignHub = {
     const me = state.actors.find(a => a.who === state.player);
     if (state.map.place === 'home' && me && !me.busy && exitHere(state, me)) return leaveHome(state, bus);
     if (state.map.place === 'embassy' && me && !me.busy && exitHere(state, me)) return leaveEmbassy(state, bus);   // (out by the street door)
+    // (past the arch, into the corridor: through the metal detector, once a visit: sim/screening.js)
+    if (state.map.place === 'embassy' && me && !state.scenario.screened && me.z < N_M + HALL_M) { state.scenario.screened = true; screen(state, bus, state.people[me.who], c); }
     // (a spot walked to: what you went there for)
     if (state.scenario.using && me && !me.busy) { const u = state.scenario.using; state.scenario.using = null; if (spotNear(state, me)?.kind === u.spot) use(state, bus, u.act, true); }
     // (a call: the telephone rings in the flat, when it's due and you're there)
@@ -329,7 +344,7 @@ function enterEmbassy(state, bus) {
   const s = { x: (e.x0 + e.x1) / 2, z: e.z0 - 0.8 };
   Object.assign(me, { x: s.x, z: s.z, vx: 0, vz: 0, busy: null, face: 'up', head: headOf('up'), hidden: false });
   newMap(state, bus, map, s.x);
-  Object.assign(state.scenario, { tail: null, window: false });     // (in: whoever was on you waits outside, or doesn't)
+  Object.assign(state.scenario, { tail: null, window: false, screened: false });   // (in: whoever was on you waits outside, or doesn't; the arch ahead)
   c.where = { inside: 'embassy', row: c.posting.embassy.row, x: s.x, z: s.z };
   say(state, bus, { kind: 'note', text: 'In off the street, your pass to the Marine behind the glass, a nod: the lobby, and the arch of the metal detector.' });
 }
@@ -397,7 +412,7 @@ function use(state, bus, act, here = false) {
   if (act === 'unwindow') return backFromWindow(state, bus);
   if (act === 'embassy') return enterEmbassy(state, bus);
   if (String(act).startsWith('begin:')) return begin(state, bus, act.slice(6));
-  const kind = { phone: 'phone', call: 'phone', sleep: 'sleep', wash: 'wash', eat: 'eat', window: 'window', read: 'read', work: 'desk', chief: 'chief', dress: 'dress' }[act], s = kind && spotOf(state, kind);
+  const kind = { phone: 'phone', call: 'phone', sleep: 'sleep', wash: 'wash', eat: 'eat', table: 'eat', window: 'window', read: 'read', work: 'desk', chief: 'chief', dress: 'dress' }[act], s = kind && spotOf(state, kind);
   if (!s) return;
   if (!here && Math.hypot(me.x - s.x, me.z - s.z) > SPOT_REACH_M) { walkTo(state, me, s); state.scenario.using = { act, spot: kind }; return; }
   if (act === 'phone') {
@@ -424,6 +439,7 @@ function use(state, bus, act, here = false) {
   }
   else if (act === 'chief') { say(state, bus, { kind: 'note', text: 'The chief looks up from a cable, takes his glasses off: "What have we got?"' }); bus?.emit('desk-open'); }   // (the desk: what's on, src/ui/ui.js)
   else if (act === 'read') openBook(state, bus, me);               // (ten minutes at a time, your own books: sim/reading.js)
+  else if (act === 'table') bus?.emit('table', [{ key: 'eat', label: 'Something to eat (20 min)' }, ...tableWays(state.people.me)]);   // (the kitchen table: a meal, or the gun's work: sim/gunwork.js)
   else if (act === 'eat') { say(state, bus, { kind: 'note', text: 'Bread, cheese, the kettle, the radio low: twenty minutes.' }); skip(state, bus, 20 * MIN); eat(state.people.me, state.time.ms, 20); }
   else if (act === 'wash') {
     // (the cabinet over the basin is yours to open or not: a card when it, or your pockets, have something for it)
@@ -448,7 +464,7 @@ const SPOT_LINE = {
   sleep: (state) => { const h = calendar(state.time.ms).hour; return [h >= 20 || h < 5 ? 'Your bed. {instinct}: sleep till seven.' : 'Your bed. {instinct}: a nap, a rest, or the night.', 'sleep']; },
   phone: () => ['The telephone. {instinct}: call Hale, about the exercises.', 'call'],
   wash: (state) => [`The basin${kitWords(state.campaign.cabinet) ? ', the cabinet over it' : ''}. {instinct}: ${state.people.me.bloody ? 'wash the blood off' : 'wash'}, a clean shirt${kitWords(state.campaign.cabinet) ? `; or the cabinet: ${kitWords(state.campaign.cabinet)}` : ''}.`, 'wash'],
-  eat: () => ['The kitchen table. {instinct}: something to eat.', 'eat'],
+  eat: (state) => (tableWays(state.people.me).length ? ['The kitchen table. {instinct}: something to eat, or your gun on the table.', 'table'] : ['The kitchen table. {instinct}: something to eat.', 'eat']),
   cook: () => ['The cooker. {instinct}: something to eat.', 'eat'],
   window: () => ['The window, over the street. {instinct}: look out, from behind the curtain.', 'window'],
   desk: (state) => { const c = state.campaign, k = calendar(state.time.ms); return k.weekday < 5 && !c.worked[Math.floor(state.time.ms / DAY)] && k.hour < WORK.to ? [`Your desk, the in-tray. {instinct}: the day's cables, till six.`, 'work'] : ['Your desk: nothing in the tray that won\'t keep till tomorrow.', null]; },

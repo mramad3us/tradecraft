@@ -34,7 +34,7 @@ import { allowed, cqcOf, BREAK_CQC } from '../sim/cqc.js';
 import { deathPaper } from '../sim/game.js';
 import { shortName, statusLine } from '../sim/fight.js';
 import { weaponOf, bare } from '../sim/weapons.js';
-import { placed, fits } from '../sim/items.js';
+import { placed, fits, thingName } from '../sim/items.js';
 import { options as aidOptions, bodyLine } from '../sim/aid.js';
 import { calendar as calendarOf, DAY as DAY_MS } from '../sim/clock.js';
 import { bleedRate, bloodOf, bandOf, BLOOD } from '../sim/health.js';
@@ -55,7 +55,7 @@ import { CHOICES as TALK_CHOICES } from '../sim/talk.js';
 import { LESSONS, FARM, lessonOf, numberOf, nextLesson } from '../sim/tutorial/index.js';
 import { READ_S, WORD_S } from '../sim/tutorial/earpiece.js';
 import { HEARSAY } from '../sim/hale.js';
-import { plaque, place } from './plaque.js';
+import { plaque, place, bracket } from './plaque.js';
 import { options as shootOptions, targets as shootTargets, odds as shootOdds, gunsOf } from '../sim/shooting.js';
 import { said as gunSaid, armOf, modelOf as gunModel } from '../sim/firearms.js';
 import { openMind } from './mind.js';
@@ -101,6 +101,7 @@ export function createUI({ input, cb }) {
   const moves = el('div', { className: 'moves', hidden: true });    // in a fight: the three moves and their keys, while we choose
   const gunPanel = el('div', { className: 'moves gunpanel', hidden: true });   // shooting: the steps to choose from, time standing still (sim/shooting.js)
   const reticle = el('canvas', { className: 'plaque reticle', hidden: true });   // shooting: over the target picked, the part, the odds, how far
+  const frameT = el('canvas', { className: 'plaque reticle frame', hidden: true });   // shooting: brackets round the target, pale picked, red aimed at
   const ask = el('div', { className: 'ask', hidden: true });           // F's menu, over whoever's within reach
   const reach = el('div', { className: 'reach', hidden: true });       // a key over whoever's within reach
   const talkbox = el('div', { className: 'ask talkbox', hidden: true }); // a conversation, over them (time stands still)
@@ -111,7 +112,7 @@ export function createUI({ input, cb }) {
   const goal = el('canvas', { className: 'plaque goal', hidden: true });   // where you're going, when it's off the picture (src/ui/plaque.js)
   const prompt = el('div', { className: 'prompt', hidden: true });
   const veil = el('div', { className: 'bloodveil' });                 // (the blood lost: the world dims and reddens at the edges)
-  const hud = el('div', { id: 'hud' }, veil, signs, tags, feltTags, marker, bubble, intent, ...states, you, pointed, speech, reach, ask, talkbox, bout, moves, gunPanel, reticle, goal, prompt, watch, toasts, earpiece, keys, banner);
+  const hud = el('div', { id: 'hud' }, veil, signs, tags, feltTags, marker, bubble, intent, ...states, you, pointed, speech, reach, ask, talkbox, bout, moves, gunPanel, frameT, reticle, goal, prompt, watch, toasts, earpiece, keys, banner);
   const menu = el('div', { className: 'overlay', hidden: true });
   const log = el('div', { className: 'overlay', hidden: true });
   const paper = el('div', { className: 'overlay', hidden: true });     // a brief, a result
@@ -144,7 +145,7 @@ export function createUI({ input, cb }) {
     const k = (a) => `<kbd>${input.label(a)}</kbd>`;
     keys.classList.toggle('folded', !keysOpen);
     if (!keysOpen) { keys.innerHTML = '<kbd>?</kbd> keys'; return; }
-    keys.innerHTML = mode === 'shoot' ? `<kbd>1</kbd>–<kbd>9</kbd> a step (time stands still till you choose) · ${k('left')}${k('right')} the target · ${k('up')}${k('down')} head, body, legs · ${k('aim')} leave it · ${k('log')} log`
+    keys.innerHTML = mode === 'shoot' ? `<kbd>1</kbd>–<kbd>9</kbd> a step (time stands still till you choose) · Aim first, then fire · ${k('left')}${k('right')} what to aim at · ${k('up')}${k('down')} head, body, legs · ${k('aim')} leave it · ${k('log')} log`
       : mode === 'fight' ? `${k('hit')} hit · ${k('grapple')} grab · ${k('guard')} cover · ${k('run')} held: spend an edge · ${k('gun')} draw · ${k('interact')} your read · ${k('log')} log · ${k('pause')} pause`
       : mode === 'talk' ? `<kbd>1</kbd>–<kbd>4</kbd> say · ${k('menu')} leave it there`
       : `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look (tap: glance) · ${k('instinct')} instinct · ${k('use')} use what's at hand · ${k('interact')} people · ${k('aid')} first aid · ${k('inventory')} carry · ${k('gun')} draw · ${k('sheet')} sheet · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
@@ -225,7 +226,7 @@ export function createUI({ input, cb }) {
   // changes, so the HUD forces no layout of its own and leaves the page's untouched when nothing moves)
   const put = (node, text) => { if (node.textContent !== text) node.textContent = text; };
   // (a gun's step under way, as the panel and the instinct's line say it)
-  const DOING = { draw: 'Drawing', holster: 'Putting it away', safety: 'The safety', rack: 'Racking the slide', release: 'The slide release', dropMag: 'The magazine out', stowMag: 'The magazine out, into a pocket', insertMag: 'A magazine in', clear: 'Clearing the jam', check: 'Checking it', chamber1: 'A round in, by hand', aim: 'Coming round onto the target', fire: 'The recoil, the muzzle coming down' };
+  const DOING = { draw: 'Drawing', holster: 'Putting it away', safety: 'The safety', rack: 'Racking the slide', release: 'The slide release', dropMag: 'The magazine out', stowMag: 'The magazine out, into a pocket', insertMag: 'A magazine in', clear: 'Clearing the jam', check: 'Checking it', chamber1: 'A round in, by hand', aim: 'Aiming', decock: 'Decocking', fire: 'The recoil, the muzzle coming down' };
   /** view: { posOf(id) → [x, z] as drawn, camera { x, z } }, for the marker over a scenario's target. */
   function update(state, paused, view) {
     here = state.map?.city ?? null;
@@ -436,20 +437,23 @@ export function createUI({ input, cb }) {
     gunPanel.hidden = !sh;
     if (sh) {
       const opts = sh.phase === 'choose' ? shootOptions(state) : [];
-      const gkey = JSON.stringify([sh.phase, sh.doing?.what, opts.map(o => [o.key, o.label, o.ms, o.off])]);
+      const gkey = JSON.stringify([sh.phase, sh.doing?.what, sh.pick, opts.map(o => [o.key, o.label, o.ms, o.off])]);
       if (gunPanel.dataset.key !== gkey) {
         gunPanel.dataset.key = gkey;
         gunPanel.replaceChildren(...(sh.phase === 'choose'
-          ? opts.map((o, i) => el('div', { className: `move${o.off ? ' off' : ''}`, title: o.off ? `Pulled now: ${o.off}` : '' }, el('kbd', { textContent: String(i + 1) }), el('span', { textContent: `${o.label[0].toLowerCase()}${o.label.slice(1)} · ${(o.ms / 1000).toFixed(1)} s${o.off ? ` (${o.off})` : ''}` })))
+          ? opts.map((o, i) => el('div', { className: `move${o.off ? ' off' : ''}${o.at && o.at === sh.pick ? ' pick' : ''}`, title: o.off ? `Not now: ${o.off}` : '' }, el('kbd', { textContent: String(i + 1) }), el('span', { textContent: `${o.label[0].toLowerCase()}${o.label.slice(1)}${o.ms === null || o.ms === undefined ? '' : ` · ${(o.ms / 1000).toFixed(1)} s`}${o.off ? ` (${o.off})` : ''}` })))
           : [el('div', { className: 'move spend', textContent: `${DOING[sh.doing?.what] ?? 'on it'}…` })]));
       }
     }
-    const tS = sh && meS ? shootTargets(state, meS).find(o => o.key === sh.pick) : null;
-    reticle.hidden = !tS || !view?.camera;
+    const tS = sh && meS ? shootTargets(state, meS).find(o => o.key === (sh.menu === 'aim' ? sh.pick : sh.aim?.key ?? sh.pick)) : null;
+    reticle.hidden = frameT.hidden = !tS || !view?.camera;
     if (tS && view?.camera) {
       const at = tS.key.startsWith('item:') ? [tS.x, tS.z] : view.posOf(tS.key) ?? [tS.x, tS.z], o = shootOdds(state, meS, pS);
       const part = tS.key.startsWith('item:') ? (tS.name ?? 'it') : { head: 'head', torso: 'body', legs: 'legs' }[sh.part];
-      place(reticle, plaque({ text: `${part} ${o ? Math.round(o.p * 100) : 0}%`, sub: `${Math.round(tS.d)} m${sh.aim?.key === tS.key ? ' · aimed' : ''}`, style: 'tail', icon: 'aim' }), RES[0] / 2 + (at[0] - view.camera.x) * 16, RES[1] / 2 + (at[1] - view.camera.z) * 16 - 2.6 * 16, fw / RES[0]);
+      const aimed = sh.aim?.key === tS.key, item = tS.key.startsWith('item:');
+      place(reticle, plaque({ text: aimed ? `${part} ${o ? Math.round(o.p * 100) : 0}%` : part, sub: `${Math.round(tS.d)} m · ${aimed ? 'aimed' : 'aim first'}`, style: aimed ? 'tail' : 'seen', icon: 'aim' }), RES[0] / 2 + (at[0] - view.camera.x) * 16, RES[1] / 2 + (at[1] - view.camera.z) * 16 - 2.6 * 16, fw / RES[0]);
+      // (the brackets round them: what the gun's on, plain to see)
+      place(frameT, bracket(item ? { w: 10, h: 7, style: aimed ? 'tail' : 'seen' } : { w: 18, h: 34, style: aimed ? 'tail' : 'seen' }), RES[0] / 2 + (at[0] - view.camera.x) * 16, RES[1] / 2 + (at[1] - view.camera.z) * 16 + 3, fw / RES[0]);
     }
     // The instinct: always a line, its tone in its border; {key} in the text shows as that key.
     // What's at hand (the engine's: sim/acts.js affordance(), on R) ends the line, whatever it offers on T.
@@ -648,7 +652,7 @@ export function createUI({ input, cb }) {
           el('p', { className: 'note', textContent: `The level is the training you had (a course, advanced…); each • is practice since, ${p.bg ? 'each ◆ what your background brought, ' : ''}a point each.` }),
           (() => { const nw = needsWords(p, state.time.ms); return el('p', { className: 'langs', textContent: `${nw.fed[0].toUpperCase()}${nw.fed.slice(1)} · ${nw.stress}${nw.hungry || nw.edgy ? ' (it costs: see a roll\'s modifiers)' : ''} · ${price(state, cashOf(p))} on you` }); })(),
           el('p', { className: 'langs', textContent: Object.entries(p.langs ?? {}).map(([c, l]) => `${LANG_NAME[c] ?? c}: ${l}`).join(' · ') }),
-          el('p', { className: 'langs', textContent: `Carrying: ${[p.hand && `${weaponOf(p.hand).name}, in hand`, ...(p.items ?? []).map(k => weaponOf(k)?.name ?? k)].filter(Boolean).join('; ') || 'nothing to fight with'}. (${input.label('inventory')})` })),
+          el('p', { className: 'langs', textContent: `Carrying: ${[p.hand && `${thingName(p.hand)}, in hand`, ...(p.items ?? []).map(k => thingName(k))].filter(Boolean).join('; ') || 'nothing to fight with'}. (${input.label('inventory')})` })),
         el('div', { className: 'body' },
           el('div', { className: 'figure' }, part('head'), part('armR'), part('torso'), part('armL'), part('legR'), part('legL')),
           el('ul', {}, Object.keys(PARTS).map(k => el('li', { className: `${stateOf(p, k)}${injuriesOn(p, k) ? ' injured' : ''}` }, el('span', { textContent: PARTS[k].name }), el('span', { textContent: stateText(p, k) }),

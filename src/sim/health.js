@@ -217,6 +217,23 @@ export const injuriesOn = (p, part, ms = null) => [...(p.injuries ?? []).filter(
 export const canGrapple = (p) => ARMS.every(k => stateOf(p, k) !== 'out' && !p.tourniquets?.[k]);
 export const canStand = (p) => !p.dead && !thermalDown(p) && bloodOf(p) >= BLOOD.collapse && LEGS.some(k => stateOf(p, k) !== 'out') && stateOf(p, 'torso') !== 'out' && stateOf(p, 'head') !== 'out';
 
+// How well someone moves, wounded (the user, 2026-11-03: "wounds should slow everyone down especially gunshot
+// wounds"): a factor on the walk and the run, each leg's and the torso's state, the blood lost, a fresh bullet
+// wound's pain (GUNSHOT_DAYS old at most); under RUN_BELOW, no running at all. The player's feet (sim/game.js)
+// and everyone else's (sim/agents.js) both go by it.
+export const MOBILITY = { legs: { hurt: 0.85, wounded: 0.55, out: 0.3 }, torso: { hurt: 0.9, wounded: 0.65 }, blood: { pale: 0.85, shock: 0.6 }, gunshot: 0.8 };
+export const RUN_BELOW = 0.7, GUNSHOT_DAYS = 3;
+export function mobility(p, ms = 0) {
+  if (!p) return 1;
+  let k = 1;
+  for (const leg of ['legL', 'legR']) k *= MOBILITY.legs[stateOf(p, leg)] ?? 1;
+  k *= MOBILITY.torso[stateOf(p, 'torso')] ?? 1;
+  k *= MOBILITY.blood[bandOf(p)] ?? 1;
+  if ((p.injuries ?? []).some(i => i.gunshot && ms - i.ms < GUNSHOT_DAYS * DAY)) k *= MOBILITY.gunshot;
+  return k;
+}
+export const canRun = (p, ms = 0) => mobility(p, ms) >= RUN_BELOW && bandOf(p) !== 'shock';
+
 /** Dead, at game time ms, of `why` ('a blow to the head', …). */
 export function kill(p, ms, why) { p.dead ??= { ms, why }; }
 export const isDead = (p) => !!p?.dead;

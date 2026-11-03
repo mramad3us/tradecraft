@@ -549,6 +549,7 @@ export function createView({ parent, bus, month = () => 11 }) {
       drop: lit([0.7, 0.76, 0.86]), flake: lit([0.95, 0.96, 1], 0.4), grit: lit([0.78, 0.64, 0.42]),
       haze: hk ? { k: hk, far, eye: [fx, fz], col: dusk(w.kind === 'dust' ? [0.78, 0.64, 0.44] : w.kind === 'fog' ? [0.72, 0.74, 0.77] : [0.62, 0.65, 0.7], w.kind === 'dust' ? [0.2, 0.16, 0.12] : [0.13, 0.15, 0.21]) } : null,
       halos,
+      roof: opened?.units?.[0] ? [opened.units[0].x0 - 0.25, opened.units[0].z0 - 0.6, opened.units[0].x1 + 0.25, opened.units[0].z1] : null,   // (the shop you're in: its roof keeps the rain off, its walls with it)
     });
   }
 

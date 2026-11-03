@@ -4,6 +4,33 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.11 (2026-11-03)
+
+- **Fixed: picking up a dropped magazine broke the game.** Anything lying about is now named the same way everywhere.
+- **No gun at the start of a campaign.** Debug mode no longer puts a pistol on you in a campaign. The free walk, the sandbox, now always starts you with one: a SIG P229, a spare magazine and a box of 9 mm. Anywhere else, it takes debug mode and `?gun` in the address. A save made before this release loses the pistol, magazine and rounds that came from debug mode or the old issue. The "box of unknowns" was those rounds, shown without their calibre: that's fixed too.
+- **Aim, then fire.** Fire waits on an aim. Aim… asks what at: a list of the seven people and things most in front of you, each with its distance, its side (ahead, 30° right, behind you) and how long the aim takes. The arrows move the brackets along the list, and a digit or Enter aims. On screen, brackets frame what's picked (pale) or aimed at (red), with the part, the odds once aimed, and the distance.
+- **The safety, the selector, the decocker.** They're near instant in skilled hands: an expert's safety takes 0.13 s, a Handler's 0.6, the untrained 1 s. The SIG P229 and P226 have no safety, as the real ones don't; instead they're carried decocked. The slide cocks the hammer, and Decock lets it down to put it away. The first pull is double-action (a touch slower and less sure), and a fumble with the hammer down is less likely to fire. A gun with no safety says so.
+- **Muzzle discipline.** A gun that goes off in a fumbling hand was pointed somewhere safe, the ground or the floor, if the hand was trained: never untrained, 29% at Weapon handling 10, 71% at 20, 97% from 28.
+- **The kitchen table.** With a gun, magazines or rounds on you, the flat's kitchen table offers the gun's work:
+  - unload: the magazine out, then the chamber cleared;
+  - load: a magazine in, a round chambered, made safe;
+  - strip and clean (20 min);
+  - fill a magazine from the box, or empty one into it;
+  - recondition a magazine: its spring and lips (10 min).
+
+  Each is a Weapon handling roll, and fumbles cost something. Untrained hands fire a round into the table now and then (the building hears it), lose rounds under the furniture, put a gun back together wrong, or bend a magazine's lip so it feeds badly. Over 400 tries each, an expert did none of it. Worn magazines jam more.
+- **The embassy's metal detector.** A gun, a magazine or rounds on you ring the arch in the lobby, whether you walk through it or come in for the day's work. The security office takes them, the chief gets a report, and your cover standing drops 25. A knife goes through the X-ray tray and comes back.
+- **Shot people stay down.** Someone who can't stand now stays down, whatever the clock. Before, the shot got up after a minute.
+  - Hit in the body: down for 10 to 40 minutes. A leg: 1 to 4. The trained get up four times sooner.
+  - A chest wound also bleeds inside, which first aid can't stop.
+  - A head shot kills 60% of the time. The rest are grazes (dazed, bleeding) or a bullet in the skull: out cold and bleeding inside, dead within the hour without a hospital.
+- **Wounds slow everyone, you included.** Hurt legs, a hurt torso, blood lost and a fresh bullet wound slow the walk, and badly hurt or in shock, nobody runs.
+- **Fleeing people run.** Before, they walked very fast.
+- **Blood washes away.** Rain clears it from the street, a downpour in under an hour. In dry weather it fades over days. Blood spilt indoors stays.
+- **No rain inside a shop.** Nothing falls on what's under the roof of the shop you're in.
+- **First aid:** two wounds of the same kind are told apart ("the first gunshot wound in the chest", "the second"). A bleed inside says nothing can be done for it there.
+- Tests: `tests/gunwork.test.mjs` (the table's jobs and their fumbles by hand, the decocker and the thumb's speed, muzzle discipline, the arch, the wounded staying down, head shots).
+
 ## v0.1.10 (2026-11-03)
 
 - **The reflex.** When you see something coming, time stops and a card asks what you do about it. Nothing is always one of the choices, and closing the card is nothing. It comes up three ways:

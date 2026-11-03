@@ -47,7 +47,7 @@ export default [
       const draw = take(g, 'draw'), safety = take(g, 'safety');
       assert(p.hand === id && !armOf(p, id).safety, `drawn and the safety off: ${said(p, id)}`);
       const T = targets(g, me).find(o => o.key === g.shoot.pick), before = odds(g, me, p).p;
-      const aim = take(g, 'aim');
+      const aim = take(g, `aim:${g.shoot.pick}`);
       assert(Math.abs(aim - aimMs(p, { ...me, head: me.head }, T.x, T.z)) < 1500 && g.shoot.aim, 'aimed, in its time');
       for (let i = 0; i < 20; i++) step(g, {}, null);              // (still choosing: the aim's held as long as you like? no: time stands still)
       const fire = take(g, 'fire');
@@ -89,13 +89,13 @@ export default [
           for (let i = 0; i < 1000; i++) if (check(rng, { skill: 'weapons', value: skill(p, 'weapons'), dc: o.dc, mods: o.mods }).ok) hits++;
           return hits / 1000;
         };
-        rows.push({ who, point: [3, 7, 15].map(d => at(d, null)), aimed: [3, 7, 15, 25, 40].map(d => at(d, 1.5)) });
+        rows.push({ who, point: [3, 7, 15].map(d => at(d, 0)), aimed: [3, 7, 15, 25, 40].map(d => at(d, 1.5)) });
       }
       for (const r of rows) for (let i = 1; i < r.aimed.length; i++) assert(r.aimed[i] <= r.aimed[i - 1] + 0.03, `${r.who}: further, harder`);
-      assert(rows[0].aimed[1] > rows[0].point[1] + 0.1, 'an aim held beats a point shot');
+      assert(rows[0].aimed[1] > rows[0].point[1] + 0.1, 'an aim held beats a shot fired the moment it settles');
       assert(rows[2].aimed[3] > rows[0].aimed[3] + 0.3, 'a master hits at 25 m far more often than a Handler');
       assert(rows[1].aimed[4] < 0.4 && rows[0].aimed[4] < 0.1, `at 40 m a pistol's hard for all but a master (an expert ${fmt(rows[1].aimed[4] * 100, 0)}%)`);
-      console.log(`      hit rates (body, daylight, standing): ${rows.map(r => `${r.who}: point shot 3/7/15 m ${r.point.map(v => fmt(v * 100, 0)).join('/')}%, aimed 1.5 s 3/7/15/25/40 m ${r.aimed.map(v => fmt(v * 100, 0)).join('/')}%`).join('; ')}`);
+      console.log(`      hit rates (body, daylight, standing): ${rows.map(r => `${r.who}: fired as the aim settles 3/7/15 m ${r.point.map(v => fmt(v * 100, 0)).join('/')}%, aimed 1.5 s 3/7/15/25/40 m ${r.aimed.map(v => fmt(v * 100, 0)).join('/')}%`).join('; ')}`);
     },
   },
   {
@@ -135,6 +135,7 @@ export default [
         w.g.shoot.gun = id; w.g.shoot.pick = t.key;
         const gun = armOf(w.p, id);
         if (gun.mode) gun.mode = 'auto';
+        take(w.g, `aim:${t.key}`);
         const before = armOf(w.p, gun.mag)?.n;
         take(w.g, 'fire');
         // (who'd run at the sound alone, on a street of its own: those who see a gun in your hand run too, sim/armed.js)

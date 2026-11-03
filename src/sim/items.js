@@ -83,7 +83,7 @@ export function placed(p, extra = []) {
   }
   return {
     spaces,
-    out: list.map(({ kind, n, id, sp }) => ({ kind, n, id, at: sp?.id ?? null, slot: sp ? spaces.indexOf(sp) : -1, label: sp?.label ?? null,
+    out: list.map(({ kind, n, id, cal, sp }) => ({ kind, n, id, cal, at: sp?.id ?? null, slot: sp ? spaces.indexOf(sp) : -1, label: sp?.label ?? null,
       shows: !!sp && (sp.sling || (sp.belt ? !COVERS.has(top) : sp.used > BULGE * sp.l + 1e-9)), how: sp ? (sp.sling ? 'slung on your shoulder' : sp.belt ? 'at your belt' : 'a bulge in your pocket') : null })),
   };
 }
@@ -176,6 +176,9 @@ export function pickUp(state, p, a, it) {
   return off;
 }
 
+/** What a thing is called, lying about or in a hand ('a penknife', 'a Makarov PM', 'a PM magazine', '12 9×18 mm rounds'): one name, everywhere. */
+export const thingName = (kind, n = null) => weaponOf(kind)?.name ?? (isBox(kind) ? boxWord(boxCal(kind), n) : armName(kind)) ?? 'it';
+
 /** The hand's weapon put away where it's carried: true if it had somewhere to go. */
 export function stow(p) {
   const w = weaponOf(p.hand);
@@ -218,15 +221,15 @@ export function use(state, bus, a, cmd) {
   const p = state.people[a.who], [verb, kind, arg] = cmd.split(':'), was = p.hand;
   if (verb === 'draw') {
     const now = draw(state, p, a), down = was && was !== now && !(p.items ?? []).includes(was);   // (held only: it went on the ground)
-    const put = was && (down ? `You put ${weaponOf(was).name} down: it won't go in a pocket.` : `You put ${weaponOf(was).name} away.`);
-    if (now !== was) say(state, bus, { kind: 'note', text: now ? `${put && down ? `${put} ` : ''}You take out ${weaponOf(now).name}.` : put });
+    const put = was && (down ? `You put ${thingName(was)} down: it won't go in a pocket.` : `You put ${thingName(was)} away.`);
+    if (now !== was) say(state, bus, { kind: 'note', text: now ? `${put && down ? `${put} ` : ''}You take out ${thingName(now)}.` : put });
   } else if (verb === 'wield' && (p.items ?? []).includes(kind)) {
     if (was && !stow(p)) drop(state, p, a);
     p.items.splice(p.items.indexOf(kind), 1);
     p.hand = kind;
-    say(state, bus, { kind: 'note', text: `You take out ${weaponOf(kind).name}.` });
+    say(state, bus, { kind: 'note', text: `You take out ${thingName(kind)}.` });
   } else if (verb === 'stow' && was) {
-    say(state, bus, { kind: 'note', text: stow(p) ? `You put ${weaponOf(was).name} away.` : `Nowhere to put ${weaponOf(was).name}.` });
+    say(state, bus, { kind: 'note', text: stow(p) ? `You put ${thingName(was)} away.` : `Nowhere to put ${thingName(was)}.` });
   } else if (verb === 'drop' && isBox(kind)) {                      // (a box of loose rounds, the lot of that calibre, on the ground: 'drop:box-9x19')
     const cal = boxCal(kind), n = p.rounds?.[cal] ?? 0;
     if (!n) return;

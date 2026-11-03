@@ -37,7 +37,7 @@ import { populate, recycle, think, walk, facing, isPasserby, noticeAgent } from 
 import { look, headOf, faceOf, GLASS_MAX_DEG } from './perception.js';
 import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } from './agents.js';
 import { drift, asOfficer, uniformed } from './people.js';
-import { heal, bleeding, bloodTick, bandOf, canStand, kill, BLOOD, COME_ROUND_S } from './health.js';
+import { heal, bleeding, bloodTick, bandOf, canStand, canRun, mobility, kill, BLOOD, COME_ROUND_S } from './health.js';
 import { PRESSURE_K, treat } from './aid.js';
 import { atKerb, destinations, ride, cabFor, hailedBy, board, rideTick, chaseTick, WALK_OFF_M } from './taxi.js';
 import { doWay, insideTick, withinTick, LIVED } from './shops.js';
@@ -57,7 +57,7 @@ import { needsTick, strain } from './needs.js';
 import { weatherAt, footing, weatherTick, parseWeather, SLIP_S, FALLS } from './weather.js';
 import { live as thermalLive, dayBand, offSeason, stageOf } from './thermal.js';
 import { shortName } from './fight.js';
-import { drips } from './blood.js';
+import { drips, wash } from './blood.js';
 import { glassAhead, affordance, act as doAct } from './acts.js';
 import * as fight from './fight.js';
 import * as shooting from './shooting.js';
@@ -94,7 +94,7 @@ export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = 
   const state = {
     game: 'tradecraft', schema: SAVE_SCHEMA, version, seed, rng: seedRng(seed), tick: 0, time: { ms: 0 }, autoplay,
     scenario: { kind: scenario }, country: 'ru', legend: null, player: null, focus: null,
-    people: {}, map: null, actors: [], nextActor: 1, heat: {}, log: [], flags: {}, mind: { seen: {} },
+    people: {}, map: null, actors: [], nextActor: 1, heat: {}, log: [], flags: { gunsRare: true }, mind: { seen: {} },
   };
   const pin = parseWeather(weather);
   if (pin) state.weather = pin;
@@ -268,10 +268,10 @@ export function step(state, input = {}, bus) {
       } else if (n > 0.01) { me.head = Math.atan2(mz, mx); me.face = faceOf(me.head); }
     } else {
       if (n > 1) { mx /= n; mz /= n; }
-      const run = input.run && bandOf(mine) !== 'shock';             // (in shock from the blood lost, no running)
+      const run = input.run && canRun(mine, state.time.ms);          // (in shock from the blood lost, or too hurt: no running, sim/health.js)
       const foot = footing(weatherAt(state));                        // (slower going in snow: sim/weather.js)
       const slow = stageOf(mine)?.slow ?? 1;                         // (hypothermia, heat exhaustion: slower: sim/thermal.js)
-      const speed = (run ? RUN_MS * foot.run : (input.slow ? STROLL_MS : WALK_MS) * foot.walk) * slow;
+      const speed = (run ? RUN_MS * foot.run : (input.slow ? STROLL_MS : WALK_MS) * foot.walk) * slow * mobility(mine, state.time.ms);   // (wounded: slower, sim/health.js)
       me.vx = mx * speed; me.vz = mz * speed;
       me.gait = n > 0.01 ? (run ? 'run' : 'walk') : 'idle';
       if (n > 0.01) { me.head = Math.atan2(mz, mx); me.face = facing(me.vx, me.vz, me.face); }
@@ -327,6 +327,7 @@ export function step(state, input = {}, bus) {
   // 6. The map and the crowd, once a second; and whoever bleeds, their blood (sim/health.js).
   if (state.tick % TICKS_PER_S === 0) {
     drips(state);
+    if (state.tick % (60 * TICKS_PER_S) === 0) wash(state, weatherAt(state), 1);   // (a minute's weather on the street's blood: sim/blood.js)
     for (const a of state.actors) if (a.who) bloodBeat(state, bus, a, 1);
     notice(state, bus, me);                                         // (blood on you, seen: a face remembered: sim/notice.js)
     if (me && !me.ai) senseTick(state, bus, me, scenario);          // (eyes on you, whoever you're after, felt: sim/sense.js)
@@ -392,6 +393,7 @@ function busy(me) {
 /** Let time pass without ticking (ms ≥ 0): the clock jumps, people's gauges drift and bruises mend, the crowd follows the hour. */
 export function skip(state, bus, ms) {
   if (!(ms > 0)) return;
+  wash(state, weatherAt(state), ms / 60000);                        // (the hours' weather on the street's blood, as it is now: sim/blood.js)
   // (whoever's bleeding bleeds through it, a minute at a time)
   for (const a of state.actors) {
     const p = a.who && state.people[a.who];

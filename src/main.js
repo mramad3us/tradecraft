@@ -152,7 +152,7 @@ function launch(s, { hour = null } = {}) {
   stop();
   state = s;
   if (!s.autoplay) s.$reflexes = true;                              // (the played game's: time stops for a moment seen coming, sim/reflex.js)
-  if (settings.debug) armDebug(s);                                 // (debug mode: the station's pistol on you, to try the guns: sim/firearms.js)
+  if ((s.scenario.kind === 'walk' && !s.tutor && !s.campaign) || (settings.debug && q.has('gun') && !s.campaign)) armDebug(s);   // (the free walk, the sandbox: a pistol on you to try the guns (the user, 2026-11-03: "give us a gun in free walk"); elsewhere debug mode and ?gun; never in a campaign, where guns are rare: sim/firearms.js)
   lastPhoto = null; snapWanted = null;
   bus = createBus();
   view = createView({ parent: ui.frame, bus, month: () => calendar(s.time.ms).month });   // (the season: the trees' leaves, the hedges', the fallen ones)
@@ -167,6 +167,7 @@ function launch(s, { hour = null } = {}) {
   bus.on('papers', (list) => showPapers(list));
   bus.on('call', (id) => setTimeout(() => openCall(s, id), 0));    // (the flat's telephone: Hale)
   bus.on('desk-open', () => setTimeout(() => ui.openMind(s, (cmd) => acts.push(`desk:${cmd}`), 'ahead'), 0));   // (the chief's office at the embassy: what's on, the mind's first leaf)
+  bus.on('table', (list) => setTimeout(() => ui.openChoices('TABLE', 'THE KITCHEN TABLE', list, (key) => acts.push(`desk:table:${key}`)), 0));   // (the flat's kitchen table: a meal, or a gun's work: sim/gunwork.js)
   bus.on('wardrobe', (list) => setTimeout(() => list.length ? ui.openChoices('WARDROBE', 'WHAT TO WEAR, WHAT TO KEEP', list, (key) => acts.push(`desk:dress:${key}`)) : ui.closeOverlays(), 0));   // (the flat's wardrobe: sim/clothes.js)
   bus.on('basin', (list) => setTimeout(() => ui.openChoices('BASIN', 'WASH, OR THE CABINET', list, (key) => acts.push(`desk:basin:${key}`)), 0));   // (the flat's basin, and the cabinet over it: sim/clothes.js)
   bus.on('reading', (c) => setTimeout(() => { if (state === s) ui.openChoices('BOOK', c.title, c.list, (key) => acts.push(`read:${key}`)); }, 0));   // (a book, ten minutes at a time: sim/reading.js)
@@ -342,6 +343,7 @@ addEventListener('keydown', (e) => {                               // (shooting'
   if (!running || ui.overlay() || paused || e.repeat || state?.shoot?.phase !== 'choose') return;
   const m = /^(?:Digit|Numpad)([1-9])$/.exec(e.code), o = m && shootOptions(state)[Number(m[1]) - 1];
   if (o) { e.preventDefault(); acts.push(`shoot:${o.key}`); return; }
+  if ((e.code === 'Enter' || e.code === 'NumpadEnter') && state.shoot.menu === 'aim' && state.shoot.pick) { e.preventDefault(); acts.push(`shoot:aim:${state.shoot.pick}`); return; }   // (the aim list: Enter, the one the brackets are round)
   // (the move keys, by where they sit: left and right the target across the picture, up and down the head, the body, the legs)
   const mv = { KeyA: 'pick:-1', ArrowLeft: 'pick:-1', KeyD: 'pick:1', ArrowRight: 'pick:1', KeyW: 'part:-1', ArrowUp: 'part:-1', KeyS: 'part:1', ArrowDown: 'part:1' }[e.code];
   if (mv) { e.preventDefault(); acts.push(`shoot:${mv}`); }

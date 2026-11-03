@@ -80,6 +80,27 @@ export function plaque({ text, sub = null, style = 'way', icon = null, notch = t
   return out;
 }
 
+/**
+ * Corner brackets round what's picked (shooting's target: src/ui/ui.js), w × h pixels, in a style's colours: four
+ * corners, a pixel of ink round each so they show on snow and on night alike. Placed as a plaque is, its tip the
+ * middle of its foot (place(), anchor 'tip': at what it frames' feet).
+ */
+export function bracket({ w, h, style = 'tail' }) {
+  const key = `bracket|${w}|${h}|${style}`;
+  if (kept.has(key)) return kept.get(key);
+  const S = STYLES[style] ?? STYLES.tail, cv = document.createElement('canvas'), L = Math.max(3, Math.round(Math.min(w, h) / 4));
+  cv.width = w + 2; cv.height = h + 2;
+  const g = cv.getContext('2d'), px = (x, y, ww, hh, c) => { g.fillStyle = hex(c); g.fillRect(x, y, ww, hh); };
+  for (const [cx, cy, sx, sy] of [[0, 0, 1, 1], [w + 1, 0, -1, 1], [0, h + 1, 1, -1], [w + 1, h + 1, -1, -1]]) {
+    const x0 = sx > 0 ? cx : cx - L, y0 = sy > 0 ? cy : cy - L;
+    px(sx > 0 ? x0 : x0 + 1, sy > 0 ? cy : cy - 2, L + 1, 3, INK); px(sx > 0 ? cx : cx - 2, sy > 0 ? y0 : y0 + 1, 3, L + 1, INK);   // (the ink round it)
+    px(sx > 0 ? cx + 1 : cx - L, cy + (sy > 0 ? 1 : -1), L, 1, S.hi); px(cx + (sx > 0 ? 1 : -1), sy > 0 ? cy + 1 : cy - L, 1, L, S.hi);
+  }
+  const out = { canvas: cv, w: cv.width, h: cv.height, tip: Math.floor(cv.width / 2), words: 'target' };
+  kept.set(key, out);
+  return out;
+}
+
 /** A colour part of the way to another. */
 function mix(a, b, t) {
   const ch = (c, s) => (c >> s) & 255, m = (s) => Math.round(ch(a, s) + (ch(b, s) - ch(a, s)) * t);

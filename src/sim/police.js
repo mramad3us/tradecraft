@@ -34,7 +34,7 @@ import { opposed } from './checks.js';
 import { skill } from './skills.js';
 import { addHeat, heat } from './heat.js';
 import { say } from './log.js';
-import { placed } from './items.js';
+import { placed, thingName } from './items.js';
 import { weaponOf } from './weapons.js';
 import { HOUR } from './clock.js';
 import { policeOf } from './countries/index.js';
@@ -154,7 +154,7 @@ function search(state, bus, them, end, why = null) {
   if (!found.length) return end('Hands down your coat, your pockets turned out: keys, a phone, coins. Nothing. "On your way." Your name\'s in the notebook.', PAPERS_HEAT);
   // (taken; a diplomat isn't arrested: driven to the embassy's gate)
   for (const k of found) { if (p.hand === k) delete p.hand; else { const i = (p.items ?? []).indexOf(k); if (i >= 0) p.items.splice(i, 1); } }
-  const words = found.map(k => weaponOf(k).name);
+  const words = found.map(k => thingName(k));
   return end(`They find ${words.length > 1 ? `${words.slice(0, -1).join(', ')} and ${words.at(-1)}` : words[0]}, and take ${found.length > 1 ? 'them' : 'it'}. Your name, a long look, a radio call: a diplomat isn't arrested, only reported. The ambassador will hear of it before the day's out.`, FOUND_HEAT, FOUND_COVER);
 }
 

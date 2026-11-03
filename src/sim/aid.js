@@ -77,23 +77,35 @@ const depth = (i) => (i.artery ? 'artery' : i.deep ? 'deep' : 'shallow');
 const rigid = (p) => [p.hand, ...(p.items ?? [])].find(k => weaponOf(k)?.splint) ?? null;
 const oneHanded = (p) => ['armL', 'armR'].some(k => ['wounded', 'out'].includes(stateOf(p, k)) || p.tourniquets?.[k]);
 
+const ORD = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'];
+/** A wound's name, told apart from its twins (two gunshot wounds in the chest: 'the first …', 'the second …'). */
+export function woundName(p, n) {
+  const all = p.injuries ?? [], i = all[n];
+  if (!i) return 'it';
+  const twins = all.map((j, k) => [j, k]).filter(([j]) => j.name === i.name);
+  if (twins.length < 2) return i.name;
+  const k = twins.findIndex(([, m]) => m === n);
+  return i.name.replace(/^(a|an) /, `the ${ORD[k] ?? `${k + 1}th`} `);
+}
+
 /** What can be done for patient (a sheet) by medic (a sheet), with what the medic carries (sim/medicine.js): [{ key, label, ok, why }] (key: 'method:i', i the injury's index, or the limb, or the part). */
 export function options(state, medic, patient) {
   const ms = state.time.ms, out = [], has = (k) => kitOf(medic, k), left = (k) => supplyWord(k, has(k));
-  const wounds = (patient.injuries ?? []).map((i, n) => [i, n]);
+  const wounds = (patient.injuries ?? []).map((i, n) => [i, n]).filter(([i]) => !i.internal), nm = (i, n) => woundName(patient, n);   // (bleeding inside: past what hands can do, below)
+  for (const i of (patient.injuries ?? []).filter(j => j.internal && j.bleed > ms)) out.push({ key: 'none', label: `${i.name.charAt(0).toUpperCase() + i.name.slice(1)}: bleeding inside`, ok: false, why: 'nothing hands can do for it: a hospital, and fast' });
   // (what bleeds, first)
   for (const [i, n] of wounds.filter(([i]) => i.bleed > ms)) {
-    out.push({ key: `pressure:${n}`, label: `Press on ${i.name}`, ok: true });
-    if (!i.dressed || i.artery) out.push({ key: `dress:${n}`, label: `Bandage ${i.name}`, ok: true, why: has('bandage') ? left('bandage') : `a strip of your shirt (${IMPROVISED} to the check, and it won't keep it clean${i.tries ? `; ${RETRY_MOD * i.tries} for the tries before` : ''})` });
-    if (i.part !== 'head' && i.part !== 'torso' && (i.artery || i.deep) && !patient.tourniquets?.[i.part]) out.push({ key: `tourniquet:${n}`, label: `A tourniquet above ${i.name}`, ok: true, why: `${has('tourniquet') ? left('tourniquet') : `your belt (${IMPROVISED})`}; the limb's no use while it's on` });
+    out.push({ key: `pressure:${n}`, label: `Press on ${nm(i, n)}`, ok: true });
+    if (!i.dressed || i.artery) out.push({ key: `dress:${n}`, label: `Bandage ${nm(i, n)}`, ok: true, why: has('bandage') ? left('bandage') : `a strip of your shirt (${IMPROVISED} to the check, and it won't keep it clean${i.tries ? `; ${RETRY_MOD * i.tries} for the tries before` : ''})` });
+    if (i.part !== 'head' && i.part !== 'torso' && (i.artery || i.deep) && !patient.tourniquets?.[i.part]) out.push({ key: `tourniquet:${n}`, label: `A tourniquet above ${nm(i, n)}`, ok: true, why: `${has('tourniquet') ? left('tourniquet') : `your belt (${IMPROVISED})`}; the limb's no use while it's on` });
   }
   // (open wounds: cleaned, stitched, kept bandaged)
   for (const [i, n] of wounds.filter(([i]) => isOpen(i))) {
     const deep = i.kind === 'cut' && (i.deep || i.artery);
-    if (!i.clean || i.infection) out.push({ key: `clean:${n}`, label: `Clean ${i.name}${i.infection ? ', infected as it is' : ''}`, ok: has('antiseptic') > 0, why: has('antiseptic') ? `${left('antiseptic')}: it stings` : 'antiseptic, from a chemist\'s' });
-    if (deep && !i.stitched) out.push({ key: `stitch:${n}`, label: i.artery ? `Tie off the artery and stitch ${i.name}` : `Stitch ${i.name}`, ok: has('sutures') > 0, why: has('sutures') ? `${left('sutures')}${i.clean ? '' : '; clean it first, or the dirt\'s sewn in'}` : 'a suture kit, from a chemist\'s' });
+    if (!i.clean || i.infection) out.push({ key: `clean:${n}`, label: `Clean ${nm(i, n)}${i.infection ? ', infected as it is' : ''}`, ok: has('antiseptic') > 0, why: has('antiseptic') ? `${left('antiseptic')}: it stings` : 'antiseptic, from a chemist\'s' });
+    if (deep && !i.stitched) out.push({ key: `stitch:${n}`, label: i.artery ? `Tie off the artery and stitch ${nm(i, n)}` : `Stitch ${nm(i, n)}`, ok: has('sutures') > 0, why: has('sutures') ? `${left('sutures')}${i.clean ? '' : '; clean it first, or the dirt\'s sewn in'}` : 'a suture kit, from a chemist\'s' });
     const b = bandageOf(i, ms);
-    if (!(i.bleed > ms) && b !== 'fresh') out.push({ key: `bandage:${n}`, label: `${b ? 'Change the dressing on' : 'Bandage'} ${i.name}`, ok: has('bandage') > 0, why: has('bandage') ? `${left('bandage')}${b ? `: ${i.rag ? 'a strip of shirt isn\'t clean' : 'a day old, and dirty'}` : ': it keeps it clean'}` : 'a bandage, from a chemist\'s or a grocer\'s' });
+    if (!(i.bleed > ms) && b !== 'fresh') out.push({ key: `bandage:${n}`, label: `${b ? 'Change the dressing on' : 'Bandage'} ${nm(i, n)}`, ok: has('bandage') > 0, why: has('bandage') ? `${left('bandage')}${b ? `: ${i.rag ? 'a strip of shirt isn\'t clean' : 'a day old, and dirty'}` : ': it keeps it clean'}` : 'a bandage, from a chemist\'s or a grocer\'s' });
   }
   // (a tourniquet on: loosened, what's under it)
   for (const k of Object.keys(patient.tourniquets ?? {})) {

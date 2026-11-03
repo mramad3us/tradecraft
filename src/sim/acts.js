@@ -44,7 +44,7 @@ import { GLASS_REACH_M, intoGlass } from './perception.js';
 export const CAR_PANE_M = 1.4, CAR_HALF_W = 0.9;                   // (a parked car's windows either side of its middle; its side, off its middle)
 export const KERB_SIDE_M = 1.2;                                    // (this close to the kerb, a parked car's window before a shop's)
 import { stopNear, nextBus, linesOf, STOP_Z } from './buses.js';
-import { itemNear, pickUp } from './items.js';
+import { itemNear, pickUp, thingName } from './items.js';
 import { atKerb, taxiComing, hail } from './taxi.js';
 import { stationNear, metroName, metroThe, stationName, destinations as metroWays } from './metro.js';
 import { spotIn, ways, doWay } from './shops.js';
@@ -193,7 +193,7 @@ export function affordance(state, me) {
   if (book) return book;
   if (!me || me.ai || me.busy || me.inside || me.glass || me.gait === 'sit') return null;
   const it = itemNear(state, me);
-  if (it) return { act: 'pickup', text: ` {use} pick up ${weaponOf(it.kind)?.name ?? (isBox(it.kind) ? boxWord(boxCal(it.kind), it.n) : armName(it.kind)) ?? 'it'}.` };
+  if (it) return { act: 'pickup', text: ` {use} pick up ${thingName(it.kind, it.n)}.` };
   if (state.map.kind !== 'street' || !sectionAt(state, me.x)) return null;
   // (at the kerb: the zebra if it's there, else a taxi; the window behind you is for the pavement)
   const kerb = atKerb(state, me), cross = crossingNear(state, me, 4);
@@ -234,9 +234,9 @@ function act1(state, bus, me, what, { toward = Math.cos(me.head ?? 0) >= 0 ? -1 
   if (what === 'pickup') {
     const it = itemNear(state, me), p = state.people[me.who];
     if (!it || !p) return;
-    const off = pickUp(state, p, me, it), w = weaponOf(it.kind);
+    const off = pickUp(state, p, me, it);
     me.busy = { what: 'pickup', steps: [['wait', Math.round(600 / TICK_MS), me.face, 'crouch']], wait: 0 };   // (stooped for it, 0.6 s)
-    say(state, bus, { kind: 'note', text: `You pick up ${w.name}.${off ? ` ${cap(weaponOf(off.kind).name)} goes down where you stood: nowhere to put it.` : ''}` });
+    say(state, bus, { kind: 'note', text: `You pick up ${thingName(it.kind, it.n)}.${off ? ` ${cap(thingName(off.kind, off.n))} goes down where you stood: nowhere to put it.` : ''}` });
     return;
   }
   if (what === 'kiosk' || what === 'phone') {

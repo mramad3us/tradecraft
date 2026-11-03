@@ -245,6 +245,7 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
       wxOn: { value: 0 }, wxFall: { value: new THREE.Vector4() }, wxTime: { value: new THREE.Vector4() }, wxDrop: { value: new THREE.Vector3() },
       wxFlake: { value: new THREE.Vector3() }, wxGrit: { value: new THREE.Vector3() }, wxHaze: { value: new THREE.Vector4() }, wxHazeCol: { value: new THREE.Vector3() },
       wxHalo: { value: Array.from({ length: WX_LAMPS }, () => new THREE.Vector4()) },
+      wxRoof: { value: new THREE.Vector4(1e9, 1e9, -1e9, -1e9) },   // (a roof over this rect of the ground, x0 z0 x1 z1: the cut-away shop you're in, src/render/view.js; nothing falls on what's under it)
       // (padded to the shader's 128: three uploads the array at the declared size)
       pal: { value: Array.from({ length: 128 }, (_, i) => { const c = pal[Math.min(i, pal.length - 1)]; return new THREE.Vector3(c.r, c.g, c.b); }) },
       count: { value: Math.min(pal.length, 128) },
@@ -255,7 +256,7 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
       in vec2 vUv; out vec4 outColor;
       uniform sampler2D tColor, tDepth, tId, tFog; uniform vec2 res; uniform float near, far, outline, grade, fogOn;
       uniform vec3 pal[128]; uniform int count; uniform vec4 fogBox; uniform mat4 invVP; uniform float dimK;
-      uniform float wxOn; uniform vec4 wxFall, wxTime, wxHaze; uniform vec3 wxDrop, wxFlake, wxGrit, wxHazeCol; uniform vec4 wxHalo[${WX_LAMPS}];
+      uniform float wxOn; uniform vec4 wxFall, wxTime, wxHaze, wxRoof; uniform vec3 wxDrop, wxFlake, wxGrit, wxHazeCol; uniform vec4 wxHalo[${WX_LAMPS}];
       float wxh(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
       // A layer of streaks (rain; dust, turned on its side): a streak of len px in cells of cw × ch,
       // one cell in 1/dens holding one, falling at v px a second along (slant, 1).
@@ -354,21 +355,22 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
           // What falls, in pixels pinned to the world (wxTime.zw: the camera's offset, so it stays put as the camera pans).
           vec2 p = vec2(floor(gl_FragCoord.x), floor(res.y - gl_FragCoord.y)) + wxTime.zw;
           float t = wxTime.x, slant = wxTime.y;
-          if (wxFall.x > 0.0) {
+          bool roofed = raw < 0.99999 && wp.x > wxRoof.x && wp.x < wxRoof.z && wp.z > wxRoof.y && wp.z < wxRoof.w;   // (under a roof: dry air)
+          if (wxFall.x > 0.0 && !roofed) {
             float a = max(streaks(p, t, slant, vec2(9.0, 34.0), 4.0 + 5.0 * wxFall.x, 380.0, 0.08 + 0.55 * wxFall.x, 1.0),
                           0.7 * streaks(p, t, slant * 0.8, vec2(6.0, 23.0), 3.0 + 2.0 * wxFall.x, 270.0, 0.08 + 0.5 * wxFall.x, 2.0));
             col = mix(col, max(col * 1.35 + 0.05, wxDrop), 0.6 * a);
           }
-          if (wxFall.y > 0.0) {
+          if (wxFall.y > 0.0 && !roofed) {
             float a = max(flakes(p, t, slant, 15.0, 2.0, 42.0, 0.05 + 0.55 * wxFall.y, 3.0), 0.75 * flakes(p, t, slant * 0.8, 9.0, 1.0, 28.0, 0.06 + 0.6 * wxFall.y, 4.0));
             col = mix(col, max(col * 1.3 + 0.12, wxFlake), 0.9 * a);
           }
-          if (wxFall.z > 0.0) {
+          if (wxFall.z > 0.0 && !roofed) {
             float a = streaks(p.yx, t, 0.15, vec2(5.0, 30.0), 3.0, 140.0 * sign(slant + 1e-3), 0.1 + 0.5 * wxFall.z, 5.0);
             col = mix(col, wxGrit, 0.5 * a);
           }
           // Rain landing: a spark on the wet ground, a moment, here and there (cells of a quarter metre).
-          if (wxFall.w > 0.0 && raw < 0.99999 && wp.y < 0.15) {
+          if (wxFall.w > 0.0 && raw < 0.99999 && wp.y < 0.15 && !roofed) {
             vec2 c = floor(wp.xz * 4.0);
             float h = wxh(c + 9.0), ph = t * (2.0 + 2.0 * h) + h * 10.0;
             if (fract(ph) < 0.14 && wxh(c + floor(ph) * 0.37) < wxFall.w) {
@@ -432,6 +434,7 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
     U.wxHaze.value.set(hz?.k ?? 0, hz?.far ?? 1, hz?.eye?.[0] ?? 0, hz?.eye?.[1] ?? 0);
     if (hz?.col) U.wxHazeCol.value.set(...hz.col);
     U.wxHalo.value.forEach((v, i) => { const h = o.halos?.[i]; if (h) v.set(h[0], h[1], h[2], h[3]); else v.set(0, 0, 0, 1); });
+    if (o.roof) U.wxRoof.value.set(...o.roof); else U.wxRoof.value.set(1e9, 1e9, -1e9, -1e9);
   };
   const render = () => {
     renderer.setRenderTarget(rt);
