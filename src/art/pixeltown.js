@@ -1235,15 +1235,21 @@ function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox =
 /** A building's painted front, w × h metres: the wall ('brick', 'plaster' or 'concrete'), then draw(f) with painter() (see building()). */
 export function facade({ w, h, wall = 'brick', wallColor, draw, seed = 1, night = false, split = false }) {
   return paint(Math.round(w * M), Math.round(h * M), (px) => {
-    const f = painter(px, w, h, seed, night, wall === 'brick' ? null : wallColor ?? 0xe2dac6, split);
-    f.wallKind = wall;
-    if (wall === 'brick') f.bricks(0, 0, w, h, wallColor ?? 0x9e3c36);
-    else if (wall === 'concrete' && finish.fine) f.concrete(0, 0, w, h, wallColor ?? 0xb8bdc8);
-    else if (wall === 'stucco' && finish.fine) f.weathered(0, 0, w, h, wallColor ?? 0xf4efe6, true);
-    else if (wall === 'stone') f.ashlar(0, 0, w, h, wallColor ?? 0xd8c09a);
-    else f.plaster(0, 0, w, h, wallColor ?? 0xe2dac6);
+    const f = wallOf(px, w, h, wall, wallColor, seed, night, split);
     draw?.(f);
   }, { glows: GLOWS });
+}
+
+/** A facade's painter, its wall painted (by its kind: brick, concrete, stucco, stone, plaster), before what's on it. */
+function wallOf(px, w, h, wall, wallColor, seed, night = false, split = false) {
+  const f = painter(px, w, h, seed, night, wall === 'brick' ? null : wallColor ?? 0xe2dac6, split);
+  f.wallKind = wall;
+  if (wall === 'brick') f.bricks(0, 0, w, h, wallColor ?? 0x9e3c36);
+  else if (wall === 'concrete' && finish.fine) f.concrete(0, 0, w, h, wallColor ?? 0xb8bdc8);
+  else if (wall === 'stucco' && finish.fine) f.weathered(0, 0, w, h, wallColor ?? 0xf4efe6, true);
+  else if (wall === 'stone') f.ashlar(0, 0, w, h, wallColor ?? 0xd8c09a);
+  else f.plaster(0, 0, w, h, wallColor ?? 0xe2dac6);
+  return f;
 }
 
 /** A metre of bricks in a colour (a chimney stack's, its building's), repeating. */
@@ -1363,6 +1369,59 @@ export function awning(x0, x1, y, z, { depth = 1.3, drop = 0.6, color = 0x9e3c36
   valance.position.set((x0 + x1) / 2, y - drop - 0.3, z + depth);
   g.add(top, valance);
   return part(g);
+}
+
+/**
+ * A shop's sign turning into English and back (src/render/view.js; the user, 2026-11-03: "the shop names should
+ * periodically animate into english (not straight up but animate into english to keep the fact that it's not english
+ * but that we understand it)"): the sign painted as its facade paints it (painter().sign(), its style and colours),
+ * once in its own words and once in English, and FLIP_FRAMES between, a dithered wipe the way the words read (left to
+ * right; right to left for Arabic). { frames: [{ day, night }], w, h } (metres, the cornice's margin above it in h),
+ * each frame a pair of materials, the night's lit as a front's letters are. Made once a sign.
+ */
+export const FLIP_FRAMES = 8, FLIP_TOP_PX = 3;
+const flips = new Map();
+export function signFlips(w, h, local, english, opts = {}, { rtl = false, seed = 1, wall = null } = {}) {
+  const key = `flip|${w}|${h}|${local}|${english}|${opts.bg}|${opts.fg}|${opts.border}|${opts.style}|${opts.band}|${rtl}|${seed}|${wall ? `${wall.kind}-${wall.color}-${wall.x}-${wall.y}` : ''}`;
+  if (flips.has(key)) return flips.get(key);
+  const hM = h + FLIP_TOP_PX / M, ww = Math.round(w * M), hh = Math.round(hM * M);
+  const grab = (str) => {
+    const buf = new Array(ww * hh).fill(null);
+    const px = (x, y, a = 1, b = 1, c = 0x14151c) => { if (a < 0) { x += a; a = -a; } if (b < 0) { y += b; b = -b; } for (let j = Math.max(0, y); j < Math.min(hh, y + b); j++) for (let i = Math.max(0, x); i < Math.min(ww, x + a); i++) buf[j * ww + i] = c; };
+    painter(px, w, hM, seed, false, null).sign(0, 0, w, h, str, opts);
+    return buf;
+  };
+  // (letters on the wall itself: the wall behind them too, painted again as its facade paints it (wall: { w, h, kind,
+  // color, seed, x, y }, the sign's place on it), so the old words don't show between the new ones)
+  let back = null;
+  if (opts.style === 'letters' && wall) {
+    const FW = Math.round(wall.w * M), FH = Math.round(wall.h * M), all = new Array(FW * FH).fill(null);
+    wallOf((x, y, a = 1, b = 1, c = 0x14151c) => { if (a < 0) { x += a; a = -a; } if (b < 0) { y += b; b = -b; } for (let j = Math.max(0, y); j < Math.min(FH, y + b); j++) for (let i = Math.max(0, x); i < Math.min(FW, x + a); i++) all[j * FW + i] = c; }, wall.w, wall.h, wall.kind, wall.color, wall.seed);
+    const ox = Math.round(wall.x * M), oy = FH - Math.round((wall.y + hM) * M);
+    back = new Array(ww * hh).fill(null);
+    for (let j = 0; j < hh; j++) for (let i = 0; i < ww; i++) { const X = ox + i, Y = oy + j; if (X >= 0 && Y >= 0 && X < FW && Y < FH) back[j * ww + i] = all[Y * FW + X]; }
+  }
+  const A = grab(local), B = grab(english), N = FLIP_FRAMES;
+  if (back) for (let k = 0; k < ww * hh; k++) { if (A[k] === null) A[k] = back[k]; if (B[k] === null) B[k] = back[k]; }
+  const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  const frames = [];
+  for (let k = 0; k <= N; k++) {
+    const t = k / N;
+    const tex = paint(ww, hh, (px) => {
+      for (let j = 0; j < hh; j++) for (let i = 0; i < ww; i++) {
+        const along = rtl ? 1 - i / Math.max(1, ww - 1) : i / Math.max(1, ww - 1), thr = 0.75 * along + 0.25 * (BAYER[(j % 4) * 4 + (i % 4)] + 0.5) / 16;
+        const c = (k === N || (k > 0 && thr < t)) ? B[j * ww + i] : A[j * ww + i];
+        if (c !== null) px(i, j, 1, 1, c);
+      }
+    }, { glows: [opts.fg ?? 0xf8e08a] });
+    const day = mat(0, tex); day.alphaTest = 0.5;
+    const night = mat(0, tex); night.alphaTest = 0.5;
+    const e = emissiveOf(tex); if (e) { night.emissiveMap = e; night.emissive.set(0xffffff); }
+    frames.push({ day, night });
+  }
+  const out = { frames, w, h: hM };
+  flips.set(key, out);
+  return out;
 }
 
 /** A sign standing out from the wall (a blade), lettered on both faces. */

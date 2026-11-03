@@ -485,22 +485,25 @@ const T = {
       '.ttttttttttttttt.',
       '..ttttttttttttt..',
       '...TTTTTTTTTTT...']],
-    // (side on: round the head, its rim round the face's opening, and closed under the chin, down the back of the neck to the
-    // collar: the user, 2026-11-03, "hoods see from the side look like hair with the neck uncovered")
+    // (side on: round the head, its rim round the face's opening (the brow, the eye, the nose), and closed under the chin,
+    // down to the head's last row and the collar: the user, 2026-11-03, "hoods see from the side look like hair with the neck
+    // uncovered"; and again, "hood still shows neck and jaw from the side": it stopped two rows short of the jaw)
     right: [4, 4, [
       '....tttttttt....',
       '..tttttttttttt..',
       '.ttttttttttttt..',
       'tttttttttttttT..',
-      'tttttttttttTT...',
-      'ttttttttttT.....',
-      'ttttttttttT.....',
-      'ttttttttttT.....',
-      'ttttttttttT.....',
+      'ttttttttttttT...',
       'tttttttttttT....',
-      'ttttttttttttTt..',
-      '.tttttttttttttt.',
-      '..tttttttttttt..']],
+      'ttttttttttT.....',
+      'tttttttttT......',
+      'tttttttttT......',
+      'tttttttttT......',
+      'tttttttttT......',
+      'ttttttttttT.....',
+      'tttttttttttTT...',
+      '.tttttttttttTT..',
+      '...tttttttttttt.']],
   },
   umbrella: {
     canopy: [1, 0, [
@@ -977,7 +980,8 @@ function compose(spec, dir, frame) {
   const hb = bob + (P.head ?? 0);
   draw(pick(T.head) ?? T.head.down, lean, hb);
   if (view !== 'up') draw(pick(T.face), lean, hb, true);
-  if (spec.beard && view !== 'up') draw(pick(T.beard), lean, hb);
+  let beardPart = 0;
+  if (spec.beard && view !== 'up') { draw(pick(T.beard), lean, hb); beardPart = part; }
   else if (spec.moustache && view !== 'up') draw(pick(T.moustache), lean, hb);
   const hair = T.hair[style];
   const cropped = ['short', 'crew', 'side'].includes(style);       // (a short cut is all under a hat; longer hair shows below it)
@@ -990,7 +994,11 @@ function compose(spec, dir, frame) {
   if (spec.glasses && view !== 'up') draw(T.glasses[spec.glasses][view], lean, hb);
   if (spec.blood?.face && view !== 'up') draw(BLOOD.face[view], lean, hb, true);
   if (spec.blood?.clothes && view !== 'up') draw(BLOOD.clothes[view], lean, bob, true);
-  if (rain === 'hood') draw(T.hood[view] ?? T.hood.down, lean, hb);
+  if (rain === 'hood') {
+    draw(T.hood[view] ?? T.hood.down, lean, hb);
+    // (a beard shows in the hood's opening, not out under its edge onto the collar)
+    if (beardPart) { const [, hy, rows] = T.hood[view] ?? T.hood.down, below = hy + rows.length + hb; for (let y = Math.max(0, below); y < H; y++) for (let x = 0; x < W; x++) if (cells[y][x]?.part === beardPart) cells[y][x] = null; }
+  }
   else if (hat) draw(hat[view] ?? hat.down, lean, hb);
   if (rain === 'umbrella') draw(T.umbrella.canopy, (view === 'right' ? lean + 1 : view === 'down' ? -2 : 0), hb);   // (centred over its shaft)
   if (rig) { drawAll(rig.over, lean); return cells; }              // (a gun up before the face: drawn over the head)

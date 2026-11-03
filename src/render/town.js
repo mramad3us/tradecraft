@@ -251,7 +251,7 @@ function lotOf(g, lot, sprites, C, month = 11) {
 
 export function* buildSection(S, { month = 11 } = {}) {
   const g = new THREE.Group();
-  const fronts = [], heads = [], sprites = [];
+  const fronts = [], heads = [], sprites = [], flipping = [];
   const at = (m, x, z) => { m.position.set(snap(x), 0, snap(z)); g.add(m); return m; };
   const C = cityById(S.city), L = S.look, leaves = (LEAF_LITTER[month] ?? 0) * (C.litter ?? 1);
   // (London's ground: its areas' lightwells and its residents' bays, painted with the street)
@@ -322,6 +322,8 @@ export function* buildSection(S, { month = 11 } = {}) {
       g.add(hs);
     }
     byBuilding.push(g.children.slice(before));
+    // (its shop signs, for one turning into English for whoever reads them: src/render/view.js)
+    for (const [op, x, y, w, h, words, o] of B.ops) if (op === 'sign' && o?.kind) flipping.push({ x: B.x0 + x, y, w, h, words, opts: o, z: B.z, seed: B.seed, building: byBuilding.length - 1, mesh: null, wall: { w: B.x1 - B.x0, h: B.h, kind: B.wall, color: B.wallColor, seed: B.seed, x, y } });
     const body = b.userData.body;
     fronts.push({ body, day: body.material[4], night: null, spec, dusk: range(r, 0.08, 0.7),
       paintNight() { this.night = mat(0, facade({ w: B.x1 - B.x0, h: B.h, wall: B.wall, wallColor: B.wallColor, draw: run(B.ops, true), seed: B.seed, night: true, split: true })); } });
@@ -418,5 +420,5 @@ export function* buildSection(S, { month = 11 } = {}) {
       m.map?.dispose(); m.emissiveMap?.dispose(); m.dispose();
     }
   };
-  return { group: g, fronts, heads, sprites, dispose, byBuilding };
+  return { group: g, fronts, heads, sprites, dispose, byBuilding, flipping };
 }

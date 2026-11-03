@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.16 (2026-11-03)
+
+- **Fixed: a hood from the side still showed the jaw and neck.** It stopped two rows short of the head's bottom. It now comes down to the collar, the face showing only in its opening (brow, eye, nose), and a beard stays inside it.
+- **Shop signs you can read turn into English.** If your character reads the language of a sign (Russian in Moscow, Arabic in Beirut and Cairo, French in Beirut), the sign turns into English every so often and back again. A dithered wipe crosses it the way the words read (right to left for Arabic), so the sign stays itself and you can still see it isn't English. ОБУВЬ turns into SHOES, PHARMACIE into PHARMACY, ОБМЕН ВАЛЮТ into EXCHANGE. Each sign keeps its own time: about 9 seconds in its words, 3½ in English. On a two-script sign only the half you read turns. Letters on bare wall keep the wall behind them, and shop boards keep their style and their glow at night. A language you don't read stays as it is.
+
 ## v0.1.15 (2026-11-03)
 
 - **Hoods, redrawn.** From the side, a hood now closes under the chin and runs down the back of the neck to the collar, with a rim round the face. Before, it stopped at the jaw and read as hair over a bare neck. From behind it has a seam.

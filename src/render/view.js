@@ -58,7 +58,8 @@
 //     Nothing on a map indoors.
 // Positions are interpolated between the last two ticks (alpha), so motion is smooth at any frame rate.
 import * as THREE from 'three';
-import { pixelStage, finish, FINE_PALETTE, PX_PER_M, emissiveOf, WX, WX_LAMPS } from '../art/pixelart.js';
+import { pixelStage, finish, FINE_PALETTE, PX_PER_M, emissiveOf, WX, WX_LAMPS, textWidth } from '../art/pixelart.js';
+import { signFlips } from '../art/pixeltown.js';
 import { buildSection } from './town.js';
 import { buildDojo } from './dojo.js';
 import { buildInterior } from './interior.js';
@@ -73,7 +74,7 @@ import { sky, indoors, lightAt, lightLevel, LAMP } from '../sim/light.js';
 import { Z, SECTION_M } from '../sim/map/street.js';
 import { isGun, isLong } from '../sim/firearms.js';
 import { passerby } from '../sim/people.js';
-import { geoOf } from '../sim/cities/index.js';
+import { geoOf, SHOP_EN, SHOP_EN_CITY, scriptLang } from '../sim/cities/index.js';
 import { focusActor, playerActor } from '../sim/game.js';
 import { SCENARIOS } from '../sim/scenarios/index.js';
 import { SCREEN_HALF_M } from '../sim/crowd.js';
@@ -441,6 +442,7 @@ export function createView({ parent, bus, month = () => 11 }) {
         if (fr.night) fr.night.emissiveIntensity = S.glow;
       }
       for (const h of s.heads) h.head.material = S.glow > 0.35 ? h.night : h.day;
+      if (s.flipping?.length) flipSigns(s, state, S);           // (signs in a language you read, turning into English now and then)
     }
     // (a shop's lights behind its façade light nothing you can see: only the shop you're in has its own; sim/interiors/shop.js)
     const near = lamps.filter(l => l.shop === undefined || l.shop === opened?.units[0].door).map(l => [l, (l.x - cam.x) ** 2 + (l.z - cam.z) ** 2]).sort((a, b) => a[1] - b[1]);
@@ -564,6 +566,46 @@ export function createView({ parent, bus, month = () => 11 }) {
       halos,
       roof: opened?.units?.[0] ? [opened.units[0].x0 - 0.25, opened.units[0].z0 - 0.6, opened.units[0].x1 + 0.25, opened.units[0].z1] : null,   // (the shop you're in: its roof keeps the rain off, its walls with it)
     });
+  }
+
+  // The shop signs in a language you read (the city's, or Beirut's French), turning into English and back now and then,
+  // each on its own clock (the game's): FLIP_HOLD_MS in its words, a wipe of FLIP_WIPE_MS, FLIP_EN_MS in English, back.
+  // Their overlay (src/art/pixeltown.js signFlips()) is made the first time it's wanted, a centimetre out from the
+  // front, and goes with its building (a shop opened up hides it: the cutaway's byBuilding).
+  const FLIP_HOLD_MS = 9000, FLIP_WIPE_MS = 450, FLIP_EN_MS = 3400, FLIP_CYCLE_MS = FLIP_HOLD_MS + 2 * FLIP_WIPE_MS + FLIP_EN_MS;
+  const READS = new Set(['native', 'fluent', 'working']);
+  function flipSigns(s, state, S) {
+    const P = state.people?.[state.player], city = state.map?.city ?? 'moscow', who = `${state.player}|${JSON.stringify(P?.langs ?? {})}`;
+    const reads = (lang) => lang === 'en' || READS.has(P?.langs?.[lang]);
+    for (const f of s.flipping) {
+      if (f.who !== who) {                                        // (what turns, and into what: once a reader)
+        f.who = who;
+        const ww = Math.round(f.w * PX_PER_M), parts = f.words.split('|');
+        const en = (SHOP_EN_CITY[city]?.[f.opts.kind] ?? SHOP_EN[f.opts.kind] ?? []).find(t => textWidth(t) <= ww - 4);
+        let rtl = false;
+        const out = parts.map(p => { const L = scriptLang(p, city); if (L === 'en' || !reads(L) || !en) return p; if (L === 'ar') rtl = true; return en; });
+        const word = out.every(p => p === out[0]) ? out[0] : out.join('|');
+        f.english = word !== f.words ? word : null; f.rtl = rtl;
+        if (f.mesh) f.mesh.visible = false;
+      }
+      if (!f.english) continue;
+      if (!f.mesh) {
+        const fl = signFlips(f.w, f.h, f.words, f.english, f.opts, { rtl: f.rtl, seed: f.seed, wall: f.wall });
+        f.frames = fl.frames;
+        f.mesh = new THREE.Mesh(new THREE.PlaneGeometry(fl.w, fl.h), fl.frames[0].day);
+        f.mesh.position.set(f.x + f.w / 2, f.y + fl.h / 2, f.z + 0.012);
+        f.mesh.userData.noId = true;                               // (no ink line round the board: it's the facade's own)
+        s.group.add(f.mesh); s.byBuilding?.[f.building]?.push(f.mesh);
+      }
+      if (!f.mesh.parent) continue;
+      f.mesh.visible = true;
+      const t = (state.time.ms + (Math.round(f.x * 977) + f.seed * 131) % FLIP_CYCLE_MS) % FLIP_CYCLE_MS, N = f.frames.length - 1;
+      const k = t < FLIP_HOLD_MS ? 0 : t < FLIP_HOLD_MS + FLIP_WIPE_MS ? Math.ceil((t - FLIP_HOLD_MS) / FLIP_WIPE_MS * N)
+        : t < FLIP_HOLD_MS + FLIP_WIPE_MS + FLIP_EN_MS ? N : N - Math.ceil((t - FLIP_HOLD_MS - FLIP_WIPE_MS - FLIP_EN_MS) / FLIP_WIPE_MS * N);
+      const lit = S.glow > 0.35, m = f.frames[Math.max(0, Math.min(N, k))][lit ? 'night' : 'day'];
+      if (f.mesh.material !== m) f.mesh.material = m;
+      if (lit) m.emissiveIntensity = S.glow;
+    }
   }
 
   // (a look's short fingerprint, kept per look object: a look's replaced, not changed, when clothes change)

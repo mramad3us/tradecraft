@@ -44,7 +44,9 @@ export default [
         const parts = [];
         // (the bus shelters and notice boards of 0.1.0-rc16, from a stream of their own, left out)
         const amenity = (o) => o.kind === 'stop' || o.kind === 'notices' || o.what === 'stop' || o.what === 'notices';
-        const before = (S) => ({ ...S, props: S.props.filter(o => !amenity(o)), blockers: S.blockers.filter(o => !amenity(o)) });
+        // (and 0.1.16's label on a shop's sign, its kind, for a sign read in English: a label, not a thing generated)
+        const unlabel = (B) => ({ ...B, ops: B.ops.map(([op, ...a]) => (op === 'sign' && a[5]?.kind ? [op, ...a.slice(0, 5), (({ kind, ...o }) => o)(a[5])] : [op, ...a])) });
+        const before = (S) => ({ ...S, props: S.props.filter(o => !amenity(o)), blockers: S.blockers.filter(o => !amenity(o)), buildings: S.buildings.map(unlabel) });
         for (const row of [-1, 0, 2]) for (let i = -2; i <= 2; i++) parts.push(JSON.stringify(before(section(seed, i, row))));
         parts.push(JSON.stringify(planRoute(seed, { row: 0, x: 5, z: LINE.F }, { row: -6, x: 260, z: LINE.P }, { walker: 3, evasive: true })));
         if (process.env.PRINT_HASH) { console.log('      hash', seed, hash(...parts)); continue; }   // (PRINT_HASH=1: the hashes, to set them on purpose)

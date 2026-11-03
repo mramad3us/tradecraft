@@ -93,7 +93,7 @@ function building(r, x0, x1, z, S) {
     const kind = weighted(r, SHOP_WEIGHTS), words = fit(r, SHOPS[kind], sw - 0.1), [bg, fg, border] = pick(r, BOARDS);
     ops.push(['shopfront', x, sw - 1.3, 2.75, { goods: [pick(r, [0xe7b84a, 0xc95c45, 0xf6f4ee]), pick(r, [0x9e3c36, 0x3b6296, 0x356f42, 0xe7b84a]), pick(r, [0x8f6345, 0xc95c45, 0x5d8fc2])], roller }]);
     ops.push(['door', x + sw - 1.2, 1.1, 2.45, { color: 0x23252f, frame: 0x23252f }]);
-    ops.push(['sign', x, 3.0, sw - 0.1, 0.85, words, { bg, fg, border, style: weighted(r, [['board', 3], ['lightbox', 1.5], ['letters', 1]]) }]);
+    ops.push(['sign', x, 3.0, sw - 0.1, 0.85, words, { bg, fg, border, style: weighted(r, [['board', 3], ['lightbox', 1.5], ['letters', 1]]), kind }]);
     S.doors.push({ x: x0 + x + sw - 0.65, z, w: 1.1, kind: 'shop', shop: kind, pane: { x0: x0 + x, x1: x0 + x + sw - 1.3, z } });
   };
   const groundFloor = ({ shops = 0.7, roller = 0.25, entrance = 0.5, arched = false }) => {

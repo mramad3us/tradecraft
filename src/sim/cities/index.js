@@ -48,6 +48,20 @@ import { CAIRO } from './cairo.js';
 export const CITIES = { moscow: MOSCOW, london: LONDON, beirut: BEIRUT, cairo: CAIRO };
 export const CITY_IDS = Object.keys(CITIES);
 
+// A shop's sign in English, by its kind (src/render/view.js: a sign turning into English for someone who reads its
+// language: the user, 2026-11-03, "if the character understands the language, the shop names should periodically
+// animate into english"): the longest that fits the board first; a city's own where it differs (Moscow's club is sambo).
+export const SHOP_EN = {
+  pharmacy: ['PHARMACY'], grocery: ['GROCERY', 'FOOD'], cafe: ['CAFE'], flowers: ['FLOWERS'], bakery: ['BAKERY', 'BREAD'], books: ['BOOKS'],
+  optician: ['OPTICIAN', 'GLASSES'], bank: ['BANK'], tobacco: ['TOBACCO', 'KIOSK'], exchange: ['EXCHANGE'], bar: ['BAR'], clothes: ['CLOTHES'],
+  shoes: ['SHOES'], watches: ['WATCHES'], phones: ['PHONES'], shawarma: ['SHAWARMA'], beer: ['BEER'], deli: ['DELI'], restaurant: ['RESTAURANT', 'FOOD'],
+  gym: ['GYM'], club: ['KARATE CLUB', 'KARATE'], school: ['LANGUAGES'], manakish: ['FLATBREADS', 'BREAD'], sweets: ['SWEETS'], vegetables: ['VEGETABLES', 'GREENGROCER'],
+  butcher: ['BUTCHER'], barber: ['BARBER'], laundry: ['LAUNDRY'], juice: ['JUICE BAR', 'JUICE'], koshary: ['KOSHARY'], foul: ['BEANS & FALAFEL', 'FALAFEL'], spices: ['SPICES'],
+};
+export const SHOP_EN_CITY = { moscow: { club: ['SAMBO CLUB', 'SAMBO'] } };
+/** The language a sign's part is in, by its script and the city: Cyrillic Russian, Arabic Arabic, Latin French in Beirut, else English. */
+export const scriptLang = (part, city) => (/[\u0400-\u04FF]/.test(part) ? 'ru' : /[\u0600-\u06FF]/.test(part) ? 'ar' : city === 'beirut' ? 'fr' : 'en');
+
 /** The town a map's streets are generated from: its seed in Moscow, `city:seed` in another city. */
 export const townOf = (map) => (!map?.city || map.city === 'moscow' ? map.seed : `${map.city}:${map.seed}`);
 
