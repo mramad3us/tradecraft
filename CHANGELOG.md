@@ -4,6 +4,15 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.18 (2026-11-03)
+
+- **The coat off at the door.** Coming into the flat, your coat goes on the hook by the door (its pockets still yours while you're in) and the umbrella in the stand. You wear what you wear indoors: the last top you had on inside, else a jumper from the wardrobe. Going out, the door asks which coat (the one on the hook, any in the wardrobe, or none) and whether you take the umbrella. The coat you leave behind goes in the wardrobe. Step away from the door to stay in.
+- **Groceries.** The flat's kitchen starts with six meals in it, and each meal at the table takes one. When it's bare, you need a grocer's: food for a few days (3 meals) or a week's (7), carried home in the shop's bag and put away as you come in.
+- **Legends are good at everything.** Every skill has a floor now: 18 for the field skills, close combat and the gun, 16 for fitness, 12 for analysis, tech and medicine. A legend you're playing is raised once, when the save loads.
+- **Across the road, properly.** Your quarry's check now knows the street's two roads: across either one from him is −3 to his eye, and the boulevard's railings between you −1. Before, only the north pavement counted as the other side.
+- **Sunglasses come off after dark,** on anyone wearing them.
+- **An umbrella keeps you short of damp in calm air,** and short of wet through in a strong wind. In a gale it's no use.
+
 ## v0.1.17 (2026-11-03)
 
 - **Keeping fit.** Fitness, the skill, is now your base. Your effective fitness, what your body actually does, sits up to 3 above or below it depending on how you train. The week's training is counted:

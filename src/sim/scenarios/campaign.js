@@ -55,7 +55,8 @@ import { N_M, HALL_M } from '../interiors/embassy.js';
 import { signOf, missionPlace } from '../places.js';
 import { fileOf, assetFile } from '../dossier.js';
 import { open as openBook } from '../reading.js';
-import { dress, wardrobeWays, unpack, shed, cabinetWays, cabinetDo, DRESS_S } from '../clothes.js';
+import { dress, wardrobeWays, unpack, shed, cabinetWays, cabinetDo, DRESS_S, comeIn, doorWays, goOut } from '../clothes.js';
+import { weather, FALLS } from '../weather.js';
 import { kitWords } from '../medicine.js';
 import { call } from '../phone.js';
 import { staffTick, think as staffThink } from '../interiors/staffing.js';
@@ -151,7 +152,13 @@ export const campaignHub = {
       if (key === 'eat') { use(state, bus, 'eat', true); return; }
       const ms = gunWork(state, bus, state.people.me, key, { bang: (st, b, id) => discharge(st, b, me, st.people.me, id, 'rack', { fired: true }) });
       if (ms) skip(state, bus, ms);
-      if (state.map.place === 'home' && tableWays(state.people.me).length) bus?.emit('table', [{ key: 'eat', label: 'Something to eat (20 min)' }, ...tableWays(state.people.me)]);   // (and still at the table: what else)
+      if (state.map.place === 'home' && tableWays(state.people.me).length) bus?.emit('table', [...(larderOf(c).meals ? [{ key: 'eat', label: `Something to eat (20 min; ${larderOf(c).meals} meals in)` }] : []), ...tableWays(state.people.me)]);   // (and still at the table: what else)
+    }
+    else if (what === 'door') {                                     // (out of the flat, so dressed: sim/clothes.js goOut())
+      const p = state.people.me, key = action.split(':').slice(2).join(':'), left = goOut(p, key);
+      state.scenario.atDoor = null;
+      if (left) say(state, bus, { kind: 'note', text: `Fewer pockets: ${left}, left in the bag.` });
+      return leaveHome(state, bus);
     }
     else if (what === 'basin') {                                    // (the basin's way, chosen: a wash, or the cabinet over it, one thing at a time)
       const key = action.split(':').slice(2).join(':');
@@ -217,7 +224,16 @@ export const campaignHub = {
     if (tired.v) state.people.me.strain = tired.v; else delete state.people.me.strain;
     // (in the flat: out by its front door, down the stairs, onto the street at your door)
     const me = state.actors.find(a => a.who === state.player);
-    if (state.map.place === 'home' && me && !me.busy && exitHere(state, me)) return leaveHome(state, bus);
+    // (at the flat's door: what to wear out, and the umbrella, if there's a choice to make: sim/clothes.js doorWays(); Esc and step away, still in)
+    if (state.map.place === 'home' && me && !me.busy && exitHere(state, me)) {
+      if (state.scenario.atDoor) return;
+      const w = doorWays(state.people.me, FALLS.has(weather(townOf({ seed: c.posting.mapSeed, city: c.posting.city }), c.posting.city, state.time.ms).kind));
+      if (w.length <= 1) return leaveHome(state, bus);
+      state.scenario.atDoor = state.time.ms;
+      bus?.emit('door', w);
+      return;
+    }
+    if (state.scenario.atDoor && !(me && exitHere(state, me))) state.scenario.atDoor = null;
     if (state.map.place === 'embassy' && me && !me.busy && exitHere(state, me)) return leaveEmbassy(state, bus);   // (out by the street door)
     // (past the arch, into the corridor: through the metal detector, once a visit: sim/screening.js)
     if (state.map.place === 'embassy' && me && !state.scenario.screened && me.z < N_M + HALL_M) { state.scenario.screened = true; screen(state, bus, state.people[me.who], c); }
@@ -365,8 +381,8 @@ function enterHome(state, bus, at = 'door') {
   newMap(state, bus, map, s.x);
   Object.assign(state.scenario, { tail: null, window: false });
   c.where = { inside: 'home', row: c.posting.home.row, x: s.x, z: s.z };
-  if (at === 'door') say(state, bus, { kind: 'note', text: 'Up the stairs, the key in the lock: the flat.' });
-  const got = unpack(state.people.me, c.cabinet ??= {});            // (the shop's bag unpacked: sim/clothes.js)
+  if (at === 'door') { const off = comeIn(state.people.me); say(state, bus, { kind: 'note', text: `Up the stairs, the key in the lock: the flat.${off ? ` ${off.charAt(0).toUpperCase() + off.slice(1)}` : ''}` }); }   // (the coat off and the umbrella down: sim/clothes.js comeIn())
+  const got = unpack(state.people.me, c.cabinet ??= {}, larderOf(c));   // (the shop's bag unpacked: sim/clothes.js; food into the larder)
   if (got) say(state, bus, { kind: 'note', text: `The bag unpacked: ${got}, put away.` });
 }
 
@@ -439,8 +455,14 @@ function use(state, bus, act, here = false) {
   }
   else if (act === 'chief') { say(state, bus, { kind: 'note', text: 'The chief looks up from a cable, takes his glasses off: "What have we got?"' }); bus?.emit('desk-open'); }   // (the desk: what's on, src/ui/ui.js)
   else if (act === 'read') openBook(state, bus, me);               // (ten minutes at a time, your own books: sim/reading.js)
-  else if (act === 'table') bus?.emit('table', [{ key: 'eat', label: 'Something to eat (20 min)' }, ...tableWays(state.people.me)]);   // (the kitchen table: a meal, or the gun's work: sim/gunwork.js)
-  else if (act === 'eat') { say(state, bus, { kind: 'note', text: 'Bread, cheese, the kettle, the radio low: twenty minutes.' }); skip(state, bus, 20 * MIN); eat(state.people.me, state.time.ms, 20); }
+  else if (act === 'table') bus?.emit('table', [...(larderOf(c).meals ? [{ key: 'eat', label: `Something to eat (20 min; ${larderOf(c).meals} meals in)` }] : []), ...tableWays(state.people.me)]);   // (the kitchen table: a meal, or the gun's work: sim/gunwork.js)
+  else if (act === 'eat') {                                        // (a meal out of the larder; none left, a grocer's: the user, 2026-11-03, "the flat should have limited groceries")
+    const L = larderOf(c);
+    if (L.meals <= 0) return say(state, bus, { kind: 'instinct', text: 'The fridge: a jar of mustard and the light. Nothing in the flat to eat: a grocer\'s, on the way home.' });
+    L.meals--;
+    say(state, bus, { kind: 'note', text: `Bread, cheese, the kettle, the radio low: twenty minutes. ${L.meals ? `${L.meals} meal${L.meals > 1 ? 's' : ''}' worth left in the kitchen.` : 'That was the last of it.'}` });
+    skip(state, bus, 20 * MIN); eat(state.people.me, state.time.ms, 20);
+  }
   else if (act === 'wash') {
     // (the cabinet over the basin is yours to open or not: a card when it, or your pockets, have something for it)
     const list = basinWays(state);
@@ -464,7 +486,7 @@ const SPOT_LINE = {
   sleep: (state) => { const h = calendar(state.time.ms).hour; return [h >= 20 || h < 5 ? 'Your bed. {instinct}: sleep till seven.' : 'Your bed. {instinct}: a nap, a rest, or the night.', 'sleep']; },
   phone: () => ['The telephone. {instinct}: call Hale, about the exercises.', 'call'],
   wash: (state) => [`The basin${kitWords(state.campaign.cabinet) ? ', the cabinet over it' : ''}. {instinct}: ${state.people.me.bloody ? 'wash the blood off' : 'wash'}, a clean shirt${kitWords(state.campaign.cabinet) ? `; or the cabinet: ${kitWords(state.campaign.cabinet)}` : ''}.`, 'wash'],
-  eat: (state) => (tableWays(state.people.me).length ? ['The kitchen table. {instinct}: something to eat, or your gun on the table.', 'table'] : ['The kitchen table. {instinct}: something to eat.', 'eat']),
+  eat: (state) => { const m = larderOf(state.campaign).meals, food = m ? `something to eat (${m} meal${m > 1 ? 's' : ''} in)` : 'the cupboard\'s bare: a grocer\'s'; return tableWays(state.people.me).length ? [`The kitchen table. {instinct}: ${food}, or your gun on the table.`, 'table'] : [`The kitchen table. {instinct}: ${food}.`, m ? 'eat' : null]; },
   cook: () => ['The cooker. {instinct}: something to eat.', 'eat'],
   window: () => ['The window, over the street. {instinct}: look out, from behind the curtain.', 'window'],
   desk: (state) => { const c = state.campaign, k = calendar(state.time.ms); return k.weekday < 5 && !c.worked[Math.floor(state.time.ms / DAY)] && k.hour < WORK.to ? [`Your desk, the in-tray. {instinct}: the day's cables, till six.`, 'work'] : ['Your desk: nothing in the tray that won\'t keep till tomorrow.', null]; },
@@ -484,6 +506,9 @@ function goTo(state, bus, to, note = null, z = -2.6) {
   say(state, bus, { kind: 'note', text: note ?? `${cap(to.label)}, on ${streetName(townOf({ seed: p.mapSeed, city: p.city }), to.row)}.` });
 }
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+// (the flat's kitchen: so many meals in, LARDER_START when you move in; a grocer's groceries put away in it)
+export const LARDER_START = 6;
+const larderOf = (c) => (c.larder ??= { meals: LARDER_START });
 
 // ---------- watched in your own hours ----------
 

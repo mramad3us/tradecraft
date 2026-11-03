@@ -25,6 +25,9 @@ import { DAY } from './clock.js';
 
 export const SOAK_PER_S = { rain: [0, 0.083, 0.25, 0.4], sleet: [0, 0.07, 0.21, 0.34], snow: [0, 0.04, 0.1, 0.17] };
 export const UMBRELLA_K = 0.12, UMBRELLA_WIND_K = 0.35, HOOD_K = 0.45;
+// (under an umbrella, how wet you can get at worst: in calm air short of damp, the legs and the shoes; in a strong wind
+// short of wet through; in a gale it's no use: the user, 2026-11-03, "is it intentional that we still get damp with an umbrella?")
+export const UMBRELLA_CAP = 25, UMBRELLA_WIND_CAP = 55;
 export const DRY_OUT_PER_S = 0.012, DRY_IN_PER_S = 0.045;           // (out of doors, two hours and more; in a room, forty minutes)
 export const CHILL_C = 10, CHILL_WET = 60;
 export const CATCH_PER_MIN = 0.0035, COLD_DAYS = [4, 7], SNEEZE_S = [150, 420], SNEEZE_MOD = 3, SNEEZE_SEEN_S = 6;
@@ -50,7 +53,10 @@ export function wetTick(state, bus, me) {
   const w = weatherAt(state), ms = state.time.ms, was = wetOf(p);
   const inside = w.indoors || me.within || me.inside || me.hidden;
   let wet = was;
-  if (!inside && FALLS.has(w.kind) && w.level) wet += (SOAK_PER_S[w.kind]?.[w.level] ?? 0) * coverK(p, w);
+  if (!inside && FALLS.has(w.kind) && w.level) {
+    wet += (SOAK_PER_S[w.kind]?.[w.level] ?? 0) * coverK(p, w);
+    if (p.hand === 'umbrella' && (w.wind ?? 0) < 3) wet = Math.min(wet, Math.max(was, (w.wind ?? 0) >= 2 ? UMBRELLA_WIND_CAP : UMBRELLA_CAP));
+  }
   else wet -= inside ? DRY_IN_PER_S : DRY_OUT_PER_S * (w.temp < 5 ? 0.6 : 1);
   wet = Math.max(0, Math.min(100, wet));
   if (wet > 0) p.wet = Math.round(wet * 1000) / 1000; else delete p.wet;

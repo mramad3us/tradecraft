@@ -58,7 +58,7 @@ export const RAIL = {
 // Things a shop sells, by its kind: [kind (sim/weapons.js), what it is, $].
 export const GOODS = {
   clothes: [['umbrella', 'an umbrella', 20]], tobacco: [['penknife', 'a penknife', 15]], phones: [['burner', 'a burner: a prepaid phone, no name on it', 25]],
-  grocery: [['bottle', 'a bottle of wine', 8], ['kitchen', 'a kitchen knife', 12]], deli: [['bottle', 'a bottle of wine', 14]], beer: [['bottle', 'a bottle of beer', 3]],
+  grocery: [['groceries3', 'groceries for a few days (3 meals)', 18], ['groceries7', 'a week\'s groceries (7 meals)', 38], ['bottle', 'a bottle of wine', 8], ['kitchen', 'a kitchen knife', 12]],   // (the flat's larder: sim/scenarios/campaign.js) deli: [['bottle', 'a bottle of wine', 14]], beer: [['bottle', 'a bottle of beer', 3]],
 };
 for (const [shop, kinds] of Object.entries(SOLD)) for (const k of kinds) (GOODS[shop] ??= []).push([k, ...goodOf(k)]);
 
@@ -83,6 +83,49 @@ export function putOn(p, piece) {
   return was;
 }
 
+// The flat's door (the user, 2026-11-03: "coats and umbrellas should be checked when entering in the flat (character
+// doesn't wear them inside) and when stepping out, you should get the option (check list) of coat (active coat can be
+// replaced in the existing wardrobe) and umbrella we want to bring out"). In (comeIn()): a coat, the parka, the anorak,
+// the trench (the coat kinds) on the hook by the door (p.hook), its pockets still yours while you're in (sim/items.js
+// placed()); what's under it worn (p.under: the last top worn indoors, else a jumper from the wardrobe, else a plain
+// one, INDOOR); an umbrella in the hand into the stand (p.stand, how many). Out (doorWays(), goOut()): which coat (the
+// hook's first, then the wardrobe's; the one it replaces hung in the wardrobe) or none, with the umbrella or without.
+export const INDOOR = { kind: 'sweater', color: 0x4c5262, trim: 0x353947 };
+export function comeIn(p) {
+  const said = [];
+  if (p.look?.top?.kind === 'coat' && !p.hook) {
+    p.hook = worn(p, 'top');
+    const under = p.under ?? (p.wardrobe ?? []).find(w => w.slot === 'top' && w.look.kind !== 'coat')?.look ?? INDOOR;
+    p.look = { ...p.look, top: structuredClone(under) };
+    said.push(`${p.hook.name} on the hook by the door`);
+  }
+  if (p.hand === 'umbrella') { p.hand = null; p.stand = (p.stand ?? 0) + 1; said.push('the umbrella in the stand'); }
+  return said.length ? `${said.join(', ')}.` : null;
+}
+/** The ways out of the door: [{ key: 'out:<coat>:<umbrella>', label }], the likeliest first (the hook's coat; the umbrella if it's falling). */
+export function doorWays(p, wet = false) {
+  const coats = [...(p.hook ? [{ key: 'hook', name: p.hook.name }] : []), ...(p.wardrobe ?? []).filter(w => w.slot === 'top' && w.look.kind === 'coat').map(w => ({ key: w.id, name: w.name })), { key: 'none', name: null }];
+  const umb = p.stand > 0, out = [];
+  for (const c of coats) for (const u of umb ? (wet ? [1, 0] : [0, 1]) : [0]) {
+    const words = [c.name ? `in ${c.name.replace(/^(a|an) /, 'the ')}` : `in ${nameOf('top', p.look.top).replace(/^(a|an) /, 'your ')}, no coat`, u ? 'the umbrella' : null].filter(Boolean);
+    out.push({ key: `out:${c.key}:${u}`, label: `Out ${words.join(', with ')}` });
+  }
+  return out;
+}
+/** Out of the door, so dressed (a doorWays() key): the coat on, the one it replaces in the wardrobe, the umbrella taken or left. Returns the words. */
+export function goOut(p, key) {
+  const [, coat, u] = String(key).split(':');
+  const indoors = p.look.top;
+  if (coat === 'hook' && p.hook) { p.look = { ...p.look, top: structuredClone(p.hook.look) }; p.hook = null; }
+  else if (coat && coat !== 'none') {
+    const i = (p.wardrobe ?? []).findIndex(w => w.id === coat);
+    if (i >= 0) { const piece = p.wardrobe.splice(i, 1)[0]; if (p.hook) (p.wardrobe ??= []).push(p.hook); p.hook = null; p.look = { ...p.look, top: structuredClone(piece.look) }; }
+  }
+  if (p.look.top?.kind === 'coat') p.under = structuredClone(indoors);   // (what you wore in, for when you're back)
+  if (u === '1' && p.stand > 0 && !p.hand) { p.stand--; p.hand = 'umbrella'; if (!p.stand) delete p.stand; }
+  return shed(p);
+}
+
 /** Take off what's worn in a slot (a hat, glasses): returned as a piece. */
 export function takeOff(p, slot) {
   const was = worn(p, slot);
@@ -95,12 +138,15 @@ export const railOf = (shop, p) => (RAIL[shop] ?? []).map(x => ({ ...x, name: x.
 
 const thingName = (k) => weaponOf(k)?.name ?? armName(k) ?? (k === 'burner' ? 'a burner' : k);
 /** What's in the shop's bag, in words: a thing, some supplies, a piece of clothing. */
-export const bagWord = (x) => (x.supply ? supplyWord(x.supply, x.n) : x.item ? thingName(x.item) : x.book ? bookOf(x.book).title : x.name);
+export const bagWord = (x) => (x.groceries ? `${x.groceries} meals' groceries` : x.supply ? supplyWord(x.supply, x.n) : x.item ? thingName(x.item) : x.book ? bookOf(x.book).title : x.name);
+// (food for the flat, a meal a unit: the groceries' kinds, sim/clothes.js GOODS; into the larder when unpacked)
+export const GROCERIES = { groceries3: 3, groceries7: 7 };
 // (supplies into the bag: one entry a kind, so they stay counted)
 const bagSupply = (p, kind, n) => { const had = p.bag?.find(x => x.supply === kind); if (had) had.n += n; else (p.bag ??= []).push({ supply: kind, n }); };
 
 /** A thing bought or taken: a weapon into the hand if empty, then a pocket if there's room, else the bag. Where it went: 'hand' | 'pocket' | 'bag' | 'some' (a first-aid kit: part of each). */
 export function carry(p, kind) {
+  if (GROCERIES[kind]) { const had = p.bag?.find(x => x.groceries); if (had) had.groceries += GROCERIES[kind]; else (p.bag ??= []).push({ groceries: GROCERIES[kind] }); return 'bag'; }   // (a carrier bag of food, home to the larder)
   if (kind === 'burner') {
     if (fits(p, 'burner')) { p.burners = (p.burners ?? 0) + 1; return 'pocket'; }
     (p.bag ??= []).push({ item: 'burner' });
@@ -132,10 +178,11 @@ export function shed(p) {
 }
 
 /** Home: the bag unpacked, clothes into the wardrobe, things into the drawer, supplies into the cabinet (the campaign's, if given). Returns what was in it, in words, or null. */
-export function unpack(p, cabinet = null) {
+export function unpack(p, cabinet = null, larder = null) {
   if (!p.bag?.length) return null;
   const words = p.bag.map(bagWord);
   for (const x of p.bag) {
+    if (x.groceries) { if (larder) larder.meals = (larder.meals ?? 0) + x.groceries; continue; }   // (food into the kitchen: the campaign's larder)
     if (x.supply) { if (cabinet) cabinet[x.supply] = (cabinet[x.supply] ?? 0) + x.n; else addSupply(p, { [x.supply]: x.n }); }
     else if (x.book) { const b = p.books?.find(o => o.id === x.book); if (b) b.at = 'home'; }   // (onto the flat's shelf: sim/reading.js)
     else if (x.item) (p.stash ??= []).push(x.item);

@@ -148,7 +148,7 @@ export function ways(state, d, spot = 'counter') {
   if (d.shop === 'books') for (const b of shelf(state.map.seed, state.map.row ?? 0, d.x)) if (!(p?.books ?? []).some(o => o.id === b.id)) out.push({ id: `book:${b.id}`, label: `${b.lang ? `A grammar of ${LANG_NAME[langHere(state)] ?? 'the language'}` : b.title}: ${b.hours} hours' reading (${price(state, b.usd)})` });
   // (a rail: which piece, asked next (doWay()); what a shop sells to take away)
   if (RAIL[d.shop]) for (const slot of SLOTS) if (railOf(d.shop, p).some(x => x.slot === slot)) out.push({ id: `rail:${slot}`, label: RAIL_WORDS[slot] });
-  for (const [kind, what, usd] of GOODS[d.shop] ?? []) out.push({ id: `buy:${kind}`, label: `${what.charAt(0).toUpperCase() + what.slice(1)} (${price(state, usd)})` });
+  for (const [kind, what, usd] of GOODS[d.shop] ?? []) if (!kind.startsWith('groceries') || state.campaign) out.push({ id: `buy:${kind}`, label: `${what.charAt(0).toUpperCase() + what.slice(1)} (${price(state, usd)})` });   // (food for a flat: the campaign's)
   return out;
 }
 

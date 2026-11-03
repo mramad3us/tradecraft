@@ -167,6 +167,7 @@ function launch(s, { hour = null } = {}) {
   bus.on('papers', (list) => showPapers(list));
   bus.on('call', (id) => setTimeout(() => openCall(s, id), 0));    // (the flat's telephone: Hale)
   bus.on('desk-open', () => setTimeout(() => ui.openMind(s, (cmd) => acts.push(`desk:${cmd}`), 'ahead'), 0));   // (the chief's office at the embassy: what's on, the mind's first leaf)
+  bus.on('door', (list) => setTimeout(() => ui.openChoices('DOOR', 'OUT: THE COAT, THE UMBRELLA', list, (key) => acts.push(`desk:door:${key}`)), 0));   // (the flat's door: what to wear out: sim/clothes.js doorWays())
   bus.on('table', (list) => setTimeout(() => ui.openChoices('TABLE', 'THE KITCHEN TABLE', list, (key) => acts.push(`desk:table:${key}`)), 0));   // (the flat's kitchen table: a meal, or a gun's work: sim/gunwork.js)
   bus.on('wardrobe', (list) => setTimeout(() => list.length ? ui.openChoices('WARDROBE', 'WHAT TO WEAR, WHAT TO KEEP', list, (key) => acts.push(`desk:dress:${key}`)) : ui.closeOverlays(), 0));   // (the flat's wardrobe: sim/clothes.js)
   bus.on('basin', (list) => setTimeout(() => ui.openChoices('BASIN', 'WASH, OR THE CABINET', list, (key) => acts.push(`desk:basin:${key}`)), 0));   // (the flat's basin, and the cabinet over it: sim/clothes.js)

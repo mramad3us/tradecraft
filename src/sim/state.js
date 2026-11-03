@@ -50,7 +50,7 @@ export function upgradeState(s) {
   // (0.1.11: guns are rare and hard to come by, and until now a campaign's only came from debug mode or the
   // old issue: taken off the officer once; games made from now on start with the flag, and keep what they get)
   // (0.1.13: a legend's close combat and gun raised to the Farm's, once: sim/campaign.js armedFloor())
-  if (!s.flags.legendArmed) { for (const p of [s.people?.[s.player], s.campaign?.character]) if (p?.legend && p.skills) armedFloor(p.skills); s.flags.legendArmed = true; }
+  if (!s.flags.legendFloor) { for (const p of [s.people?.[s.player], s.campaign?.character]) if (p?.legend && p.skills) armedFloor(p.skills); s.flags.legendArmed = s.flags.legendFloor = true; }   // (0.1.18: every skill's floor, not just the two)
   if (!s.flags.gunsRare) { if (s.campaign) { disarm(s.people?.[s.player]); disarm(s.campaign.character); } s.flags.gunsRare = true; }
   s.schema = SAVE_SCHEMA;
   return s;

@@ -68,7 +68,7 @@ function things(p) {
 
 /** Where each thing carried goes (and extra, kinds, as if carried too): [{ kind, n, at: space id | null (it doesn't fit), label, shows }]; and the spaces, filled. */
 export function placed(p, extra = []) {
-  const top = p.look?.top?.kind, dress = top === 'dress', spaces = [];
+  const top = (p.hook ? p.hook.look : p.look?.top)?.kind, dress = top === 'dress', spaces = [];   // (at home, the coat on its hook still holds what's in its pockets: sim/clothes.js comeIn())
   for (const S of SPACES) {
     if ((S.top && !POCKETED.has(top)) || (dress && (S.id === 'trousers' || S.belt))) continue;
     for (let i = 0; i < S.n; i++) spaces.push({ ...S, used: 0 });

@@ -99,7 +99,7 @@ export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = 
   const state = {
     game: 'tradecraft', schema: SAVE_SCHEMA, version, seed, rng: seedRng(seed), tick: 0, time: { ms: 0 }, autoplay,
     scenario: { kind: scenario }, country: 'ru', legend: null, player: null, focus: null,
-    people: {}, map: null, actors: [], nextActor: 1, heat: {}, log: [], flags: { gunsRare: true, legendArmed: true }, mind: { seen: {} },
+    people: {}, map: null, actors: [], nextActor: 1, heat: {}, log: [], flags: { gunsRare: true, legendArmed: true, legendFloor: true }, mind: { seen: {} },
   };
   const pin = parseWeather(weather);
   if (pin) state.weather = pin;

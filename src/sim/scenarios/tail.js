@@ -565,6 +565,9 @@ function mark(state, t, glyph, watching) {
 }
 
 /** What makes us easy or hard for him to spot, as modifiers to his roll. */
+// The street's bands, north to south (sim/map/layout.js Z), and the side of the roads each is on.
+const bandOf = (z) => (z < Z.kerbN ? 'north' : z < Z.kerbS ? 'road' : z < Z.fence ? 'near' : z < Z.roadN ? 'path' : z < Z.roadS ? 'farroad' : 'south');
+const sideOf = (b) => (b === 'north' ? 0 : b === 'near' || b === 'path' ? 1 : b === 'south' ? 2 : null);
 function exposure(state, me, t, d, kind) {
   const sc = state.scenario, mods = [];
   // (in the dark, a face behind is a shape: close counts for little unless it's right behind him)
@@ -587,9 +590,13 @@ function exposure(state, me, t, d, kind) {
   const toHim = Math.abs(wrap(Math.atan2(t.z - me.z, t.x - me.x) - (me.head ?? 0)));
   if (toHim < 0.5 && (d < 15 || sc.stillS >= 2) && !me.glass) mods.push({ why: 'looking straight at him', v: 2 });
   else if (toHim > 2.2) mods.push({ why: 'your back to him', v: -1 });
-  const sameSide = (me.z < Z.kerbN) === (t.z < Z.kerbN);
-  if (sameSide && d < 20 && Math.abs(me.z - t.z) < 1.2 && kind !== 'cross') mods.push({ why: 'right behind him', v: 1 });
-  if (!sameSide && kind !== 'cross') mods.push({ why: 'across the road', v: -3 });
+  // (which side of which road: the north pavement, the near one and the boulevard behind its railings, the south one past
+  // the far road; across a road from him, a face is one of the street's; the user, 2026-11-03: "being on the other side of
+  // the road should count for something in terms of deception vs pathfinding rolls when NPCs turn around")
+  const mine = bandOf(me.z), his = bandOf(t.z), across = sideOf(mine) !== null && sideOf(his) !== null && sideOf(mine) !== sideOf(his);
+  if (mine === his && d < 20 && Math.abs(me.z - t.z) < 1.2 && kind !== 'cross') mods.push({ why: 'right behind him', v: 1 });
+  if (across && kind !== 'cross') mods.push({ why: 'across the road', v: -3 });
+  else if (!across && mine !== his && (mine === 'path' || his === 'path') && kind !== 'cross') mods.push({ why: 'the boulevard\'s railings between you', v: -1 });
   if (sc.alert >= 25) mods.push({ why: 'he\'s on edge', v: Math.min(4, Math.floor(sc.alert / 25)) });
   if (sc.sightings.length && d < 15) mods.push({ why: 'he\'s looking for you', v: 2 });
   return mods;

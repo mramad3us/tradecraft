@@ -133,12 +133,16 @@ const US = { f: ['Rebecca', 'Laura', 'Megan', 'Claire', 'Diane', 'Hannah', 'Juli
 // and forgotten, pensioned and back with a lawyer; a first tour's paper puts them at the bottom, like anyone.
 // Close combat and a gun, whatever the reason: every one of them came through the Farm (the user, 2026-11-03: "legends
 // now start with close to 0 CQC and Weapons Handling skill, that's a bug these skills should be very high"), so
-// both at LEGEND_ARMED at least (applyFloor(): new files, and a legend's save on load once, sim/state.js).
+// both at LEGEND_ARMED at least, and every other skill at LEGEND_FLOOR's (armedFloor(): new files, and a legend's save on load once, sim/state.js).
 export const LEGEND_ARMED = [18, 2];
-/** A legend's close combat and gun at LEGEND_ARMED at least (skills: a sheet's). Returns whether anything rose. */
+// (and good at everything, the user, 2026-11-03: "legends should be very good at everything, even medicine or analysis (even
+// though these last three skills should remain lower than the rest, they should still be high to reflect that legends had a
+// past where they were illegals or other highly independent and skilled postings)")
+export const LEGEND_FLOOR = { deception: [18, 2], tracking: [18, 2], pathfinding: [18, 2], awareness: [18, 2], social: [18, 2], cqc: LEGEND_ARMED, weapons: LEGEND_ARMED, fitness: [16, 2], analysis: [12, 2], tech: [12, 2], medicine: [12, 2] };
+/** A legend's skills raised to LEGEND_FLOOR where under it (skills: a sheet's). Returns whether anything rose. */
 export function armedFloor(skills) {
   let up = false;
-  for (const k of ['cqc', 'weapons']) { const v = skills[k] ?? [0, 0]; if (v[0] + v[1] < LEGEND_ARMED[0] + LEGEND_ARMED[1]) { skills[k] = [...LEGEND_ARMED]; up = true; } }
+  for (const [k, f] of Object.entries(LEGEND_FLOOR)) { const v = skills[k] ?? [0, 0]; if (v[0] + v[1] < f[0] + f[1]) { skills[k] = [...f]; up = true; } }
   return up;
 }
 export const DEFAULT_LEGEND = { deception: [15, 2], tracking: [15, 2], pathfinding: [15, 2], awareness: [15, 2], social: [10, 2], analysis: [10, 1], tech: [5, 1], medicine: [5, 1], cqc: [10, 2], weapons: [10, 1], fitness: [10, 1] };

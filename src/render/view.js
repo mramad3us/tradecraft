@@ -490,10 +490,12 @@ export function createView({ parent, bus, month = () => 11 }) {
       // (a named person's sheet keyed by their look too, so a change of clothes is drawn: sim/clothes.js; a shop's bag in the hand)
       // (a gun's id in the hand: its picture's a handgun's or a long gun's, sim/firearms.js; under a roof, the umbrella down and the hood back)
       const P = a.who && state.people[a.who], bl = P?.bloody, hand = isGun(P?.hand) ? (isLong(P.hand) ? 'rifle' : 'pistol') : P?.hand, rain0 = rainwearOf(wx, a.who ?? a.seed, hand, a.who === state.player, look), rain = rain0 && (a.within || a.inside || unitAt(state, a.x, a.z)) ? null : rain0, bag = P?.bag?.length ? 'bag' : null;
+      // (sunglasses put away once the light's gone, as an umbrella's put down under a roof: the user, 2026-11-03)
+      const shadesOff = look.glasses === 'shades' && S.glow > 0.35 ? 'noshades' : null;
       const base = a.who ? `${a.who}#${lookKey(look)}` : a.seed;
-      const key = bl || hand || rain || bag ? `${base}~${bl ? Object.keys(bl).sort().join('') : ''}~${hand ?? ''}~${rain ?? ''}~${bag ?? ''}` : base;
+      const key = bl || hand || rain || bag || shadesOff ? `${base}~${bl ? Object.keys(bl).sort().join('') : ''}~${hand ?? ''}~${rain ?? ''}~${bag ?? ''}~${shadesOff ?? ''}` : base;
       const pose = isGun(P?.hand) ? gunPose(a, ms) : null;          // (carried, aimed, fired: on the sim's clock)
-      people.push({ key, look: bl || hand || rain || bag ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}), ...(rain ? { rainwear: rain } : {}), ...(bag ? { carry: 'bag' } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S), own: a.who === state.player, frame: pose?.frame ?? null, flash: !!pose?.flash });
+      people.push({ key, look: bl || hand || rain || bag || shadesOff ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}), ...(rain ? { rainwear: rain } : {}), ...(bag ? { carry: 'bag' } : {}), ...(shadesOff ? { glasses: undefined } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S), own: a.who === state.player, frame: pose?.frame ?? null, flash: !!pose?.flash });
     }
     // (a shot's flash lights whoever's near it, for its moment: the shooter's face most; never darker than they were)
     for (const f of people.filter(p => p.flash)) for (const p of people) {
