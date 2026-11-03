@@ -6,7 +6,8 @@
 // options(state, them) lists what's open, each { id, label, ok, why } (greyed, with why, when not):
 //   - TALK: a conversation, time standing still (sim/talk.js; its minigame, and conversation proper,
 //     mechanic test 4, come later);
-//   - READ: what you make of them (sim/know.js): their sheet as you guess it;
+//   - READ: what you make of them (sim/know.js): their sheet as you guess it; and if they're hurt, a look at
+//     that (Medicine: sim/diagnosis.js), as first aid's is (FIRST AID, when there's something to do);
 //   - VIOLENCE, an opening (OPENINGS): a hit; a sucker punch, if they don't see it coming (out of their
 //     sight, or your Deception against their Awareness): it lands on them open, with all your weight,
 //     and may stun; a push (a shove: off balance, and no more unless they want more); a grab (CQC
@@ -17,7 +18,21 @@
 // in the street is seen: whoever saw it remembers a face (heat, WITNESS_HEAT each, up to WITNESS_MAX;
 // a killing, KILL_HEAT_K times that). Someone killed lies there for good (sim/fight.js); a broken arm
 // gives up and goes, holding it.
-import { opposed } from './checks.js';
+// Someone on the ground (downed(): out cold, shot, collapsed, tied) gets no openings: what's done to someone who
+// can't fight back is something else (the user, 2026-11-03: "violence in that context should be things like 'tie
+// down' or other options to kill them with what we have on us (knife is different than gun or bare hands)"): tie
+// them up (TIE_S, with their own belt and laces: they stay down till someone frees them), search them (SEARCH_S:
+// what they carry, their weapons taken if there's room), or kill them, by what's in your hand: a blade across the
+// throat (THROAT_S), a gun to the head (a shot, heard as any shot is), something heavy (BLUDGEON_S), bare hands
+// (STRANGLE_S, longer if your CQC roll against STRANGLE_DC fails). Each is done crouched over them, the busy
+// plan's time (sim/game.js busy(): moving before it's over and nothing's done), and seen by whoever's looking
+// as a fight is (a killing KILL_HEAT_K times the heat). The dead can only be searched.
+import { opposed, check } from './checks.js';
+import { isGun, armOf, modelOf, ready, fire, moveArm } from './firearms.js';
+import { heard } from './shooting.js';
+import { kill } from './health.js';
+import { spatter } from './blood.js';
+import { TICK_MS } from './clock.js';
 import { skill } from './skills.js';
 import { chance, pick, hash } from './rng.js';
 import { say } from './log.js';
@@ -27,9 +42,10 @@ import { stateOf, canStand, bleeding } from './health.js';
 import { addHeat } from './heat.js';
 import { begin as beginFight, exchange, owners, shortName } from './fight.js';
 import { read, fought } from './know.js';
+import { diagnose } from './diagnosis.js';
 import { begin as beginTalk } from './talk.js';
-import { wielded, canGrabWith } from './weapons.js';
-import { armsOf } from './items.js';
+import { wielded, canGrabWith, weaponOf } from './weapons.js';
+import { armsOf, fits, thingName } from './items.js';
 import { nudge } from './people.js';
 import { LINE } from './city.js';
 import { rowOf } from './agents.js';
@@ -42,6 +58,7 @@ export const WITNESS_M = 25;
 export const WITNESS_HEAT = 1;
 export const WITNESS_MAX = 6;
 export const KILL_HEAT_K = 4;
+export const TIE_S = 60, SEARCH_S = 20, THROAT_S = 4, BLUDGEON_S = 8, STRANGLE_S = 150, STRANGLE_DC = 8, STRANGLE_FAIL_K = 1.6;
 export const OPENINGS = ['hit', 'sucker', 'push', 'grab', 'stab'];
 const OPENING_WORDS = { hit: 'Hit', sucker: 'Sucker punch', push: 'Push', grab: 'Grab', stab: 'Stab' };
 
@@ -71,11 +88,33 @@ export function options(state, them) {
     { id: 'grab', label: OPENING_WORDS.grab, ok: grabs, why: grabs ? null : cqc < GRAB_CQC ? `CQC ${GRAB_CQC} and over (yours: ${cqc})` : 'your hand is full' },
     { id: 'stab', label: cuts ? `Stab: ${w.name.replace(/^(a|an) /, 'the ')}` : OPENING_WORDS.stab, ok: cuts, why: cuts ? null : 'no blade drawn (G draws one)' },
   ];
+  const down = downed(state, them), dead = !!(them.who && state.people[them.who]?.dead);
   return [
-    { id: 'talk', label: 'Talk', ok: true },
-    { id: 'violence', label: 'Violence', ok: true, sub: violence },
+    ...(down ? [] : [{ id: 'talk', label: 'Talk', ok: true }]),
+    { id: 'violence', label: 'Violence', ok: true, sub: down ? onGround(state, them, me, w, dead) : violence },
     { id: 'read', label: 'Read', ok: true },
     ...(hurtNow(state, them) ? [{ id: 'aid', label: 'First aid', ok: true }] : []),
+  ];
+}
+
+/** Whether someone's on the ground and can't fight back: dead, down, tied. */
+export function downed(state, a) {
+  const p = a.who && state.people[a.who];
+  return !!(p?.dead || a.ai?.tied || a.gait === 'down' || (a.ai?.downUntil ?? 0) > state.time.ms || (p && !canStand(p)));
+}
+
+/** What's done to someone on the ground: tie, search, kill by what's in your hand. */
+function onGround(state, them, me, w, dead) {
+  const p = them.who && state.people[them.who], gun = isGun(me.hand), g = gun && armOf(me, me.hand), M = gun && modelOf(me.hand);
+  const how = gun ? { id: 'kill', label: `A shot to the head, point blank (${M.short})`, ok: ready(g, M), why: ready(g, M) ? 'loud: a gunshot is heard' : 'it isn\'t ready to fire' }
+    : w?.edge ? { id: 'kill', label: `${cap(w.name.replace(/^(a|an) /, 'the '))} across the throat`, ok: true }
+    : w ? { id: 'kill', label: `Beat their head in with ${w.name.replace(/^(a|an|half a) /, 'the ')}`, ok: true }
+    : { id: 'kill', label: 'Strangle them (minutes, and a CQC roll)', ok: true };
+  if (dead) return [{ id: 'search', label: 'Search the body', ok: true }];
+  return [
+    { id: 'tie', label: 'Tie them up: their belt, their laces', ok: !them.ai?.tied, why: them.ai?.tied ? 'tied already' : null },
+    { id: 'search', label: 'Search them', ok: true },
+    how,
   ];
 }
 
@@ -102,13 +141,29 @@ export function act(state, bus, id, them) {
   if (!me || !them || state.fight || me.hidden) return null;
   const p = person(state, them), name = shortName(state, them.who);
   if (id === 'talk') { beginTalk(state, bus, them); return { show: 'talk' }; }
-  if (id === 'aid') return { show: 'aid', who: them.who };
+  if (id === 'aid') { diagnose(state, bus, me, them); return { show: 'aid', who: them.who }; }   // (a look first: what it finds, the card shows, sim/diagnosis.js)
   if (id === 'read') {
     const { roll, k } = read(state, me, them);
     say(state, bus, { kind: 'roll', roll, text: roll.ok ? `You size up ${name}: the build, the hands, the eyes.` : `You look ${name} over, and can't make up your mind.` });
+    diagnose(state, bus, me, them);                                  // (and if they're hurt, a look at that: Medicine)
     return { show: 'read', who: them.who, k };
   }
   const mine = state.people[state.player];
+  // (someone on the ground: tied, searched or killed, crouched over them a while: done when the time's up, sim/game.js)
+  if (['tie', 'search', 'kill'].includes(id)) {
+    if (!downed(state, them) || (id !== 'search' && p.dead)) return null;
+    const o = onGround(state, them, mine, wielded(mine), !!p.dead).find(x => x.id === id);
+    if (!o?.ok) return null;
+    const w = wielded(mine), gun = isGun(mine.hand);
+    const strangle = id === 'kill' && !gun && !w;
+    const r = strangle ? check(state.rng, { skill: 'cqc', value: skill(mine, 'cqc'), dc: STRANGLE_DC, body: mine }) : null;
+    const s = id === 'tie' ? TIE_S : id === 'search' ? SEARCH_S : gun ? 1 : w?.edge ? THROAT_S : w ? BLUDGEON_S : STRANGLE_S * (r.ok ? 1 : STRANGLE_FAIL_K);
+    me.busy = { what: `downed:${id}`, steps: [['wait', Math.round(s * 1000 / TICK_MS), me.face, 'crouch']], wait: 0, done: `downed:${id}:${them.id}`, since: state.time.ms };
+    me.vx = me.vz = 0;
+    const words = { tie: `You kneel by ${name}, and pull their belt free.`, search: `You go through ${name}'s pockets.`, kill: gun ? `The muzzle to ${name}'s head.` : w?.edge ? `You kneel by ${name}.` : w ? `You stand over ${name}.` : `Your hands round ${name}'s throat.` }[id];
+    say(state, bus, r ? { kind: 'roll', roll: r, text: r.ok ? `${words} It'll take a couple of minutes.` : `${words} You can't get your grip right: it's taking too long.` } : { kind: 'note', text: words });
+    return { show: null };
+  }
   if (!OPENINGS.includes(id) || (id === 'stab' && !wielded(mine)?.edge) || (id === 'grab' && (skill(mine, 'cqc') < GRAB_CQC || !canGrabWith(wielded(mine))))) return null;
   // The opening: the fight's first exchange, ours; them caught open if they didn't see it coming.
   const f = beginFight(state, bus, them, { style: 'even', owner: 'street' });
@@ -156,6 +211,42 @@ owners.street = {
     }
   },
 };
+
+/**
+ * What was being done to someone on the ground, its time up ('downed:<what>:<their actor id>', sim/game.js busy()):
+ * tied, searched, killed. Whoever saw it, as a fight's seen.
+ */
+export function finishDowned(state, bus, me, key) {
+  const [, what, id] = key.split(':'), them = state.actors.find(a => a.id === id), p = them && state.people[them.who], mine = state.people[me.who];
+  if (!them || !p || !mine) return;
+  const name = shortName(state, them.who), ms = state.time.ms;
+  if (what === 'tie') {
+    them.ai && (them.ai.tied = ms);
+    p.tied = ms;
+    say(state, bus, { kind: 'note', text: `${cap(name)}: wrists behind, the belt round them, the laces round the ankles. Nobody's going anywhere for a while.` });
+  } else if (what === 'search') {
+    const found = [p.hand, ...(p.items ?? [])].filter(Boolean), took = [];
+    for (const k of found) if (weaponOf(k) && fits(mine, k)) { if (p.hand === k) p.hand = null; p.items = (p.items ?? []).filter(x => x !== k); (mine.items ??= []).push(k); if (p.arms?.[k]) moveArm(p, mine, k); took.push(k); }
+    const rest = found.filter(k => !took.includes(k));
+    say(state, bus, { kind: 'note', text: found.length ? `On ${name}: ${found.map(k => thingName(k)).join(', ')}.${took.length ? ` You take ${took.map(k => thingName(k)).join(', ')}.` : ''}${rest.length && !took.length ? ' Nothing worth the room in your pockets.' : ''}` : `${cap(name)}'s pockets: keys, a phone with a cracked screen, receipts. Nothing.` });
+  } else if (what === 'kill' && !p.dead) {
+    const gun = isGun(mine.hand), w = wielded(mine);
+    if (gun) {
+      const f = fire(state.rng, mine, mine.hand);
+      if (!f.fired) { say(state, bus, { kind: 'note', text: 'Click. It doesn\'t go off.' }); return; }
+      heard(state, bus, me, me.x, me.z, modelOf(mine.hand).loud); me.$shot = ms;
+      kill(p, ms, 'shot in the head, point blank');
+    } else kill(p, ms, w?.edge ? 'a cut throat' : w ? 'beaten to death' : 'strangled');
+    spatter(state, them.x, them.z, 0, gun || w?.edge ? 12 : w ? 6 : 0);
+    them.gait = 'down'; if (them.ai) them.ai.downUntil = Infinity;
+    say(state, bus, { kind: 'note', text: `${cap(name)} is dead.` });
+  }
+  const saw = state.actors.filter(a => a !== me && a !== them && !a.hidden && Math.hypot(a.x - me.x, a.z - me.z) < WITNESS_M && seesActor(state, a, me)).length;
+  if (saw && state.legend && what !== 'search') {
+    addHeat(state, Math.min(WITNESS_MAX, saw) * WITNESS_HEAT * (what === 'kill' ? KILL_HEAT_K : 1));
+    say(state, bus, { kind: 'note', text: what === 'kill' ? 'Someone saw. A scream, and running feet.' : 'Someone saw you at it, and hurries off.' });
+  }
+}
 
 /** Off they go, quick, along the street away from you. */
 function run(state, a) {

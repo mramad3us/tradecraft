@@ -275,6 +275,8 @@ export function createView({ parent, bus, month = () => 11 }) {
 
   // The fog: what the player's character is aware of, on the ground.
   const [FNX, FNZ] = FOG_N, fogData = new Uint8Array(FNX * FNZ * 2), fogVal = new Float32Array(FNX * FNZ).fill(1), feltVal = new Float32Array(FNX * FNZ), feltAim = new Float32Array(FNX * FNZ);
+  // (how much of a spot on the ground is in sight now, 0–1: the fog's cell; out of its grid, unseen)
+  const fogAt = (x, z) => { if (!fogO) return 1; const i = Math.floor(x / FOG_CELL_M) - fogO[0], j = Math.floor(z / FOG_CELL_M) - fogO[1]; return i >= 0 && i < FNX && j >= 0 && j < FNZ ? fogVal[j * FNX + i] : 0; };
   const fogAim = new Float32Array(FNX * FNZ), fogLight = new Float32Array(FNX * FNZ), fogIn = new Int16Array(FNX * FNZ);
   const fogLamps = Array.from({ length: FNX * FNZ }, () => []);   // per cell, the lamps whose pool may reach it
   const fogTex = new THREE.DataTexture(fogData, FNX, FNZ, THREE.RGFormat, THREE.UnsignedByteType);
@@ -511,7 +513,7 @@ export function createView({ parent, bus, month = () => 11 }) {
     }
     crowd.update(people, t);
     blood.update(state);
-    traffic.update(state, alpha, S.glow > 0.35);                   // (the cars on the road, their lights on after dark: src/render/traffic.js)
+    traffic.update(state, alpha, S.glow > 0.35, pc && !aware ? (x, z) => fogAt(x, z) > 0.5 : null);   // (only those in sight: the fog, as for people)                   // (the cars on the road, their lights on after dark: src/render/traffic.js)
     items.update(state);
     stage.render();
     for (const s of dying) s.dispose();                            // (the last street's, now the next's have their shaders)
@@ -600,5 +602,5 @@ export function createView({ parent, bus, month = () => 11 }) {
   function dispose() { traffic.dispose(); clear(); for (const s of dying.splice(0)) s.dispose(); off.forEach(f => f()); fogTex.dispose(); crowd.atlas.dispose(); crowd.dispose(); stage.dispose(); }
 
   return { stage, frame, resize, clear, dispose, flush: () => build(Infinity), canvas: stage.renderer.domElement, get camera() { return cam; }, posOf: (id) => drawn.get(id),
-    fogAt: (x, z) => { if (!fogO) return 1; const i = Math.floor(x / FOG_CELL_M) - fogO[0], j = Math.floor(z / FOG_CELL_M) - fogO[1]; return i >= 0 && i < FNX && j >= 0 && j < FNZ ? fogVal[j * FNX + i] : 0; } };
+    fogAt };
 }

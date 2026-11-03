@@ -1,7 +1,7 @@
 // TRADECRAFT art: the figure on the inventory's screen (src/ui/pockets.js): you, standing, in what you're
 // wearing, with your pockets on you (the user, 2026-10-31: "improve the character outline, it's not as good
-// as it should be"). It's the one place in the game that looks at a person close to, so it's a figure of its
-// own, not a sprite blown up: W × H, drawn at half the size of the picture's pixels, a real proportion (six
+// as it should be"); and anyone, wounded, on your read of them and on first aid's card (src/ui/body.js). It's
+// where the game looks at a person close to, so it's a figure of its own, not a sprite blown up: W × H, drawn at half the size of the picture's pixels, a real proportion (six
 // and a half heads tall, the light from the upper left, an ink line round it as the sprites have).
 //
 // **How it's drawn.** As a pixel artist would, in shapes and clusters, not by a formula across every row
@@ -26,6 +26,19 @@
 // lines, so that no seam crosses them, and the trousers' before the top, so that a coat's edge falls over them.
 // What's in the hand (a weapon kind) hangs from it, drawn from its shape (heldIcon()) to its length; a shop's
 // bag from the other. The fingers close over what they hold.
+//
+// **Wounds** (wounds: sim/diagnosis.js findings().marks; the user, 2026-11-03: "graphical representations (high
+// quality based on inventory screen)"): each where it lies, a part's in turn at its places (SLOTS; a graze in the
+// hair, a split brow or lip, a nose, a break on the shin or the forearm, at their own), their right on our left as
+// they face us. Blood in four tones of its own (BL): what's soaked into the cloth a stain in its own pixels,
+// darkened toward blood and ragged at the edge; what runs fresh bright, in drips as long as it bleeds fast. A
+// bullet's entry a dark hole with a wet rim and a glint; a cut a slant, a gash a deeper one, an artery spurting
+// aside; a bruise on the face; a break or a crack a jag across the limb, light on dark cloth and dark on light.
+// What's on them: a dressing (a taped pad on the body, wound round a limb in its turns; a strip of shirt greyer),
+// blood come through it where it still bleeds; a tourniquet's strap high on the limb, its buckle outside; a
+// splint's two staves outside the limb's line, tied; bleeding inside a dashed ring round the belly, in the rust
+// of what shows, as a diagram marks it. They go on last, before the ink, and rows.spots says where each
+// numbered one is, for its plaque (src/ui/body.js).
 import { SKIN, heldIcon } from './sprites.js';
 import { sizeOf } from '../sim/weapons.js';
 
@@ -625,6 +638,155 @@ function bagIn(g, [hx, hy]) {
   g.span(hy + 2, hx - 2, hx + 3, T.base, id);
 }
 
+// ---------- wounds ----------
+
+// (what a look at someone shows, on the figure: sim/diagnosis.js findings().marks. Blood in four tones of its own: what
+// runs fresh, bright; what's soaked into the cloth, dark, the cloth's own pixels deepened toward it, not painted over)
+const BL = { light: 0xe0574a, base: 0xb3282c, shade: 0x6b1a20, deep: 0x3a0c12 };
+const HOLE = 0x1a0508;
+const BANDAGE = cloth(0xeeeae0), RAG = cloth(0xb9b2a0), STRAP = cloth(0x2c2e38), WOOD = cloth(0xd2a468), BUCKLE = 0xd9a83a;
+const BRUISE = [0x6a4a7a, 0x4a2a5a];
+// (where wounds go on each part, in turn, [across from the middle (the viewer's left negative), row]; a limb's at its
+// own middle on that row; some kinds have a place of their own: a graze in the hair, a split brow, a nose, a black eye)
+const SLOTS = { head: [[-3, 8], [4, 10], [-5, 18], [5, 19]], torso: [[-6, 39], [5, 42], [-2, 48], [7, 50], [-8, 45], [2, 35]],
+  arm: [44, 58, 51, 38], leg: [80, 111, 94, 70] };
+const OWN = { graze: [2, 5], split: [-4, 11], lip: [1, 22], nose: [0, 20], bruise: [-5, 17] };
+const BREAK_Y = { arm: 58, leg: 111 };                             // (a break, a crack, on a limb: the forearm's, the shin's)
+const SIDE_OF = { armR: lf, armL: rt, legR: lf, legL: rt };        // (they face us: their right is on our left)
+const TEMPLE = [[6, 9], [6, 10], [6, 11], [7, 12], [7, 13], [7, 14], [7, 15], [6, 16], [6, 17], [6, 18], [5, 19], [5, 20], [4, 21], [4, 22], [3, 23]];   // (the run of blood from a scalp wound, down the shaded side of the face)
+const TOURNIQUET_Y = { arm: 37, leg: 65 }, SPLINT_Y = { arm: [45, 67], leg: [82, 121] };
+/** A leg's two edges at row y, as distances from the middle [inner, outer] (its stance as drawn above). */
+function legAt(B, k, y) {
+  const easy = k === 'legL', outer = easy ? [[B.hip, BELT_Y], [B.hip + 0.6, 66], [B.hip + 0.4, 82], [B.knee + 1, KNEE_Y], [B.hem + 1.8, ANKLE_Y + 1]] : [[B.hip, BELT_Y], [B.hip + 0.4, 66], [B.hip - 0.2, 82], [B.knee, KNEE_Y], [B.hem, ANKLE_Y + 1]];
+  const inner = easy ? [[0.5, BELT_Y], [0.5, 80], [B.gap, KNEE_Y], [B.gap + 1, ANKLE_Y + 1]] : [[0.5, BELT_Y], [0.5, 80], [B.gap - 1, KNEE_Y], [B.gap, ANKLE_Y + 1]];
+  return [edgeOf(inner, y), edgeOf(outer, y)];
+}
+/** A limb's span at row y, in pixels [left, right]: an arm's sleeve as it's drawn (its own part, to its edges), a leg's by its stance. */
+function spanAt(g, B, k, y) {
+  if (k.startsWith('arm')) {
+    const d = (edgeOf([...B.armIn].reverse(), y) + edgeOf(B.armOut, y)) / 2, x = Math.round(SIDE_OF[k] === lf ? MID - d - 0.5 : MID + d - 0.5), id = g.part[y]?.[x];
+    let l = x, h = x;
+    while (id && g.part[y][l - 1] === id) l--;
+    while (id && g.part[y][h + 1] === id) h++;
+    return [l, h];
+  }
+  const [a, b] = legAt(B, k, y);
+  return SIDE_OF[k] === lf ? [Math.round(MID - b), Math.round(MID - a) - 1] : [Math.round(MID + a), Math.round(MID + b) - 1];
+}
+/** Where on the figure a part's nth wound goes (x, y in its pixels, before the drop), a kind's own place first. */
+export function woundSpot(sex, part, n, kind = null) {
+  const B = BODY[sex] ?? BODY.m;
+  if (part === 'head' || part === 'torso') { const [d, y] = (part === 'head' && OWN[kind]) || SLOTS[part][n % SLOTS[part].length]; return [Math.round(MID + d), y]; }
+  const limb = part.startsWith('arm') ? 'arm' : 'leg', ys = SLOTS[limb], y = (kind === 'break' || kind === 'crack' ? BREAK_Y[limb] : ys[n % ys.length]) - (part === 'armL' ? 1 : 0);
+  const d = part.startsWith('arm') ? (edgeOf([...B.armIn].reverse(), y) + edgeOf(B.armOut, y)) / 2 : legAt(B, part, y).reduce((a, b) => a + b) / 2;
+  return [Math.round(SIDE_OF[part] === lf ? MID - d - 0.5 : MID + d - 0.5), y];
+}
+/** One pixel deepened toward a colour, only where the figure is (blood doesn't run onto the wall). */
+const tint = (g, x, y, c, t) => { if (g.col[y]?.[x] !== null && g.col[y]?.[x] !== undefined) g.col[y][x] = mix(g.col[y][x], c, t); };
+const dab = (g, x, y, c) => { if (g.col[y]?.[x] !== null && g.col[y]?.[x] !== undefined) g.col[y][x] = c; };
+/** A stain soaked into what's there, round (x, y), r across, running down more than out, darkest where it's wettest; ragged at its edge. */
+function stain(g, x, y, r, t = 0.7) {
+  for (let dy = -r; dy <= r + 2; dy++) for (let dx = -r; dx <= r; dx++) {
+    const e = Math.hypot(dx / (r + 0.4), (dy > 0 ? dy / (r + 1.6) : dy / (r + 0.2)));
+    if (e > 1) continue;
+    if (e > 0.7 && ((x + dx) * 7 + (y + dy) * 13) % 3 === 0) continue;
+    tint(g, x + dx, y + dy, e < 0.45 ? BL.deep : BL.shade, e < 0.45 ? t : e < 0.75 ? t * 0.8 : t * 0.55);
+  }
+}
+/** What runs from a wound: drips down from (x, y), as long as it bleeds fast, lit at the top, the drop at the end darker. */
+function drips(g, x, y, level) {
+  const L = [0, 2, 5, 9][level] ?? 0, one = (x0, y0, n) => { for (let k = 0; k < n; k++) dab(g, x0, y0 + k, k === n - 1 ? BL.shade : k === 0 && n > 2 ? BL.light : BL.base); };
+  one(x, y, L);
+  if (level >= 2) one(x + 1, y + 1, Math.ceil(L / 2));
+  if (level >= 3) one(x - 1, y + 2, L - 3);
+}
+/** A pad on a wound: a dressing (a bandage, or a strip of shirt), taped; soaking through where it still bleeds. */
+function pad(g, x, y, kind, wet, wide = 6) {
+  const T = kind === 'rag' ? RAG : BANDAGE, x0 = x - Math.floor(wide / 2) + 1, x1 = x0 + wide - 1;
+  for (let yy = y - 2; yy <= y + 2; yy++) for (let xx = x0; xx <= x1; xx++) dab(g, xx, yy, yy === y - 2 ? T.light : yy === y + 2 || xx === x1 ? T.shade : xx === x0 ? T.soft : T.base);
+  for (const yy of [y - 1, y + 1]) { dab(g, x0 - 1, yy, T.soft); dab(g, x1 + 1, yy, T.shade); }   // (the tape, past the pad)
+  if (kind === 'rag') { dab(g, x0 + 1, y, T.shade); dab(g, x1 - 1, y - 1, T.shade); }
+  if (wet) soak(g, x, y, wet);
+}
+/** Blood come through a dressing: a spot in its middle, bigger the faster it's still going. */
+function soak(g, x, y, wet) { dab(g, x, y, BL.base); dab(g, x + 1, y, BL.shade); dab(g, x, y + 1, BL.shade); if (wet >= 2) { dab(g, x - 1, y, BL.base); dab(g, x + 1, y + 1, BL.base); dab(g, x, y - 1, BL.shade); } }
+/** A band round a limb at row y (a tourniquet's strap, a bandage wound round, a splint's tie): across it and a pixel past each edge. Returns [left, right]. */
+function band(g, B, k, y, T, rows = 2) {
+  const [l, h] = spanAt(g, B, k, y), x0 = l - 1, x1 = h + 1;
+  for (let r = 0; r < rows; r++) for (let x = x0; x <= x1; x++) g.put(x, y + r, r === 0 ? (x === x0 ? T.soft : T.light) : r === rows - 1 && rows > 1 ? (x === x1 ? T.deep : T.shade) : x === x1 ? T.shade : T.base);
+  if (rows > 3) for (let r = 1; r < rows - 1; r++) for (let x = x0 + 1; x < x1; x++) if ((x + r * 2) % 4 === 0) g.put(x, y + r, T.shade);   // (wound round: the turns of it, slanting)
+  return [x0, x1];
+}
+/** The marks: what bleeds inside (a ring marked on the body, as a diagram's is), each wound where it lies, the tourniquets and splints, blood worn. Returns where each numbered one is. */
+function wounds(g, B, sex, M) {
+  const spots = [], count = {};
+  // (blood worn with no wound to show for it here: someone else's, or run down from the face)
+  if (M.bloody?.clothes && !M.wounds.some(w => w.part === 'torso' && w.kind !== 'inside')) { stain(g, MID - 7, 45, 2, 0.5); stain(g, MID + 4, 53, 1, 0.45); }
+  if (M.bloody?.face && !M.wounds.some(w => w.part === 'head' && ['nose', 'split', 'graze', 'hole'].includes(w.kind))) { dab(g, MID - 1, 20, BL.shade); dab(g, MID - 1, 21, BL.base); tint(g, MID - 4, 21, BL.shade, 0.4); tint(g, MID + 2, 24, BL.shade, 0.4); }
+  for (const w of M.wounds) {
+    // (each part's wounds take its places in turn; those with a place of their own don't use one up)
+    const n = (OWN[w.kind] && w.part === 'head') || w.kind === 'inside' || ((w.kind === 'break' || w.kind === 'crack') && w.part in SIDE_OF) ? 0 : (count[w.part] = (count[w.part] ?? -1) + 1);
+    const [x, y] = w.kind === 'inside' ? [MID, 50] : woundSpot(sex, w.part, n, w.kind);
+    spots.push({ n: w.n, tone: w.tone, x, y, part: w.part });
+    const lv = w.bleed ?? 0, limb = w.part in SIDE_OF;
+    if (w.kind === 'inside') {
+      // (a dashed ring round the belly, in the rust of what shows (the pockets' word for it): marked there, under the skin, as a diagram marks it)
+      const ring = new Set();
+      for (let k = 0; k < 96; k++) { const t = (k / 96) * Math.PI * 2; ring.add(`${Math.round(MID - 0.5 + Math.cos(t) * 7.5)},${Math.round(52 + Math.sin(t) * 4.5)}`); }
+      [...ring].map(c => c.split(',').map(Number)).sort((a, b) => Math.atan2(a[1] - 52, a[0] - MID) - Math.atan2(b[1] - 52, b[0] - MID)).forEach(([xx, yy], k) => { if (k % 3 < 2) dab(g, xx, yy, yy < 52 ? RUST : mix(RUST, BL.shade, 0.35)); });
+    } else if (w.kind === 'hole') {
+      if (w.dressed) { if (limb) { band(g, B, w.part, y - 2, w.dressed === 'rag' ? RAG : BANDAGE, 4); if (lv) soak(g, x, y, lv); } else pad(g, x, y, w.dressed, lv); if (lv > 1) drips(g, x, y + 3, lv - 1); continue; }
+      stain(g, x, y + 1, lv >= 3 ? 4 : lv >= 2 ? 3 : 2);
+      // (the hole: dark, a wet rim round its foot, a glint where it catches the light)
+      dab(g, x, y, HOLE); dab(g, x + 1, y, HOLE); dab(g, x, y + 1, HOLE); dab(g, x + 1, y + 1, BL.deep);
+      dab(g, x - 1, y, BL.shade); dab(g, x, y - 1, BL.shade); dab(g, x + 1, y - 1, BL.shade); dab(g, x - 1, y + 1, BL.base); dab(g, x + 2, y + 1, BL.base); dab(g, x + 2, y, BL.shade);
+      if (lv) { dab(g, x - 1, y - 1, BL.light); drips(g, x, y + 2, lv); }
+    } else if (w.kind === 'graze') {
+      // (a furrow along the skull, where the hair or the hat's torn; what runs from it comes down the temple, by the face's edge)
+      for (let k = -2; k <= 2; k++) dab(g, x + k, y + (k > 0 ? 1 : 0), Math.abs(k) < 2 ? BL.deep : BL.shade);
+      dab(g, x - 1, y - 1, BL.base);
+      if (w.dressed) for (let k = -5; k <= 5; k++) { dab(g, MID + k, 9, BANDAGE.light); dab(g, MID + k, 10, BANDAGE.base); dab(g, MID + k, 11, k > 3 ? BANDAGE.deep : BANDAGE.shade); }
+      if (lv) TEMPLE.slice(0, 3 + 3 * lv).forEach(([dx, yy], k) => { dab(g, MID + dx, yy, k === 0 ? BL.base : k % 5 === 4 ? BL.shade : BL.base); if (k < 3) dab(g, MID + dx - 1, yy, BL.shade); });
+    } else if (w.kind === 'cut' || w.kind === 'gash') {
+      const long = w.kind === 'gash' ? 3 : 2;
+      if (w.dressed) { if (limb) { band(g, B, w.part, y - 2, w.dressed === 'rag' ? RAG : BANDAGE, 4); if (lv) soak(g, x, y, lv); } else pad(g, x, y, w.dressed, lv); if (lv > 1) drips(g, x, y + 3, lv - 1); continue; }
+      if (lv || w.kind === 'gash') stain(g, x, y + 1, w.kind === 'gash' ? 2 + Math.min(2, lv) : 1, 0.55);
+      for (let k = -long; k <= long; k++) { dab(g, x + k, y + Math.round(k * 0.6), w.kind === 'gash' && Math.abs(k) < long ? HOLE : BL.shade); if (w.kind === 'gash') dab(g, x + k, y + Math.round(k * 0.6) + 1, BL.base); }
+      if (w.stitched) for (let k = -long + 1; k < long; k += 2) { dab(g, x + k, y + Math.round(k * 0.6) - 1, INK); dab(g, x + k, y + Math.round(k * 0.6) + 1, INK); }
+      if (lv) drips(g, x + 1, y + 2, lv);
+      if (w.spurt) for (const [dx, dy] of [[3, -2], [5, -1], [6, 1], [4, -3]]) dab(g, x + (SIDE_OF[w.part] === rt ? dx : -dx), y + dy, dy < -1 ? BL.light : BL.base);
+    } else if (w.kind === 'split' || w.kind === 'lip') {
+      dab(g, x, y, BL.deep); dab(g, x + 1, y, BL.shade); dab(g, x, y + 1, BL.base);
+      if (lv) drips(g, x, y + 2, Math.min(2, lv));
+    } else if (w.kind === 'nose') {
+      if (lv || M.bloody?.face) { dab(g, MID - 1, 20, BL.shade); dab(g, MID, 20, BL.shade); dab(g, MID - 1, 21, BL.base); if (lv) { dab(g, MID - 1, 22, BL.base); dab(g, MID, 21, BL.base); } }
+    } else if (w.kind === 'bruise' && w.part === 'head') {
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -3; dx <= 2; dx++) { const e = Math.hypot(dx / 3, dy / 2.2); if (e < 1) tint(g, x + dx, y + dy, e < 0.5 ? BRUISE[1] : BRUISE[0], e < 0.5 ? 0.5 : 0.32); }
+    } else if (w.kind === 'crack' || w.kind === 'break') {
+      // (a break's jag across the limb, or a crack's short one on the ribs: a line in the part's own darkest, a row up and down)
+      // (on a dark cloth, the line's light; on a light one, dark: it has to show)
+      const [l, h] = limb ? spanAt(g, B, w.part, y) : [x - (w.kind === 'crack' ? 2 : 3), x + (w.kind === 'crack' ? 2 : 3)];
+      for (let xx = l; xx <= h; xx++) { const yy = y + ((xx - l) % 2), c = g.col[yy]?.[xx]; if (c !== null && c !== undefined) tint(g, xx, yy, lum(c) < 100 ? 0xf6f4ee : INK, lum(c) < 100 ? 0.5 : w.kind === 'break' ? 0.75 : 0.6); }
+    }
+  }
+  // (a tourniquet high on the limb: its strap, the buckle at the outside; a splint: two staves down the limb, outside its line, tied)
+  for (const k of M.tourniquets ?? []) {
+    if (!(k in SIDE_OF)) continue;
+    const y = TOURNIQUET_Y[k.startsWith('arm') ? 'arm' : 'leg'] - (k === 'armL' ? 1 : 0), [l, h] = band(g, B, k, y, STRAP), x = SIDE_OF[k] === lf ? l : h;
+    g.put(x, y, BUCKLE); g.put(x, y + 1, mix(BUCKLE, INK, 0.45));
+  }
+  for (const k of M.splints ?? []) {
+    if (!(k in SIDE_OF)) continue;
+    const [y0, y1] = SPLINT_Y[k.startsWith('arm') ? 'arm' : 'leg'].map(y => y - (k === 'armL' ? 1 : 0));
+    for (let y = y0; y <= y1; y++) {
+      const [l, h] = spanAt(g, B, k, y);
+      g.put(l - 1, y, y === y0 ? WOOD.light : WOOD.soft); g.put(h + 1, y, y === y0 ? WOOD.base : WOOD.shade);
+    }
+    for (const t of [0.15, 0.5, 0.85]) band(g, B, k, Math.round(y0 + (y1 - y0) * t), BANDAGE, 1);
+  }
+  return spots;
+}
+
 // ---------- the backdrop ----------
 
 // (a wall and a floor, flat: a tone lighter than the darkest clothes, so a black coat has an edge)
@@ -634,10 +796,13 @@ function backdrop(x, y) {
   return Math.hypot((x - MID - 2) / 25, (y - FLOOR_Y - 0.5) / 4.2) < 1 ? FLOOR_DARK : FLOOR;   // (the shadow it stands in, thrown a little right)
 }
 
+/** The backdrop at a pixel of the rows (x may be past the figure's sides: the wall goes on, for a frame round it: src/ui/body.js). */
+export const backdropAt = (x, y) => backdrop(x, y - DROP);
+
 // ---------- the figure ----------
 
-/** Rows of colours, H × W, nothing clear: the backdrop and the figure on it. { look, sex, marks, hand, bag }. */
-export function doll({ look = {}, sex = 'm', marks = {}, hand = null, bag = false } = {}) {
+/** Rows of colours, H × W, nothing clear: the backdrop and the figure on it. { look, sex, marks, hand, bag, wounds }; with wounds, rows.spots: where each numbered one is (x, y on the rows). */
+export function doll({ look = {}, sex = 'm', marks = {}, hand = null, bag = false, wounds: hurts = null } = {}) {
   const g = grid(), B = BODY[sex] ?? BODY.m, top = look.top ?? { kind: 'coat' }, dress = top.kind === 'dress', wrist = B.armIn[0][1];
   hair(g, look, true);
   if (isOpen(top) && CUT[top.kind].hem > 90) backOf(g, B, top);
@@ -675,11 +840,13 @@ export function doll({ look = {}, sex = 'm', marks = {}, hand = null, bag = fals
   }
   for (const [x, y, c] of seams) g.col[y][x] = c;
   onTop(g, marks, top, P);
+  const spots = hurts ? wounds(g, B, sex, hurts) : [];             // (the wounds over it all, as the pockets are: sim/diagnosis.js)
   // Then the ink, round the lot, on the wall.
   const rows = [...Array.from({ length: DROP }, () => Array(W).fill(null)), ...g.col], out = rows.map(r => [...r]);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     if (rows[y][x] !== null) continue;
     out[y][x] = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => (rows[y + dy]?.[x + dx] ?? null) !== null) ? INK : backdrop(x, y - DROP);
   }
+  out.spots = spots.map(o => ({ ...o, y: o.y + DROP }));
   return out;
 }

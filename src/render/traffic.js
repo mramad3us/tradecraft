@@ -43,8 +43,12 @@ export function createTraffic(scene) {
     m.traverse(o => o.geometry?.dispose());
     meshes.delete(id);
   }
-  /** Each frame: the cars in play, where they are between the ticks. */
-  function update(state, alpha, night = false) {
+  /**
+   * Each frame: the cars in play, where they are between the ticks; seen(x, z) (the view's fog: src/render/view.js), and a
+   * car out of sight is not drawn, as people aren't (the user, 2026-11-03: "cars keep being visible in movement even when in our
+   * blind spot"): its front, its middle or its back in sight, it's there.
+   */
+  function update(state, alpha, night = false, seen = null) {
     const t = state.traffic, cars = state.map.kind === 'street' && t?.row === (state.map.row ?? 0) ? t.cars : [];
     if (row !== (state.map.row ?? 0)) { for (const id of [...meshes.keys()]) free(id); row = state.map.row ?? 0; }
     const live = new Set();
@@ -62,7 +66,9 @@ export function createTraffic(scene) {
         meshes.set(c.id, m);
       }
       if (!!m.userData.on !== night) lights(m, night);
-      m.position.set(lerp(c.px ?? c.x, c.x, alpha), 0, lerp(c.pz ?? c.z, c.z, alpha));
+      const x = lerp(c.px ?? c.x, c.x, alpha), z = lerp(c.pz ?? c.z, c.z, alpha), half = c.kind === 'bus' ? 5 : 2.2;
+      m.position.set(x, 0, z);
+      m.visible = !seen || seen(x, z) || seen(x - half, z) || seen(x + half, z);
     }
     for (const id of [...meshes.keys()]) if (!live.has(id)) free(id);
   }

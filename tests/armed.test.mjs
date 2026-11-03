@@ -3,7 +3,8 @@
 // heard, and the armed response comes in its minutes, long guns up.
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
 import { armCop, call } from '../src/sim/armed.js';
-import { newGun, isGun, modelOf, isLong } from '../src/sim/firearms.js';
+import { newGun, isGun, modelOf, isLong, MODELS } from '../src/sim/firearms.js';
+import { bullet } from '../src/sim/shooting.js';
 import { makeAgent } from '../src/sim/agents.js';
 import { sheet } from '../src/sim/people.js';
 import { heat } from '../src/sim/heat.js';
@@ -79,6 +80,29 @@ export default [
       const unit = w.g.actors.filter(a => a.unit);
       assert(unit.length === 3 && unit.every(a => isLong(w.g.people[a.who].hand)), `come: ${unit.length}, with ${unit.map(a => modelOf(w.g.people[a.who].hand).short).join(', ')}`);
       console.log(`      London: the armed response due in ${fmt(mins, 1)} min; ${unit.length} officers, ${unit.map(a => modelOf(w.g.people[a.who].hand).short).join(', ')}`);
+    },
+  },
+  {
+    name: 'armed: an officer shot down fires no more from the ground; nobody fires at you down, or with your hands empty; they cover you and come in',
+    fn() {
+      // (the user's save, 2026-11-03: two officers shot down went on firing, and on at the player down and unarmed)
+      const w = scene('moscow');
+      w.p.hand = newGun(w.p, 'makarov');
+      seconds(w, 6);                                                   // (the order, kept: he engages)
+      const fires = () => w.log.filter(l => /fires/.test(l)).length;
+      bullet(w.g, w.bus, w.c, 'torso', MODELS.makarov, w.me);
+      const f0 = fires();
+      seconds(w, 20);
+      assert(w.c.gait === 'down' && fires() === f0, `shot down: ${fires() - f0} more shots from the ground (${w.c.gait})`);
+      const v = scene('moscow');
+      v.p.hand = newGun(v.p, 'makarov');
+      seconds(v, 6);
+      (v.p.items ??= []).push(v.p.hand); v.p.hand = null;              // (put away)
+      const g0 = v.log.filter(l => /fires/.test(l)).length;
+      seconds(v, 15);
+      const g1 = v.log.filter(l => /fires/.test(l)).length;
+      assert(g1 === g0, `hands empty: ${g1 - g0} shots at you`);
+      console.log(`      shot down, 20 s: ${fires() - f0} shots from him; your gun away, 15 s: ${g1 - g0} at you; ${v.log.some(l => /cuffs/.test(l)) ? 'cuffed' : 'covered'}`);
     },
   },
 ];

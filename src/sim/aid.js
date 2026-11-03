@@ -40,6 +40,9 @@
 //   - Rest (yourself, nothing bleeding, the blood down; where the scene lets the clock go: the free
 //     walk's state.scenario.rest): sit somewhere warm, something sweet to drink, REST_H hours at most,
 //     the blood back REGEN_PER_H an hour (sim/health.js); the game skips the clock (sim/game.js).
+// What's wrong is what a look finds (sim/diagnosis.js, a Medicine roll, as first aid opens): the options name each
+// wound as far as it's known (seenName(): a wound in the chest, till a look says it's a bullet's), and bleeding
+// inside, which no hands stop, shows as a row that can't be chosen only once a look has found it.
 // bodyLine() is the instinct's word on your own body: bleeding, the blood lost, H to tend it.
 import { check } from './checks.js';
 import { TICK_MS } from './clock.js';
@@ -52,6 +55,7 @@ import { addHeat } from './heat.js';
 import { range } from './rng.js';
 import { weaponOf } from './weapons.js';
 import { eat, needsWords } from './needs.js';
+import { seenName, finds } from './diagnosis.js';
 
 export const PRESSURE_K = 0.35;
 export const PRESS_S = 60;
@@ -78,21 +82,22 @@ const rigid = (p) => [p.hand, ...(p.items ?? [])].find(k => weaponOf(k)?.splint)
 const oneHanded = (p) => ['armL', 'armR'].some(k => ['wounded', 'out'].includes(stateOf(p, k)) || p.tourniquets?.[k]);
 
 const ORD = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'];
-/** A wound's name, told apart from its twins (two gunshot wounds in the chest: 'the first …', 'the second …'). */
-export function woundName(p, n) {
+/** A wound's name, told apart from its twins (two gunshot wounds in the chest: 'the first …', 'the second …'); nameOf: as it's known (sim/diagnosis.js seenName()). */
+export function woundName(p, n, nameOf = (i) => i.name) {
   const all = p.injuries ?? [], i = all[n];
   if (!i) return 'it';
-  const twins = all.map((j, k) => [j, k]).filter(([j]) => j.name === i.name);
-  if (twins.length < 2) return i.name;
+  const name = nameOf(i), twins = all.map((j, k) => [j, k]).filter(([j]) => nameOf(j) === name);
+  if (twins.length < 2) return name;
   const k = twins.findIndex(([, m]) => m === n);
-  return i.name.replace(/^(a|an) /, `the ${ORD[k] ?? `${k + 1}th`} `);
+  return name.replace(/^(a|an) /, `the ${ORD[k] ?? `${k + 1}th`} `);
 }
 
 /** What can be done for patient (a sheet) by medic (a sheet), with what the medic carries (sim/medicine.js): [{ key, label, ok, why }] (key: 'method:i', i the injury's index, or the limb, or the part). */
 export function options(state, medic, patient) {
   const ms = state.time.ms, out = [], has = (k) => kitOf(medic, k), left = (k) => supplyWord(k, has(k));
-  const wounds = (patient.injuries ?? []).map((i, n) => [i, n]).filter(([i]) => !i.internal), nm = (i, n) => woundName(patient, n);   // (bleeding inside: past what hands can do, below)
-  for (const i of (patient.injuries ?? []).filter(j => j.internal && j.bleed > ms)) out.push({ key: 'none', label: `${i.name.charAt(0).toUpperCase() + i.name.slice(1)}: bleeding inside`, ok: false, why: 'nothing hands can do for it: a hospital, and fast' });
+  const self = medic === patient, wounds = (patient.injuries ?? []).map((i, n) => [i, n]).filter(([i]) => !i.internal), nm = (i, n) => woundName(patient, n, (j) => seenName(patient, j, ms, self));   // (bleeding inside: past what hands can do, below; each named as far as it's known)
+  // (bleeding inside: a row that can't be chosen, once a look has found it: sim/diagnosis.js)
+  for (const i of (patient.injuries ?? []).filter((j, n, all) => j.internal && j.bleed > ms && finds(patient, ms, 'inside', j) && all.findIndex(k => k.internal && k.part === j.part && k.bleed > ms) === n)) out.push({ key: 'none', label: /^bleeding inside/.test(i.name) ? 'Bleeding inside, from the chest' : `${i.name.charAt(0).toUpperCase() + i.name.slice(1)}: bleeding inside`, ok: false, why: 'nothing hands can do for it: a hospital, and fast' });
   // (what bleeds, first)
   for (const [i, n] of wounds.filter(([i]) => i.bleed > ms)) {
     out.push({ key: `pressure:${n}`, label: `Press on ${nm(i, n)}`, ok: true });

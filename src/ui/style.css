@@ -362,13 +362,35 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 /* The glass cards (first aid, the choices: src/ui/ui.js): the mind's glass, rows not tables. */
 .overlay .mind.glass { width: min(calc(760px * var(--ui, 1)), 96%); }
 .overlay .mind.glass.choices { width: min(calc(560px * var(--ui, 1)), 94%); }
-.glass .wounds { list-style: none; margin: 4px 0; padding: 0; }
-.glass .wounds li { margin: 2px 0; color: #b8bdc8; }
-.glass .wounds li b { font-weight: normal; color: #dfe2e8; margin-right: 8px; }
-.glass .wounds li.mid b { color: #e7b84a; }
-.glass .wounds li.bad b { color: #e8896a; }
-.glass .wounds li span { color: #8f96a6; font-size: calc(12px * var(--ui, 1)); }
-.aid-body { border-left: 2px solid #353947; padding-left: 10px; margin: 6px 0 8px; }
+/* A body, as a look at it shows it (src/ui/body.js): the figure and its plaques, as the inventory's is; the words beside it. */
+.overlay .mind.glass.aid { width: min(calc(900px * var(--ui, 1)), 96%); }
+.overlay .mind.glass.readsheet { width: min(calc(1060px * var(--ui, 1)), 97%); }
+.bp { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: start; margin: 6px 0 10px; }
+.bp-fig { background: #1b1c24; border: 1px solid #353947; border-radius: 2px; line-height: 0; align-self: start; }
+.bp-fig canvas { display: block; }
+.bp-words { font-size: calc(13px * var(--ui, 1)); line-height: 1.4; }
+.bp-look { color: #b8bdc8; margin: 0 0 6px; }
+.bp-look.fail { color: #e8896a; }
+.bp-look .num { color: #6a7182; font-size: calc(11px * var(--ui, 1)); }
+.bp-status, .bp-rows, .bp-needs ul { list-style: none; margin: 0 0 8px; padding: 0; }
+.bp-status li, .bp-needs li { margin: 2px 0; color: #dfe2e8; padding-left: 10px; border-left: 2px solid #353947; }
+.bp-status li.bad, .bp-needs li.bad { color: #e8896a; border-left-color: #9e3c36; }
+.bp-status li.mid, .bp-needs li.mid { color: #e7b84a; border-left-color: #b9862e; }
+.bp-status li.calm, .bp-needs li.calm { color: #b8bdc8; }
+.bp-rows li { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: start; padding: 3px 0; border-bottom: 1px solid #23252f; }
+.bp-rows li canvas.bp-tag { margin-top: 1px; }
+.bp-rows b { font-weight: normal; color: #f6f4ee; }
+.bp-rows li.bad b { color: #e8896a; }
+.bp-rows li.mid b { color: #e7b84a; }
+.bp-detail { color: #b8bdc8; }
+.bp-care { color: #76ad4c; }
+.bp-none { color: #8f96a6; margin: 2px 0 8px; }
+.bp-needs h3, .read-grid h3 { font-size: calc(11px * var(--ui, 1)); letter-spacing: 0.08em; color: #e7b84a; font-weight: normal; margin: 8px 0 4px; text-transform: uppercase; }
+.read-grid h3:first-child { margin-top: 0; }
+.bp-aid { display: inline-flex; gap: 8px; align-items: center; margin-top: 4px; background: #23252f; border: 1px solid #9e3c36; color: #f6f4ee; padding: 4px 12px; cursor: pointer; border-radius: 2px; font: inherit; }
+.bp-aid:hover, .bp-aid:focus-visible { border-color: #e7b84a; outline: none; }
+.aid .glass-row .what canvas.bp-tag { vertical-align: -5px; margin-left: 7px; }
+.aid .glass-row .nowrap { white-space: nowrap; }
 .aid-kit { color: #8f96a6; font-size: calc(12px * var(--ui, 1)); margin: 4px 0 0; }
 .glass-rows { display: flex; flex-direction: column; }
 .glass-row { display: grid; grid-template-columns: 1.8em minmax(10em, 1.1fr) 1fr 4.6em; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid #23252f; }
@@ -394,8 +416,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .glass.logsheet li.made .num { color: #76ad4c; }
 .glass.logsheet li .num { display: block; color: #6a7182; font-size: calc(11px * var(--ui, 1)); margin-top: 2px; }
 .glass.logsheet li.unseen { opacity: 0.6; }
-.read-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; }
-.read-cols h3 { font-size: calc(11px * var(--ui, 1)); letter-spacing: 0.08em; color: #e7b84a; font-weight: normal; margin: 4px 0; text-transform: uppercase; }
+.read-grid { display: grid; grid-template-columns: auto 1.2fr 1fr; gap: 16px; align-items: start; margin: 6px 0 4px; }
 .read-row { display: grid; grid-template-columns: 9em 1fr 3.4em; gap: 10px; align-items: center; padding: 3px 0; border-bottom: 1px solid #23252f; }
 .read-row .what { color: #dfe2e8; }
 .read-row.none .what, .read-row.none b { color: #6a7182; }

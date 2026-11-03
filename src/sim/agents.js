@@ -35,7 +35,7 @@ import { Z, SECTION_M, mouthOf, inLane as inLaneG, laneLine } from './map/street
 import { near, blocked } from './world.js';
 import { seesActor, headOf, gazeInto, openAir, reach } from './perception.js';
 import { weatherAt, footing } from './weather.js';
-import { canStand, canRun, mobility } from './health.js';
+import { staysDown, canRun, mobility } from './health.js';
 import { paneAt, seatTaken } from './acts.js';
 import { intoCar, carInWay } from './traffic.js';
 
@@ -184,7 +184,7 @@ export function stepAgent(state, a, scenario, bus) {
   if (ai.fighting) return;                                          // (in a fight, its feet are the fight's: sim/fight.js)
   if (ai.gunner) { a.vx = a.vz = 0; return; }                       // (a gun up: standing to shoot, sim/armed.js)
   const body = a.who && state.people[a.who];
-  if (ai.downUntil > state.time.ms || (body && !canStand(body))) { a.vx = a.vz = 0; a.gait = 'down'; return; }   // (knocked out: lying there a while; and down while they can't stand, whatever the clock says)
+  if (ai.downUntil > state.time.ms || ai.tied || (body && staysDown(body))) { a.vx = a.vz = 0; a.gait = 'down'; return; }   // (knocked out: lying there a while; and down for good while the body says so, whatever the clock: sim/health.js staysDown())
   if (ai.wait > 0) {
     a.vx = a.vz = 0;
     if (ai.visit) visitStep(a, ai.visit, ai.visit.ticks - ai.wait);

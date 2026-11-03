@@ -2,9 +2,11 @@
 // watch, where you are and the weather, the log's lines as they come, the keys, a scenario's marker over its target and the
 // instinct's line), and the sheets laid over it: the menu (Esc), the log (J), the character sheet (C:
 // the over-skill, the skills, health part by part), a test's brief before it starts and its result
-// when it ends; F's menu over whoever's within reach (Talk, Violence and its openings, Read:
-// sim/interact.js), and their sheet as you guess it (sim/know.js). Plain DOM over the canvas, sized
-// to it: the picture fills the
+// when it ends; F's menu over whoever's within reach (Talk, Violence and its openings, Read, First aid:
+// sim/interact.js); your read of them, their body as a look shows it (src/ui/body.js, sim/diagnosis.js: the
+// figure, the wounds marked, as they are this moment) beside their sheet as you guess it (sim/know.js),
+// and first aid from it (the aid key) if they're in reach; first aid's card, the same body over what can be
+// done for it (sim/aid.js). Plain DOM over the canvas, sized to it: the picture fills the
 // window (fit()), centred, and the HUD is the same box, so nothing sits off the picture.
 //
 // The picture is RES pixels: 640 × 360, or on a window of another shape a little more street on its
@@ -36,6 +38,8 @@ import { shortName, statusLine } from '../sim/fight.js';
 import { weaponOf, bare } from '../sim/weapons.js';
 import { placed, fits, thingName } from '../sim/items.js';
 import { options as aidOptions, bodyLine } from '../sim/aid.js';
+import { findings, hurtAtAll } from '../sim/diagnosis.js';
+import { figure, words, optionTag } from './body.js';
 import { calendar as calendarOf, DAY as DAY_MS } from '../sim/clock.js';
 import { bleedRate, bloodOf, bandOf, BLOOD } from '../sim/health.js';
 import { openTubeMap } from './tubemap.js';
@@ -44,6 +48,7 @@ import { kitWords, onYou, painOf, painBand, feverOf } from '../sim/medicine.js';
 import { RANK as RANKS } from '../sim/instinct.js';
 import { weatherAt } from '../sim/weather.js';
 
+const AID_REACH_M = 2.5;                                           // (first aid from your read: as near as it has to be to be given, sim/game.js)
 const BAND_WORDS = { steady: 'steady', pale: 'pale, light-headed', shock: 'in shock', collapsed: 'collapsed', dead: 'gone' };
 /** Pain and fever, as '; in pain, feverish', or '' (sim/medicine.js). */
 const bodyWords = (p) => { const w = [painBand(painOf(p, stateOf, Object.keys(PARTS)))?.word, feverOf(p)?.word, p.sick?.kind === 'cold' && 'a heavy cold', p.shiver ? 'shivering, wet through' : (p.wet ?? 0) >= 60 ? 'wet through' : (p.wet ?? 0) >= 30 ? 'damp' : null, p.dosed && 'on painkillers'].filter(Boolean); return w.length ? `; ${w.join(', ')}` : ''; };
@@ -56,7 +61,7 @@ import { LESSONS, FARM, lessonOf, numberOf, nextLesson } from '../sim/tutorial/i
 import { READ_S, WORD_S } from '../sim/tutorial/earpiece.js';
 import { HEARSAY } from '../sim/hale.js';
 import { plaque, place, bracket } from './plaque.js';
-import { options as shootOptions, targets as shootTargets, odds as shootOdds, gunsOf } from '../sim/shooting.js';
+import { options as shootOptions, targets as shootTargets, odds as shootOdds, gunsOf, aimMs } from '../sim/shooting.js';
 import { said as gunSaid, armOf, modelOf as gunModel } from '../sim/firearms.js';
 import { openMind } from './mind.js';
 import { outcomeWord } from '../sim/outcomes.js';
@@ -101,7 +106,8 @@ export function createUI({ input, cb }) {
   const moves = el('div', { className: 'moves', hidden: true });    // in a fight: the three moves and their keys, while we choose
   const gunPanel = el('div', { className: 'moves gunpanel', hidden: true });   // shooting: the steps to choose from, time standing still (sim/shooting.js)
   const reticle = el('canvas', { className: 'plaque reticle', hidden: true });   // shooting: over the target picked, the part, the odds, how far
-  const frameT = el('canvas', { className: 'plaque reticle frame', hidden: true });   // shooting: brackets round the target, pale picked, red aimed at
+  const frameT = el('canvas', { className: 'plaque reticle frame', hidden: true });
+  const frameA = el('canvas', { className: 'plaque reticle frame', hidden: true });   // shooting: the one aimed at, red, when the brackets above are on another   // shooting: brackets round the target, pale picked, red aimed at
   const ask = el('div', { className: 'ask', hidden: true });           // F's menu, over whoever's within reach
   const reach = el('div', { className: 'reach', hidden: true });       // a key over whoever's within reach
   const talkbox = el('div', { className: 'ask talkbox', hidden: true }); // a conversation, over them (time stands still)
@@ -112,7 +118,7 @@ export function createUI({ input, cb }) {
   const goal = el('canvas', { className: 'plaque goal', hidden: true });   // where you're going, when it's off the picture (src/ui/plaque.js)
   const prompt = el('div', { className: 'prompt', hidden: true });
   const veil = el('div', { className: 'bloodveil' });                 // (the blood lost: the world dims and reddens at the edges)
-  const hud = el('div', { id: 'hud' }, veil, signs, tags, feltTags, marker, bubble, intent, ...states, you, pointed, speech, reach, ask, talkbox, bout, moves, gunPanel, frameT, reticle, goal, prompt, watch, toasts, earpiece, keys, banner);
+  const hud = el('div', { id: 'hud' }, veil, signs, tags, feltTags, marker, bubble, intent, ...states, you, pointed, speech, reach, ask, talkbox, bout, moves, gunPanel, frameA, frameT, reticle, goal, prompt, watch, toasts, earpiece, keys, banner);
   const menu = el('div', { className: 'overlay', hidden: true });
   const log = el('div', { className: 'overlay', hidden: true });
   const paper = el('div', { className: 'overlay', hidden: true });     // a brief, a result
@@ -145,7 +151,7 @@ export function createUI({ input, cb }) {
     const k = (a) => `<kbd>${input.label(a)}</kbd>`;
     keys.classList.toggle('folded', !keysOpen);
     if (!keysOpen) { keys.innerHTML = '<kbd>?</kbd> keys'; return; }
-    keys.innerHTML = mode === 'shoot' ? `<kbd>1</kbd>–<kbd>9</kbd> a step (time stands still till you choose) · Aim first, then fire · ${k('left')}${k('right')} what to aim at · ${k('up')}${k('down')} head, body, legs · ${k('aim')} leave it · ${k('log')} log`
+    keys.innerHTML = mode === 'shoot' ? `<kbd>1</kbd>–<kbd>9</kbd> a step (time stands still till you choose) · the mouse on someone, a click aims, a click again fires · ${k('left')}${k('right')} the next one, <kbd>Enter</kbd> aims · ${k('up')}${k('down')} head, body, legs · ${k('aim')} leave it · ${k('log')} log`
       : mode === 'fight' ? `${k('hit')} hit · ${k('grapple')} grab · ${k('guard')} cover · ${k('run')} held: spend an edge · ${k('gun')} draw · ${k('interact')} your read · ${k('log')} log · ${k('pause')} pause`
       : mode === 'talk' ? `<kbd>1</kbd>–<kbd>4</kbd> say · ${k('menu')} leave it there`
       : `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look (tap: glance) · ${k('instinct')} instinct · ${k('use')} use what's at hand · ${k('interact')} people · ${k('aid')} first aid · ${k('inventory')} carry · ${k('gun')} draw · ${k('sheet')} sheet · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
@@ -445,13 +451,16 @@ export function createUI({ input, cb }) {
           : [el('div', { className: 'move spend', textContent: `${DOING[sh.doing?.what] ?? 'on it'}…` })]));
       }
     }
-    const tS = sh && meS ? shootTargets(state, meS).find(o => o.key === (sh.menu === 'aim' ? sh.pick : sh.aim?.key ?? sh.pick)) : null;
-    reticle.hidden = frameT.hidden = !tS || !view?.camera;
+    const tList = sh && meS ? shootTargets(state, meS) : [], tS = tList.find(o => o.key === (sh?.pick ?? sh?.aim?.key)), tA = sh?.aim && sh.aim.key !== tS?.key ? tList.find(o => o.key === sh.aim.key) : null;
+    const covered = overlay();                                     // (a card or the log over the picture: no brackets on top of it)
+    reticle.hidden = frameT.hidden = !tS || !view?.camera || !!covered;
+    frameA.hidden = !tA || !view?.camera || !!covered;
+    if (tA && view?.camera) { const at = tA.key.startsWith('item:') ? [tA.x, tA.z] : view.posOf(tA.key) ?? [tA.x, tA.z]; place(frameA, bracket(tA.key.startsWith('item:') ? { w: 10, h: 7, style: 'tail' } : { w: 18, h: 34, style: 'tail' }), RES[0] / 2 + (at[0] - view.camera.x) * 16, RES[1] / 2 + (at[1] - view.camera.z) * 16 + 3, fw / RES[0]); }
     if (tS && view?.camera) {
       const at = tS.key.startsWith('item:') ? [tS.x, tS.z] : view.posOf(tS.key) ?? [tS.x, tS.z], o = shootOdds(state, meS, pS);
       const part = tS.key.startsWith('item:') ? (tS.name ?? 'it') : { head: 'head', torso: 'body', legs: 'legs' }[sh.part];
       const aimed = sh.aim?.key === tS.key, item = tS.key.startsWith('item:');
-      place(reticle, plaque({ text: aimed ? `${part} ${o ? Math.round(o.p * 100) : 0}%` : part, sub: `${Math.round(tS.d)} m · ${aimed ? 'aimed' : 'aim first'}`, style: aimed ? 'tail' : 'seen', icon: 'aim' }), RES[0] / 2 + (at[0] - view.camera.x) * 16, RES[1] / 2 + (at[1] - view.camera.z) * 16 - 2.6 * 16, fw / RES[0]);
+      place(reticle, plaque({ text: aimed ? `${part} ${o ? Math.round(o.p * 100) : 0}%` : part, sub: `${Math.round(tS.d)} m · ${aimed ? 'click: fire' : `click: aim, ${(aimMs(pS, meS, tS.x, tS.z, sh.gun) / 1000).toFixed(1)} s`}`, style: aimed ? 'tail' : 'seen', icon: 'aim' }), RES[0] / 2 + (at[0] - view.camera.x) * 16, RES[1] / 2 + (at[1] - view.camera.z) * 16 - 2.6 * 16, fw / RES[0]);
       // (the brackets round them: what the gun's on, plain to see)
       place(frameT, bracket(item ? { w: 10, h: 7, style: aimed ? 'tail' : 'seen' } : { w: 18, h: 34, style: aimed ? 'tail' : 'seen' }), RES[0] / 2 + (at[0] - view.camera.x) * 16, RES[1] / 2 + (at[1] - view.camera.z) * 16 + 3, fw / RES[0]);
     }
@@ -669,31 +678,33 @@ export function createUI({ input, cb }) {
     menu.hidden = log.hidden = true;
   }
 
-  /** H (or F, First aid): what can be done for someone's wounds (sim/aid.js options()), each a button that closes this and does it. */
+  /** H (or F, First aid): the body as your look sees it (src/ui/body.js: the figure, the wounds marked, the words), then what can be done for it (sim/aid.js options()), each a button that closes this and does it. */
   function openAid(state, actorId, act) {
     const a = state.actors.find(x => x.id === actorId), p = a && state.people[a.who], medic = state.people[state.player];
     if (!p) return;
     const self = a.who === state.player, go = (key) => () => { closeOverlays(); act(key); };
-    const list = aidOptions(state, medic, p), rate = bleedRate(p, state.time.ms), b = Math.round(bloodOf(p));
+    const list = aidOptions(state, medic, p), f = findings(state, p, { actor: a, self });
     const name = self ? 'YOUR WOUNDS' : (p.known === false ? p.seen : p.name).toUpperCase();
+    // (your own blood you know to the per cent, as the sheet does (C): it's in the look's lines; someone else's, as far as your look goes)
+    const note = self ? `${bodyWords(p) ? `${cap(bodyWords(p).slice(2))}. ` : ''}Medicine ${skill(medic, 'medicine')}: it decides what you make of it and how well it's done; on yourself, harder.`
+      : `Medicine ${skill(medic, 'medicine')}: it decides what your look finds, and how well it's done.`;
     // (the mind's dark glass, its heading a plaque: src/ui/mind.js; the user, 2026-10-28: "most menus need revamping")
-    const worst = (k) => ['out', 'wounded'].includes(stateOf(p, k)) ? 'bad' : stateOf(p, k) === 'hurt' ? 'mid' : '';
     card.replaceChildren(el('div', { className: 'mind glass aid' },
-      el('div', { className: 'mind-head' }, glassHead('FIRST AID', self ? 'YOUR WOUNDS' : name, 'cross')),
-      el('p', { className: 'mind-note' }, `Blood ${b}% (${BAND_WORDS[bandOf(p)]})${rate ? `; bleeding ${rate >= 8 ? 'fast, pumping' : rate >= 0.8 ? 'steadily' : 'a trickle'}` : ''}${bodyWords(p)}. Medicine ${skill(medic, 'medicine')}: it decides how well it's done${self ? '; on yourself, harder' : ''}.`),
-      // (the wounds as they stand, and what you have to tend them with: sim/medicine.js)
-      el('div', { className: 'aid-body' },
-        el('ul', { className: 'wounds' }, ...Object.keys(PARTS).filter(k => stateOf(p, k) !== 'unhurt' || injuriesOn(p, k)).map(k => el('li', { className: worst(k) }, el('b', {}, `${PARTS[k].name}: ${stateText(p, k)}`), injuriesOn(p, k, state.time.ms) ? el('span', {}, injuriesOn(p, k, state.time.ms)) : null))),
-        el('p', { className: 'aid-kit' }, `On you: ${kitWords(onYou(medic)) || 'nothing from a chemist\'s'}.`)),
+      el('div', { className: 'mind-head' }, glassHead('FIRST AID', name, 'cross')),
+      el('p', { className: 'mind-note' }, note),
+      el('div', { className: 'bp' }, el('div', { className: 'bp-fig' }, figure(p, f)),
+        el('div', { className: 'bp-side' }, words(el, f, { self }), el('p', { className: 'aid-kit' }, `On you: ${kitWords(onYou(medic)) || 'nothing from a chemist\'s'}.`))),
       list.length ? el('div', { className: 'glass-rows' }, ...numbered(list, o => o.ok).map(([o, n]) => el('div', { className: `glass-row${o.ok ? '' : ' none'}` },
-        el('span', {}, n ? el('kbd', {}, String(n)) : null), el('span', { className: 'what' }, o.label), el('span', { className: 'why' }, o.why ?? ''),
-        o.ok ? el('button', { dataset: { n }, onclick: go(o.key) }, 'Do it') : el('span')))) : el('p', {}, 'Nothing first aid can do: nothing bleeding, nothing open, nothing broken, nothing that hurts.'),
+        el('span', {}, n ? el('kbd', {}, String(n)) : null), el('span', { className: 'what' }, ...tagged(o.label, optionTag(f, o.key))), el('span', { className: 'why' }, o.why ?? ''),
+        o.ok ? el('button', { dataset: { n }, onclick: go(o.key) }, 'Do it') : el('span')))) : el('p', { className: 'mind-note' }, 'Nothing first aid can do: nothing bleeding, nothing open, nothing broken, nothing that hurts.'),
       el('p', { className: 'mind-foot' }, `1–9 or a click does it. It takes time, stooped over it; moving stops it. ${input.label('aid')} or ${input.label('menu')} to close.`)));
     card.hidden = false;
     card.dataset.kind = 'aid';
     menu.hidden = log.hidden = true;
     card.querySelector('button[data-n]')?.focus();
   }
+  /** A label with a wound's plaque after it, kept with its last word so it never wraps onto a line of its own. */
+  const tagged = (label, tag) => { if (!tag) return [label]; const k = label.lastIndexOf(' '); return [label.slice(0, k + 1), el('span', { className: 'nowrap' }, label.slice(k + 1), tag)]; };
   /** A glass card's heading: a plaque of the picture's, at two of its pixels a pixel. */
   function glassHead(text, sub, icon) {
     const pl = plaque({ text, sub: sub && String(sub).slice(0, 44), style: 'way', icon, notch: false }), cv = document.createElement('canvas');
@@ -765,32 +776,44 @@ export function createUI({ input, cb }) {
     else if (!card.hidden && ['aid', 'inventory', 'choices'].includes(card.dataset.kind)) { const n = digit(e) || (/^(?:Digit|Numpad)0$/.test(e.code) ? 10 : 0); const b = n && card.querySelector(`button[data-n="${n}"]`); if (b) { e.preventDefault(); b.click(); } }   // (0: the tenth)
   });
 
-  /** Their sheet as you guess it: what you know of them (sim/know.js). */
+  /**
+   * Your read of them: their body as you see it (src/ui/body.js: the figure, the wounds marked, what your look found:
+   * sim/diagnosis.js), as they are this moment (up or down, running), and their sheet as you guess it (sim/know.js).
+   * aid(actorId): first aid for them, if they're in reach and hurt (a button, and the aid key).
+   */
   const READ_MAX = 30;                                              // (the read's bars: a skill's scale, as far as it goes on a person)
-  function openRead(state, who) {
+  function openRead(state, who, { aid = null } = {}) {
     const p = state.people[who], k = knownOf(state, who), title = p.known === false ? p.seen : p.name;
+    const a = state.actors.find(x => x.who === who), me = state.actors.find(x => x.who === state.player), f = findings(state, p, { actor: a });
     // (what you've read first, then what a read could show but hasn't, then one line for what never shows at a glance)
     const all = Object.entries(SKILLS), got = all.filter(([key]) => k?.skills?.[key]), could = all.filter(([key]) => !k?.skills?.[key] && READABLE.includes(key));
     const hidden = all.filter(([key]) => !k?.skills?.[key] && !READABLE.includes(key)).map(([, sk]) => sk.name);
-    const bloodied = p.bloody?.face !== undefined;
-    const seen = Object.keys(PARTS).filter(part => ['hurt', 'wounded', 'out'].includes(stateOf(p, part)) || (part === 'head' && bloodied));
     // (the mind's dark glass: it's your read, in your head; a range a bar on the skills' scale)
     const bar = (r) => { const lo = Math.max(0, Math.min(READ_MAX, r[0])), hi = Math.max(lo, Math.min(READ_MAX, r[1])); return el('span', { className: 'read-bar' }, el('i', { style: `left: ${100 * lo / READ_MAX}%; width: ${Math.max(1.5, 100 * (hi - lo) / READ_MAX)}%` })); };
+    const reach = !!aid && !!a && !!me && !state.fight && !p.dead && hurtAtAll(p) && Math.hypot(a.x - me.x, a.z - me.z) <= AID_REACH_M;
+    const doAid = reach ? () => { closeOverlays(); aid(a.id); } : null;
     card.replaceChildren(el('div', { className: 'mind glass readsheet' },
       el('div', { className: 'mind-head' }, glassHead('YOUR READ', title, 'eye')),
       el('p', { className: 'mind-note' }, `${classOf(k) ? `By the look of them: ${classOf(k)}.` : 'What they are, you can\'t yet say.'} Read ${k?.reads ?? 0} time${k?.reads === 1 ? '' : 's'}${k?.fights?.won || k?.fights?.lost ? `; fought ${k.fights.won + k.fights.lost} time${k.fights.won + k.fights.lost === 1 ? '' : 's'}` : ''}.`),
-      el('div', { className: 'read-cols' },
-        el('div', { className: 'glass-rows' }, ...[...got, ...could].map(([key, sk]) => {
-          const r = k?.skills?.[key];
-          return el('div', { className: `read-row${r ? '' : ' none'}` }, el('span', { className: 'what' }, sk.name), r ? bar(r) : el('span', { className: 'why' }, 'not read yet'), el('b', {}, r ? (r[0] === r[1] ? `${r[0]}` : `${r[0]}–${r[1]}`) : '?'));
-        }), hidden.length ? el('p', { className: 'mind-note' }, `Not to be read at a glance: ${hidden.join(', ')}.`) : null,
-          el('p', { className: 'mind-note' }, 'Each range holds the truth; a better read (your Analysis) narrows it, and so does every read after. A fight shows bounds.')),
-        el('div', {}, el('h3', {}, 'On them'), el('ul', { className: 'wounds' }, ...(seen.length ? seen.map(part => el('li', { className: ['wounded', 'out'].includes(stateOf(p, part)) ? 'bad' : 'mid' }, el('b', {}, PARTS[part].name), el('span', {}, part === 'head' && bloodied && stateOf(p, part) === 'unhurt' ? 'bloodied' : stateText(p, part)))) : [el('li', {}, el('span', {}, 'Nothing shows on them'))])))),
-      el('p', { className: 'mind-foot' }, `${state.fight ? `${input.label('interact')}, ` : ''}${input.label('sheet')} or ${input.label('menu')} to close.`)));
+      el('div', { className: 'read-grid' },
+        el('div', { className: 'bp-fig' }, figure(p, f, { big: true })),
+        el('div', { className: 'read-body' }, el('h3', {}, 'On them'), words(el, f),
+          doAid ? el('button', { className: 'bp-aid', onclick: doAid }, el('kbd', {}, input.label('aid')), el('span', {}, 'First aid')) : null),
+        el('div', { className: 'read-skills' }, el('h3', {}, 'What they are'),
+          el('div', { className: 'glass-rows' }, ...[...got, ...could].map(([key, sk]) => {
+            const r = k?.skills?.[key];
+            return el('div', { className: `read-row${r ? '' : ' none'}` }, el('span', { className: 'what' }, sk.name), r ? bar(r) : el('span', { className: 'why' }, 'not read yet'), el('b', {}, r ? (r[0] === r[1] ? `${r[0]}` : `${r[0]}–${r[1]}`) : '?'));
+          })),
+          hidden.length ? el('p', { className: 'mind-note' }, `Not to be read at a glance: ${hidden.join(', ')}.`) : null,
+          el('p', { className: 'mind-note' }, 'Each range holds the truth; a better read (your Analysis) narrows it, and so does every read after. A fight shows bounds.'))),
+      el('p', { className: 'mind-foot' }, `${doAid ? `${input.label('aid')}: first aid · ` : ''}${state.fight ? `${input.label('interact')}, ` : ''}${input.label('sheet')} or ${input.label('menu')} to close.`)));
     card.hidden = false;
-    card.dataset.kind = '';
+    card.dataset.kind = 'read';
+    card.$aid = doAid;
     menu.hidden = log.hidden = true;
   }
+  /** The aid key over your read: first aid for them, if the read offers it. Returns whether it did. */
+  const readAid = () => { if (card.hidden || card.dataset.kind !== 'read' || !card.$aid) return false; card.$aid(); return true; };
 
   // ---------- a test's papers: the brief, the result ----------
   /** The campaign's three candidates (sim/campaign.js candidates()): pick one. */
@@ -957,5 +980,23 @@ export function createUI({ input, cb }) {
     setTimeout(() => f.remove(), 1600);
   }
 
-  return { frame, fit, flash, openInventory, openAid, openMind: openMindUI, openTube, openChoices, showCandidates, showPaper, showCall, showTitle, showTutorial, toggleKeys, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
+  /** Shooting: whoever's drawn under the page point (clientX, clientY): their target key, or null (their figure's box, feet up). */
+  function pickAt(state, view, cx, cy) {
+    const me = state?.shoot && state.actors.find(a => a.who === state.player), cam = view?.camera;
+    if (!me || !cam) return null;
+    const r = frame.getBoundingClientRect(), k = r.width / RES[0], px = (cx - r.left) / k, py = (cy - r.top) / k;
+    let best = null, bd = Infinity;
+    for (const t of shootTargets(state, me)) {
+      const at = t.key.startsWith('item:') ? [t.x, t.z] : view.posOf(t.key) ?? [t.x, t.z];
+      const sx = RES[0] / 2 + (at[0] - cam.x) * 16, sy = RES[1] / 2 + (at[1] - cam.z) * 16, item = t.key.startsWith('item:');
+      const inside = Math.abs(px - sx) <= (item ? 6 : 10) && py >= sy - (item ? 8 : 36) && py <= sy + 4;
+      const d = Math.hypot(px - sx, py - (sy - (item ? 3 : 16)));
+      if (inside && d < bd) { best = t.key; bd = d; }
+    }
+    return best;
+  }
+  /** The picture's frame on the ground, in m (what can be aimed at is in it: sim/shooting.js targets()). */
+  const frameBox = (view) => { const cam = view?.camera; return cam ? { x0: cam.x - RES[0] / 32, x1: cam.x + RES[0] / 32, z0: cam.z - RES[1] / 32, z1: cam.z + RES[1] / 32 } : null; };
+
+  return { pickAt, frameBox, frame, fit, flash, openInventory, openAid, readAid, openMind: openMindUI, openTube, openChoices, showCandidates, showPaper, showCall, showTitle, showTutorial, toggleKeys, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
 }

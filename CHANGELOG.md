@@ -4,6 +4,29 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.13 (2026-11-03)
+
+- **Fixed: police shot from the ground, and kept shooting you when you were down.** An officer who's been shot down stays down and doesn't fire. With you down, or your hands empty, they cover you without firing, and the nearest comes in to cuff you. You can't go into shooting mode lying down, or with both arms out.
+- **Aiming without a list.** The mouse over someone in the picture puts the brackets on them, with how long the aim takes. A click aims; a click on whoever you're aimed at fires. The arrows move the brackets to the next one along, and Enter aims. Only what's in the picture can be aimed at.
+- **Someone on the ground:** no punches or talk. Tie them up with their own belt and laces (a minute; they stay down after they come round), search them (their weapons come to you if there's room), or kill them with what's in your hand:
+  - a blade across the throat (4 s);
+  - something heavy (8 s);
+  - the gun to the head, which is heard like any shot;
+  - bare hands, strangling them (two and a half minutes, longer if your CQC roll fails).
+
+  Each takes its time crouched over them, and moving away first undoes it. Anyone who sees counts it as a killing.
+- **Bullet wounds bleed at a human pace.** A chest wound bled at an artery's pace; now it's about 3% a minute. Two rounds in the chest, untreated, put someone down in about 8 minutes and kill in about 10: time for first aid. The bleeding inside the chest is now one bleed, faster for each bullet, and takes about two hours to kill without a hospital.
+- **Your sheet counts its wounds.** The same wound twice reads once with how many ("a gunshot wound in the chest (×10)").
+- **Legends are armed.** Every legend came through the Farm, so CQC and Weapon handling are 18 at least: about 30 with their Tradecraft. A legend you're already playing is raised once, when the save loads.
+- **Cars in your blind spot aren't drawn,** as people there aren't.
+- **Knocked out comes round again.** A man laid out in a fight gets up on his clock, as before; only what really keeps someone down (blood lost, both legs gone, a bullet in the skull, the chest gone) keeps them there.
+
+- **A look at the wounded.** Reading someone hurt, or opening first aid on them (or on yourself, H), shows them close up, drawn as the inventory draws you, with every wound marked where it is: the bullet hole and the blood soaking the coat, drips as long as it bleeds fast, a cut, a split lip, a black eye, a bandage, a tourniquet, a splint, a ring round the belly where it bleeds inside. Each wound has a numbered plaque beside the figure, and the same number on its line in the list and on first aid's options for it.
+- **Medicine reads a body.** Anyone can see where the wounds are, whether someone's down, bleeding badly, pale. A Medicine roll (against 10) finds more, the better it's made: what made each wound (a bullet, a graze that didn't go in), how fast it bleeds, an artery, a break; then whether a bullet came out or is still in, a cracked rib, what it'll take (a dressing, stitches, a splint, a hospital); and, made by 8, bleeding inside, how much blood is left and how many minutes that gives. A failed look says so, and says the safe thing: you can't tell what's inside, treat it as bad. Over 400 looks at a woman shot twice in the chest: untrained (Medicine 0), the look's made 56% of the time and finds the bleeding inside 14%; Medicine 10, 93% and 66%; Medicine 20, 96% and 96% (a natural 1 fails anyone). Looking again a minute later rolls again; what you've seen, you keep.
+- **Your read, reworked.** The figure and the wounds on the left, what you see of their body in the middle (up or down as they are right now, not as they were), your read of their skills on the right. If they're hurt and within reach, a First aid button (H) takes you straight to first aid for them.
+- **First aid only lists bleeding inside once you've found it,** and names wounds as far as you know them ("a wound in the chest" until a look says it's a bullet's). Your own blood stays to the per cent.
+- **Bullets go through or stay in.** A pistol round stays in a chest about 60% of the time, and goes through an arm or a leg more often than not; heavier rounds go through more.
+
 ## v0.1.12 (2026-11-03)
 
 - **Guns are drawn as they're held.** Anyone holding a gun, you or an officer, carries it low, pointed at the ground. Aiming, the arms come up toward the target: a handgun held out in both hands, a long gun at the shoulder, angled up or down the picture when that's where the target is. Each round kicks the muzzle up and flashes, and at night the flash lights the shooter's face. Tests: `tests/gunpose.test.mjs` (the pose by the actor's state).

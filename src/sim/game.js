@@ -39,6 +39,7 @@ import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } fr
 import { drift, asOfficer, uniformed } from './people.js';
 import { heal, bleeding, bloodTick, bandOf, canStand, canRun, mobility, kill, BLOOD, COME_ROUND_S } from './health.js';
 import { PRESSURE_K, treat } from './aid.js';
+import { diagnose } from './diagnosis.js';
 import { atKerb, destinations, ride, cabFor, hailedBy, board, rideTick, chaseTick, WALK_OFF_M } from './taxi.js';
 import { doWay, insideTick, withinTick, LIVED } from './shops.js';
 import * as buses from './buses.js';
@@ -94,7 +95,7 @@ export function newGame({ seed = 1, scenario = 'walk', version = '', autoplay = 
   const state = {
     game: 'tradecraft', schema: SAVE_SCHEMA, version, seed, rng: seedRng(seed), tick: 0, time: { ms: 0 }, autoplay,
     scenario: { kind: scenario }, country: 'ru', legend: null, player: null, focus: null,
-    people: {}, map: null, actors: [], nextActor: 1, heat: {}, log: [], flags: { gunsRare: true }, mind: { seen: {} },
+    people: {}, map: null, actors: [], nextActor: 1, heat: {}, log: [], flags: { gunsRare: true, legendArmed: true }, mind: { seen: {} },
   };
   const pin = parseWeather(weather);
   if (pin) state.weather = pin;
@@ -152,6 +153,7 @@ export const focusActor = (state) => (state.focus && actor(state, state.focus)) 
 export const STOP_WAIT_S = 4;                                       // (stood still this long at a bus stop: waiting for the bus)
 
 export function step(state, input = {}, bus) {
+  if (input.frame) state.$frame = input.frame;                      // (the picture's frame, in m: what can be aimed at is in it, sim/shooting.js targets())
   const scenario = SCENARIOS[state.scenario.kind];
   // 1. The player.
   const me = playerActor(state);
@@ -167,6 +169,11 @@ export function step(state, input = {}, bus) {
       if (done && them) scenario.onInteract?.(state, bus, them, id);   // (a scene's own people, touched: a word, a blow: sim/scenarios/*)
       if (done?.show === 'read') bus?.emit('read', done.who);
       if (done?.show === 'aid') bus?.emit('aid', them.id);          // (first aid for them: the UI's panel, its choice back as 'aid:')
+      continue;
+    }
+    if (String(act).startsWith('tend:')) {                         // (H: first aid on yourself, a look first: sim/diagnosis.js; then the card)
+      const them = state.actors.find(a => a.id === act.slice(5));
+      if (me && them === me) { diagnose(state, bus, me, me); bus?.emit('aid', me.id); }
       continue;
     }
     if (String(act).startsWith('aid:')) {                          // (first aid, H or F: 'aid:<actor>:<method>:<arg>', sim/aid.js)
@@ -253,7 +260,7 @@ export function step(state, input = {}, bus) {
     const n = Math.hypot(mx, mz);
     if (n > 0.01 && !input.look) me.busy = null;
     me.looking = !!input.look && !me.busy;
-    if (me.busy) busy(me);
+    if (me.busy) { busy(me); if (me.$done) { const d = me.$done; delete me.$done; if (d.startsWith('downed:')) interact.finishDowned(state, bus, me, d); } }   // (a plan's time up: what it was for, sim/interact.js)
     else if (input.look) {
       me.vx = me.vz = 0; me.gait = 'idle';
       // (at a shop's glass, left and right slant the eyes along it, a little at a time, as far as the glass
@@ -375,7 +382,7 @@ function slipUp(state, bus, me) {
 // and ['wait', ticks, face, gait].
 function busy(me) {
   const b = me.busy, s = b.steps[0];
-  if (!s) { me.busy = null; me.vx = me.vz = 0; me.gait = 'idle'; return; }
+  if (!s) { const done = b.done; me.busy = null; me.vx = me.vz = 0; me.gait = 'idle'; if (done) me.$done = done; return; }   // (its time up: what it was for, done now, sim/interact.js finishDowned())
   if (s[0] === 'go') {
     const dx = s[1] - me.x, dz = s[2] - me.z, d = Math.hypot(dx, dz);
     // (given up when a second's walking hasn't brought it closer than it was a second before)

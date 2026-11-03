@@ -131,6 +131,16 @@ const US = { f: ['Rebecca', 'Laura', 'Megan', 'Claire', 'Diane', 'Hannah', 'Juli
 // And each its reason for starting again (anew; the user, 2026-11-03: "we also need to find a reason for starting
 // anew, maybe we 'retired' and came back, maybe we were burned and dust has settled"): retired and back, burned
 // and forgotten, pensioned and back with a lawyer; a first tour's paper puts them at the bottom, like anyone.
+// Close combat and a gun, whatever the reason: every one of them came through the Farm (the user, 2026-11-03: "legends
+// now start with close to 0 CQC and Weapons Handling skill, that's a bug these skills should be very high"), so
+// both at LEGEND_ARMED at least (applyFloor(): new files, and a legend's save on load once, sim/state.js).
+export const LEGEND_ARMED = [18, 2];
+/** A legend's close combat and gun at LEGEND_ARMED at least (skills: a sheet's). Returns whether anything rose. */
+export function armedFloor(skills) {
+  let up = false;
+  for (const k of ['cqc', 'weapons']) { const v = skills[k] ?? [0, 0]; if (v[0] + v[1] < LEGEND_ARMED[0] + LEGEND_ARMED[1]) { skills[k] = [...LEGEND_ARMED]; up = true; } }
+  return up;
+}
 export const DEFAULT_LEGEND = { deception: [15, 2], tracking: [15, 2], pathfinding: [15, 2], awareness: [15, 2], social: [10, 2], analysis: [10, 1], tech: [5, 1], medicine: [5, 1], cqc: [10, 2], weapons: [10, 1], fitness: [10, 1] };
 export const LEGENDS = [
   { id: 'illegal', age: [58, 64], names: { f: ['Ruth Lindqvist', 'Marian Kessel'], m: ['Paul Ostrander', 'Henry Lindqvist'] }, langs: { ru: 'native', fr: 'fluent' },
@@ -188,7 +198,9 @@ export function legendFile(seed, city = 'moscow', level = 'handler', n = 0) {
   const r = stream('legend', seed, city, level, n), L = LEGENDS[(int(stream('legend', seed), LEGENDS.length) + n * 5) % LEGENDS.length], sex = chance(r, 0.5) ? 'f' : 'm', lang = cityById(city).lang;   // (another file, another reason: every one of them before any twice)
   const age = L.age[0] + int(r, L.age[1] - L.age[0] + 1), name = pick(r, L.names[sex]);
   const langs = { en: 'native', [lang]: 'fluent', ...L.langs };
-  const p = sheet({ id: 'me', name, sex, cls: 'spook', os: 95, skills: structuredClone({ ...DEFAULT_LEGEND, ...L.skills }), langs, persistent: true });
+  const skills = structuredClone({ ...DEFAULT_LEGEND, ...L.skills });
+  armedFloor(skills);
+  const p = sheet({ id: 'me', name, sex, cls: 'spook', os: 95, skills, langs, persistent: true });
   p.age = age;
   p.background = L.text;
   p.anew = L.anew;                                                  // (why they're starting again: the picker's file, and Hale knows it: sim/hale.js)

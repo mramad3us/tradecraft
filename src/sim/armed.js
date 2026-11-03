@@ -36,7 +36,7 @@ import { routeFrom, LINE } from './city.js';
 import { townOf } from './cities/index.js';
 import { sheet } from './people.js';
 import { addHeat } from './heat.js';
-import { canStand } from './health.js';
+import { canStand, staysDown } from './health.js';
 import { stream, chance, pick, range } from './rng.js';
 import { say } from './log.js';
 import { HOUR } from './clock.js';
@@ -96,7 +96,18 @@ export function second(state, bus, me) {
   if (on.length && A2) {
     if (now - (A2.ordered ?? 0) >= ORDER_EVERY_S * 1000 && on.some(c => seesActor(state, c, me))) { A2.ordered = now; say(state, bus, { kind: 'note', text: policeOf(state.map).order ?? '"Police! Drop it!"' }); A2.since ??= now; }
     // (hands empty, and one of them close: taken in)
-    if (!armed) { A2.empty = A2.empty ?? now; if (now - A2.empty >= COMPLY_S * 1000 && on.some(c => Math.hypot(c.x - me.x, c.z - me.z) < ARREST_M)) return arrest(state, bus, me); }
+    if (!armed) {
+      A2.empty = A2.empty ?? now;
+      if (now - A2.empty >= COMPLY_S * 1000 && on.some(c => Math.hypot(c.x - me.x, c.z - me.z) < ARREST_M)) return arrest(state, bus, me);
+      // (none close enough: the nearest of them standing comes in to cuff you, the others covering)
+      if (now - A2.empty >= COMPLY_S * 1000) {
+        const up = on.filter(c => c.gait !== 'down' && !((c.ai?.downUntil ?? 0) > now)).sort((a, b) => Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z))[0];
+        if (up?.ai && !up.ai.closing) {
+          up.ai.closing = now; if (up.ai.gunner) up.ai.gunner = null;
+          try { setRoute(state, up, routeFrom(townOf(state.map), { row: state.map.row ?? 0, x: up.x, z: up.z }, { row: state.map.row ?? 0, x: me.x + Math.sign(up.x - me.x || 1) * 1.2, z: me.z })); } catch { up.ai.route = null; }
+        }
+      }
+    }
     else delete A2.empty;
     // (still armed past the order, or firing: they engage; the unarmed back off)
     const defiant = armed && A2.since && now - A2.since >= COMPLY_S * 1000;
@@ -167,8 +178,14 @@ export function tick(state, bus) {
 
 function gunner(state, bus, a, me) {
   const G = a.ai.gunner, p = state.people[a.who], now = state.time.ms;
-  if (!p || p.dead || !canStand(p) || !me) { a.ai.gunner = null; return; }
+  if (!p || p.dead || !canStand(p) || !me) { a.ai.gunner = null; delete a.$aim; return; }
   a.vx = a.vz = 0;
+  // (down themselves, shot or knocked flat: nothing from them till they're up; the user's save, 2026-11-03: two
+  // officers shot down went on firing from the ground)
+  if (a.gait === 'down' || (a.ai.downUntil ?? 0) > now || staysDown(p)) { G.aimed = null; delete a.$aim; return; }
+  // (you down, or your hands empty: they keep you covered and shout, and don't fire)
+  const mine = state.people[me.who];
+  if (!mine || mine.dead || !canStand(mine) || me.gait === 'down' || !isGun(mine.hand)) G.hold = true;
   const to = Math.atan2(me.z - a.z, me.x - a.x);
   if (now < G.until) return;
   const id = G.gun, g = armOf(p, id), M = modelOf(id);
@@ -192,7 +209,8 @@ function gunner(state, bus, a, me) {
   if (M.safety === 'manual' && g.safety) return step('safety');
   if (M.safety === 'selector' && g.mode === 'safe') return step('selector');
   if (!ready(g, M)) { const fix = canDo(p, id).find(k => ['clear', 'rack', 'release', 'insertMag', 'closeCyl'].includes(k)); if (fix) return step(fix); a.ai.gunner = null; return; }
-  if (G.hold || !seesActor(state, a, me)) { a.head = to; G.aimed = null; G.until = now + 250; delete a.$aim; return; }
+  if (!seesActor(state, a, me)) { a.head = to; G.aimed = null; G.until = now + 250; delete a.$aim; return; }
+  if (G.hold) { a.head = to; a.$aim = { x: me.x, z: me.z, ms: now }; G.aimed = null; G.until = now + 250; return; }   // (covering you: aimed, the finger off the trigger)
   a.$aim = { x: me.x, z: me.z, ms: G.aimed ?? now };                // (where the gun points, for the figure's pose: src/art)
   if (G.aimed === null || G.aimed === undefined) { G.aimed = now + aimMs(p, a, me.x, me.z, id); a.head = to; a.face = Math.abs(Math.cos(to)) > Math.abs(Math.sin(to)) ? (Math.cos(to) > 0 ? 'right' : 'left') : (Math.sin(to) > 0 ? 'down' : 'up'); G.until = G.aimed; return; }
   a.head = to;

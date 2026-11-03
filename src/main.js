@@ -159,7 +159,7 @@ function launch(s, { hour = null } = {}) {
   ui.frame.prepend(view.canvas);
   ui.fit();                                                        // (the picture to the window)
   bus.on('log', (e) => ui.toast(e));
-  bus.on('read', (who) => ui.openRead(state, who));
+  bus.on('read', (who) => ui.openRead(state, who, { aid: (id) => acts.push(`interact:aid:${id}`) }));   // (your read; first aid from it, if they're in reach: sim/interact.js)
   bus.on('aid', (id) => ui.openAid(state, id, (key) => acts.push(`aid:${id}:${key}`)));   // (first aid for someone at hand: sim/aid.js)
   bus.on('autosave', () => autosave());
   // (the campaign: an assignment taken at the desk, launched after this tick; papers the days bring, one after another)
@@ -312,17 +312,20 @@ input.onAction((action) => {
   if (action === 'menu' && state?.talk && !open) { acts.push('talk:leave'); return; }   // (Esc in a conversation: leave it there)
   if (action === 'menu') { if (open) { ui.closeOverlays(); if (open === 'menu') paused = false; } else { ui.openMenu(settings); } return; }   // (Esc out of the menu resumes, as its Resume does; out of J or C, a pause stays one)
   if (action === 'log') { if (open === 'log') { ui.closeOverlays(); } else if (!open) ui.openLog(state, settings); return; }
-  if (action === 'sheet') { if (open === 'sheet') { ui.closeOverlays(); } else if (!open) ui.openSheet(state); return; }
+  if (action === 'sheet') { if (open === 'sheet' || open === 'read') { ui.closeOverlays(); } else if (!open) ui.openSheet(state); return; }   // (C closes your read too: its foot says so)
   if (action === 'interact' && state?.talk) return;               // (in a conversation, F is nothing: its menu would open under the talk box)
   if (action === 'interact') {                                    // (F: what to do with whoever's within reach; the sim does it: sim/interact.js)
     if (open === 'interact') { ui.closeOverlays(); return; }
-    if (state.fight) { if (open === 'sheet') ui.closeOverlays(); else if (!open) ui.openRead(state, state.fight.b); return; }   // (in a fight: your read of them, the fight's own: sim/fight.js)
+    if (state.fight) { if (open === 'read') ui.closeOverlays(); else if (!open) ui.openRead(state, state.fight.b); return; }   // (in a fight: your read of them, the fight's own: sim/fight.js)
     if (!open && !paused && !ui.openInteract(state, (id, them) => acts.push(`interact:${id}:${them.id}`))) ui.toast({ kind: 'instinct', text: 'Nobody within reach.' });
     return;
   }
-  if (action === 'aid') {                                          // (H: tend your own wounds: sim/aid.js)
+  if (action === 'aid') {                                          // (H: tend your own wounds: sim/aid.js; over your read of someone, first aid for them)
     const me = state.actors.find(a => a.who === state.player);
-    if (open === 'aid') ui.closeOverlays(); else if (!open && me) ui.openAid(state, me.id, (key) => acts.push(`aid:${me.id}:${key}`));
+    if (open === 'aid') ui.closeOverlays();
+    else if (open === 'read') ui.readAid();
+    else if (!open && me && paused) ui.openAid(state, me.id, (key) => acts.push(`aid:${me.id}:${key}`));   // (paused, no tick to take a look in: the card on the last one)
+    else if (!open && me) acts.push(`tend:${me.id}`);                // (a look at yourself first, the sim's: sim/diagnosis.js; it opens the card)
     return;
   }
   if (action === 'mindmap') {                                      // (Tab: in the campaign's hub, the desk: sim/scenarios/campaign.js)
@@ -343,10 +346,25 @@ addEventListener('keydown', (e) => {                               // (shooting'
   if (!running || ui.overlay() || paused || e.repeat || state?.shoot?.phase !== 'choose') return;
   const m = /^(?:Digit|Numpad)([1-9])$/.exec(e.code), o = m && shootOptions(state)[Number(m[1]) - 1];
   if (o) { e.preventDefault(); acts.push(`shoot:${o.key}`); return; }
-  if ((e.code === 'Enter' || e.code === 'NumpadEnter') && state.shoot.menu === 'aim' && state.shoot.pick) { e.preventDefault(); acts.push(`shoot:aim:${state.shoot.pick}`); return; }   // (the aim list: Enter, the one the brackets are round)
+  if ((e.code === 'Enter' || e.code === 'NumpadEnter') && state.shoot.pick) { e.preventDefault(); acts.push(`shoot:aim:${state.shoot.pick}`); return; }   // (Enter: aim at the one the brackets are round)
   // (the move keys, by where they sit: left and right the target across the picture, up and down the head, the body, the legs)
   const mv = { KeyA: 'pick:-1', ArrowLeft: 'pick:-1', KeyD: 'pick:1', ArrowRight: 'pick:1', KeyW: 'part:-1', ArrowUp: 'part:-1', KeyS: 'part:1', ArrowDown: 'part:1' }[e.code];
   if (mv) { e.preventDefault(); acts.push(`shoot:${mv}`); }
+});
+// Shooting with the mouse (the user, 2026-11-03: "Make aiming more natural … but no list"): over someone in the
+// picture, the brackets go on them (sim/shooting.js 'pick='); a click aims at them, and a click on whoever's aimed at fires.
+const shooting = () => running && state?.shoot?.phase === 'choose' && !ui.overlay() && !paused;
+addEventListener('mousemove', (e) => {
+  if (!shooting()) return;
+  const key = ui.pickAt(state, view, e.clientX, e.clientY);
+  if (key && key !== state.shoot.pick) acts.push(`shoot:pick=${key}`);
+});
+addEventListener('mousedown', (e) => {
+  if (!shooting() || e.button !== 0) return;
+  const key = ui.pickAt(state, view, e.clientX, e.clientY);
+  if (!key) return;
+  e.preventDefault();
+  acts.push(state.shoot.aim?.key === key ? 'shoot:fire' : `shoot:aim:${key}`);
 });
 addEventListener('keydown', (e) => {                               // debug mode: the clock moves on
   if (!running || !settings.debug || ui.overlay() || e.repeat) return;
@@ -392,7 +410,7 @@ function frame(now) {
       acc += dt;
       while (acc >= TICK_MS / 1000) {
         prev = new Map(state.actors.map(a => [a.id, [a.x, a.z, a.stride]]));
-        try { step(state, { ...input.poll(), act: acts }, bus); } catch (e) { broke(e); }   // (a bug in a tick costs that tick, not the game)
+        try { step(state, { ...input.poll(), act: acts, frame: ui.frameBox(view) }, bus); } catch (e) { broke(e); }   // (a bug in a tick costs that tick, not the game)
         acts = [];
         acc -= TICK_MS / 1000;
       }

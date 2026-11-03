@@ -210,8 +210,10 @@ export function bloodTick(p, s, ms, k = 1) {
 export const bleeding = (p, ms) => !!p.injuries?.some(i => i.bleed > ms);
 
 /** Their injuries on a part, in words ('a cracked rib, a split lip'; at game time ms, with their care: 'a deep cut (stitched)'), and its scars, or ''. */
-export const injuriesOn = (p, part, ms = null) => [...(p.injuries ?? []).filter(i => i.part === part).map(i => { const w = ms === null ? '' : careWords(p, i, ms); return w ? `${i.name} (${w})` : i.name; }),
-  ...(p.scars ?? []).filter(x => x.part === part).map(x => x.name)].join(', ');
+export const injuriesOn = (p, part, ms = null) => counted([...(p.injuries ?? []).filter(i => i.part === part).map(i => { const w = ms === null ? '' : careWords(p, i, ms); return w ? `${i.name} (${w})` : i.name; }),
+  ...(p.scars ?? []).filter(x => x.part === part).map(x => x.name)]).join(', ');
+// (the same words twice or more: once, with how many; ten bullets in the chest are one line, not ten)
+const counted = (words) => { const n = new Map(); for (const w of words) n.set(w, (n.get(w) ?? 0) + 1); return [...n].map(([w, k]) => (k > 1 ? `${w} (×${k})` : w)); };
 
 /** Whether this person can grapple (two working arms) and stand (one working leg at least). */
 export const canGrapple = (p) => ARMS.every(k => stateOf(p, k) !== 'out' && !p.tourniquets?.[k]);
@@ -233,6 +235,14 @@ export function mobility(p, ms = 0) {
   return k;
 }
 export const canRun = (p, ms = 0) => mobility(p, ms) >= RUN_BELOW && bandOf(p) !== 'shock';
+
+/**
+ * Down whatever an agent's clock says (sim/agents.js): dead, collapsed from the blood lost, both legs gone, the cold
+ * or the heat, a bullet in the skull, the chest gone from a gunshot. Out cold from a blow isn't this: they come
+ * round on their clock (sim/interact.js DOWN_S), the head's damage mending by the day as before.
+ */
+export const staysDown = (p) => !!p.dead || thermalDown(p) || bloodOf(p) < BLOOD.collapse || LEGS.every(k => stateOf(p, k) === 'out')
+  || (p.injuries ?? []).some(i => (i.internal && i.part === 'head') || (i.gunshot && i.part === 'torso' && stateOf(p, 'torso') === 'out'));
 
 /** Dead, at game time ms, of `why` ('a blow to the head', …). */
 export function kill(p, ms, why) { p.dead ??= { ms, why }; }
