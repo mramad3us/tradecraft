@@ -245,6 +245,16 @@ export default [
       assert(opened === acct.salary && drawn.cash === 500 && drawn.bank === 500, 'the first month in the account; drawn from it');
       assert(Math.abs(paidIn - KEEP_USD) < 1, 'paid in, but what\'s kept back');
       assert(joined === CLUB_MONTH_USD.gym && session === 0, 'a month paid; a session free');
+      // (one hard session a day: the second refused, and saying why; the next day, again)
+      for (let t = 0; t < 10; t++) step(s, {}, bus);
+      const n0 = s.log.length, sk1 = JSON.stringify(p().skills.fitness), tr1 = p().training?.fitness ?? 0;
+      step(s, { act: ['shop:train'] }, bus);
+      for (let t = 0; t < 10; t++) step(s, {}, bus);
+      assert(p().workedOut && s.log.slice(n0).some(e => /Not today/.test(e.text ?? '')) && (p().training?.fitness ?? 0) === tr1, `a second session the same day: refused (${s.log.slice(n0).map(e => e.text).join(' / ')})`);
+      p().workedOut -= 20 * 3600 * 1000;                             // (a day on)
+      step(s, { act: ['shop:train'] }, bus);
+      for (let t = 0; t < 10; t++) step(s, {}, bus);
+      assert((p().training?.fitness ?? 0) !== tr1 || JSON.stringify(p().skills.fitness) !== sk1, 'the next day: the gym floor again');
     },
   },
 ];

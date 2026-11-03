@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.8 (2026-11-03)
+
+- **Dry indoors.** In a shop, the floor no longer takes the street's rain: no wet sheen, no puddles, no snow or frost on it. And an umbrella comes down, a hood goes back, under a roof.
+- **Sleeplessness keeps costing.** Past 20 hours awake you were −3 to every skill however long it went on. Now it keeps chipping away, a point more every three hours: −4 at 24 hours, −6 at 30, −8 at 36 ("dead on your feet"), −12 from 48 ("seeing things for want of sleep"). Sleep wipes it.
+- **One hard session a day.** After a session at the gym or a class at the club, the next one waits 18 hours: it's on the list, greyed, with the reason ("you trained today: your body needs a day of it").
+
 ## v0.1.7 (2026-11-03)
 
 - **Taking out a gun means using it.** G (or Take out in the pockets screen) with a gun no longer just puts it in your hand as you walk. Time stops and you're in the shooting sequence, with the draw as the first step. A knife's G is as it was.

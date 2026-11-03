@@ -59,6 +59,11 @@ export const SIT_S = 180;
 // karate class or other martial arts ... read a book (can buy books in bookstores to learn specific things),
 // take a language class": hours in, points out, sim/training.js)
 export const GYM_S = 90 * 60, CLASS_S = 120 * 60, LESSON_S = 90 * 60, READ_S = 12 * 3600, BUY_S = 180;   // (READ_S: the ledge's till you leave it)
+// One hard session a day (the user, 2026-11-03: "a notion of fatigue preventing among other things, working out more
+// than once a day (including martial arts and other strenuous things)"): the gym's or the club's, WORKOUT_GAP_H after
+// the last one ended (p.workedOut), the body's had enough; the way's there, and says so.
+export const WORKOUT_GAP_H = 18;
+const spent = (state, p) => p?.workedOut !== undefined && state.time.ms - p.workedOut < WORKOUT_GAP_H * HOUR ? 'you trained today: your body needs a day of it' : null;
 //
 export const GYM_USD = 8, CLASS_USD = 12, LESSON_USD = 15, GYM_UP_TO = 14, CLUB_UP_TO = 14;
 // (a month's membership of one gym or club: its sessions free till then; the user, 2026-10-28: "implement clubs with subscriptions")
@@ -128,8 +133,8 @@ export function ways(state, d, spot = 'counter') {
   // (time put into yourself: the gym, a class, a lesson; a book off the shelf)
   // (a gym's, a club's sessions: paid each time, or free on a month's membership of this one: CLUB_MONTH_USD)
   const member = memberOf(state, d);
-  if (d.shop === 'gym') out.push({ id: 'train', label: `An hour and a half on the weights and the bag: fitness (${member ? 'a member' : price(state, GYM_USD)})` });
-  if (d.shop === 'club') out.push({ id: 'class', label: `A class, two hours on the mat: throws, falls, holds: close combat (${member ? 'a member' : price(state, CLASS_USD)})` });
+  if (d.shop === 'gym') out.push({ id: 'train', label: `An hour and a half on the weights and the bag: fitness (${member ? 'a member' : price(state, GYM_USD)})`, off: spent(state, state.people[state.player]) });
+  if (d.shop === 'club') out.push({ id: 'class', label: `A class, two hours on the mat: throws, falls, holds: close combat (${member ? 'a member' : price(state, CLASS_USD)})`, off: spent(state, state.people[state.player]) });
   if ((d.shop === 'gym' || d.shop === 'club') && !member) out.push({ id: 'join', label: `A month's membership: every ${d.shop === 'gym' ? 'session' : 'class'} till ${dayText(state.time.ms + MEMBER_DAYS * DAY)} without paying (${price(state, CLUB_MONTH_USD[d.shop])})` });
   // (a bank's counter: your account, in the campaign: money out, money in)
   const acct = state.campaign?.posting?.money;
@@ -175,6 +180,8 @@ export function doWay(state, bus, me, way, scenario) {
   const piece = way.startsWith('piece:') && sp.kind === 'counter' ? railOf(d.shop, p).find(x => `piece:${x.id}` === way) : null;
   const good = way.startsWith('buy:') && sp.kind === 'counter' ? (GOODS[d.shop] ?? []).find(([k]) => `buy:${k}` === way) : null;
   if (!piece && !good && !ways(state, d, sp.kind).some(w => w.id === way)) return false;
+  const no = ways(state, d, sp.kind).find(w => w.id === way)?.off;
+  if (no) { say(state, bus, { kind: 'note', text: `Not today: ${no}.` }); return false; }   // (a second session in a day: sim/shops.js WORKOUT_GAP_H)
   if (piece && !pay(state, bus, piece.usd, piece.name)) return false;
   if (good && !pay(state, bus, good[2], good[1])) return false;
   const member = memberOf(state, d);
@@ -242,6 +249,7 @@ export function insideTick(state, bus, me, scenario) {
   } else if (ins.way === 'train' || ins.way === 'class') {
     // (the gym: fitness; the club: close combat; hungry after, as you would be)
     const g = ins.way === 'train' ? train(p, 'fitness', GYM_S / 3600, GYM_UP_TO) : train(p, 'cqc', CLASS_S / 3600, CLUB_UP_TO), what = ins.way === 'train' ? 'Fitness' : 'CQC';
+    p.workedOut = state.time.ms;                                   // (and that's the day's: WORKOUT_GAP_H)
     if (p.needs) p.needs.ate = Math.min(p.needs.ate ?? state.time.ms, state.time.ms - 3 * HOUR);
     say(state, bus, { kind: 'note', text: `${ins.way === 'train' ? 'The weights, the bag, the bike to nowhere: an hour and a half, and a shower.' : 'Two hours of throws and falls, and holds you can\'t get out of until you can.'} ${g.gained ? `${what} up a point: ${g.base}.` : g.toNext === null ? `${ins.way === 'train' ? 'The gym' : 'The club'} has taught you all it can.` : `${Math.ceil(g.toNext)} hours more to the next point.`}` });
   } else if (ins.way === 'lesson') {

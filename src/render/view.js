@@ -480,8 +480,8 @@ export function createView({ parent, bus, month = () => 11 }) {
       if (!look) continue;
       // (blood worn, what's in the hand, and the rainwear the weather puts on them are part of the look: their own sheet)
       // (a named person's sheet keyed by their look too, so a change of clothes is drawn: sim/clothes.js; a shop's bag in the hand)
-      // (a gun's id in the hand: its picture's a handgun's or a long gun's, sim/firearms.js)
-      const P = a.who && state.people[a.who], bl = P?.bloody, hand = isGun(P?.hand) ? (isLong(P.hand) ? 'rifle' : 'pistol') : P?.hand, rain = rainwearOf(wx, a.who ?? a.seed, hand, a.who === state.player, look), bag = P?.bag?.length ? 'bag' : null;
+      // (a gun's id in the hand: its picture's a handgun's or a long gun's, sim/firearms.js; under a roof, the umbrella down and the hood back)
+      const P = a.who && state.people[a.who], bl = P?.bloody, hand = isGun(P?.hand) ? (isLong(P.hand) ? 'rifle' : 'pistol') : P?.hand, rain0 = rainwearOf(wx, a.who ?? a.seed, hand, a.who === state.player, look), rain = rain0 && (a.within || a.inside || unitAt(state, a.x, a.z)) ? null : rain0, bag = P?.bag?.length ? 'bag' : null;
       const base = a.who ? `${a.who}#${lookKey(look)}` : a.seed;
       const key = bl || hand || rain || bag ? `${base}~${bl ? Object.keys(bl).sort().join('') : ''}~${hand ?? ''}~${rain ?? ''}~${bag ?? ''}` : base;
       people.push({ key, look: bl || hand || rain || bag ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}), ...(rain ? { rainwear: rain } : {}), ...(bag ? { carry: 'bag' } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S), own: a.who === state.player });
@@ -518,6 +518,7 @@ export function createView({ parent, bus, month = () => 11 }) {
     const air = Math.max(0, Math.min(1, (openAir(state) - 0.06) / 0.9)), lit = (c, lo = 0.3) => c.map(v => v * (lo + (1 - lo) * air));
     const dusk = (day, night) => day.map((v, j) => night[j] + (v - night[j]) * air);   // (the haze: its night colour to its day's)
     WX.wxCover.value = w.cover;
+    { const u = opened?.units?.[0]; if (u) WX.wxDry.value.set(u.x0, u.z0, u.x1, u.z1); else WX.wxDry.value.set(1e9, 1e9, -1e9, -1e9); }   // (the shop you're in: dry underfoot)
     WX.wxDirt.value = w.dirt ?? 0;                                   // (old snow's grime: sim/weather.js)
     WX.wxRime.value = w.rime;
     WX.wxWet.value = w.wet;

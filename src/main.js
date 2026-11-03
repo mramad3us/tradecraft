@@ -171,7 +171,7 @@ function launch(s, { hour = null } = {}) {
   bus.on('reading', (c) => setTimeout(() => { if (state === s) ui.openChoices('BOOK', c.title, c.list, (key) => acts.push(`read:${key}`)); }, 0));   // (a book, ten minutes at a time: sim/reading.js)
   bus.on('bed', (list) => ui.openChoices('BED', 'HOW LONG?', list, (key) => acts.push(`desk:${key}`)));   // (the flat's bed by day: sim/scenarios/campaign.js)
   bus.on('photo', (w) => { snapWanted = w; });                    // (sim/scenarios/watch.js: the frame, at the next draw)
-  bus.on('shop', ({ shop, ways }) => ui.openChoices('SHOP', shopWord(shop).replace(/^the /, '').toUpperCase(), ways.map(w => ({ key: w.id, label: w.label })), (key) => acts.push(`shop:${key}`)));   // (sim/shops.js)
+  bus.on('shop', ({ shop, ways }) => ui.openChoices('SHOP', shopWord(shop).replace(/^the /, '').toUpperCase(), ways.map(w => ({ key: w.id, label: w.label, off: w.off ?? undefined })), (key) => acts.push(`shop:${key}`)));   // (sim/shops.js)
   // (sim/buses.js; stood by the doors, off as they close: the same stops, a second card)
   bus.on('bus', ({ line, towards, list }) => {
     const card = (doors) => ui.openChoices('BUS', doors ? `THE ${line}: OFF AS THE DOORS CLOSE` : `THE ${line}, FOR ${String(towards).toUpperCase()}: WHERE TO?`, [

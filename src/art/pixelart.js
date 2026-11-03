@@ -581,7 +581,7 @@ export const WX_LAMPS = 10;
  */
 export const WX = {
   wxCover: { value: 0 }, wxDirt: { value: 0 }, wxRime: { value: 0 }, wxWet: { value: 0 }, wxPuddles: { value: 0 }, wxSky: { value: new THREE.Color(0, 0, 0) },
-  wxRoad: { value: new THREE.Vector4(1e9, 1e9, 1e9, 1e9) }, wxLamps: { value: Array.from({ length: WX_LAMPS }, () => new THREE.Vector4()) },
+  wxRoad: { value: new THREE.Vector4(1e9, 1e9, 1e9, 1e9) }, wxDry: { value: new THREE.Vector4(1e9, 1e9, -1e9, -1e9) }, wxLamps: { value: Array.from({ length: WX_LAMPS }, () => new THREE.Vector4()) },
 };
 const WX_GLSL = /* glsl */`
   varying vec3 vWxPos;
@@ -589,6 +589,7 @@ const WX_GLSL = /* glsl */`
   uniform float wxCover, wxDirt, wxRime, wxWet, wxPuddles;
   uniform vec3 wxSky;
   uniform vec4 wxRoad;
+  uniform vec4 wxDry;
   uniform vec4 wxLamps[${WX_LAMPS}];
   float wxHash(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
   float wxNoise(vec2 p) {
@@ -613,15 +614,17 @@ const wxPatch = (shader) => {
     .replace('#include <common>', `#include <common>${WX_GLSL}`)
     .replace('#include <map_fragment>', `#include <map_fragment>
       float wxPuddle = 0.0, wxRim = 0.0;
-      bool wxGround = vWxPos.y < 0.15 && vWxUp > 0.9;
+      // (indoors, the shop you're in: x0 z0 x1 z1; no rain, snow or frost on its floor: src/render/view.js)
+      bool wxDryAt = vWxPos.x > wxDry.x && vWxPos.x < wxDry.z && vWxPos.z > wxDry.y && vWxPos.z < wxDry.w;
+      bool wxGround = vWxPos.y < 0.15 && vWxUp > 0.9 && !wxDryAt;
       bool wxOnRoad = wxGround && ((vWxPos.z > wxRoad.x && vWxPos.z < wxRoad.y) || (vWxPos.z > wxRoad.z && vWxPos.z < wxRoad.w));
-      if (wxRime > 0.0 && vWxUp > 0.55) {
+      if (wxRime > 0.0 && vWxUp > 0.55 && !wxDryAt) {
         // A frost: what faces up silvered (the roads, driven on, less), a glint here and there.
         float k = wxRime * (wxOnRoad ? 0.45 : vWxPos.y > 0.3 ? 1.0 : 0.8);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.72, 0.78, 0.86), 0.4 * k);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.95, 0.97, 1.0), k * step(0.982, wxHash(floor(vWxPos.xz * 8.0) + 0.5)));
       }
-      if (wxCover > 0.0 || wxWet > 0.0) {
+      if (!wxDryAt && (wxCover > 0.0 || wxWet > 0.0)) {
         vec2 g = vWxPos.xz;
         // The wet: darker, what faces up most; puddles in the ground's low spots.
         diffuseColor.rgb *= 1.0 - 0.38 * wxWet * (vWxUp > 0.6 ? 1.0 : 0.35);

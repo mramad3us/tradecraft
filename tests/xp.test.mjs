@@ -1,7 +1,7 @@
 // Experience (sim/xp.js): Tradecraft grows of XP, a point at a time and each dearer than the last; an
 // assignment's XP by its kind, how it went, how hard and how risky; a team shaken off; a roll gone your way.
 import { cost, missionXP, gain, level, progress, fromRoll, LOST_XP, ROLL_XP } from '../src/sim/xp.js';
-import { newCampaign, candidates, fold } from '../src/sim/campaign.js';
+import { newCampaign, candidates, fold, fatigue, WORN_MAX } from '../src/sim/campaign.js';
 import { cityById } from '../src/sim/cities/index.js';
 import { assert, fmt } from './helpers.mjs';
 
@@ -43,6 +43,16 @@ export default [
       assert(was >= 16 && was <= 26, `a beginner starts round 20 (${was})`);
       assert(C.character.os === was + 1 || C.character.xp > 0, `a tail seen: ${paper.lines[0]}`);
       console.log(`      ${p0.name} (Tradecraft ${was}): ${paper.lines[0]}`);
+    },
+  },
+  {
+    name: 'fatigue: tired at 16 hours awake, exhausted at 20, and it keeps chipping away at every skill the longer it goes',
+    fn() {
+      const c = { awake: 0 }, at = (h) => fatigue(c, h * 3600 * 1000);
+      const rows = [10, 17, 21, 24, 30, 36, 48, 72].map(h => [h, at(h).v, at(h).word]);
+      for (let i = 1; i < rows.length; i++) assert(rows[i][1] <= rows[i - 1][1], 'the longer, the worse');
+      assert(at(10).v === 0 && at(17).v === -1 && at(21).v === -3 && at(72).v === -WORN_MAX, `the curve: ${rows.map(r => `${r[0]} h ${r[1]}`).join(', ')}`);
+      console.log(`      hours awake, every skill: ${rows.map(([h, v, w]) => `${h} h ${v}${w ? ` (${w})` : ''}`).join('; ')}`);
     },
   },
 ];

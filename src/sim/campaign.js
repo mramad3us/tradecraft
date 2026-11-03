@@ -458,10 +458,14 @@ export function trip(a, b, rng) {
 
 export const TIRED_H = 16;
 export const EXHAUSTED_H = 20;
+// Past exhausted, it keeps on (the user, 2026-11-03: "extreme fatigue (like from not sleeping for too long) should chip
+// away at skill efficiency"): another point off every skill every WEAR_H hours more, at most WORN_MAX.
+export const WEAR_H = 3, WORN_MAX = 12, RAGGED_H = 36, LOST_H = 48;
 /** Hours awake since the last sleep, and what it costs every skill (DESIGN.md, Needs): { h, v, word }. */
 export function fatigue(c, ms) {
   const h = (ms - (c.awake ?? ms)) / HOUR;
-  return { h, v: h > EXHAUSTED_H ? -3 : h > TIRED_H ? -1 : 0, word: h > EXHAUSTED_H ? 'exhausted' : h > TIRED_H ? 'tired' : null };
+  const v = h > EXHAUSTED_H ? -Math.min(WORN_MAX, 3 + Math.floor((h - EXHAUSTED_H) / WEAR_H)) : h > TIRED_H ? -1 : 0;
+  return { h, v, word: h > LOST_H ? 'seeing things for want of sleep' : h > RAGGED_H ? 'dead on your feet' : h > EXHAUSTED_H ? 'exhausted' : h > TIRED_H ? 'tired' : null };
 }
 
 /** The week's review: intelligence against expected, heat, cover standing, assets kept. */
