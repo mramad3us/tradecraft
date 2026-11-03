@@ -18,7 +18,7 @@
 //     its role's darkest tone: a line inside the figure, softer than the outline;
 //   - an outline of ink round the whole silhouette.
 //
-// sheet(spec) draws every frame (FRAMES across, DIRS down) onto one canvas: 29 × 4 cells. Frames are
+// sheet(spec) draws every frame (FRAMES across, DIRS down) onto one canvas: 37 × 4 cells. Frames are
 // poses of the parts, not drawings of their own: a bob of the body, arms forward or back, legs
 // standing, stepping or striding, so a new hat or coat animates for free. A fight's are drawn side on,
 // where fighters face each other: a guard (fists up before the face), a fist cocked back and thrown
@@ -33,15 +33,39 @@
 // shovel's blade), in its own colours (v steel, n a dark grip, o wood, d green glass, j brick, i
 // yellow, u black), shaded and outlined like the rest. The cell is PAD pixels wider each side than the
 // figure, so a blade held out has somewhere to go. Seen from behind, the body hides it.
+//
+// **A gun in the hands** (spec.hand 'pistol' or 'rifle', a gun's picture: src/render/view.js; the user,
+// 2026-11-03: "when aiming, the sprites should show us aiming, there should be aiming, carrying and shooting
+// animations with muzzle flash etc"): the arms are the gun's rig (gunRig()), not the swing, in the street's
+// frames and the gun's own (GUN_FRAMES); a fight's, sitting, a phone keep the gun in the hand as above.
+//   - Carried (standing, walking, running: the legs go on, the arms hold it): at the low ready. Side on, held
+//     out and down the way it points (CARRY_TILT below level: a handgun in close, a long gun's butt still in
+//     the shoulder); from the front, a handgun's two hands low before the belt, its muzzle down, a long gun
+//     across the body, butt at the right shoulder, muzzle at the left knee; from behind, the arms bent
+//     forward out of sight, a long gun's muzzle low past the left hip.
+//   - Aimed (aim, aimhi, aimlo): side on, out at shoulder height, a handgun at arm's length in both hands
+//     (the wrists taking half the turn, so that aimed high the hands stay under the chin), a long gun
+//     shouldered, all one piece turned about the butt, the near hand at its grip, the far one under the
+//     handguard; hi and lo turned up or down the picture by AIM_TILT. From the front, the hands together
+//     before the chest and the muzzle at you, a ring of steel round the bore (a long gun's at the right
+//     cheek); from behind, the arms up along the jaw into the head's shadow, a long gun's barrel up past it
+//     on the right. Seen from the front or behind, hi and lo turn it to the picture's right or left.
+//   - Fired (fire, firehi, firelo): the same aim kicked, the muzzle thrown up KICK_TILT and the gun back a
+//     pixel (from the front, a pixel up). The flash is no part of the sheet (flashOf(): its pixels and where
+//     they go, a burst forward side on, a star at you or over the head behind): src/render/crowd.js draws it.
+// Side on, every part of a rig is a shape turned about its pivot (turned(): each pixel looks up where it
+// came from, so a turned line steps cleanly); from the front and behind, small clusters placed by hand.
 import * as THREE from 'three';
 import { PX_PER_M } from './pixelart.js';
 
 export const PAD = 2;
 export const CELL = [24 + 2 * PAD, 34];
+/** A gun aimed, and fired (its kick): straight the way they face, or turned up or down the picture (hi, lo). See "A gun in the hands". */
+export const GUN_FRAMES = ['aim', 'aimhi', 'aimlo', 'fire', 'firehi', 'firelo'];
 export const FRAMES = ['idle0', 'idle1', 'walk0', 'walk1', 'walk2', 'walk3', 'run0', 'run1', 'run2', 'run3', 'sit', 'guard', 'punch', 'grab', 'reel',
-  'chamber', 'swing', 'hook', 'elbow', 'knee', 'kick', 'highkick', 'lowkick', 'throw', 'sweep', 'parry', 'slip', 'stagger', 'stun', 'hail', 'phone'];
+  'chamber', 'swing', 'hook', 'elbow', 'knee', 'kick', 'highkick', 'lowkick', 'throw', 'sweep', 'parry', 'slip', 'stagger', 'stun', 'hail', 'phone', ...GUN_FRAMES];
 /** The posed frames (a fight's, sim/cqcshow.js; an arm up for a taxi, sim/taxi.js): a gait of one of these is drawn as that frame. */
-export const FIGHT_FRAMES = FRAMES.slice(11);
+export const FIGHT_FRAMES = FRAMES.slice(11, FRAMES.indexOf('aim'));
 export const DIRS = ['down', 'up', 'right', 'left'];
 export const FPS = 8;
 
@@ -868,6 +892,8 @@ const POSES = {
   stun: { bob: 2, reach: [0, 0], swing: [0, 0], front: 0, side: ['stand', 'stand'], lean: -1 },
   hail: { bob: 0, reach: [0, 'up'], swing: ['hail', 0], front: 0, side: ['stand', 'stand'], over: true, armOver: true },
   phone: { bob: 0, reach: ['phone', 'phone'], swing: [2, 2], front: 0, side: ['stand', 'stand'], head: 1, phone: true },   // (looking at a phone: the head bowed to it)
+  // (a gun aimed or fired: the arms are the gun's, its rig below; side on, a shooter's stance, the near foot forward)
+  ...Object.fromEntries(GUN_FRAMES.map(f => [f, { bob: 0, reach: [0, 0], swing: [0, 0], front: 0, side: ['fwd', 'back'] }])),
 };
 
 function compose(spec, dir, frame) {
@@ -894,24 +920,32 @@ function compose(spec, dir, frame) {
   const bob = P.bob, lean = view === 'right' ? (P.lean ?? 0) : 0;
   const pick = (byView) => byView?.[view] ?? (view === 'up' ? byView?.down : undefined);
   const hat = spec.hat ? T.hat[spec.hat.kind] : null;
+  if (spec.hand && /#/.test(spec.hand) && !spec.hand.startsWith('mag-')) spec = { ...spec, hand: 'pistol' };   // (a gun's id: its picture's the pistol's)
+  // (a gun in the hands: carried on the street, aimed, fired; its rig is the arms, the hands and the gun)
+  const rig = GUN_RIGS[spec.hand] ? gunRig(spec.hand, view, frame, kind) : null;
+  const drawAll = (list, dx) => { for (const t of list) draw(t, dx, bob); };
 
   if (view === 'right') {
     // Far side first: the far arm and leg, shaded; then the near leg, the body, the near arm.
     const air = Math.min(0, bob);                                // in the air, the legs rise with the body
-    draw(armSide(kind, P.swing[1], true), lean, bob);
+    if (rig) drawAll(rig.under, lean); else draw(armSide(kind, P.swing[1], true), lean, bob);
     draw(legsSide(P.side[1], false), 0, air);
     if (!P.legOver) draw(legsSide(P.side[0], true), 0, air);
     draw(torsoSide(kind), lean, bob);
     if (P.legOver) draw(legsSide(P.side[0], true), 0, air);        // (a kick: the leg comes in front)
-    if (!P.over) { draw(armSide(kind, P.swing[0], false), lean, bob); hand = part; }
+    if (rig) drawAll(rig.body, lean);
+    else if (!P.over) { draw(armSide(kind, P.swing[0], false), lean, bob); hand = part; }
   } else {
     draw(legsFront(view === 'up' ? -P.front : P.front, P.sit));
     draw(torsoFront(kind, view === 'up'), 0, bob);
     const [l, r] = view === 'up' ? [P.reach[1], P.reach[0]] : P.reach;
     // (an arm up, drawn after the head, over it where they cross: below)
-    if (l !== 'up') draw(armFront(5, kind, l, -1), 0, bob);
-    hand = part;
-    if (r !== 'up') draw(armFront(16, kind, r, 1), 0, bob);
+    if (rig) drawAll(rig.body, 0);
+    else {
+      if (l !== 'up') draw(armFront(5, kind, l, -1), 0, bob);
+      hand = part;
+      if (r !== 'up') draw(armFront(16, kind, r, 1), 0, bob);
+    }
   }
   if (P.phone && view !== 'up') draw(view === 'right' ? [12, 21, ['kk', 'kV', 'kk']] : [9, 23, ['kkkk', 'kVVk', 'kkkk']], view === 'right' ? lean : 0, bob);   // (the phone, its screen lit)
   if (spec.carry && view !== 'up') {                              // in the hand nearest the camera's left
@@ -943,13 +977,13 @@ function compose(spec, dir, frame) {
   if (rain === 'hood') draw(T.hood[view] ?? T.hood.down, lean, hb);
   else if (hat) draw(hat[view] ?? hat.down, lean, hb);
   if (rain === 'umbrella') draw(T.umbrella.canopy, view === 'right' ? lean : 0, hb);
+  if (rig) { drawAll(rig.over, lean); return cells; }              // (a gun up before the face: drawn over the head)
   if (P.over && view === 'right') { draw(armSide(kind, P.swing[0], false), lean, bob); hand = part; }   // (a fist before the face)
   if (P.armOver && view !== 'right') {                             // (an arm up past the head: a taxi hailed)
     const [l, r] = view === 'up' ? [P.reach[1], P.reach[0]] : P.reach;
     if (l === 'up') draw(armFront(5, kind, 'up', -1), 0, bob);
     if (r === 'up') draw(armFront(16, kind, 'up', 1), 0, bob);
   }
-  if (spec.hand && /#/.test(spec.hand) && !spec.hand.startsWith('mag-')) spec = { ...spec, hand: 'pistol' };   // (a gun's id: its picture's the pistol's)
   if (spec.hand && view !== 'up' && HELD[spec.hand] && !(spec.hand === 'umbrella' && spec.rainwear === 'umbrella')) held(   // (an umbrella up is the canopy and its shaft, not the furled one)
     cells, W, H, hand, ++part, HELD[spec.hand], view === 'right' ? (HOLD[frame] ?? [0, 1]) : [0, 1]);
   return cells;
@@ -1007,6 +1041,204 @@ function held(cells, W, H, hand, part, shape, d0) {
   if (shape.block) { for (const [a, b, ch] of shape.block) put(hx + d[0] * a + across[0] * b, hy + d[1] * a + across[1] * b, ch); return; }
   [...shape.line].forEach((ch, i) => put(hx + d[0] * (i + 1), hy + d[1] * (i + 1), ch));
   for (const [a, b, ch] of shape.end ?? []) put(hx + d[0] * (n + a) + across[0] * b, hy + d[1] * (n + a) + across[1] * b, ch);
+}
+
+// ---------- a gun in the hands: carried, aimed, fired ----------
+
+// (the street's frames: a gun in the hand is carried at the low ready through them)
+const CARRIED = new Set(['idle0', 'idle1', 'walk0', 'walk1', 'walk2', 'walk3', 'run0', 'run1', 'run2', 'run3']);
+// (each gun frame's turn, up the picture or to its right: 1, down or to its left: -1; and whether it's the kick)
+const AIMED = { aim: [0, 0], aimhi: [1, 0], aimlo: [-1, 0], fire: [0, 1], firehi: [1, 1], firelo: [-1, 1] };
+/** Side on (radians, by gun): a turn up or down the picture; the kick's throw of the muzzle; carried, how far below level it points. */
+export const AIM_TILT = { pistol: 0.42, rifle: 0.28 }, KICK_TILT = { pistol: 0.3, rifle: 0.14 }, CARRY_TILT = { pistol: 0.8, rifle: 0.6 };
+
+const span = (a0, a1, b0, b1, ch) => { const o = []; for (let a = a0; a <= a1; a++) for (let b = b0; b <= b1; b++) o.push([a, b, typeof ch === 'function' ? ch(a, b) : ch]); return o; };
+/** A template ([x, y, rows]) from cells [[x, y, ch]]: null if there are none. */
+function tplOf(cells) {
+  if (!cells.length) return null;
+  const xs = cells.map(c => c[0]), ys = cells.map(c => c[1]), x0 = Math.min(...xs), y0 = Math.min(...ys);
+  const rows = Array.from({ length: Math.max(...ys) - y0 + 1 }, () => Array(Math.max(...xs) - x0 + 1).fill('.'));
+  for (const [x, y, ch] of cells) rows[y - y0][x - x0] = ch;
+  return [x0, y0, rows.map(r => r.join(''))];
+}
+/**
+ * Cells of a shape ([[along, across, ch]]) turned by th (radians, y down) about (x0, y0): each pixel looks up
+ * where it came from (inverse-mapped), so a turned line steps cleanly and never breaks up.
+ */
+function turned(shape, x0, y0, th) {
+  if (!shape.length) return [];
+  const c = Math.cos(th), s = Math.sin(th), at = new Map(shape.map(([a, b, ch]) => [`${a},${b}`, ch]));
+  const xs = shape.map(([a, b]) => x0 + a * c - b * s), ys = shape.map(([a, b]) => y0 + a * s + b * c), out = [];
+  for (let y = Math.floor(Math.min(...ys)) - 1; y <= Math.ceil(Math.max(...ys)) + 1; y++)
+    for (let x = Math.floor(Math.min(...xs)) - 1; x <= Math.ceil(Math.max(...xs)) + 1; x++) {
+      const dx = x - x0, dy = y - y0, ch = at.get(`${Math.round(dx * c + dy * s) || 0},${Math.round(-dx * s + dy * c) || 0}`);
+      if (ch !== undefined) out.push([x, y, ch]);
+    }
+  return out;
+}
+const turnPt = ([a, b], x0, y0, th) => [Math.round(x0 + a * Math.cos(th) - b * Math.sin(th)), Math.round(y0 + a * Math.sin(th) + b * Math.cos(th))];
+/** A sleeve's role along an arm, k pixels from the shoulder: a tee's goes bare past the elbow, a dress's sooner. */
+const sleeve = (kind, far) => (k) => (k >= (kind === 'tee' ? 3 : kind === 'dress' ? 2 : 99) ? (far ? 'S' : 's') : (far ? 'T' : 't'));
+/** An arm two pixels thick from the shoulder (x0, y0) to the wrist (x1, y1), its sleeve by the top's kind. */
+function limb(kind, x0, y0, x1, y1, far = false) {
+  const dx = x1 - x0, dy = y1 - y0, n = Math.max(Math.abs(dx), Math.abs(dy), 1), role = sleeve(kind, far), out = [];
+  for (let i = 0; i <= n; i++) {
+    const x = Math.round(x0 + dx * i / n), y = Math.round(y0 + dy * i / n);
+    out.push([x, y, role(i)], Math.abs(dx) >= Math.abs(dy) ? [x, y + 1, role(i)] : [x + 1, y, role(i)]);
+  }
+  return out;
+}
+
+/**
+ * Side on, a gun's rig: every part a shape in [along, across] (across: down, when it's level). The arm and the
+ * hands turn about the near shoulder (`at`) by `armK` of the aim's angle, the gun about the hands (`grip`, on
+ * the arm) by all of it: a handgun held out at arm's length, both hands on it, the wrists taking half the turn
+ * (so that aimed high, the hands stay under the chin and the gun clears the face); a long gun shouldered, all
+ * one piece turned about the butt in the shoulder, the near hand at its grip, the far one under the handguard.
+ * `reach`: the arm's length, aimed and carried (a handgun's held in closer at the low ready). `muzzle`: where
+ * the flash comes out, on the gun.
+ */
+const SIDE_RIG = {
+  pistol: {
+    at: [10, 20], armK: 0.5, reach: { aim: 6, carry: 4 },
+    grip: (r) => [r + 1, 0], muzzle: [7, -1],
+    parts: (kind, r) => ({
+      near: span(0, r, 0, 1, sleeve(kind)),
+      hand: span(r + 1, r + 2, 0, 1, 's'),
+      gun: [...span(0, 6, -1, -1, 'n'), [2, 0, 'n'], [5, -1, 'v']],      // (from the fists: the slide over them, the trigger guard under it, a glint on top)
+    }),
+  },
+  rifle: {
+    at: [9, 19], armK: 1, reach: { aim: 0, carry: 0 },
+    grip: () => [0, 0], muzzle: [16, 0],
+    parts: (kind) => ({
+      far: span(6, 9, 2, 2, sleeve(kind, true)),                          // (the far arm, under it, reaching for the handguard)
+      farHand: span(10, 11, 1, 2, 'S'),
+      near: [...span(0, 1, 1, 3, sleeve(kind)), ...span(2, 3, 2, 3, sleeve(kind))],
+      gun: [...span(0, 3, 0, 0, 'n'), ...span(0, 1, 1, 1, 'n'), ...span(4, 8, 0, 1, 'n'), ...span(9, 11, 0, 0, 'n'), ...span(9, 10, 1, 1, 'n'),
+        ...span(12, 15, 0, 0, 'n'), [13, -1, 'n'], [7, 2, 'u'], [8, 2, 'u'], [8, 3, 'u'], [9, 3, 'u'], ...span(5, 8, 0, 0, 'v')],   // (stock, receiver, handguard, barrel, front sight; the magazine curving forward; the receiver's top lit)
+      hand: span(4, 5, 2, 3, 's'),
+    }),
+  },
+};
+const GUN_RIGS = SIDE_RIG;
+
+/**
+ * A gun's rig for a frame (null: the frame isn't one a gun changes, a fight's, sitting, a phone): templates
+ * drawn under the body (`under`: side on, the far arm), on it (`body`) and over the head (`over`: a gun up
+ * before the face), the muzzle (template coordinates) and the flash's kind ('side', turned th; 'front', at
+ * you; 'back', behind the head).
+ */
+function gunRig(gun, view, frame, kind) {
+  const aimed = AIMED[frame];
+  if (!aimed && !CARRIED.has(frame)) return null;
+  const [turn, kick] = aimed ?? [null, 0];
+  return (view === 'right' ? sideRig : view === 'down' ? frontRig : backRig)(gun, kind, turn, kick);
+}
+
+function sideRig(gun, kind, turn, kick) {
+  const R = SIDE_RIG[gun], carry = turn === null, r = carry ? R.reach.carry : R.reach.aim;
+  // (the kick: the gun back a pixel, its muzzle thrown up)
+  const th = carry ? CARRY_TILT[gun] : -turn * AIM_TILT[gun], aim = carry ? th : th - kick * KICK_TILT[gun], arm = carry || R.armK === 1 ? aim : th * R.armK;   // (a long gun's one piece with the arms)
+  const x0 = R.at[0] - kick, y0 = R.at[1], p = R.parts(kind, r), [gx, gy] = turnPt(R.grip(r), x0, y0, arm);
+  const t = (shape, a = arm, x = x0, y = y0) => shape && tplOf(turned(shape, x, y, a));
+  const mine = [t(p.near), t(p.gun, aim, gx, gy), t(p.hand)].filter(Boolean);
+  return { under: [t(p.far), t(p.farHand)].filter(Boolean), body: carry ? mine : [], over: carry ? [] : mine,
+    muzzle: turnPt(R.muzzle, gx, gy, aim), flash: { kind: 'side', th: aim } };
+}
+
+// From the front, aimed: the hands together before the chest, the muzzle at you (a handgun's in the middle, a
+// long gun's at the right cheek, on the picture's left), the arms in to them; turned, they're two pixels to the
+// picture's right or left; the kick, a pixel up. Carried: a handgun low before the belt, its muzzle down; a long
+// gun across the body, the butt at the right shoulder, the muzzle at the left knee.
+function frontRig(gun, kind, turn, kick) {
+  const out = { under: [], body: [], over: [] };
+  if (turn === null && gun === 'pistol') {
+    out.body = [tplOf(limb(kind, 5, 20, 8, 23)), tplOf(limb(kind, 16, 20, 13, 23)), tplOf([...span(11, 11, 26, 28, 'v'), ...span(12, 12, 26, 27, 'n')]),
+      tplOf([...span(9, 13, 24, 24, 's'), ...span(10, 12, 25, 25, 's')])];
+    out.muzzle = [11, 29]; out.flash = { kind: 'front' };
+    return out;
+  }
+  if (turn === null) {                                             // (a long gun across the body)
+    const th = Math.atan2(10, 11), x0 = 6, y0 = 19;
+    const rifle = [...span(0, 15, 0, 0, 'n'), ...span(0, 1, 1, 1, 'n'), ...span(4, 8, 1, 1, 'n'), [7, 2, 'u'], [8, 2, 'u'], [8, 3, 'u'], ...span(5, 8, 0, 0, 'v')];
+    const grip = turnPt([5, 2], x0, y0, th), fore = turnPt([10, -1], x0, y0, th);
+    out.body = [tplOf(limb(kind, 5, 20, grip[0] - 1, grip[1] - 1)), tplOf(limb(kind, 16, 20, fore[0], fore[1] - 1)), tplOf(turned(rifle, x0, y0, th)),
+      tplOf(span(grip[0], grip[0] + 1, grip[1], grip[1] + 1, 's')), tplOf(span(fore[0], fore[0] + 1, fore[1], fore[1] + 1, 's'))];
+    out.muzzle = turnPt([16, 0], x0, y0, th); out.flash = { kind: 'front' };
+    return out;
+  }
+  // (the muzzle at you: a ring of steel round the bore, the slide or the barrel's top dark over it)
+  const ring = (x, y) => [[x - 1, y - 1, 'n'], [x, y - 1, 'v'], [x + 1, y - 1, 'n'], [x - 1, y, 'v'], [x, y, 'k'], [x + 1, y, 'v'], [x - 1, y + 1, 'n'], [x, y + 1, 'v'], [x + 1, y + 1, 'n']];
+  const cx = (gun === 'pistol' ? 11 : 9) + 2 * turn, cy = 21 - kick;     // (kicked, a pixel up: still under the chin)
+  if (gun === 'pistol') {
+    out.over = [tplOf(limb(kind, 5, 20, cx - 3, cy + 1)), tplOf(limb(kind, 16, 20, cx + 2, cy + 1)),
+      tplOf([...span(cx - 2, cx + 2, cy + 2, cy + 2, 's'), ...span(cx - 1, cx + 1, cy + 3, cy + 3, 's')]), tplOf(ring(cx, cy))];
+  } else {
+    // (shouldered at the right, the cheek on the stock: the receiver behind the muzzle, the magazine under it, the
+    // near hand at the grip below, the far arm across the chest to the handguard)
+    out.over = [tplOf(limb(kind, 5, 20, cx - 4, cy + 3)), tplOf(limb(kind, 16, 20, cx + 3, cy + 1)),
+      tplOf([[cx - 2, cy - 2, 'n'], [cx - 1, cy - 2, 'n'], [cx - 2, cy - 1, 'n'], ...ring(cx, cy), [cx - 1, cy + 2, 'u'], [cx - 1, cy + 3, 'u']]),
+      tplOf(span(cx - 3, cx - 2, cy + 2, cy + 3, 's')), tplOf(span(cx + 2, cx + 3, cy + 1, cy + 2, 's'))];
+  }
+  out.muzzle = [cx, cy]; out.flash = { kind: 'front' };
+  return out;
+}
+
+// From behind: carried, the upper arms down at the sides, the forearms forward out of sight (and a long gun's
+// muzzle low past the left hip); aimed, the arms up into the head's shadow, a long gun's barrel up past it on the
+// right, turned with the aim; the flash, behind the head.
+function backRig(gun, kind, turn, kick) {
+  const out = { under: [], body: [], over: [] };
+  if (turn === null) {
+    // (the shoulder's top row a pixel in, as the hanging arm's: armFront())
+    out.body = [tplOf(span(5, 6, 19, 23, (a, b) => (b === 19 && a === 5 ? '.' : sleeve(kind)(b - 19)))), tplOf(span(16, 17, 19, 23, (a, b) => (b === 19 && a === 17 ? '.' : sleeve(kind)(b - 19))))];
+    if (gun === 'rifle') out.body.push(tplOf([[4, 28, 'n'], [3, 29, 'n']]), tplOf([[17, 18, 'n'], [18, 17, 'n']]));
+    out.muzzle = [3, 30]; out.flash = { kind: 'back' };
+    return out;
+  }
+  // (the upper arms up along the jaw, elbows a little out, and in behind the head to the hands)
+  out.body = [tplOf([...limb(kind, 5, 20, 4, 16), ...limb(kind, 4, 15, 8 + turn, 13 - kick)]), tplOf([...limb(kind, 16, 20, 17, 16), ...limb(kind, 17, 15, 13 + turn, 13 - kick)])];
+  out.flash = { kind: 'back', behind: true };
+  if (gun === 'rifle') {
+    // (its barrel up past the head's right, clear of a cap's brim; its flash over all, unless the aim swings it behind the head)
+    const th = -Math.PI / 2 + turn * AIM_TILT.rifle, x0 = 19, y0 = 20 - kick;
+    out.body.push(tplOf(turned([...span(0, 13, 0, 0, 'n'), ...span(0, 4, -1, -1, 'n')], x0, y0, th)));
+    out.muzzle = turnPt([14, 0], x0, y0, th);
+    out.flash.behind = turn < 0;
+  } else out.muzzle = [11 + 2 * turn, 4 - 2 * kick];               // (a handgun's flash, from behind, over the crown: over a cap's too)
+  return out;
+}
+
+// The muzzle flash: white-hot at the muzzle, then yellow, an orange tip (paper and the two glows: the palette's
+// brightest). Side on, a burst forward with a prong either side, turned with the gun; at you, or behind the head, a star.
+const FW = 0xf6f4ee, FY = 0xf8e08a, FO = 0xe7b84a;
+const FLASH = {
+  side: [[0, 0, FW], [1, 0, FW], [2, 0, FW], [3, 0, FW], [4, 0, FY], [5, 0, FO], [1, -1, FY], [2, -1, FW], [1, 1, FY], [2, 1, FW], [3, -2, FY], [3, 2, FY]],
+  star: [[0, 0, FW], [1, 0, FW], [-1, 0, FW], [0, 1, FW], [0, -1, FW], [2, 0, FO], [-2, 0, FO], [0, 2, FO], [0, -2, FO], [1, 1, FY], [-1, -1, FY], [1, -1, FY], [-1, 1, FY]],
+};
+const flashes = new Map();
+/**
+ * A shot's flash for a frame (fire, firehi, firelo; anything else, null): { x, y, px, behind }, px its rows of
+ * colours (null clear) with their top-left at (x, y) in the cell (it may run past the cell's edge: it's drawn
+ * on its own, src/render/crowd.js), behind: drawn behind the figure (from behind, past the head).
+ */
+export function flashOf(gun, dir, name) {
+  const key = `${gun}|${dir}|${name}`;
+  if (flashes.has(key)) return flashes.get(key);
+  const rig = GUN_RIGS[gun] && AIMED[name]?.[1] ? gunRig(gun, dir === 'left' ? 'right' : dir, name, 'suit') : null;   // (the clothes don't move the muzzle)
+  let out = null;
+  if (rig) {
+    const [mx, my] = rig.muzzle, f = rig.flash;
+    const cells = f.kind === 'side' ? turned(FLASH.side, mx, my, f.th) : FLASH.star.map(([a, b, c]) => [mx + a, my + b, c]);
+    const x0 = Math.min(...cells.map(c => c[0])), y0 = Math.min(...cells.map(c => c[1])), w = Math.max(...cells.map(c => c[0])) - x0 + 1, h = Math.max(...cells.map(c => c[1])) - y0 + 1;
+    const px = Array.from({ length: h }, () => Array(w).fill(null));
+    for (const [x, y, c] of cells) px[y - y0][x - x0] = c;
+    out = dir === 'left' ? { x: CELL[0] - 1 - (x0 + PAD + w - 1), y: y0, px: px.map(r => r.slice().reverse()), behind: false }
+      : { x: x0 + PAD, y: y0, px, behind: !!f.behind };
+  }
+  flashes.set(key, out);
+  return out;
 }
 
 // ---------- shading and colour ----------

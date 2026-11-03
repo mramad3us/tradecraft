@@ -4,6 +4,10 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.12 (2026-11-03)
+
+- **Guns are drawn as they're held.** Anyone holding a gun, you or an officer, carries it low, pointed at the ground. Aiming, the arms come up toward the target: a handgun held out in both hands, a long gun at the shoulder, angled up or down the picture when that's where the target is. Each round kicks the muzzle up and flashes, and at night the flash lights the shooter's face. Tests: `tests/gunpose.test.mjs` (the pose by the actor's state).
+
 ## v0.1.11 (2026-11-03)
 
 - **Fixed: picking up a dropped magazine broke the game.** Anything lying about is now named the same way everywhere.

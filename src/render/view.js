@@ -47,7 +47,9 @@
 //     a cell is the open air's, but where a lamp's pool may reach (each lamp stamps the cells under
 //     it): those take lightLevel() with the lamps that reach them, the number checks read;
 //   - people as the player knows them: those seen this tick where they are, the rest where they were
-//     last seen, frozen mid-step in the dimmed street, until that spot is looked at again;
+//     last seen, frozen mid-step in the dimmed street, until that spot is looked at again; a gun in
+//     the hand drawn carried, aimed or fired (src/render/crowd.js gunPose()), a shot's flash lighting
+//     whoever stands near it (FLASH_LIT_M), the shooter most;
 //   - the weather (sim/weather.js weatherAt(), the sim's, so the screen shows what the dice read):
 //     the light under cloud is sky()'s; on the surfaces (src/art/pixelart.js WX) the snow lying, the
 //     wet and its puddles, the lamps mirrored in them; in the composite (setWeather()) what falls, at
@@ -62,7 +64,7 @@ import { buildDojo } from './dojo.js';
 import { buildInterior } from './interior.js';
 import { buildCut } from './cutaway.js';
 import { unitAt } from '../sim/interiors/use.js';
-import { createCrowd } from './crowd.js';
+import { createCrowd, gunPose, FLASH_LIT_M, FLASH_LIGHT } from './crowd.js';
 import { createBlood } from './blood.js';
 import { createTraffic } from './traffic.js';
 import { createItems } from './items.js';
@@ -484,7 +486,13 @@ export function createView({ parent, bus, month = () => 11 }) {
       const P = a.who && state.people[a.who], bl = P?.bloody, hand = isGun(P?.hand) ? (isLong(P.hand) ? 'rifle' : 'pistol') : P?.hand, rain0 = rainwearOf(wx, a.who ?? a.seed, hand, a.who === state.player, look), rain = rain0 && (a.within || a.inside || unitAt(state, a.x, a.z)) ? null : rain0, bag = P?.bag?.length ? 'bag' : null;
       const base = a.who ? `${a.who}#${lookKey(look)}` : a.seed;
       const key = bl || hand || rain || bag ? `${base}~${bl ? Object.keys(bl).sort().join('') : ''}~${hand ?? ''}~${rain ?? ''}~${bag ?? ''}` : base;
-      people.push({ key, look: bl || hand || rain || bag ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}), ...(rain ? { rainwear: rain } : {}), ...(bag ? { carry: 'bag' } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S), own: a.who === state.player });
+      const pose = isGun(P?.hand) ? gunPose(a, ms) : null;          // (carried, aimed, fired: on the sim's clock)
+      people.push({ key, look: bl || hand || rain || bag ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}), ...(rain ? { rainwear: rain } : {}), ...(bag ? { carry: 'bag' } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S), own: a.who === state.player, frame: pose?.frame ?? null, flash: !!pose?.flash });
+    }
+    // (a shot's flash lights whoever's near it, for its moment: the shooter's face most; never darker than they were)
+    for (const f of people.filter(p => p.flash)) for (const p of people) {
+      const k = 1 - Math.hypot(p.x - f.x, p.z - f.z) / FLASH_LIT_M;
+      if (k > 0) p.tint = p.tint.map((v, j) => Math.max(v, FLASH_LIGHT[j] * k));
     }
     // (indoors, the view's own people at their places, not the sim's: whoever's behind the counter of the
     // shop you're in. Their looks a passer-by's, the hat and the bag left at the door)
@@ -589,7 +597,7 @@ export function createView({ parent, bus, month = () => 11 }) {
     shadows();
   }
   /** Done with the view (a new game makes its own): its GPU context given back, not left for the browser to cap. */
-  function dispose() { traffic.dispose(); clear(); for (const s of dying.splice(0)) s.dispose(); off.forEach(f => f()); fogTex.dispose(); crowd.atlas.dispose(); stage.dispose(); }
+  function dispose() { traffic.dispose(); clear(); for (const s of dying.splice(0)) s.dispose(); off.forEach(f => f()); fogTex.dispose(); crowd.atlas.dispose(); crowd.dispose(); stage.dispose(); }
 
   return { stage, frame, resize, clear, dispose, flush: () => build(Infinity), canvas: stage.renderer.domElement, get camera() { return cam; }, posOf: (id) => drawn.get(id),
     fogAt: (x, z) => { if (!fogO) return 1; const i = Math.floor(x / FOG_CELL_M) - fogO[0], j = Math.floor(z / FOG_CELL_M) - fogO[1]; return i >= 0 && i < FNX && j >= 0 && j < FNZ ? fogVal[j * FNX + i] : 0; } };
