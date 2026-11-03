@@ -134,44 +134,62 @@ const US = { f: ['Rebecca', 'Laura', 'Megan', 'Claire', 'Diane', 'Hannah', 'Juli
 // The files in debug mode (the user, 2026-10-31: "when dev mode is on, the carrer mode should allow us to
 // select a special character with 95 tradecraft, give them a reason for it, make it varied"). Each is its own
 // reason for being what no ordinary career makes, and so its own skills on top of DEFAULT_LEGEND: its ages, its
-// languages, its names. legendFile() draws one, a person of the same seed the same way.
-const DEFAULT_LEGEND = { deception: [15, 2], tracking: [15, 2], pathfinding: [15, 2], awareness: [15, 2], social: [10, 2], analysis: [10, 1], tech: [5, 1], medicine: [5, 1], cqc: [10, 2], weapons: [10, 1], fitness: [10, 1] };
+// languages, its names. legendFile() draws one, a person of the same seed the same way. What a file's reason
+// gives it, it has mastered (the user, 2026-11-03: "the debug profile with high tradecraft should also have
+// mastery of all skills given their background"): a skill it raises to expert or past is a master's 20; a touch
+// of something (a 10 or a 12) stays a touch, and what the reason takes away (age, a gift with no training) stays gone.
+// And each its reason for starting again (anew; the user, 2026-11-03: "we also need to find a reason for starting
+// anew, maybe we 'retired' and came back, maybe we were burned and dust has settled"): retired and back, burned
+// and forgotten, pensioned and back with a lawyer; a first tour's paper puts them at the bottom, like anyone.
+export const DEFAULT_LEGEND = { deception: [15, 2], tracking: [15, 2], pathfinding: [15, 2], awareness: [15, 2], social: [10, 2], analysis: [10, 1], tech: [5, 1], medicine: [5, 1], cqc: [10, 2], weapons: [10, 1], fitness: [10, 1] };
 export const LEGENDS = [
   { id: 'illegal', age: [58, 64], names: { f: ['Ruth Lindqvist', 'Marian Kessel'], m: ['Paul Ostrander', 'Henry Lindqvist'] }, langs: { ru: 'native', fr: 'fluent' },
     text: 'Twenty-two years in Moscow under a dead Canadian\'s name, an illegal the Agency stopped admitting to in 2009. Came home in a swap. The debriefers stopped taking notes after a week: there was nobody left to give them to.',
-    skills: { deception: [20, 3], pathfinding: [20, 3], tracking: [18, 2], awareness: [20, 2], social: [15, 2] } },
+    anew: 'Retired to Vermont after the swap, under their own name, which they still answer to slowly. Two winters of it were enough: they asked to come back.',
+    skills: { deception: [20, 3], pathfinding: [20, 3], tracking: [20, 2], awareness: [20, 2], social: [20, 2] } },
   { id: 'defector', age: [55, 62], names: { f: ['Irina Valk', 'Vera Sorin'], m: ['Anton Valk', 'Lev Sorin'] }, langs: { ru: 'native', de: 'fluent' },
     text: 'Directorate S\'s best instructor, until a Tuesday in Vienna in 2011. Wrote the street syllabus half the SVR still learns from, and walked out through the consulate\'s side door with it in their head.',
-    skills: { tracking: [20, 3], deception: [20, 3], pathfinding: [20, 1], analysis: [15, 2], cqc: [15, 1] } },
+    anew: 'Resettled on a farm in Virginia under a third name. Fifteen years on, the SVR\'s own files say they\'re dead, and Langley has decided the dust has settled.',
+    skills: { tracking: [20, 3], deception: [20, 3], pathfinding: [20, 1], analysis: [20, 2], cqc: [20, 1] } },
   { id: 'farm', age: [48, 57], names: { f: ['Grace Tolliver', 'Joan Marsh'], m: ['Walter Tolliver', 'Sam Marsh'] }, langs: {},
     text: 'Sixteen years running denied-area training at the Farm. No student has followed them further than a block, and none has ever shaken them. The Agency sends them now only when it has run out of everyone else.',
-    skills: { deception: [20, 2], tracking: [20, 2], pathfinding: [20, 2], awareness: [20, 2], social: [15, 1], cqc: [15, 2], weapons: [15, 2], fitness: [15, 1] } },
+    anew: 'Retired last spring with a plaque and a dinner, and back by the autumn: the Agency had run out of everyone else again.',
+    skills: { deception: [20, 2], tracking: [20, 2], pathfinding: [20, 2], awareness: [20, 2], social: [20, 1], cqc: [20, 2], weapons: [20, 2], fitness: [20, 1] } },
   { id: 'berlin', age: [66, 68], names: { f: ['Ingrid Bauer', 'Helen Roth'], m: ['Karl Bauer', 'Frank Roth'] }, langs: { de: 'native', ru: 'fluent' },
     text: 'On the streets of East Berlin from 1985, when the Moscow Rules were new, and the last of that generation still walking. Called out of a retirement in Maine because nobody else remembers how it\'s done with no phone in your pocket.',
-    skills: { pathfinding: [20, 3], tracking: [20, 3], deception: [20, 1], analysis: [15, 3], fitness: [5, 0], cqc: [8, 0], tech: [0, 0] } },
+    anew: 'Twenty years retired, and alone in the house since the spring. A year ago they\'d have said no.',
+    skills: { pathfinding: [20, 3], tracking: [20, 3], deception: [20, 1], analysis: [20, 3], fitness: [5, 0], cqc: [8, 0], tech: [0, 0] } },
   { id: 'hostage', age: [58, 64], names: { f: ['Nora Haddad', 'Claire Aoun'], m: ['Elias Haddad', 'Thomas Aoun'] }, langs: { ar: 'fluent', fr: 'fluent' },
     text: 'Three years a hostage in the Bekaa, blindfolded, in the dark. Learned who was in the room from the floorboards, and who was looking from the back of the neck. It never went away, and nobody at Langley can explain it.',
-    skills: { awareness: [20, 3], pathfinding: [18, 2], deception: [15, 3], medicine: [10, 2], fitness: [8, 0], social: [8, 0] } },
+    anew: 'Retired on medical grounds when they came home, with a pension and a therapist. Ten years on they walked into Langley and asked for their badge back, and nobody could think how to refuse.',
+    skills: { awareness: [20, 3], pathfinding: [20, 2], deception: [15, 3], medicine: [10, 2], fitness: [8, 0], social: [8, 0] } },
   { id: 'meade', age: [50, 56], names: { f: ['Dana Whitcomb', 'Carol Pruitt'], m: ['Neil Whitcomb', 'Roy Pruitt'] }, langs: {},
     text: 'Subject 17 of the remote viewing programme at Fort Meade, closed in 1995 as useless. The file says the results were chance. Someone who read it didn\'t think so, and has kept them on the books ever since, on no budget anyone can find.',
+    anew: 'Thirty years in a records office in Maryland, on a salary from somewhere. This autumn, whoever pays it decided to find out what it\'s been paying for.',
     skills: { awareness: [20, 3], tracking: [20, 3], deception: [10, 0], pathfinding: [10, 0], social: [5, 0], cqc: [0, 1], weapons: [0, 0] } },
   { id: 'naples', age: [38, 46], names: { f: ['Lucia Ferrante', 'Teresa Russo'], m: ['Marco Ferrante', 'Nino Russo'] }, langs: { it: 'native', es: 'working' },
     text: 'A pickpocket at nine in the Stazione Centrale in Naples, where you feel a policeman\'s eyes or you don\'t eat. The Agency found them at twenty-six, with the Rome station chief\'s wallet.',
-    skills: { deception: [20, 3], tracking: [15, 3], awareness: [20, 3], social: [15, 3], cqc: [12, 2], fitness: [15, 2], analysis: [5, 0] } },
+    anew: 'Burned in Milan in 2019, their face in the Corriere under a headline about American spies. Six years at a desk at Langley while Italy forgot it, and Italy has.',
+    skills: { deception: [20, 3], tracking: [15, 3], awareness: [20, 3], social: [20, 3], cqc: [12, 2], fitness: [20, 2], analysis: [5, 0] } },
   { id: 'a4', age: [47, 55], names: { f: ['Alison Reeve', 'Morag Dunn'], m: ['Colin Reeve', 'Ian Dunn'] }, langs: { en: 'native' },
     text: 'Twenty years with A4, MI5\'s watchers, of whom they were the one the others asked about. Seconded to Grosvenor Square for six months in 2019. Nobody has mentioned sending them back.',
-    skills: { tracking: [20, 3], deception: [20, 2], awareness: [18, 2], pathfinding: [15, 1], social: [8, 0], weapons: [5, 0] } },
+    anew: 'Five let them go quietly last year, the paperwork lost on purpose. The Agency has made them one of its own, which means starting again from the start.',
+    skills: { tracking: [20, 3], deception: [20, 2], awareness: [20, 2], pathfinding: [15, 1], social: [8, 0], weapons: [5, 0] } },
   { id: 'tehran', age: [44, 52], names: { f: ['Sara Vance', 'Leila Cross'], m: ['David Vance', 'Adam Cross'] }, langs: { fa: 'fluent', ar: 'working' },
     text: 'Burned in Tehran in 2014, and walked out over the mountains alone in midwinter with the whole of the ministry behind them. Nobody else has done it. Nobody asks how.',
-    skills: { pathfinding: [20, 3], deception: [18, 2], fitness: [15, 3], cqc: [15, 3], medicine: [10, 1], social: [8, 1] } },
+    anew: 'Ten years on a desk at Langley while Tehran forgot the face. The dust has settled; they asked for the street again, and this time got it.',
+    skills: { pathfinding: [20, 3], deception: [20, 2], fitness: [20, 3], cqc: [20, 3], medicine: [10, 1], social: [8, 1] } },
   { id: 'brat', age: [36, 44], names: { f: ['Isabel Thorne', 'Katya Ames'], m: ['Julian Thorne', 'Alex Ames'] }, langs: { ru: 'fluent', ar: 'working', fr: 'fluent', es: 'working' },
     text: 'A diplomat\'s child, raised in embassies from Minsk to Damascus, whose mother taught them at six that the man at this kiosk was at the last kiosk too. Was reading streets before reading books.',
-    skills: { social: [20, 3], deception: [20, 2], awareness: [18, 3], tracking: [15, 2], analysis: [12, 1], cqc: [5, 1] } },
+    anew: 'Left at thirty for a private firm in Mayfair at five times the pay, and lasted three years of it. Came back in through the front door, which means starting again.',
+    skills: { social: [20, 3], deception: [20, 2], awareness: [20, 3], tracking: [15, 2], analysis: [12, 1], cqc: [5, 1] } },
   { id: 'deaf', age: [46, 54], names: { f: ['Ellen Sayer', 'Priya Nair'], m: ['Owen Sayer', 'Arjun Nair'] }, langs: { hi: 'fluent', ar: 'working' },
     text: 'Deaf since a car bomb in Peshawar in 2009. Reads lips at forty metres, and a street by how the people in it move round what they\'re avoiding. The Agency tried to pension them off, once.',
-    skills: { awareness: [20, 3], tracking: [18, 3], social: [15, 2], analysis: [15, 1], pathfinding: [15, 3] } },
+    anew: 'They took the pension in the end, and spent eight years learning to read lips in three more languages. Then they came back with a lawyer, and won.',
+    skills: { awareness: [20, 3], tracking: [20, 3], social: [20, 2], analysis: [20, 1], pathfinding: [15, 3] } },
   { id: 'chess', age: [41, 48], names: { f: ['Nino Abashidze', 'Tamar Gelashvili'], m: ['Levan Abashidze', 'Giorgi Gelashvili'] }, langs: { ru: 'native', en: 'fluent' },
     text: 'A Soviet Georgian chess prodigy who left at seventeen and never played again. Reads a street as a board, thirty moves on, and has never yet been surprised by which way someone turned.',
+    anew: 'Ten years an analyst at Langley, reading other people\'s streets off the cables. Asked to walk them instead, and was told it meant starting again. They said every game does.',
     skills: { analysis: [20, 3], pathfinding: [20, 3], tracking: [20, 1], deception: [15, 1], fitness: [5, 1], cqc: [0, 2], weapons: [0, 0] } },
 ];
 
@@ -183,6 +201,7 @@ export function legendFile(seed, city = 'moscow', level = 'handler', n = 0) {
   const p = sheet({ id: 'me', name, sex, cls: 'spook', os: 95, skills: structuredClone({ ...DEFAULT_LEGEND, ...L.skills }), langs, persistent: true });
   p.age = age;
   p.background = L.text;
+  p.anew = L.anew;                                                  // (why they're starting again: the picker's file, and Hale knows it: sim/hale.js)
   p.legend = L.id;
   const grey = age >= 50 && chance(r, 0.6);
   p.look = { skin: pick(r, ['light', 'light', 'tan', 'brown', 'dark']), hair: { style: sex === 'f' ? pick(r, ['bun', 'long', 'bob', 'short']) : pick(r, age >= 45 ? ['short', 'bald', 'side', 'crew'] : ['short', 'side', 'crew']), color: grey ? pick(r, [0x8f96a6, 0xdfe2e8]) : pick(r, [0x2a1c18, 0x47302a, 0x6b4636, 0x14151c]) },

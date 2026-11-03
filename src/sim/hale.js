@@ -41,3 +41,47 @@ export const ASIDES = {
   blown: '"I\'ve had this night. Once. The car was a timber lorry, and it was a long way to Finland. Move."',
   umbrella: '"Rain\'s a friend. Nobody looks up in it, nobody looks at anyone. Leningrad was all rain. Never mind."',
 };
+
+// Hale on the flat's telephone (src/main.js openCall(): day one, and called back). To an officer out of
+// the Farm, the exercises before the real thing. To a file from the basement (sim/campaign.js LEGENDS;
+// the user, 2026-11-03: "the phonecall from Hale should read very different if we decide to start as a
+// 'new recruit' since we are not new to any of it at all"), he knows who he's talking to (KNOWS: one line
+// for each reason, the hearsay's man showing a little of himself to someone who'd understand), says what
+// the paper makes of them (a first tour or a posting, as if they were anyone), and offers the exercises
+// as something they don't need.
+export const KNOWS = {
+  illegal: '"Twenty-two years. I did three on the other side with a passport nobody would have come for, and I still sit with my back to the wall. I won\'t pretend I\'ve anything to teach you."',
+  defector: '"I\'ve spent fifteen years teaching from what you brought out of Vienna. Half of what I tell the young ones is yours, and they think it\'s mine. I\'ll not correct them if you don\'t."',
+  farm: '"Sixteen years down the corridor from me at the Farm, and they\'ve put you on my list of new arrivals. Somebody in personnel thinks that\'s funny. So do I, a little."',
+  berlin: '"Berlin, \'85. When they sent me east two years later, half of what they told me to do was yours. I thought you were a story they told us."',
+  hostage: '"I\'ve read the file. I won\'t ask about it. If you ever want to say any of it out loud, I\'m a man who doesn\'t write things down."',
+  meade: '"Yours is the only file I\'ve been told not to read, so I read it. Forty years at this, and I don\'t know what to make of it. I\'ll just watch, if you don\'t mind."',
+  naples: '"The chief in Rome still tells the one about his wallet; it gets better every year. I\'ve moved mine to an inside pocket, for when we meet."',
+  a4: '"Five\'s watchers. I spent a week in \'99 trying to lose your lot on the Northern line, for practice. I\'m told one of them was you. I\'m still annoyed."',
+  tehran: '"Over the mountains, alone, in midwinter. I came out under a load of timber once, in February. I\'ve never told anyone that; you\'re the one person who\'d not be impressed."',
+  brat: '"I knew your mother a little, in Minsk. She lost me in a department store once, and I was trying. She\'d be pleased you\'re back, and say so to nobody."',
+  deaf: '"I\'ll keep it short; the operator types faster than I talk, but not by much. I was in Peshawar the week after. I\'ve wanted to meet you since."',
+  chess: '"I play a little. Badly. I\'m told you don\'t play at all now, so I\'ll never find out how badly, which suits me."',
+};
+
+/**
+ * Hale's call: { lines, choices } for the telephone (src/ui/ui.js showCall()). c: the campaign; city: its
+ * city's name; first: day one's call (else called back).
+ */
+export function haleCall(c, city, first = true) {
+  const me = c.character, p = c.posting, legend = me?.legend && KNOWS[me.legend] ? me.legend : null;
+  const tutorial = { key: 'tutorial', label: legend ? 'The exercises anyway' : 'The exercises, with Hale', about: 'The tutorial: the work on the street, one lesson at a time, played by your officer. Back to the flat whenever you like.' };
+  const begin = { key: 'begin', label: 'Straight in', about: 'The posting\'s brief, and on with it. Hale\'s number stays by the phone.' }, later = { key: 'later', label: 'Not now', about: 'Another time.' };
+  const relay = me?.legend === 'deaf' ? ['The telephone\'s lamp flashes: the relay service, his words on its screen as he says them.'] : [];
+  if (!first) return { lines: [...relay, '"Hale."', legend ? '"The exercises are still there, if you want an evening of them. I\'d enjoy watching, frankly."' : '"The exercises? Whenever you like. My door\'s open, and so\'s the street."'], choices: [tutorial, later] };
+  if (!legend) return { lines: [
+    `"Hale. Welcome to ${city}. You'll meet the station chief soon enough; I wanted to get to you first."`,
+    '"Before they let you near anyone who matters, I\'d like some of your evenings: the street work, me in your ear and our own people playing the parts. Seven exercises and the mat at the Farm, if you want it again. Or you go straight in and learn it on the job. Plenty did. Your call."',
+  ], choices: [tutorial, begin] };
+  const paper = p.level === 'junior'
+    ? '"The paper says first tour, liaison with Five, as if you\'d come out of the Farm in the summer. It was the only way back onto the books: at the bottom, like everyone. Nobody at the station knows otherwise, and best keep it so."'
+    : `"The paper says ${p.job.split(',')[0]} and a network to run, as anyone's posting would. The chief knows what you are. Nobody else at the station does, and best keep it so."`;
+  return { lines: [...relay, `"Hale. Welcome to ${city}."`, KNOWS[legend], paper,
+    '"There are exercises, the ones I give the new people: me in your ear, our own playing the parts. You don\'t need them. The streets have more cameras on them than they used to, though; if you want an evening or two to see them with someone at your back, they\'re yours. Or straight in. I expect you will."',
+  ], choices: [tutorial, begin] };
+}

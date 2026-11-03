@@ -20,6 +20,7 @@ import { createBus } from './sim/bus.js';
 import { toJSON, fromJSON } from './sim/state.js';
 import { TICK_MS, HOUR, MIN, stampText, hourOfDay, calendar } from './sim/clock.js';
 import { SCENARIOS } from './sim/scenarios/index.js';
+import { haleCall } from './sim/hale.js';
 import { candidates, legendFile, newCampaign, context, fold, heatWord, KINDS, LEVELS, levelOf, promote, goalOf } from './sim/campaign.js';
 import { cityById } from './sim/cities/index.js';
 import { shopWord } from './sim/shops.js';
@@ -101,18 +102,12 @@ function reached(k) { try { if (k > careerBest()) localStorage.setItem(CAREER_KE
 /**
  * The flat's telephone (sim/scenarios/campaign.js): Hale. Day one he offers the exercises (the tutorial,
  * played by this officer) or straight in (the posting's brief); called back later, the exercises again.
+ * His words are sim/hale.js haleCall()'s: to a file from the basement, not a new officer's.
  */
 function openCall(s, id) {
   if (state !== s) return;
-  const c = s.campaign, city = cityById(c.posting.city).name, first = id === 'hale';
-  const lines = first ? [
-    `"Hale. Welcome to ${city}. You'll meet the station chief soon enough; I wanted to get to you first."`,
-    '"Before they let you near anyone who matters, I\'d like some of your evenings: the street work, me in your ear and our own people playing the parts. Seven exercises and the mat at the Farm, if you want it again. Or you go straight in and learn it on the job. Plenty did. Your call."',
-  ] : ['"Hale."', '"The exercises? Whenever you like. My door\'s open, and so\'s the street."'];
-  ui.showCall({ who: 'HALE', lines, choices: [
-    { key: 'tutorial', label: 'The exercises, with Hale', about: 'The tutorial: the work on the street, one lesson at a time, played by your officer. Back to the flat whenever you like.' },
-    first ? { key: 'begin', label: 'Straight in', about: 'The posting\'s brief, and on with it. Hale\'s number stays by the phone.' } : { key: 'later', label: 'Not now', about: 'Another time.' },
-  ] }, (key) => {
+  const c = s.campaign, first = id === 'hale';
+  ui.showCall({ who: 'HALE', ...haleCall(c, cityById(c.posting.city).name, first) }, (key) => {   // (his words: sim/hale.js; to a file from the basement, he knows who he's talking to)
     if (key === 'tutorial') toTutorial(s);
     else if (key === 'begin') ui.showPaper(postingPaper(c), () => {});
   });
@@ -271,7 +266,7 @@ function showPapers(list) {
 function postingPaper(c) {
   const p = c.posting, me = c.character;
   if (p.level === 'junior') return { stamp: 'FIRST TOUR', title: 'STATION LONDON', go: 'Begin the tour', lines: [
-    `${me.name}: ${p.job}. On paper you work for the FBI's people in London; in fact you're the station's liaison with MI5, and its most junior officer.`,
+    `${me.name}: ${p.job}. On paper you work for the FBI's people in London; in fact you're the station's liaison with MI5, and${me.legend ? ', for the record,' : ''} its most junior officer.`,
     `The station wants ${p.goal}. With MI5's watchers, you'll follow the residency's people and photograph whom they meet: ${p.targets.map(t => t.name).join(' and ')}.`,
     `Twice in the tour another station will borrow you for a couple of days: ${p.trips.map(t => `${cityById(t.city).name}`).join(', then ')}. Flown out the morning of it, home the morning after.`,
     `Do it well (intelligence ${goalOf(p)}), keep the heat down, and the next posting is a station of your own.`,

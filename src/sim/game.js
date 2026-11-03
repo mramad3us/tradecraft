@@ -6,7 +6,7 @@
 // player's input as data and reports what happens on the bus.
 //
 // skip() is time passing without ticks (an action that takes time; for now, debug mode's clock keys):
-// the world gets outcomes for the gap, not a simulation of it.
+// the world gets outcomes for the gap, not a simulation of it (the street's passers-by, a new crowd).
 //
 // The tick, in this order (decisions made in a tick act the next):
 //   1. The player's input becomes their velocity, gait and heading (where they face: the way they
@@ -32,7 +32,7 @@ import { attach, refocus, rehash, move, near, exitAt } from './world.js';
 import { Z, placeName } from './map/street.js';
 import { CITIES, townOf } from './cities/index.js';
 import { say } from './log.js';
-import { populate, think, walk, facing, isPasserby, noticeAgent } from './crowd.js';
+import { populate, recycle, think, walk, facing, isPasserby, noticeAgent } from './crowd.js';
 import { look, headOf, faceOf, GLASS_MAX_DEG } from './perception.js';
 import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } from './agents.js';
 import { drift, asOfficer, uniformed } from './people.js';
@@ -382,7 +382,7 @@ export function skip(state, bus, ms) {
     if (who === state.player) { wetDays(p, ms / DAY, state.time.ms); bodyNotes(state, bus, notes); }
   }
   const f = focusActor(state);
-  if (f) populate(state, f.x);
+  if (f && !recycle(state, f.x, ms)) populate(state, f.x);         // (long enough, and the street's crowd is all new: sim/crowd.js recycle())
   rehash(state);
   if (Math.floor(state.time.ms / AUTOSAVE_MS) !== before) bus?.emit('autosave', 'skip');
 }

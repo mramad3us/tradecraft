@@ -2,7 +2,7 @@
 // and a skill and the dice; what's felt is on the map (sim/perception.js). The files in debug mode, Tradecraft's
 // growth. And a book, sat somewhere, ten minutes at a time (sim/reading.js).
 import { newGame, start, step, playerActor, loadRow } from '../src/sim/game.js';
-import { newCampaign, candidates, legendFile, LEGENDS, fold } from '../src/sim/campaign.js';
+import { newCampaign, candidates, legendFile, LEGENDS, DEFAULT_LEGEND, fold } from '../src/sim/campaign.js';
 import { feelM, feelOf, feltOf, tradecraftMod, feelWords, EYES_DC, QUARRY_DC, QUARRY_PER_M } from '../src/sim/sense.js';
 import { eyes, visibility, inView, SEEN, feltPatches, sharpM } from '../src/sim/perception.js';
 import { skill } from '../src/sim/skills.js';
@@ -14,6 +14,7 @@ import { placed, fits } from '../src/sim/items.js';
 import { unpack, shed } from '../src/sim/clothes.js';
 import { cardOf, seat, READ_MIN } from '../src/sim/reading.js';
 import { teamOf } from '../src/sim/scenarios/sdr.js';
+import { haleCall, KNOWS } from '../src/sim/hale.js';
 import { assert, fmt } from './helpers.mjs';
 
 // (an officer of so much Tradecraft, a trained base in the street skills)
@@ -134,6 +135,29 @@ export default [
         for (const k of Object.keys(p.skills)) assert(skill(p, k) <= 46, `${p.name} ${k}: ${skill(p, k)}`);
       }
       for (const L of LEGENDS) assert(L.names.f.length && L.names.m.length && L.text.length < 260, `${L.id}'s words`);
+      // (what a file's reason gives it, mastered: every skill it raises to expert or past is a master's 20)
+      const masters = LEGENDS.map(L => {
+        const raised = Object.entries(L.skills).filter(([k, [b]]) => b > DEFAULT_LEGEND[k][0] && b >= 15);
+        for (const [k, [b]] of raised) assert(b === 20, `${L.id}'s ${k} is its reason's, and mastered: ${b}`);
+        const m = Object.entries({ ...DEFAULT_LEGEND, ...L.skills }).filter(([, [b]]) => b === 20).map(([k]) => k);
+        assert(m.length >= 2, `${L.id} a master of something: ${m.join(', ')}`);
+        return `${L.id} ${m.length}`;
+      });
+      console.log(`      masters of what their reason gives them: ${masters.join(', ')}`);
+      // (each its reason for starting again, and Hale knows who he's talking to: sim/hale.js)
+      for (const L of LEGENDS) assert(L.anew?.length > 60 && L.anew.length < 200 && KNOWS[L.id], `${L.id}: why they're back (${L.anew?.length}), and Hale's line`);
+      const plain = haleCall(newCampaign(3, candidates(3)[0], 'moscow'), 'Moscow'), seenLines = new Set();
+      for (const level of ['junior', 'handler']) for (let n = 0; n < LEGENDS.length; n++) {
+        const city = level === 'junior' ? 'london' : 'moscow', p = legendFile(3, city, level, n), L = LEGENDS.find(x => x.id === p.legend);
+        const call = haleCall(newCampaign(3, p, city, level), city === 'london' ? 'London' : 'Moscow'), text = call.lines.join(' ');
+        assert(p.anew === L.anew && text.includes(KNOWS[L.id]) && !text.includes('Before they let you near anyone') && call.choices.some(c => c.key === 'tutorial') && call.choices.some(c => c.key === 'begin'), `${L.id} at ${level}: not a new officer's call`);
+        assert(level === 'junior' ? /first tour/.test(text) : /network to run/.test(text), `${L.id} at ${level}: what the paper makes of them`);
+        assert((L.id === 'deaf') === /relay service/.test(text), `${L.id}: the relay`);
+        seenLines.add(text);
+      }
+      const again = haleCall(newCampaign(3, legendFile(3), 'moscow'), 'Moscow', false);
+      assert(/Before they let you near anyone/.test(plain.lines.join(' ')) && !/Before they let/.test(again.lines.join(' ')), 'the ordinary call as it was; called back, a legend\'s own');
+      console.log(`      Hale: ${seenLines.size} different calls to the files; to ${legendFile(3).name}, ${legendFile(3).legend}: ${haleCall(newCampaign(3, legendFile(3), 'moscow'), 'Moscow').lines.join(' ')}`);
       const a = legendFile(5), b = legendFile(5), c = legendFile(5, 'moscow', 'handler', 1);
       assert(a.name === b.name && JSON.stringify(a.skills) === JSON.stringify(b.skills), 'the same seed, the same file');
       assert(seen.size === LEGENDS.length && ages.size > 12, `all of them turn up: ${seen.size} of ${LEGENDS.length}`);

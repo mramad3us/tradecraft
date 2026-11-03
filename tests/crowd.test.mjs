@@ -2,8 +2,8 @@
 // side; the street left behind keeps its people for one change of street, the street ahead was full
 // before we came, and each passer-by is going somewhere real, a door 2–5 streets from where they
 // appeared, so a tail of one ends at their door.
-import { newGame, start, step, playerActor } from '../src/sim/game.js';
-import { isPasserby, DEST_ROWS } from '../src/sim/crowd.js';
+import { newGame, start, step, playerActor, skip } from '../src/sim/game.js';
+import { isPasserby, DEST_ROWS, RECYCLE_S, density } from '../src/sim/crowd.js';
 import { makeAgent, follow, rowOf, onMap } from '../src/sim/agents.js';
 import { sectionOf, routeFrom, LINE } from '../src/sim/city.js';
 import { createBus } from '../src/sim/bus.js';
@@ -23,6 +23,27 @@ function walkTo(g, bus, x, z, max = 6000) {
 }
 
 export default [
+  {
+    name: 'crowd: time skipped (a class, a book, a meal) and the street is a new crowd, the new hour\'s; a minute, and it isn\'t',
+    fn() {
+      const g = newGame({ seed: 21, hour: 8 });
+      const bus = createBus();
+      start(g, bus);
+      for (let t = 0; t < 20 * 10; t++) step(g, {}, bus);
+      const ids = () => new Set(g.actors.filter(isPasserby).map(a => a.id)), seenOf = () => Object.keys(g.mind.seen).filter(id => !g.actors.find(a => a.id === id && !isPasserby(a)));
+      const before = ids(), saw = seenOf().length;
+      skip(g, bus, 60 * 1000);                                     // (a minute: the same people)
+      const minute = ids(), kept = [...before].filter(id => minute.has(id)).length;
+      assert(kept >= 0.9 * before.size, `a minute: the same people about, but whoever went in at their door (${kept} of ${before.size})`);
+      skip(g, bus, 60 * 60 * 1000);                                // (an hour at the gym: all gone on)
+      const hour = ids(), still = [...before].filter(id => hour.has(id)).length, remembered = seenOf().filter(id => before.has(id)).length;
+      const here = g.actors.filter(a => isPasserby(a) && a.row === g.map.row).length;
+      assert(still === 0 && remembered === 0, `an hour: nobody of before (${still} still about, ${remembered} remembered)`);
+      assert(hour.size > 0.6 * before.size * density(g.time.ms) / density(g.time.ms - 3600e3), `a crowd for the new hour: ${hour.size} (was ${before.size})`);
+      for (let t = 0; t < 20 * 5; t++) step(g, {}, bus);
+      console.log(`      ${before.size} about (${saw} seen); a minute on, ${kept} the same; an hour on, ${hour.size} all new, ${here} on this street; recycled from ${RECYCLE_S} s skipped`);
+    },
+  },
   {
     name: 'crowd: the street behind keeps its people for one change of street; the street ahead was full before we came',
     fn() {

@@ -197,7 +197,7 @@ export function createUI({ input, cb }) {
         el('button', { className: 'item alone', title: 'The plain test: no Hale', onclick: () => cb.newGame(L.scenario) }, 'On your own'));
     title.replaceChildren(el('div', { className: 'sheet directory' },
       el('h1', { textContent: home ? 'HALE\'S EXERCISES' : 'TUTORIAL' }),
-      el('p', { className: 'sub', textContent: home ? `${home.name}, your first weeks at Station ${city}. Hale runs the station's training: before you're trusted with the real thing, he takes you through it on the street, an earpiece in your ear, our own people playing the parts. Each lesson is yours to play, or to skip.` : 'Your first month at the station. Hale, who taught you at the Farm, runs its training: before you\'re trusted with the real thing, he takes you through it on the street, an earpiece in your ear, the station\'s own people playing the parts.' }),
+      el('p', { className: 'sub', textContent: home?.character?.legend ? `${home.name}, back at work, at Station ${city}. Hale runs the station's training, and has offered you its exercises anyway: the street as it is now, him in your ear, our own people playing the parts. Each lesson is yours to play, or to skip.` : home ? `${home.name}, your first weeks at Station ${city}. Hale runs the station's training: before you're trusted with the real thing, he takes you through it on the street, an earpiece in your ear, our own people playing the parts. Each lesson is yours to play, or to skip.` : 'Your first month at the station. Hale, who taught you at the Farm, runs its training: before you\'re trusted with the real thing, he takes you through it on the street, an earpiece in your ear, the station\'s own people playing the parts.' }),
       el('p', { className: 'note hearsay', textContent: `They say things about Hale, in the canteen. ${HEARSAY[Math.floor(Math.random() * HEARSAY.length)]}` }),
       el('hr'),
       el('div', { className: 'lessons' }, ...LESSONS.map((L, n) => row(L, n))),
@@ -259,8 +259,11 @@ export function createUI({ input, cb }) {
       marker.style.setProperty('--k', k);
     }
     // Faces you've marked (a scenario's suspects, or its team's in the campaign's own hours: { actor id: 1 seen before, 2 a tail }), over them as drawn.
+    // (one plaque over a face: a tail's is "tail"; one felt as eyes on you is "Eyes" below, not "seen before" as well, which sat
+    // a pixel under it; the user, 2026-11-03)
     const k0 = fw / RES[0], cam0 = view?.camera, marked = sc.suspects ?? sc.tail?.suspects;
-    const sus = !sc.outcome && marked ? Object.entries(marked).filter(([, v]) => v >= 1) : [];
+    const fl = !sc.outcome && cam0 ? feltList(state).slice(0, 4) : [], eyed = new Set(fl.filter(f => f.why === 'eyes' && !f.hidden).map(f => f.id));
+    const sus = !sc.outcome && marked ? Object.entries(marked).filter(([id, v]) => v >= 2 || (v >= 1 && !eyed.has(id))) : [];
     while (tags.children.length < sus.length) tags.append(el('canvas', { className: 'plaque' }));
     [...tags.children].forEach((t, i) => {
       const at = sus[i] && view?.posOf(sus[i][0]);
@@ -295,7 +298,6 @@ export function createUI({ input, cb }) {
       place(goal, plaque({ text: name, sub: far ? shortFar(far) : null, style: gl.kind ?? 'way', icon: way, notch: false }), cx, cy, k0, cx < RES[0] / 2 ? 'left' : 'right');
     }
     // What's felt (sim/sense.js): named over them on the picture; off it, or on another street, at its edge, the way they lie.
-    const fl = !sc.outcome && cam0 ? feltList(state).slice(0, 4) : [];
     while (feltTags.children.length < fl.length) feltTags.append(el('canvas', { className: 'plaque' }));
     [...feltTags.children].forEach((t, i) => {
       const f = fl[i];
@@ -305,7 +307,10 @@ export function createUI({ input, cb }) {
       let fx = RES[0] / 2 + (f.x - cam0.x) * 16, fy = RES[1] / 2 + (f.z - cam0.z) * 16;
       if (rows) fy = rows < 0 ? -1e3 : 1e3;
       const name = f.why === 'quarry' ? String(state.people[f.a.who]?.name ?? 'him').split(' ').at(-1) : 'Eyes', m = Math.round(Math.hypot(f.x - meF.x, f.z - meF.z));
-      if (!rows && fx > 20 && fx < RES[0] - 20 && fy > 34 && fy < RES[1] - 20) { place(t, plaque({ text: name, style: 'felt', icon: 'eye' }), fx, fy - 2.5 * 16, k0); return; }
+      if (!rows && fx > 20 && fx < RES[0] - 20 && fy > 34 && fy < RES[1] - 20) {
+        if (marked?.[f.id] >= 2) { t.hidden = true; return; }      // (a tail's: its own plaque's over him already)
+        place(t, plaque({ text: name, style: 'felt', icon: 'eye' }), fx, fy - 2.5 * 16, k0); return;
+      }
       const cy = Math.max(14, Math.min(RES[1] - 44, fy)) + (fy < 14 ? i * 15 : -i * 15 * (fy > RES[1] - 44 ? 1 : 0)), cx = Math.max(8, Math.min((cy + 8) * k0 < watchB ? watchL / k0 - 6 : RES[0] - 8, fx));
       const far = rows ? `${Math.abs(rows)} st ${rows < 0 ? 'n' : 's'}` : f.k >= 0.8 ? `${m} m` : m < 30 ? 'near' : 'far';
       place(t, plaque({ text: name, sub: far, style: 'felt', icon: fy < 14 ? 'up' : fy > RES[1] - 44 ? 'down' : fx < 8 ? 'left' : 'right', notch: false }), cx, cy, k0, cx < RES[0] / 2 ? 'left' : 'right');
@@ -764,7 +769,7 @@ export function createUI({ input, cb }) {
       el('h2', { textContent: 'WHO GOES' }),
       el('p', { className: 'note', textContent: junior ? 'Station London needs a junior officer for the MI5 liaison: fresh from the Farm, a first tour. Three files on the desk.' : `Station ${C.name} needs a Handler under official cover. Three files on the desk.` }), rungs, tabs, el('hr'),
       ...list.flatMap((p, i) => [p.legend ? el('p', { className: 'note', textContent: 'Debug mode: a file from the basement.' }) : null, el('button', { className: `item cand${p.legend ? ' legend' : ''}`, onclick: () => { paper.hidden = true; paper.dataset.kind = ''; onPick(i); } },
-        `${p.name}, ${p.age}`, el('small', { textContent: `${p.background} ${p.bg ? `From it: ${Object.entries(p.bg.points).map(([k, v]) => `${SKILLS[k]?.name ?? k} +${v}`).join(', ')}. ` : ''}Best at: ${top(p)}. ${LANGS[lang] ?? lang}: ${p.langs[lang] ?? 'none'}. Tradecraft ${p.os}.` }))].filter(Boolean)),
+        `${p.name}, ${p.age}`, el('small', { textContent: `${p.background}${p.anew ? ` ${p.anew}` : ''} ${p.bg ? `From it: ${Object.entries(p.bg.points).map(([k, v]) => `${SKILLS[k]?.name ?? k} +${v}`).join(', ')}. ` : ''}Best at: ${top(p)}. ${LANGS[lang] ?? lang}: ${p.langs[lang] ?? 'none'}. Tradecraft ${p.os}.` }))].filter(Boolean)),
       another ? el('button', { className: 'item', onclick: another }, 'Another file from the basement') : null));
     if (back) paper.firstChild.append(el('hr'), el('button', { className: 'item', onclick: () => { paper.hidden = true; paper.dataset.kind = ''; back(); } }, 'Back to the title'));
     paper.hidden = false;

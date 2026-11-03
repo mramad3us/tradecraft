@@ -15,7 +15,7 @@
 // they're kept.)
 //
 // On the street in view they come in from beyond the screen's edges or out of doors, never where the
-// player would see them appear, and leave by their doors or off the screen; on the streets either side
+// player would see them appear (but after time skipped, recycle(): a new crowd, anywhere), and leave by their doors or off the screen; on the streets either side
 // (unseen) they appear anywhere along it. The count on each street holds near a target that follows the
 // hour (density()) and the weather (sim/weather.js crowdK(): fewer out in heavy rain or snow, many
 // fewer in a downpour, a blizzard or a gale).
@@ -97,6 +97,23 @@ function spawn(state, r, from, dir = 0) {
   const a = makeAgent(state, { who: null, seed: plan.seed, row: from.row, x: from.x, z: from.z, speed: range(r, ...SPEED_MS), f: range(r, -0.8, 0.8) });
   Object.assign(a.ai, { civ: true, plan, $route: route });
   return a;
+}
+
+/**
+ * Time gone by without ticks (sim/game.js skip(): a class at the gym, a book on a bench, a meal): RECYCLE_S
+ * or more of it, and whoever was passing has passed (a walker crosses the bubble's 90 m in a minute or so).
+ * So the street's passers-by are let go, the memory of where they were with them, and the streets are the
+ * new hour's crowd, anywhere along them (as a game begun), at its count. Returns whether it did (the user,
+ * 2026-11-03: "time passing (like during a judo class) doesn't seem to recycle the NPCs on the map?").
+ */
+export const RECYCLE_S = 120;
+export function recycle(state, focusX, ms) {
+  if (state.map.kind !== 'street' || !(ms >= RECYCLE_S * 1000)) return false;
+  const gone = new Set(state.actors.filter(isPasserby).map(a => a.id));
+  state.actors = state.actors.filter(a => !gone.has(a.id));
+  for (const id of gone) { if (state.mind?.seen) delete state.mind.seen[id]; if (state.mind?.felt) delete state.mind.felt[id]; }
+  populate(state, focusX, { fill: true });
+  return true;
 }
 
 /** Whether a passer-by stays: in the bubble, not in at their door. */
