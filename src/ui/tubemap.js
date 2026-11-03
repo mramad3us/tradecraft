@@ -142,7 +142,7 @@ export function openTubeMap(host, state, at, deps) {
     el('kbd', {}, String(n + 1)), ` ${o.pl.label}: ${o.s.k === here ? 'you\'re at its station' : `${o.s.name}, ${o.s.d.minutes} min, then ${Math.round(o.m / 10) * 10} m on foot`}`)));
   draw();
   cv.style.width = `${W * K}px`; cv.style.height = `${H * K}px`; cv.className = 'mind-map tube-map';
-  const title = el('div', { className: 'mind-head' }, pixCopy(plaque({ text: at.name === 'Underground' ? 'UNDERGROUND' : 'METRO', sub: at.from.name.toUpperCase(), style: 'way', icon: 'tube', notch: false })));
+  const title = el('div', { className: 'mind-head' }, pixCopy(plaque({ text: at.name.toUpperCase(), sub: at.from.name.toUpperCase(), style: 'way', icon: 'tube', notch: false })));
   host.replaceChildren(el('div', { className: 'mind tube' }, title,
     el('p', { className: 'mind-note' }, `Where to? Pick a station: a click, or the arrows from where you are; Enter rides.${known.length ? ' The squares are what you know.' : ''}`),
     el('div', { className: 'tube-body' }, el('div', { className: 'mind-mapbox' }, cv), el('div', { className: 'tube-side' }, card, goals.length ? el('h3', {}, 'The way to') : null, goals.length ? quick : null)),

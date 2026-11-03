@@ -17,7 +17,8 @@ import { MIN } from './clock.js';
 import { say } from './log.js';
 import { soothe } from './needs.js';
 import { pay, BITE_USD } from './money.js';
-import { cityById } from './cities/index.js';
+import { taughtIn } from './cities/index.js';
+import { LANG_NAME } from './langs.js';
 import { lightBand } from './light.js';
 import { lightHere } from './perception.js';
 import { weatherAt, FALLS } from './weather.js';
@@ -28,8 +29,7 @@ import { SKILLS } from './skills.js';
 
 export const READ_MIN = 10, READ_CALM = 3, COFFEE_EVERY_MIN = 40, LEDGE_MS = 12 * 60 * MIN;
 export const PASTIME = new Set(['campaign', 'walk']);              // (scenes with time to spend)
-const LANG_NAME = { ru: 'Russian', en: 'English', ar: 'Arabic' };
-const langHere = (state) => (state.map.city === 'london' ? 'ru' : cityById(state.map.city ?? 'moscow')?.lang ?? 'ru');
+const langHere = (state) => taughtIn(state.map.city);              // (a grammar teaches what the city's schools do: sim/cities/ taughtIn())
 
 /** Whether the book's about you (pockets or the shop's bag), not on the flat's shelf. */
 export const onYou = (b) => b.at !== 'home';

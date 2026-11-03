@@ -14,7 +14,7 @@
 // **The waypoint** (c.waypoint: { row, x, z, label, kind }): one place chosen on the mind's map; the goal
 // pointer leads there (sim/scenarios/campaign.js goal()) until you're at its door, or it's cleared.
 import { sectionOf } from './city.js';
-import { townOf } from './cities/index.js';
+import { townOf, cityById } from './cities/index.js';
 import { SECTION_M, Z, streetName } from './map/street.js';
 import { places, KINDS as AKINDS } from './campaign.js';
 import { signOf, missionPlace } from './places.js';
@@ -55,7 +55,7 @@ export function knownPlaces(c) {
     const [row, i] = key.split('|').map(Number), S = sectionOf(town, row, i);
     for (const d of S.doors) {
       if (d.kind === 'shop' && d.z === Z.front) out.push({ id: `${row}:${Math.round(d.x * 10)}`, kind: groupOf(d.shop), label: cap(shopWord(d.shop)), shop: d.shop, row, x: d.x, z: d.z, i });
-      else if (d.kind === 'metro') out.push({ id: `m${row}:${i}`, kind: 'metro', label: `The ${c.posting.city === 'london' ? 'Underground' : 'metro'}`, row, x: d.x, z: d.z, i });
+      else if (d.kind === 'metro') out.push({ id: `m${row}:${i}`, kind: 'metro', label: cap(cityById(c.posting.city).transit.metro?.the ?? 'the metro'), row, x: d.x, z: d.z, i });
     }
     for (const st of S.props.filter(q => q.kind === 'stop')) out.push({ id: `b${row}:${Math.round(st.x)}`, kind: 'bus', label: `A bus stop: the ${(st.lines ?? []).join(', ')}`, row, x: st.x, z: st.z, i });
   }

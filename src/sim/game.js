@@ -146,6 +146,8 @@ export const focusActor = (state) => (state.focus && actor(state, state.focus)) 
  * go back over their shoulder (me.glance, ticks left), walking on; the scenario hears of it too, for
  * whoever might see it done.
  */
+export const STOP_WAIT_S = 4;                                       // (stood still this long at a bus stop: waiting for the bus)
+
 export function step(state, input = {}, bus) {
   const scenario = SCENARIOS[state.scenario.kind];
   // 1. The player.
@@ -326,6 +328,13 @@ export function step(state, input = {}, bus) {
     learnTick(state);                                               // (the streets walked, known: sim/knowledge.js)
     wetTick(state, bus, me);                                        // (rain on you, the cold, a cold: sim/wet.js)
     bodyHeat(state, bus, me, 1 / 60);                               // (the core's warmth, the day's dress: sim/thermal.js)
+    // (stood still at a bus stop a few seconds, you're waiting for the bus, as R does: the user, 2026-11-03, "i wait,
+    // then the bus comes but I don't know how to get on it"; a bus is only sent for whoever's waiting: sim/buses.js)
+    if (me && !me.ai && !me.busy && !me.inside && !me.cab && !state.fight && !state.shoot && Math.hypot(me.vx, me.vz) < 0.05) {
+      const here = affordance(state, me);
+      me.$atStop = here?.act === 'shelter' ? (me.$atStop ?? 0) + 1 : 0;
+      if (me.$atStop >= STOP_WAIT_S) { me.$atStop = 0; doAct(state, bus, me, 'shelter', { toward: scenario.toward?.(state, me), scenario }); }
+    } else if (me) me.$atStop = 0;
     metro.stepsTick(state);                                         // (whoever rode with you, up the steps after you: sim/metro.js)
     chaseTick(state);                                               // (whoever kept your taxi in sight, out of their car behind you: sim/taxi.js)
     if (scenario.police && !state.tutor) { police.patrolTick(state); police.eyeTick(state, bus); }   // (ordinary law: sim/police.js)

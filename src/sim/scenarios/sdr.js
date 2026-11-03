@@ -44,7 +44,7 @@
 // too: there its sheet is the scene's `tail` (teamOf(); sim/scenarios/campaign.js outing()).
 // Everything shown is what the character knows: the result paper too (result()), with the rest told
 // later by the world (epilogue()), and in full only in debug mode.
-import { townOf } from '../cities/index.js';
+import { townOf, cityById } from '../cities/index.js';
 import { at, TICK_MS, clockText, dateText } from '../clock.js';
 import { handler, sheet, streetLook, describe, passerby, asOfficer } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
@@ -101,7 +101,7 @@ export const sdr = {
   about: 'Walk to a meeting with a source. Find out whether the FSB is behind you, and don\'t take them to him. Each evening is different.',
   brief(state) {
     const sc = state.scenario, g = sc.meet;
-    if (sc.brief) return { title: sc.brief.title, body: sc.brief.body, footer: `Station ${CITY_NAME[state.map.city] ?? 'Moscow'} · ${dateText(sc.began)} · ${clockText(sc.began)}`, keys: sdr.keys };   // (a campaign's: its own words, sim/dossier.js)
+    if (sc.brief) return { title: sc.brief.title, body: sc.brief.body, footer: `Station ${cityById(state.map.city).name} · ${dateText(sc.began)} · ${clockText(sc.began)}`, keys: sdr.keys };   // (a campaign's: its own words, sim/dossier.js)
     return subAll(state, {
       title: 'MEETING: SOLOVEY',
       body: [
@@ -449,11 +449,10 @@ function sub(state, t) {
     .replace('works in the Ministry of Defence and has been ours for two years', `is ${sc.role ?? 'one of ours'}, and has been ours a while`)
     .replace('a Ministry of Defence official', sc.role ?? 'an official')
     .replace('Bald, glasses, a brown coat, a newspaper.', `${cap(describe(s.look, s.sex))}, with a newspaper.`)
-    .replace(/Station Moscow · Thursday 5 November 2026/, `Station ${CITY_NAME[state.map.city] ?? 'Moscow'} · ${dateText(sc.began)}`)
+    .replace(/Station Moscow · Thursday 5 November 2026/, `Station ${cityById(state.map.city).name} · ${dateText(sc.began)}`)
     .replace('Inside, next month\'s procurement schedule for the Western Military District.', 'Inside: what the agency asked for.');
 }
 const subAll = (state, o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Array.isArray(v) ? v.map(x => (typeof x === 'string' ? sub(state, x) : x)) : sub(state, v)]));
-const CITY_NAME = { moscow: 'Moscow', london: 'London', beirut: 'Beirut', cairo: 'Cairo' };
 
 // The rolls the character saw (those that reached the log not hidden): a count of all of them would
 // hint at what they didn't see.
@@ -783,7 +782,7 @@ function sighting(state, bus, a, roll, felt = false) {
   if (f.n === 2 && !sure) say(state, bus, { kind: 'roll', roll, text: `${cap(f.look)} again: ${f.places[0] === place ? 'here before, and here still' : `on ${f.places[0]} before, and now here`}. Could be nothing.` });
   else if (sure && !f.sure) {
     f.sure = true;
-    say(state, bus, { kind: 'roll', roll, text: `${cap(f.look)}, ${f.rows.length >= 2 ? 'three times now, and on two streets' : 'three times now'}. That's not ${CITY_NAME[state.map.city] ?? 'Moscow'} being a small town. That's a tail.` });
+    say(state, bus, { kind: 'roll', roll, text: `${cap(f.look)}, ${f.rows.length >= 2 ? 'three times now, and on two streets' : 'three times now'}. That's not ${cityById(state.map.city).name} being a small town. That's a tail.` });
   }
 }
 

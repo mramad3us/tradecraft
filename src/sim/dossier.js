@@ -5,23 +5,26 @@
 // scene's own.
 //
 // **A target's file** (fileOf(), filled in once and kept on him): his age; what he is and his cover by the
-// city (ROLES: a GRU colonel in a defence plant's procurement office in Moscow, the TASS correspondent of
-// London's residency, a money-changer of Hezbollah's in Beirut …), the place he works (its words; its
-// door is sim/places.js officeOf()); his tradecraft (CRAFT: careless, trained, sharp or jumpy: his
-// Pathfinding and Awareness, how roundabout his way and how often he checks, in sim/scenarios/tail.js);
+// city (its station's targets, sim/cities/: a GRU colonel in a defence plant's procurement office in
+// Moscow, the TASS correspondent of London's residency, a money-changer of Hezbollah's in Beirut …), the
+// place he works (its words; its door is sim/places.js officeOf()); his tradecraft (CRAFT: careless,
+// trained, sharp or jumpy: his Pathfinding and Awareness, how roundabout his way and how often he
+// checks, in sim/scenarios/tail.js);
 // his look, a man of his city's with something to know him by (sigOf(): a coat's colour, a hat or his
 // hair, a briefcase or a newspaper, glasses, a beard); and the man he meets (his contact's look, the
 // same man on the bench and outside the café: t.meets; t.contact is the campaign's count of his meetings
-// seen). A name for a new one by his city (an Egyptian in Cairo,
-// a Russian in London's residency).
-// **An asset's file**: how long ours, what he brings (by the posting's subject), the sign he carries.
+// seen). A name for a new one by his city (an Egyptian in Cairo, a Russian in London's residency: its
+// station's targetsFrom).
+// **An asset's file**: how long ours, what he brings (by the posting's subject), the sign he carries; what
+// a posting's assets are is its station's (assetRolesOf()).
 // **A brief** (briefOf()): paragraphs drawn from pools by the assignment's own dice (who, why, how to know
 // him, his craft and the rule, the place and the hour with its light and weather, the opposition at this
-// heat, a word to end on), each pool several ways of saying it and each saying full of the file's facts.
+// heat, a word to end on), each pool several ways of saying it and each saying full of the file's facts;
+// the city's name and its opposition's (serviceOf()) are its profile's.
 // **His lookalikes** (twinsOf(): the tail's men who could be him from a few paces) come from his look,
 // each with the one thing that gives it away up close.
 import { stream, int, pick, chance, weighted } from './rng.js';
-import { cityById, townOf } from './cities/index.js';
+import { CITIES, cityById, townOf, serviceOf } from './cities/index.js';
 import { streetLook, describe, colourName, topWord } from './people.js';
 import { clockText } from './clock.js';
 import { weather } from './weather.js';
@@ -29,8 +32,6 @@ import { sun } from './light.js';
 import { missionPlace } from './places.js';
 import { network } from './transit.js';
 
-const CITY_NAME = { moscow: 'Moscow', london: 'London', beirut: 'Beirut', cairo: 'Cairo' };
-const SERVICE = { moscow: 'The FSB', london: 'The residency', beirut: 'Hezbollah\'s security', cairo: 'The GIS' };
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 // (a place's words mid-sentence: "the trade delegation on Sretenka", but "Pavel Rudnev's office" as it is)
 const low = (s) => (/^(The|A|An|His|Outside) /.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s);
@@ -38,56 +39,8 @@ const an = (w) => `${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}`;
 
 // ---------- who they are ----------
 
-// What a target is, his cover, where he works, how careful (weights over CRAFT), his age's range: by city.
-const ROLES = {
-  moscow: [
-    ['a GRU officer, twenty years in', 'deputy head of procurement at a defence plant', 'the plant\'s city office', { trained: 3, sharp: 2, jumpy: 1 }, [46, 60]],
-    ['an FSB officer of the Fifth Service', 'a consultant to a state energy firm', 'the energy firm\'s offices', { sharp: 3, trained: 2 }, [38, 55]],
-    ['an SVR officer home between postings', 'a lecturer at the Diplomatic Academy', 'the Academy\'s annexe', { trained: 3, sharp: 1, careless: 1 }, [40, 58]],
-    ['a missile engineer the GRU keeps close', 'a section head at a design bureau', 'the design bureau', { careless: 3, jumpy: 2 }, [35, 62]],
-    ['a banker who moves the Kremlin\'s circle\'s money', 'a vice-president of a private bank', 'the bank', { careless: 2, jumpy: 2, trained: 1 }, [34, 52]],
-    ['a colonel on the General Staff', 'a staff officer at the Defence Ministry', 'a Defence Ministry annexe', { trained: 2, careless: 2 }, [44, 58]],
-    ['a freight forwarder the GRU uses for sanctioned parts', 'the director of a logistics firm', 'the logistics firm\'s office', { careless: 2, jumpy: 2 }, [36, 60]],
-    ['a former KGB man who sells what he hears', 'a security consultant', 'a consultancy over a bank', { sharp: 2, trained: 2 }, [55, 68]],
-  ],
-  london: [
-    ['an SVR officer of the residency', 'Third Secretary in the consular section', 'the consulate\'s annexe', { trained: 3, sharp: 1 }, [32, 48]],
-    ['a GRU officer under a journalist\'s cover', 'TASS\'s London correspondent', 'the TASS bureau', { trained: 2, sharp: 2 }, [35, 52]],
-    ['the residency\'s man at the trade delegation', 'a trade representative', 'the trade delegation', { trained: 2, careless: 1 }, [40, 58]],
-    ['an SVR officer who runs émigrés', 'a cultural attaché', 'the Russian cultural centre', { trained: 2, jumpy: 1 }, [38, 55]],
-    ['the residency\'s technical man', 'Aeroflot\'s station manager', 'the Aeroflot office', { careless: 1, trained: 2 }, [36, 50]],
-    ['a GRU officer under business cover', 'a partner in a shipping-insurance firm', 'the insurers\' chambers', { sharp: 2, trained: 2 }, [40, 56]],
-    ['an officer the station thinks supports an illegal', 'an attaché at the embassy\'s annexe', 'the embassy\'s annexe', { sharp: 3, jumpy: 1 }, [42, 60]],
-  ],
-  cairo: [
-    ['a GIS colonel', 'a director at the Ministry of Military Production', 'the ministry\'s annexe', { trained: 2, sharp: 2 }, [45, 60]],
-    ['an arms broker who sells to anyone', 'the owner of an import-export firm', 'the import-export firm\'s office', { careless: 2, jumpy: 2 }, [38, 64]],
-    ['a GIS officer who handles the Russians', 'a deputy director of a state tourism company', 'the tourism company\'s offices', { trained: 3 }, [36, 52]],
-    ['a fixer for the Sinai networks', 'a lawyer', 'his chambers', { jumpy: 3, careless: 1 }, [30, 50]],
-    ['a courier the station thinks runs cash to Sinai', 'a clerk at a money-transfer office', 'the money-transfer office', { careless: 2, jumpy: 2 }, [24, 40]],
-    ['an army procurement officer with a second income', 'a brigadier at a procurement directorate', 'the procurement directorate', { careless: 2, trained: 1 }, [48, 60]],
-  ],
-  beirut: [
-    ['Hezbollah\'s security man at the port', 'a clearing agent', 'a clearing agent\'s office', { sharp: 2, jumpy: 2 }, [34, 52]],
-    ['an IRGC liaison officer', 'an attaché at an Iranian cultural centre', 'the cultural centre', { sharp: 3, trained: 1 }, [36, 54]],
-    ['a money-changer who moves Hezbollah\'s cash', 'the owner of an exchange office', 'his exchange office', { careless: 2, jumpy: 1 }, [40, 66]],
-    ['a Syrian intelligence officer who stayed on', 'a partner in a trading company', 'the trading company', { trained: 2, sharp: 2 }, [45, 62]],
-    ['a courier for the men who hold the hostages', 'a delivery driver', 'a dispatch office', { jumpy: 3, careless: 1 }, [22, 38]],
-    ['a lawyer who carries their messages', 'a lawyer', 'his chambers', { trained: 2, jumpy: 2 }, [38, 60]],
-  ],
-};
-
-/** What a new posting's assets are, by city (each its own reason to know what it knows). */
-export const ASSET_ROLES = {
-  moscow: ['a cipher clerk at the Foreign Ministry', 'a logistics officer at a defence plant', 'a secretary in the Presidential Administration', 'a programmer at a state telecoms firm',
-    'a defence engineer', 'a customs officer at Sheremetyevo', 'a translator at a state firm', 'a junior officer in the General Staff\'s archive', 'a banker\'s assistant', 'a journalist on a state daily'],
-  london: ['a clerk at the Russian trade delegation', 'an oligarch\'s driver', 'a chauffeur at the Russian embassy', 'a translator the residency hires', 'a Russian banker\'s personal assistant',
-    'a Russian journalist who has had enough', 'an émigré the residency leans on', 'a property agent who sells to Russians'],
-  cairo: ['a clerk at the Ministry of Military Production', 'a customs officer at Alexandria', 'a journalist on a state daily', 'a translator at a Russian joint venture',
-    'a junior officer at an army depot', 'a banker\'s assistant at a state bank', 'a driver at the Interior Ministry', 'an engineer at a military factory'],
-  beirut: ['a clerk at the port\'s customs house', 'a driver for a firm close to the party', 'a nurse in a hospital in the southern suburbs', 'a journalist with sources in the party',
-    'a money-changer in Hamra', 'a telecoms engineer', 'an officer in the army\'s intelligence directorate', 'a lawyer who hears things'],
-};
+/** What a new posting's assets are, by city (each its own reason to know what it knows): its station's. */
+export const assetRolesOf = (city) => cityById(city).station.assets;
 
 /**
  * How careful a man is: his Pathfinding and Awareness (sim/skills.js), how roundabout his way (the
@@ -135,14 +88,14 @@ export function sigOf(look, sex = 'm') {
 export function fileOf(c, t, city = c.posting.city) {
   if (t.file) return t;
   t.id ??= 'trip-target';
-  const r = stream('dossier', c.seed, t.id, city), roles = ROLES[city] ?? ROLES.moscow;
+  const r = stream('dossier', c.seed, t.id, city), roles = cityById(city).station.targets;
   const [what, cover, workplace, crafts, [a0, a1]] = pick(r, roles);
   const age = a0 + int(r, a1 - a0 + 1), craft = weighted(r, Object.entries(crafts));
   // (his look: a man of his city's, and something to know him by: a hat or his hair, a briefcase or a
   // newspaper; a lead's, the face the photograph showed: sim/campaign.js fold())
   const look = t.look ? structuredClone(t.look) : cityById(city).people.look(r, 'm', age);
   dressed(look, city, r);
-  if (!look.hat && chance(r, 0.5)) look.hat = { kind: weighted(r, [['fedora', age > 40 ? 3 : 0.5], ['cap', 2], ['beanie', 1.5], ...(city === 'cairo' || city === 'beirut' ? [['skullcap', 0.6]] : [])]), color: pick(r, [0x353947, 0x23252f, 0x47302a, 0x4c5262, 0x283f6b, 0x8f6345]) };
+  if (!look.hat && chance(r, 0.5)) look.hat = { kind: weighted(r, [['fedora', age > 40 ? 3 : 0.5], ['cap', 2], ['beanie', 1.5], ...(cityById(city).people.hats ?? [])]), color: pick(r, [0x353947, 0x23252f, 0x47302a, 0x4c5262, 0x283f6b, 0x8f6345]) };
   if (look.hat?.kind === 'skullcap') look.hat.color = 0xf6f4ee;
   if (!look.carry) look.carry = weighted(r, [['briefcase', 3], ['paper', 2]]);
   delete look.rainwear;
@@ -154,16 +107,16 @@ export function fileOf(c, t, city = c.posting.city) {
   return t;
 }
 
-/** Dressed for the street on business: a coat or a suit; in Cairo and Beirut a jumper or a galabeya will do. */
+/** Dressed for the street on business: a coat or a suit; in a warm city (Cairo, Beirut) a jumper or a galabeya will do. */
 function dressed(look, city, r) {
-  const warm = city === 'cairo' || city === 'beirut', kept = ['coat', 'suit', ...(warm ? ['robe', 'sweater'] : [])];
+  const warm = !!cityById(city).warm, kept = ['coat', 'suit', ...(warm ? ['robe', 'sweater'] : [])];
   if (!kept.includes(look.top?.kind)) look.top = { kind: warm && chance(r, 0.4) ? 'suit' : 'coat', color: pick(r, [0x353947, 0x4c5262, 0x23252f, 0x47302a, 0x8f6345, 0xd6ad7a, 0x24503a, 0x283f6b, 0x6e2a2e]), trim: 0x23252f };
   return look;
 }
 
-/** A name for a new target of a city's (a Russian of the residency's in London). */
+/** A name for a new target of a city's (a Russian of the residency's in London: its station's targetsFrom). */
 export function targetName(r, city) {
-  const [given, family] = cityById(city === 'london' ? 'moscow' : city).people.name(r, 'm', 45);
+  const K = cityById(city), [given, family] = cityById(K.station.targetsFrom ?? K.id).people.name(r, 'm', 45);
   return `${given} ${family}`;
 }
 
@@ -219,9 +172,9 @@ function deal(c, a, key, list) {
 
 /** An assignment's brief: { title, body: [paragraphs] } (the scene puts its footer and keys to it). */
 export function briefOf(c, a) {
-  const p = c.posting, T = a.trip ? p.trips?.find(t => t.id === a.who) : null, city = T?.city ?? p.city, cityName = CITY_NAME[city] ?? 'the city';
+  const p = c.posting, T = a.trip ? p.trips?.find(t => t.id === a.who) : null, city = T?.city ?? p.city, K = CITIES[city], cityName = K?.name ?? 'the city';
   const d = (key, list) => deal(c, a, key, list), at = missionPlace(c, a), mapSeed = T?.mapSeed ?? p.mapSeed;
-  const when = clockText(a.from), until = clockText(a.to), light = lightOf(c, city, mapSeed, a.from), service = SERVICE[city] ?? 'They';
+  const when = clockText(a.from), until = clockText(a.to), light = lightOf(c, city, mapSeed, a.from), service = K ? serviceOf(K) : 'They';
   const trip = T ? d('trip', [`${cityName}, with ${T.station}'s team, flown out this morning: ${T.why}.`, `A loan to ${T.station} for the evening, ${cityName}: ${T.why}.`, `${T.station} asked for you, or for someone like you: ${T.why}. ${cityName}, tonight.`]) : null;
   if (a.kind === 'tail' || a.kind === 'watch') {
     const t = fileOf(c, T ? T.target : p.targets.find(x => x.id === a.who), city);
@@ -278,7 +231,7 @@ export function briefOf(c, a) {
   const brings = d('brings', [`He has something on ${p.subject} that won't keep.`, 'He says he has documents. He always says that; sometimes he does.', `Photographs, he says: pages he shouldn't have been near. For ${p.subject}, it could matter.`,
     'A list of names, if he\'s brave enough to have brought it.', 'Nothing much tonight, he says. But a meeting kept is a network kept.', `Whatever he has on ${p.subject}, it's been a week coming.`,
     'He wants to talk more than he wants to hand anything over. Let him: that\'s the job too.', 'A memory stick, taped inside a cigarette packet. He\'ll leave the packet on the bench.']);
-  const bench = at ? at.label.replace(/^A bench in /, '') : 'the boulevard', ride = network(townOf({ seed: mapSeed, city })).metro ? (city === 'london' ? 'the Underground' : 'the metro') : 'a service taxi';
+  const bench = at ? at.label.replace(/^A bench in /, '') : 'the boulevard', ride = network(townOf({ seed: mapSeed, city })).metro?.the ?? 'a service taxi';
   const meet = d('meet', [`Tonight he sits on a bench in ${bench}, from ${when} until ${until}. ${sig.line}`, `${when} to ${until}: a bench in ${bench}. ${sig.line}`, `He'll be on a bench in ${bench} from ${when}, and gone by ${until}. ${sig.line}`]);
   const heat = p.heat;
   const opp = d(`opp${heat >= 50 ? 2 : heat >= 30 ? 1 : 0}`, heat >= 50 ? [`${service} has been on you most days lately. Assume tonight they are.`, `You're hot. ${service} is more interested in your evenings than it was. Assume they're behind you.`, 'They know your face, your flat and your hours. Tonight, prove them wrong about one of those.']

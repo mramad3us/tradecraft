@@ -321,6 +321,18 @@ export const CAIRO = {
     risk: 1.2, watched: 0.8, embassy: 'US Embassy', cover: 'Second Secretary, Political Section, US Embassy',
     opposition: { the: 'the GIS', an: 'a GIS', name: 'GIS', prison: 'Tora' },
     subjects: [['the arms deals', 'what Egypt buys, from whom, paid how'], ['the Sinai networks', 'the jihadist cells in Sinai: their couriers in the city']],
+    about: 'The GIS, patient and everywhere.',
+    targets: [
+      ['a GIS colonel', 'a director at the Ministry of Military Production', 'the ministry\'s annexe', { trained: 2, sharp: 2 }, [45, 60]],
+      ['an arms broker who sells to anyone', 'the owner of an import-export firm', 'the import-export firm\'s office', { careless: 2, jumpy: 2 }, [38, 64]],
+      ['a GIS officer who handles the Russians', 'a deputy director of a state tourism company', 'the tourism company\'s offices', { trained: 3 }, [36, 52]],
+      ['a fixer for the Sinai networks', 'a lawyer', 'his chambers', { jumpy: 3, careless: 1 }, [30, 50]],
+      ['a courier the station thinks runs cash to Sinai', 'a clerk at a money-transfer office', 'the money-transfer office', { careless: 2, jumpy: 2 }, [24, 40]],
+      ['an army procurement officer with a second income', 'a brigadier at a procurement directorate', 'the procurement directorate', { careless: 2, trained: 1 }, [48, 60]],
+    ],
+    assets: ['a clerk at the Ministry of Military Production', 'a customs officer at Alexandria', 'a journalist on a state daily', 'a translator at a Russian joint venture',
+      'a junior officer at an army depot', 'a banker\'s assistant at a state bank', 'a driver at the Interior Ministry', 'an engineer at a military factory'],
+    trip: { kind: 'tail', station: 'Cairo station', why: 'their team is a man short for the week', names: ['Tarek Mansour', 'Sherif Ghoneim', 'Hany Lotfy'], what: 'a GIS officer who meets the wrong people' },
   },
   streetName,
   boulevardName: (seed, row) => at(AVENUES, seed, row, 'boulevard'),
@@ -338,5 +350,19 @@ export const CAIRO = {
     name: (r, sex) => cairoName(r, sex),
     langs: (r) => ({ ar: 'native', ...(chance(r, 0.3) ? { en: pick(r, ['basic', 'working']) } : {}), ...(chance(r, 0.05) ? { fr: 'basic' } : {}) }),
     look: (r, sex, age) => cairoLook(r, sex, age),
+    hats: [['skullcap', 0.6]],                                      // (a man's on business, beside the fedora, the cap and the beanie: sim/dossier.js)
   },
+  warm: true,                                                      // (a jumper or a galabeya will do on business, as well as a coat or a suit: sim/dossier.js)
+  // The metro and the buses (sim/transit.js); its stations' concrete fronts (sim/cities/station.js).
+  transit: {
+    metro: { name: 'Metro', the: 'the metro', lines: [['Line 1', 0xc4302b], ['Line 2', 0xe7b84a]],
+      front: { kind: 'concrete', wall: 0xc4bba9, trim: 0xa8a49c, h: 6.0, door: 0x8f96a6, sign: 'مترو|METRO' } },
+    buses: [11, 24, 33, 66, 92, 150, 357, 500],
+  },
+  home: { walls: ['paint', 'paint', 'stripes'], paints: [[0xe2d2b0, 0xc4b08a], [0xd0d8c0, 0xaab89a], [0xc8d4dc, 0xa0b0bc], [0xece6da, 0xcfc6b4]],
+    floors: { living: ['terrazzo', 'cement'], bedroom: ['terrazzo', 'parquet'], kitchen: ['cement'], bath: ['tiles'], hall: ['terrazzo'] }, floorWood: [0x8f6345, 0x6b4636],
+    woods: ['dark', 'teak', 'walnut'], fabrics: ['red', 'mustard', 'teal', 'brown'], phones: ['black', 'green'], rugs: ['kilim', 'persian'], wallCarpet: 0, moods: ['cool', 'soft', 'warm'] },
+  embassyLook: { lobby: 0xece6da, station: 0xd6ccb8, floor: 'terrazzo' },
+  walk: { about: 'Downtown and the lanes off it: dust, signs in Arabic, a minaret.', hello: 'Cairo in November: the dust settles at dusk, and the horns never do.', langs: { ar: 'working' },
+    park: { fountain: 'A fountain, running. Pigeons, a man with a tea, and every path in view.', beds: 'Flower beds, bright in November.' } },
 };

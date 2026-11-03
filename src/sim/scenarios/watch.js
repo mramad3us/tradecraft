@@ -30,7 +30,7 @@ import { opposed, check } from '../checks.js';
 import { range, int, chance, pick } from '../rng.js';
 import { Z, streetName } from '../map/street.js';
 import { sectionOf, routeFrom, LINE } from '../city.js';
-import { townOf } from '../cities/index.js';
+import { townOf, cityById, serviceOf } from '../cities/index.js';
 import { makeAgent, setRoute, rowOf, onMap } from '../agents.js';
 import { withEnd } from '../habits.js';
 import { seesActor, lightHere } from '../perception.js';
@@ -66,9 +66,9 @@ const sub = (state, text) => {
   let t = text.replace(/Arkady Volkov/g, n).replace(/Volkov/g, n.split(' ').slice(-1)[0]);
   if (sc.sig) t = t.replace(/grey hair, round glasses, a dark coat, a briefcase/g, sc.sig.line.replace(/\.$/, '').toLowerCase()).replace(/grey hair, glasses, the briefcase/g, `the ${sc.sig.hat}, the ${sc.sig.coat}`);
   if (sc.contactSig) t = t.replace(/the man in the camel coat/g, sc.contactSig.man).replace(/a man in a camel coat/g, sc.contactSig.man.replace(/^the /, 'a ').replace(/ the /, ' a ')).replace(/a camel coat/g, an(sc.contactSig.man.replace(/^the man in the /, '')));
-  return t.replace(/Moscow/g, CITY[state.map.city] ?? 'Moscow').replace(/The FSB/g, SERVICE[state.map.city] ?? 'The FSB');
+  const K = cityById(state.map.city);                              // (its city's name and its opposition's; a Moscow map has none: Moscow's, the words as they are)
+  return t.replace(/Moscow/g, K.name).replace(/The FSB/g, serviceOf(K));
 };
-const CITY = { moscow: 'Moscow', london: 'London', beirut: 'Beirut', cairo: 'Cairo' }, SERVICE = { moscow: 'The FSB', london: 'The residency', beirut: 'Hezbollah\'s security', cairo: 'The GIS' };
 const an = (w) => `${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}`;
 const tell = (state, bus, e) => say(state, bus, { ...e, text: sub(state, e.text) });
 
@@ -80,7 +80,7 @@ export const watchTest = {
 
   brief(state) {
     const sc = state.scenario;
-    if (sc.brief) return { title: sc.brief.title, body: sc.brief.body, footer: `Station ${CITY[state.map.city] ?? 'Moscow'} · ${dateText(sc.began)} · ${clockText(sc.began)}`, keys: watchTest.keys };   // (a campaign's: its own words, sim/dossier.js)
+    if (sc.brief) return { title: sc.brief.title, body: sc.brief.body, footer: `Station ${cityById(state.map.city).name} · ${dateText(sc.began)} · ${clockText(sc.began)}`, keys: watchTest.keys };   // (a campaign's: its own words, sim/dossier.js)
     return {
       title: 'A PHOTOGRAPH',
       body: [

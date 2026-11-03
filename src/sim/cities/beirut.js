@@ -265,6 +265,18 @@ export const BEIRUT = {
     risk: 1.3, watched: 0.6, embassy: 'US Embassy', cover: 'Second Secretary, Political Section, US Embassy',
     opposition: { the: 'Hezbollah\'s security', an: 'a Hezbollah security', name: 'Hezbollah security', prison: 'a basement in the Dahiyeh' },
     subjects: [['the arms routes', 'how Iran\'s weapons reach Lebanon, by which ports and whose trucks'], ['the hostages', 'who holds the two Westerners taken in the spring, and where']],
+    about: 'Hezbollah\'s security, and everyone else\'s.',
+    targets: [
+      ['Hezbollah\'s security man at the port', 'a clearing agent', 'a clearing agent\'s office', { sharp: 2, jumpy: 2 }, [34, 52]],
+      ['an IRGC liaison officer', 'an attaché at an Iranian cultural centre', 'the cultural centre', { sharp: 3, trained: 1 }, [36, 54]],
+      ['a money-changer who moves Hezbollah\'s cash', 'the owner of an exchange office', 'his exchange office', { careless: 2, jumpy: 1 }, [40, 66]],
+      ['a Syrian intelligence officer who stayed on', 'a partner in a trading company', 'the trading company', { trained: 2, sharp: 2 }, [45, 62]],
+      ['a courier for the men who hold the hostages', 'a delivery driver', 'a dispatch office', { jumpy: 3, careless: 1 }, [22, 38]],
+      ['a lawyer who carries their messages', 'a lawyer', 'his chambers', { trained: 2, jumpy: 2 }, [38, 60]],
+    ],
+    assets: ['a clerk at the port\'s customs house', 'a driver for a firm close to the party', 'a nurse in a hospital in the southern suburbs', 'a journalist with sources in the party',
+      'a money-changer in Hamra', 'a telecoms engineer', 'an officer in the army\'s intelligence directorate', 'a lawyer who hears things'],
+    trip: { kind: 'watch', station: 'Beirut station', why: 'a new face nobody\'s seen yet is what they need behind the camera', names: ['Ali Haidar', 'Hussein Kassem', 'Mahmoud Zein'], what: 'a courier for Hezbollah\'s security' },
   },
   streetName,
   boulevardName: (seed, row) => at(AVENUES, seed, row, 'boulevard'),
@@ -282,5 +294,15 @@ export const BEIRUT = {
     name: (r, sex) => beirutName(r, sex),
     langs: (r) => ({ ar: 'native', ...(chance(r, 0.55) ? { fr: pick(r, ['working', 'fluent']) } : {}), ...(chance(r, 0.6) ? { en: pick(r, ['basic', 'working', 'fluent']) } : {}), ...(chance(r, 0.08) ? { hy: 'native' } : {}) }),
     look: (r, sex, age) => beirutLook(r, sex, age),
+    hats: [['skullcap', 0.6]],                                      // (a man's on business, beside the fedora, the cap and the beanie: sim/dossier.js)
   },
+  warm: true,                                                      // (a jumper or a galabeya will do on business, as well as a coat or a suit: sim/dossier.js)
+  // No metro: the buses (sim/transit.js), and the service taxis.
+  transit: { metro: null, buses: [2, 4, 5, 6, 8, 12, 15, 24] },
+  home: { walls: ['paint', 'paint', 'flowers'], paints: [[0xe8dcc4, 0xc9b99a], [0xd8c8d0, 0xb4a0ac], [0xd0d8c0, 0xaab89a], [0xece6da, 0xcfc6b4]],
+    floors: { living: ['cement', 'cement', 'terrazzo'], bedroom: ['cement', 'parquet'], kitchen: ['cement'], bath: ['tiles'], hall: ['cement'] }, floorWood: [0xb48459, 0x8f6345],
+    woods: ['teak', 'walnut', 'white'], fabrics: ['plum', 'teal', 'red', 'cream'], phones: ['cream', 'green'], rugs: ['kilim', 'persian'], wallCarpet: 0, moods: ['warm', 'soft'] },
+  embassyLook: { lobby: 0xe8dcc4, station: 0xc8d4dc, floor: 'terrazzo' },
+  walk: { about: 'Gemmayzeh and Achrafieh: old houses, stairs up the hill, cables everywhere.', hello: 'Beirut in November: the heat\'s gone out of the day, and the generators are clearing their throats.', langs: { ar: 'working', fr: 'working' },
+    park: { fountain: 'A fountain, running. Pigeons, a man with a coffee, and every path in view.', beds: 'Flower beds, bright in November.' } },
 };

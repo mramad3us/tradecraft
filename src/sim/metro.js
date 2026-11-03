@@ -36,8 +36,9 @@ export function stationNear(state, a) {
   return sectionAt(state, a.x)?.doors.find(d => d.kind === 'metro' && Math.abs(d.x - a.x) < DOOR_REACH_M) ?? null;
 }
 
-/** The network's name in the city (the Underground, the metro). */
+/** The network's name in the city ('Underground', 'Metro': its profile's, sim/cities/); in a sentence, metroThe() ('the Underground', 'the metro'). */
 export const metroName = (state) => network(townOf(state.map)).metro?.name ?? 'Metro';
+export const metroThe = (state) => network(townOf(state.map)).metro?.the ?? 'the metro';
 
 /**
  * A station's name: the side street nearest it (stations along one street can't all be named for it),

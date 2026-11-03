@@ -44,7 +44,7 @@ import { TICK_MS, DAY, HOUR, MIN, calendar, clockText } from '../clock.js';
 import { heatKey, addHeat } from '../heat.js';
 import { say } from '../log.js';
 import { Z, streetName } from '../map/street.js';
-import { townOf, cityById } from '../cities/index.js';
+import { townOf, cityById, FIRST_TOUR_CITY } from '../cities/index.js';
 import { skip, newMap } from '../game.js';
 import { eat, soothe } from '../needs.js';
 import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, watched, KINDS, WORK, TRAVEL } from '../campaign.js';
@@ -72,7 +72,7 @@ const TPS = 1000 / TICK_MS;
 
 export const campaignHub = {
   name: 'Campaign',
-  about: 'A US embassy, for as long as it lasts: a first tour in London, or a network to run of your own; the heat to keep down.',
+  about: `A US embassy, for as long as it lasts: a first tour in ${cityById(FIRST_TOUR_CITY).name}, or a network to run of your own; the heat to keep down.`,
   campaign: true,
   police: true,                                                     // (your own hours in the city: patrols, and stops: sim/police.js)
 
@@ -293,10 +293,10 @@ export const campaignHub = {
     const c = state.campaign, p = c.posting, days = Math.round((state.time.ms - p.startMs) / DAY), done = c.over?.why === 'completed';
     if (c.over?.why === 'promoted') {                               // (a first tour done: a station of your own, chosen on this paper: src/ui/ui.js)
       const trips = c.done.filter(a => a.trip);
-      return { stamp: 'PROMOTED', good: true, title: 'STATION LONDON: FIRST TOUR',
+      return { stamp: 'PROMOTED', good: true, title: `STATION ${cityById(p.city).name.toUpperCase()}: FIRST TOUR`,
         text: 'Langley\'s cable is three lines long. The last one says you\'re ready for a posting of your own, under official cover, with a network to run. The station is yours to ask for.',
         notes: [`${days} days on the tour: ${c.done.filter(a => a.kind === 'tail' && a.outcome === 'seen').length} tails that saw the meeting, ${c.done.filter(a => a.kind === 'watch' && ['photo', 'soft'].includes(a.outcome)).length} photographs; intelligence ${p.intelligence}.`,
-          trips.length ? `Abroad: ${trips.map(a => `${a.trip.charAt(0).toUpperCase() + a.trip.slice(1)}, ${a.outcome ?? 'missed'}`).join('; ')}.` : null].filter(Boolean),
+          trips.length ? `Abroad: ${trips.map(a => `${cityById(a.trip).name}, ${a.outcome ?? 'missed'}`).join('; ')}.` : null].filter(Boolean),
         stats: `Heat at the end: ${heatWord(p.heat)} · cover standing ${p.cover}` };
     }
     const met = c.done.filter(a => a.kind === 'sdr' && ['clean', 'burned'].includes(a.outcome)).length, seen = c.done.filter(a => a.kind === 'tail' && a.outcome === 'seen').length;

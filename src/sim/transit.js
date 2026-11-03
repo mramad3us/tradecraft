@@ -10,12 +10,14 @@
 //     two apart, then turns up or down a side street to the next street but one, and on along that.
 //     Both ways. A section a line stops in has a shelter (sim/map/street.js amenities() puts it, its
 //     exact x the street's), the lines on its sign. A bus goes only to the stops of its own line.
-//   - **The metro**, where the city has one (METRO: London's Underground, Moscow's metro, Cairo's;
-//     Beirut's buses and service taxis are all it has): two or three lines, one along a street with a
-//     station every six to nine sections, one across the streets with a station every second one,
-//     London's third along another street; where two cross, one station for both (a change). A
-//     station is a building of its own on its street (sim/cities/station.js), its sign over a wide
-//     door. A ride goes anywhere on the network, changing where it must (route()).
+//   - **The metro**, where the city has one (its profile's transit.metro, sim/cities/: London's
+//     Underground, Moscow's metro, Cairo's; Beirut's buses and service taxis are all it has): two or
+//     three lines (as many as it names, three at most), one along a street with a station every six to
+//     nine sections, one across the streets with a station every second one, a third along another
+//     street; where two cross, one station for both (a change). A station is a building of its own on
+//     its street (sim/cities/station.js), its sign over a wide door. A ride goes anywhere on the
+//     network, changing where it must (route()).
+// The buses' numbers are the city's too (transit.buses).
 // Names: a stop's, its street's; a station's, its street's (in the city's own way: "Ladbroke Grove",
 // "Ostozhenka").
 import { stream, int, pick, chance, hash } from './rng.js';
@@ -24,24 +26,17 @@ import { cityOf } from './cities/index.js';
 export const AREA = 6, AREA_I = 14, BUS_LINES = 6;
 export const STOP_MIN = 1.6, STATION_MIN = 2.2, CHANGE_MIN = 4, WAIT_MIN = 3;   // (a bus between stops; a train between stations; a change; the wait on the platform)
 
-// The cities' metros: their lines' names and colours; the cities' bus numbers.
-export const METRO = {
-  london: { name: 'Underground', lines: [['Central', 0xc4302b], ['Northern', 0x23252f], ['District', 0x24803c]] },
-  moscow: { name: 'Metro', lines: [['Sokolnicheskaya', 0xc4302b], ['Zamoskvoretskaya', 0x24803c], ['Koltsevaya', 0x8f6345]] },
-  cairo: { name: 'Metro', lines: [['Line 1', 0xc4302b], ['Line 2', 0xe7b84a]] },
-};
-const BUS_NUMBERS = { london: [7, 23, 28, 31, 52, 70, 94, 148, 295, 452], moscow: [3, 15, 31, 39, 45, 64, 101, 144, 255, 904], cairo: [11, 24, 33, 66, 92, 150, 357, 500], beirut: [2, 4, 5, 6, 8, 12, 15, 24] };
-
 const nets = new Map();
 const key = (row, i) => `${row}|${i}`;
 
 /** The town's network: { lines: [{ id, kind: 'bus' | 'metro', name, colour, stops: [{ row, i }] }], at: Map 'row|i' → [line ids], stations: Map 'row|i' → [line ids] }. */
 export function network(town) {
   if (nets.has(town)) return nets.get(town);
+  // (the city's metro, its lines' names and colours, and the numbers its buses go by: its profile's transit)
   const P = cityOf(town), city = P.id ?? 'moscow', r = stream('transit', town), lines = [];
   const inArea = (row, i) => Math.abs(row) <= AREA && Math.abs(i) <= AREA_I;
   // The buses: along a street, up a side street, along the next.
-  const numbers = (BUS_NUMBERS[city] ?? BUS_NUMBERS.moscow).slice();
+  const numbers = P.transit.buses.slice();
   for (let n = 0; n < BUS_LINES; n++) {
     const no = numbers.splice(int(r, numbers.length), 1)[0];
     let row = int(r, 2 * AREA + 1) - AREA, i = -AREA_I + int(r, 4), dir = 1, run = 0, len = 2 + int(r, 3);
@@ -61,8 +56,8 @@ export function network(town) {
     for (let i = -AREA_I + int(r, 3); i <= AREA_I; i += 3 + int(r, 2)) stops.push({ row, i });
     lines.push({ id: `bus${no}`, kind: 'bus', name: String(no), colour: 0x9e3c36, stops });
   }
-  // The metro, if there's one: along a street, across the streets, and in London a second along.
-  const M = METRO[city];
+  // The metro, if there's one: along a street, across the streets, and where it has a third line (London's), a second along.
+  const M = P.transit.metro;
   if (M) {
     const rowA = int(r, 3) - 1, iB = int(r, 9) - 4;
     const along = (row, i0, i1) => { const out = []; for (let i = i0; i <= i1; i += 6 + int(r, 4)) out.push({ row, i }); return out; };

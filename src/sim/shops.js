@@ -40,7 +40,8 @@ import { weaponOf } from './weapons.js';
 import { train, learn, shelf, bookOf, bookLine } from './training.js';
 import { onYou, cardOf, PASTIME } from './reading.js';
 import { fits } from './items.js';
-import { cityById } from './cities/index.js';
+import { taughtIn } from './cities/index.js';
+import { LANG_NAME } from './langs.js';
 import { HOUR, DAY, calendar } from './clock.js';
 import { unitAt, SPOT_REACH_M } from './interiors/use.js';
 import { floorKind } from './interiors/shop.js';
@@ -66,11 +67,10 @@ export const CLUB_MONTH_USD = { gym: 45, club: 70 }, MEMBER_DAYS = 30;
 export const KEEP_USD = 50, BANK_S = 4 * 60;
 /** Whether you're a member of the gym or club at door d (p.clubs: { 'row:x': until }). */
 export const memberOf = (state, d) => (state.people[state.player]?.clubs?.[`${state.map.row ?? 0}:${Math.round(d.x * 10)}`] ?? 0) > state.time.ms;
-const LANG_NAME = { ru: 'Russian', en: 'English', ar: 'Arabic' };
-// (the language a city's school teaches: its own; London's, the opposition's, since you have the English)
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const dayText = (ms) => { const k = calendar(ms); return `${k.day} ${MONTHS[k.month - 1]}`; };
-const langHere = (state) => (state.map.city === 'london' ? 'ru' : cityById(state.map.city ?? 'moscow')?.lang ?? 'ru');
+// (the language a city's school teaches: its own; London's, the opposition's, since you have the English: sim/cities/ taughtIn())
+const langHere = (state) => taughtIn(state.map.city);
 // (the kinds whose floor is a café's (sim/interiors/shop.js): a table by the window, where the room has one, a coffee, the street
 // watched from inside; a toilet at the back, a customer's to use (sim/notice.js))
 const CAFES = ['cafe', 'restaurant', 'bar', 'pub', 'shawarma', 'kebab', 'chips', 'koshary', 'foul', 'juice'].filter(k => floorKind(k) === 'cafe');

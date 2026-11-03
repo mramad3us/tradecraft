@@ -43,7 +43,7 @@
 //     contact (a professional) gets a look of his own.
 // Every roll goes to the log with a line of flavour. The scenario's progress is plain data in
 // state.scenario, read by the UI (the marker, the instinct, the brief and the result).
-import { townOf } from '../cities/index.js';
+import { townOf, cityById } from '../cities/index.js';
 import { at, TICK_MS, calendar, dateText } from '../clock.js';
 import { handler, sheet, seedFrom, streetLook, describe, asOfficer } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
@@ -142,7 +142,7 @@ export const tail = {
   about: 'Follow a former GRU officer through Moscow to his meeting. Don\'t be seen twice. Each evening is different.',
   brief(state) {
     const ev = eveningOf(state), B = state.scenario.brief;
-    if (B) return { title: B.title, body: B.body, footer: `Station ${CITY_NAME[state.map.city] ?? 'Moscow'} · ${dateText(state.scenario.began)} · ${hhmm(ev.h, ev.m)}`, keys: tail.keys.map(([k, v]) => [k, sub(state, v)]) };   // (a campaign's: its own words, sim/dossier.js)
+    if (B) return { title: B.title, body: B.body, footer: `Station ${cityById(state.map.city).name} · ${dateText(state.scenario.began)} · ${hhmm(ev.h, ev.m)}`, keys: tail.keys.map(([k, v]) => [k, sub(state, v)]) };   // (a campaign's: its own words, sim/dossier.js)
     return subAll(state, {
       title: 'TAILING: GENNADY ORLOV',
       body: [
@@ -327,10 +327,10 @@ function campaignEvening(C) {
 function sub(state, t) {
   const sc = state.scenario, name = state.people.orlov?.name ?? 'Gennady Orlov', family = name.split(' ').slice(-1)[0];
   if (typeof t !== 'string' || !sc?.campaign) return t;
-  if (sc.sig) t = sigWords(t, sc.sig, sc.contactSig, CITY_NAME[state.map.city] ?? 'Moscow', sc.month);
+  if (sc.sig) t = sigWords(t, sc.sig, sc.contactSig, cityById(state.map.city).name, sc.month);
   return t.replace(/Gennady Orlov, 54\. Deputy head of procurement at a defence plant\. Twenty years ago an officer of the GRU, and he hasn't forgotten all of it\./, `${name}: ${sc.what ?? 'a man the station wants watched'}.`)
     .replace(/GENNADY ORLOV/g, name.toUpperCase()).replace(/Gennady Orlov/g, name).replace(/Orlov/g, family)
-    .replace(/Station Moscow · Tuesday 3 November 2026/, `Station ${CITY_NAME[state.map.city] ?? 'Moscow'} · ${dateText(sc.began)}`);
+    .replace(/Station Moscow · Tuesday 3 November 2026/, `Station ${cityById(state.map.city).name} · ${dateText(sc.began)}`);
 }
 /**
  * The test's words for Orlov (grey coat, grey fedora, a briefcase; Moscow; the man in the blue beanie)
@@ -353,7 +353,6 @@ export function sigWords(t, s, c, city, month) {
 /** The scene's log, in the campaign's words (sub()). */
 const say = (state, bus, e) => logSay(state, bus, e && typeof e.text === 'string' ? { ...e, text: sub(state, e.text) } : e);
 const subAll = (state, o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Array.isArray(v) ? v.map(x => (typeof x === 'string' ? sub(state, x) : x)) : sub(state, v)]));
-const CITY_NAME = { moscow: 'Moscow', london: 'London', beirut: 'Beirut', cairo: 'Cairo' };
 
 /** A bench on a row near x (the nearest section along with one). */
 function benchNear(seed, row, x) {

@@ -6,7 +6,7 @@
 // its car), and gets off behind you; nobody minds a bus (it isn't written down). Whoever follows you
 // gets on too, and off behind you; off as the doors close, by your Deception against their Tracking,
 // they may be carried on.
-import { newGame, start, step, playerActor } from '../src/sim/game.js';
+import { newGame, start, step, playerActor, STOP_WAIT_S } from '../src/sim/game.js';
 import { makeAgent, follow } from '../src/sim/agents.js';
 import { sheet } from '../src/sim/people.js';
 import { riders } from '../src/sim/buses.js';
@@ -62,6 +62,22 @@ function followed({ tracking = 10, deception = 10, back = 6 } = {}) {
 }
 
 export default [
+  {
+    name: 'buses: stood still at the stop, you\'re waiting for the bus as if you\'d pressed R, and it asks where to when it comes',
+    fn() {
+      const g = newGame({ seed: 7, scenario: 'walk', city: 'london', hour: 12, weather: 'clear' }), asked = [];
+      const bus = { emit: (k, v) => { if (k === 'bus') asked.push(v); }, on() {} };
+      start(g, bus);
+      const st = nearestStop(g);
+      for (let t = 0; t < 25 * 60 * 6; t++) { const me = playerActor(g); if (Math.abs(me.x - st.x) < 1.2 && me.z > -2.8 && me.z < -1.6) break; step(g, goTo(g, me, g.map.row ?? 0, st.x + 0.6, -2.3), bus); }
+      let t = 0;
+      for (; t < 20 * (STOP_WAIT_S + 2) && playerActor(g).busy?.what !== 'shelter'; t++) step(g, {}, bus);
+      assert(playerActor(g).busy?.what === 'shelter', `waiting, after ${fmt(t / 20, 1)} s stood there`);
+      for (let k = 0; k < 25 * 60 * 30 && !asked.length; k++) step(g, {}, bus);
+      assert(asked.length && asked[0].list.length, `the bus came, and asked where to (${asked[0]?.line})`);
+      console.log(`      stood at the stop ${fmt(t / 20, 1)} s: waiting; the ${asked[0].line} came, ${asked[0].list.length} stops to choose from`);
+    },
+  },
   {
     name: 'buses: whoever follows you and saw you get on gets on too; off as the doors close, by your Deception against their Tracking, carried on; too far back, left at the stop',
     fn() {

@@ -24,7 +24,7 @@ import { haleCall } from './sim/hale.js';
 import { options as shootOptions } from './sim/shooting.js';
 import { newGun, newMag, isGun } from './sim/firearms.js';
 import { candidates, legendFile, newCampaign, context, fold, heatWord, KINDS, LEVELS, levelOf, promote, goalOf } from './sim/campaign.js';
-import { cityById } from './sim/cities/index.js';
+import { cityById, CITY_IDS, FIRST_TOUR_CITY } from './sim/cities/index.js';
 import { shopWord } from './sim/shops.js';
 import { price } from './sim/money.js';
 import { LOSE_USD, LOSE_MIN } from './sim/taxi.js';
@@ -53,7 +53,7 @@ const ui = createUI({ input, cb: {
   newGame: (kind, chapter = null, city = null) => launch(newGame({ seed: randomSeed(), scenario: kind, version: VERSION, chapter, city: city ?? home?.city ?? null, weather: WEATHER, character: home?.character, job: home?.job })),
   newLesson: (id) => launch(newGame({ seed: randomSeed(), lesson: id, version: VERSION, weather: WEATHER, character: home?.character, city: home?.city, job: home?.job })),   // (from the flat: the officer, their city, their cover)   // (the tutorial: sim/tutorial/)
   // (the campaign, the game's way in: three officers, one picked, and day one in their flat: sim/campaign.js)
-  newCampaign: (city = 'moscow') => pickOfficer(city),
+  newCampaign: (city = CITY_IDS[0]) => pickOfficer(city),
   backHome: () => resumeHome(),                                     // (the tutorial, left for the flat)
   beginPosting: () => resumeHome(true),                             // (the tutorial done with: the posting's brief, and on)
   continue: async () => { home = null; const s = await getSave('auto'); if (s) launch(fromJSON(s.json)); },
@@ -78,10 +78,10 @@ const ui = createUI({ input, cb: {
  * always; a posting of your own once you've reached the rung above it in some game (CAREER_KEY, the
  * user: "reaching a level unlocks starting at the one below it"), or in debug mode.
  */
-function pickOfficer(city = 'moscow', level = null) {
+function pickOfficer(city = CITY_IDS[0], level = null) {
   const best = careerBest(), open = (k) => k === 0 || k <= best - 1 || settings.debug;
   level ??= open(1) ? 'handler' : 'junior';
-  if (level === 'junior') city = 'london';
+  if (level === 'junior') city = FIRST_TOUR_CITY;                  // (a first tour is at its station: sim/cities/)
   const seed = randomSeed(), list = candidates(seed, city, level);
   home = null;
   ui.hideTitle();
@@ -91,7 +91,7 @@ function pickOfficer(city = 'moscow', level = null) {
     list[3] = legendFile(seed, city, level, n);
     ui.showCandidates(list, (i) => launch(newGame({ seed, scenario: 'campaign', version: VERSION, campaign: newCampaign(seed, list[i], city, level), weather: WEATHER })),
       city, { cities: level === 'junior' ? null : (c) => pickOfficer(c, level), back: () => showTitle(), level, another: () => { n++; show(); },
-        levels: LEVELS.map((L, k) => ({ id: L.id, name: L.name, open: open(k), why: k ? `Opens when a game of yours reaches the rung above it${settings.debug ? ' (open: debug mode)' : ''}.` : null })), levelTo: (id) => pickOfficer(id === 'junior' ? 'london' : 'moscow', id) });
+        levels: LEVELS.map((L, k) => ({ id: L.id, name: L.name, open: open(k), why: k ? `Opens when a game of yours reaches the rung above it${settings.debug ? ' (open: debug mode)' : ''}.` : null })), levelTo: (id) => pickOfficer(id === 'junior' ? FIRST_TOUR_CITY : CITY_IDS[0], id) });
   };
   show();
 }
@@ -260,7 +260,7 @@ function backToPosting(s) {
   const c = s.campaign, a = c.assignments.find(x => x.id === s.assignment);
   const me = s.actors.find(x => x.who === s.player);
   const paper = a ? fold(c, a, s.scenario, s.people[s.player], s.time.ms, Object.values(s.heat)[0]) : { title: 'BACK', lines: [] };
-  // (from a trip abroad: the flight home, the flat in London next morning: sim/campaign.js foldTrip())
+  // (from a trip abroad: the flight home, the flat at home next morning: sim/campaign.js foldTrip())
   c.where = me && !a?.trip ? { row: me.row ?? s.map.row, x: me.x, z: me.z } : null;
   c.now = a?.home ?? s.time.ms;
   ui.showPaper({ stamp: 'DEBRIEF', title: paper.title, lines: paper.lines, note: `Heat: ${heatWord(c.posting.heat)}. Intelligence: ${c.posting.intelligence}.` },
@@ -275,15 +275,16 @@ function showPapers(list) {
 
 /** The posting's brief, the paper before day one. */
 function postingPaper(c) {
-  const p = c.posting, me = c.character;
-  if (p.level === 'junior') return { stamp: 'FIRST TOUR', title: 'STATION LONDON', go: 'Begin the tour', lines: [
-    `${me.name}: ${p.job}. On paper you work for the FBI's people in London; in fact you're the station's liaison with MI5, and${me.legend ? ', for the record,' : ''} its most junior officer.`,
-    `The station wants ${p.goal}. With MI5's watchers, you'll follow the residency's people and photograph whom they meet: ${p.targets.map(t => t.name).join(' and ')}.`,
+  const p = c.posting, me = c.character, K = cityById(p.city);
+  // (a first tour's: its station's words, sim/cities/ firstTour)
+  if (p.level === 'junior') return { stamp: 'FIRST TOUR', title: `STATION ${K.name.toUpperCase()}`, go: 'Begin the tour', lines: [
+    `${me.name}: ${p.job}. ${K.station.firstTour.paper}, and${me.legend ? ', for the record,' : ''} its most junior officer.`,
+    `The station wants ${p.goal}. ${K.station.firstTour.work}: ${p.targets.map(t => t.name).join(' and ')}.`,
     `Twice in the tour another station will borrow you for a couple of days: ${p.trips.map(t => `${cityById(t.city).name}`).join(', then ')}. Flown out the morning of it, home the morning after.`,
     `Do it well (intelligence ${goalOf(p)}), keep the heat down, and the next posting is a station of your own.`,
     'The embassy expects you nine to six on weekdays: the work is in the evenings, where it happens. Tab is your mind: what\'s ahead and where, the city as you know it. You get there yourself.',
   ] };
-  return { stamp: 'POSTING', title: `STATION ${cityById(p.city).name.toUpperCase()}`, go: 'Begin the posting', lines: [
+  return { stamp: 'POSTING', title: `STATION ${K.name.toUpperCase()}`, go: 'Begin the posting', lines: [
     `${me.name}: ${p.job}. Diplomatic immunity: caught, you'd be expelled. The people you run wouldn't be so lucky.`,
     `The station wants ${p.goal}. Every meeting, every tail, is a step toward it.`,
     `Your network: ${p.assets.map(s => `${s.codename}, ${s.role}, in it for ${s.motive}`).join('; ')}.`,

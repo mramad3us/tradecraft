@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.6 (2026-11-03)
+
+- **Waiting for a bus, just by waiting.** A bus only ever came for someone sat in the shelter (R at it). Now standing still at a stop for a few seconds is waiting too: you take a seat in the shelter, and when the bus pulls in it asks where to. Pick a stop with its number; the card's last line is standing by the doors to step off as they close.
+- **No gun by default.** The station's pistol is no longer in the flat's drawer: guns are rare and, in most places, illegal, and getting one will be its own undertaking (the law where it allows it, the black market where it doesn't). Debug mode still puts one on you to try them.
+- **Stations, one file each.** Nothing changes in play: the same words, the same dice, the same streets, and saves load as they did. Under it, the rest of what each city had in other modules' tables now lives in its profile: its targets and assets, its opposition's names in the briefs and the scenes, its metro, buses and station fronts, its flats and its embassy, the free walk's words, its lines on the title and the promotion paper, and the first tour (London's) and the trips abroad. Adding a station is now its city file and, if its country is new, a country file (DESIGN.md, Stations and countries); only the weather's climate and a few drawing touches are still elsewhere.
+
 ## v0.1.5 (2026-11-03)
 
 - **Dress for the day.** Each day has its feel from its temperature, freezing to hot, and the city's passers-by dress for it: coats and beanies in a Moscow freeze, T-shirts and dresses in a Cairo heat, a mix on a mild day. Robes and uniforms stay as they are. You're held to it too: dressed for another season, you're easier to pick out (+1 a step, up to +3: a T-shirt in a freeze is +3, a coat in the heat +2), and so is an umbrella in your hand under a clear sky (+1).

@@ -3,7 +3,7 @@
 // anyone's up any stairwell; never two alike ("make sure appartments are generated to a point, meaning
 // that colors, decorations, ambiance, layouts needs variability").
 //
-// A layout (LAYOUTS), by the flat's seed; then the city's way of keeping house (HOME), by the seed too:
+// A layout (LAYOUTS), by the flat's seed; then the city's way of keeping house (its home), by the seed too:
 //   - **bands**: two bands of rooms; along the back (north, the courtyard's side, its wall standing to
 //     the ceiling with the windows in it) the bedroom, the bathroom and the hall with the front door
 //     from the landing; along the street side the living room and the kitchen. Hall → kitchen →
@@ -12,42 +12,28 @@
 //     under them; along the street side the living room and the bedroom, off the corridor.
 //   - **studio**: along the back a kitchenette open to the room, the bathroom, the hall; the rest one
 //     room, the bed at one end and the sofa before the television at the other.
-// Each is mirrored or not, its size within its range. The HOME a city keeps: its walls (paint, or a
-// paper with a pattern: damask, stripes, small flowers), its floors by room (herringbone or straight
-// parquet, planks, carpet, lino, chequered lino, bathroom tiles, terrazzo, patterned cement tiles),
-// its woods and fabrics, the telephone's colour, what hangs on the back wall (pictures, a mirror, a
-// clock, a calendar; in Moscow a carpet over the bed, as Moscow does), and the light (a mood: warm,
-// soft, or a kitchen's cool tube). The furniture's own looks (sim/interiors/furniture.js, drawn by
-// src/art/furniture.js) take the flat's woods and fabrics and their own seeds. A flat not yet moved
-// into (`boxes`) has moving boxes about. What's done where (spots): the bed, the telephone, the basin,
-// the table, the cooker, the street-side window (sim/scenarios/campaign.js: out of it, the street below),
-// the wardrobe (the studio's drawers: what you wear and what you keep, sim/clothes.js);
-// the way out (exits): the front door.
+// Each is mirrored or not, its size within its range. The home a city keeps (its profile's home,
+// sim/cities/): its walls (paint, or a paper with a pattern: damask, stripes, small flowers), its
+// floors by room (herringbone or straight parquet, planks, carpet, lino, chequered lino, bathroom
+// tiles, terrazzo, patterned cement tiles), its woods and fabrics, the telephone's colour, what
+// hangs on the back wall (pictures, a mirror, a clock, a calendar; in Moscow a carpet over the bed,
+// as Moscow does), and the light (a mood: warm, soft, or a kitchen's cool tube). The furniture's own
+// looks (sim/interiors/furniture.js, drawn by src/art/furniture.js) take the flat's woods and fabrics
+// and their own seeds. A flat not yet moved into (`boxes`) has moving boxes about. What's done where
+// (spots): the bed, the telephone, the basin, the table, the cooker, the street-side window
+// (sim/scenarios/campaign.js: out of it, the street below), the wardrobe (the studio's drawers: what
+// you wear and what you keep, sim/clothes.js); the way out (exits): the front door.
 import { stream, int, pick, chance, range } from '../rng.js';
 import { mirror } from './plan.js';
+import { cityById } from '../cities/index.js';
 
-// The cities' ways of keeping house.
-const HOME = {
-  moscow: { walls: ['damask', 'stripes', 'flowers', 'paint'], paints: [[0xd9c9a3, 0xb8a27a], [0xc9d3b4, 0x9fae86], [0xd6c0b0, 0xb08c7c], [0xe2dac6, 0xc4bba9], [0xcfd6dc, 0xa7b4bf]],
-    floors: { living: ['herringbone'], bedroom: ['herringbone', 'parquet'], kitchen: ['lino', 'checker'], bath: ['tiles'], hall: ['parquet'] }, floorWood: [0xa8784f, 0x8f6345, 0xb48459],
-    woods: ['walnut', 'teak', 'dark'], fabrics: ['brown', 'green', 'red', 'mustard'], phones: ['red', 'cream'], rugs: ['persian', 'persian', 'kilim'], wallCarpet: 0.6, moods: ['warm', 'warm', 'soft'] },
-  london: { walls: ['paint', 'paint', 'stripes', 'flowers'], paints: [[0xb4bfa0, 0x8f9c7c], [0xe8dcc4, 0xc9b99a], [0xb8c4cc, 0x8f9faa], [0xd6ccb8, 0xb0a48c], [0xd8bcb0, 0xb89488]],
-    floors: { living: ['planks', 'carpet'], bedroom: ['carpet'], kitchen: ['lino', 'checker'], bath: ['tiles', 'lino'], hall: ['planks'] }, floorWood: [0xb48459, 0xd6ad7a, 0x8f6345],
-    woods: ['oak', 'pine', 'white'], fabrics: ['navy', 'grey', 'green', 'cream', 'teal'], phones: ['black', 'cream'], rugs: ['kilim', 'plain', 'persian'], wallCarpet: 0, moods: ['soft', 'soft', 'cool'] },
-  cairo: { walls: ['paint', 'paint', 'stripes'], paints: [[0xe2d2b0, 0xc4b08a], [0xd0d8c0, 0xaab89a], [0xc8d4dc, 0xa0b0bc], [0xece6da, 0xcfc6b4]],
-    floors: { living: ['terrazzo', 'cement'], bedroom: ['terrazzo', 'parquet'], kitchen: ['cement'], bath: ['tiles'], hall: ['terrazzo'] }, floorWood: [0x8f6345, 0x6b4636],
-    woods: ['dark', 'teak', 'walnut'], fabrics: ['red', 'mustard', 'teal', 'brown'], phones: ['black', 'green'], rugs: ['kilim', 'persian'], wallCarpet: 0, moods: ['cool', 'soft', 'warm'] },
-  beirut: { walls: ['paint', 'paint', 'flowers'], paints: [[0xe8dcc4, 0xc9b99a], [0xd8c8d0, 0xb4a0ac], [0xd0d8c0, 0xaab89a], [0xece6da, 0xcfc6b4]],
-    floors: { living: ['cement', 'cement', 'terrazzo'], bedroom: ['cement', 'parquet'], kitchen: ['cement'], bath: ['tiles'], hall: ['cement'] }, floorWood: [0xb48459, 0x8f6345],
-    woods: ['teak', 'walnut', 'white'], fabrics: ['plum', 'teal', 'red', 'cream'], phones: ['cream', 'green'], rugs: ['kilim', 'persian'], wallCarpet: 0, moods: ['warm', 'soft'] },
-};
 export const MOODS = { warm: 0xf8dca8, soft: 0xf8e8c8, cool: 0xe0e8f0 };
 export const CEMENT = [[0x9e3c36, 0xe2d2b0], [0x283f6b, 0xe2dac6], [0x356f42, 0xe2d2b0], [0x6b4636, 0xd6c6a8]];
 const DECOR = ['picture', 'picture', 'picture', 'mirror', 'clock', 'calendar'];
 
 /** A flat's plan, from its seed: { city, boxes: moving boxes about, layout: to choose it }. */
 export function flatPlan(seed, { city = 'moscow', boxes = false, layout = null } = {}) {
-  const r = stream('flat', seed), H = HOME[city] ?? HOME.moscow;
+  const r = stream('flat', seed), H = cityById(city).home;           // (the city's way of keeping house: its profile's, sim/cities/)
   const which = layout ?? pick(r, ['bands', 'bands', 'corridor', 'corridor', 'studio']);
   const look = { wood: pick(r, H.woods), fabric: pick(r, H.fabrics), fabric2: pick(r, H.fabrics), phone: pick(r, H.phones), rug: pick(r, H.rugs), seed: int(r, 1e6) };
   const plan = LAYOUTS[which](r, look);

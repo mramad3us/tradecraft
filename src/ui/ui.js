@@ -14,7 +14,8 @@
 //
 // It shows the state and routes the player's choices to the callbacks it's given (src/main.js); it
 // never changes the state itself. Times are game time (sim/clock.js); rolls read through checkShort() at the top left, checkText() (the whole sum) in the log.
-import { townOf, localize, cityById } from '../sim/cities/index.js';
+import { townOf, localize, cityById, CITIES, CITY_IDS } from '../sim/cities/index.js';
+import { LANG_NAME } from '../sim/langs.js';
 import { shopWord } from '../sim/shops.js';
 import { needsWords } from '../sim/needs.js';
 import { price, cashOf } from '../sim/money.js';
@@ -60,6 +61,9 @@ import { said as gunSaid, armOf, modelOf as gunModel } from '../sim/firearms.js'
 import { openMind } from './mind.js';
 import { outcomeWord } from '../sim/outcomes.js';
 import { dayBand, stageOf } from '../sim/thermal.js';
+
+// (the cities by name, as a sentence lists them, in CITIES' order: "Moscow, London, Beirut or Cairo")
+const CITY_LIST = ((n) => (n.length > 1 ? `${n.slice(0, -1).join(', ')} or ${n.at(-1)}` : n[0]))(CITY_IDS.map(c => CITIES[c].name));
 
 // (a place's glyph on its plaque; how far, in the plaque's few letters: "2 streets north" → "2 ST N")
 const PLACE_ICON = { embassy: 'star', home: 'house', safe: 'key' };
@@ -155,17 +159,16 @@ export function createUI({ input, cb }) {
   function showTitle({ version, auto, farm = false }) {
     titleWas = { version, auto, farm };
     // The Farm: the lesson, or, the lesson had, a memory first (sim/scenarios/dojo.js, chapter 'remembered').
-    // (the free walk in any of the cities, one entry: sim/cities/; the line under it says where the pointer is)
-    const CITY_WALKS = [['moscow', 'Moscow', 'A boulevard in central Moscow: plaster and Stalinist stone, the lanes north and south, the sun down at ten to five.'],
-      ['london', 'London', 'Notting Hill\'s terraces and pubs, a November afternoon, the pavements wet.'], ['beirut', 'Beirut', 'Gemmayzeh and Achrafieh: old houses, stairs up the hill, cables everywhere.'], ['cairo', 'Cairo', 'Downtown and the lanes off it: dust, signs in Arabic, a minaret.']];
+    // (the free walk in any of the cities, one entry: sim/cities/, each its profile's line; the line under it says where the pointer is)
+    const CITY_WALKS = CITY_IDS.map(c => [c, CITIES[c].name, CITIES[c].walk.about]);
     const walkEntry = (key, s) => {
-      const about = el('small', { textContent: 'Walk, look, get the feel of it, a November afternoon in whatever weather the day brings: in Moscow, London, Beirut or Cairo.' });
+      const about = el('small', { textContent: `Walk, look, get the feel of it, a November afternoon in whatever weather the day brings: in ${CITY_LIST}.` });
       return [el('div', { className: 'item walk' }, s.name, about, el('div', { className: 'cities' }, ...CITY_WALKS.map(([c, name, words]) =>
         el('button', { className: 'small', onclick: () => cb.newGame(key, null, c === 'moscow' ? null : c), onmouseenter: () => { about.textContent = words; }, onfocus: () => { about.textContent = words; } }, name))))];
     };
     // (the game's way in: an officer for a posting, and day one in their flat; the city's chosen with the officer)
-    const campaignEntry = () => el('button', { className: 'item campaign', onclick: () => cb.newCampaign?.('moscow') }, 'New game: pick your officer',
-      el('small', { textContent: 'Three officers for a posting at a US embassy (Moscow, London, Beirut or Cairo). Pick one, and day one starts in their flat. Hale will call.' }));
+    const campaignEntry = () => el('button', { className: 'item campaign', onclick: () => cb.newCampaign?.(CITY_IDS[0]) }, 'New game: pick your officer',
+      el('small', { textContent: `Three officers for a posting at a US embassy (${CITY_LIST}). Pick one, and day one starts in their flat. Hale will call.` }));
     const entry = (key, s) => key === 'walk' ? walkEntry(key, s)
       : key !== 'dojo' ? [el('button', { className: 'item', onclick: () => cb.newGame(key) }, s.name, el('small', { textContent: s.about }))] : [
       el('button', { className: 'item', onclick: () => cb.newGame('dojo', farm ? 'remembered' : 'lesson') }, farm ? 'The Farm, remembered' : s.name,
@@ -620,7 +623,6 @@ export function createUI({ input, cb }) {
   }
   // ---------- the character sheet (C) ----------
   const LEVEL = Object.fromEntries(Object.entries(TRAINED).map(([k, v]) => [v, k]));
-  const LANGS = { en: 'English', ru: 'Russian', es: 'Spanish', fr: 'French', de: 'German', ar: 'Arabic', zh: 'Chinese', pl: 'Polish', pt: 'Portuguese', hi: 'Hindi', hy: 'Armenian' };
   function openSheet(state) {
     const p = state.people[state.player], cls = CLASSES[p.cls], os = p.os ?? 0;
     const rows = Object.entries(SKILLS).map(([k, sk]) => {
@@ -645,7 +647,7 @@ export function createUI({ input, cb }) {
           el('table', { className: 'skills' }, el('tbody', {}, rows)),
           el('p', { className: 'note', textContent: `The level is the training you had (a course, advanced…); each • is practice since, ${p.bg ? 'each ◆ what your background brought, ' : ''}a point each.` }),
           (() => { const nw = needsWords(p, state.time.ms); return el('p', { className: 'langs', textContent: `${nw.fed[0].toUpperCase()}${nw.fed.slice(1)} · ${nw.stress}${nw.hungry || nw.edgy ? ' (it costs: see a roll\'s modifiers)' : ''} · ${price(state, cashOf(p))} on you` }); })(),
-          el('p', { className: 'langs', textContent: Object.entries(p.langs ?? {}).map(([c, l]) => `${LANGS[c] ?? c}: ${l}`).join(' · ') }),
+          el('p', { className: 'langs', textContent: Object.entries(p.langs ?? {}).map(([c, l]) => `${LANG_NAME[c] ?? c}: ${l}`).join(' · ') }),
           el('p', { className: 'langs', textContent: `Carrying: ${[p.hand && `${weaponOf(p.hand).name}, in hand`, ...(p.items ?? []).map(k => weaponOf(k)?.name ?? k)].filter(Boolean).join('; ') || 'nothing to fight with'}. (${input.label('inventory')})` })),
         el('div', { className: 'body' },
           el('div', { className: 'figure' }, part('head'), part('armR'), part('torso'), part('armL'), part('legR'), part('legL')),
@@ -788,22 +790,22 @@ export function createUI({ input, cb }) {
 
   // ---------- a test's papers: the brief, the result ----------
   /** The campaign's three candidates (sim/campaign.js candidates()): pick one. */
-  function showCandidates(list, onPick, city = 'moscow', { cities = null, back = null, level = 'handler', levels = null, levelTo = null, another = null } = {}) {
+  function showCandidates(list, onPick, city = CITY_IDS[0], { cities = null, back = null, level = 'handler', levels = null, levelTo = null, another = null } = {}) {
     const C = cityById(city), lang = C.lang ?? 'ru', junior = level === 'junior';
     // (the career's rung to start at: a first tour, or a posting of your own once it's open: src/main.js)
     const rungs = levels && levels.length > 1 && el('div', { className: 'cities' }, el('span', { className: 'note', textContent: 'Start as: ' }),
       ...levels.map(L => el('button', { className: `small${L.id === level ? ' on' : ''}`, disabled: !L.open, title: L.open ? '' : L.why ?? '', onclick: () => { if (L.open && L.id !== level) levelTo?.(L.id); } }, L.open ? L.name : `${L.name} (locked)`)));
-    // (the posting's city: another one, three other officers)
+    // (the posting's city: another one, three other officers; the stations, sim/cities/)
     const tabs = cities && el('div', { className: 'cities' }, el('span', { className: 'note', textContent: 'Posted to: ' }),
-      ...[['moscow', 'Moscow'], ['london', 'London'], ['beirut', 'Beirut'], ['cairo', 'Cairo']].map(([c, name]) =>
-        el('button', { className: `small${c === city ? ' on' : ''}`, onclick: () => { if (c !== city) cities(c); } }, name)));
+      ...CITY_IDS.map(c =>
+        el('button', { className: `small${c === city ? ' on' : ''}`, onclick: () => { if (c !== city) cities(c); } }, CITIES[c].name)));
     const top = (p) => Object.entries(p.skills).map(([k, [b, x]]) => [k, b + x]).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => SKILLS[k]?.name ?? k).join(', ');
     paper.replaceChildren(el('div', { className: 'sheet brief candidates' },
       el('span', { className: 'stamp', textContent: 'PERSONNEL' }),
       el('h2', { textContent: 'WHO GOES' }),
-      el('p', { className: 'note', textContent: junior ? 'Station London needs a junior officer for the MI5 liaison: fresh from the Farm, a first tour. Three files on the desk.' : `Station ${C.name} needs a Handler under official cover. Three files on the desk.` }), rungs, tabs, el('hr'),
+      el('p', { className: 'note', textContent: junior ? C.station.firstTour?.wanted : `Station ${C.name} needs a Handler under official cover. Three files on the desk.` }), rungs, tabs, el('hr'),
       ...list.flatMap((p, i) => [p.legend ? el('h3', { className: 'legends', textContent: 'LEGENDS', title: 'Someone of Tradecraft 95, and the reason for it: what no ordinary career makes.' }) : null, el('button', { className: `item cand${p.legend ? ' legend' : ''}`, onclick: () => { paper.hidden = true; paper.dataset.kind = ''; onPick(i); } },
-        `${p.name}, ${p.age}`, el('small', { textContent: `${p.background}${p.anew ? ` ${p.anew}` : ''} ${p.bg ? `From it: ${Object.entries(p.bg.points).map(([k, v]) => `${SKILLS[k]?.name ?? k} +${v}`).join(', ')}. ` : ''}Best at: ${top(p)}. ${LANGS[lang] ?? lang}: ${p.langs[lang] ?? 'none'}. Tradecraft ${p.os}.` }))].filter(Boolean)),
+        `${p.name}, ${p.age}`, el('small', { textContent: `${p.background}${p.anew ? ` ${p.anew}` : ''} ${p.bg ? `From it: ${Object.entries(p.bg.points).map(([k, v]) => `${SKILLS[k]?.name ?? k} +${v}`).join(', ')}. ` : ''}Best at: ${top(p)}. ${LANG_NAME[lang] ?? lang}: ${p.langs[lang] ?? 'none'}. Tradecraft ${p.os}.` }))].filter(Boolean)),
       another ? el('button', { className: 'item', onclick: another }, 'Another legend') : null));
     if (back) paper.firstChild.append(el('hr'), el('button', { className: 'item', onclick: () => { paper.hidden = true; paper.dataset.kind = ''; back(); } }, 'Back to the title'));
     paper.hidden = false;
@@ -895,11 +897,10 @@ export function createUI({ input, cb }) {
       el('button', { className: 'item', onclick: go(lesson.tutorial) }, 'The tutorial', el('small', { textContent: 'The lessons, all of them.' })),
       el('button', { className: 'item', onclick: go(title) }, home ? 'Back to the flat' : 'Back to the title')]
       : state.campaign ? [el('hr'),
-      // (promoted: a station of your own, chosen here: sim/campaign.js promote())
+      // (promoted: a station of your own, chosen here: sim/campaign.js promote(); each its profile's line, sim/cities/)
       ...(stations ? [el('p', { className: 'note', textContent: 'A posting of your own: which station do you ask for?' }),
-        ...[['moscow', 'Moscow', 'The FSB on every corner: the hardest street there is.'], ['london', 'London', 'Home ground of a kind: the residency, and the money it watches.'],
-          ['beirut', 'Beirut', 'Hezbollah\'s security, and everyone else\'s.'], ['cairo', 'Cairo', 'The GIS, patient and everywhere.']].map(([c, name, about]) =>
-          el('button', { className: 'item', onclick: go(() => stations(c)) }, `Station ${name}`, el('small', { textContent: about })))] : []),
+        ...CITY_IDS.map(c =>
+          el('button', { className: 'item', onclick: go(() => stations(c)) }, `Station ${CITIES[c].name}`, el('small', { textContent: CITIES[c].station.about })))] : []),
       back && !stations && !state.people[state.player]?.dead ? el('button', { className: 'item', onclick: go(back) }, 'Back to the posting', el('small', { textContent: 'The debrief, and on with it.' })) : null,
       el('button', { className: 'item', onclick: go(title) }, home ? 'Back to the flat' : 'Back to the title')] : [
       el('hr'),

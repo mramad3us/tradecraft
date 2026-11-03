@@ -276,6 +276,21 @@ export const MOSCOW = {
     opposition: { the: 'the FSB', an: 'an FSB', name: 'FSB', prison: 'Lefortovo' },
     subjects: [['sanctions evasion', 'who in the Kremlin\'s circle moves money and chips past the sanctions, and how'], ['the hypersonic programme', 'how far the new missile has come, and who builds it'],
       ['Unit 29155', 'the GRU unit behind the sabotage in Europe: its officers, its next targets']],
+    about: 'The FSB on every corner: the hardest street there is.',
+    // (the targets: what each is, his cover, where he works, how careful (weights over sim/dossier.js CRAFT), his age's range)
+    targets: [
+      ['a GRU officer, twenty years in', 'deputy head of procurement at a defence plant', 'the plant\'s city office', { trained: 3, sharp: 2, jumpy: 1 }, [46, 60]],
+      ['an FSB officer of the Fifth Service', 'a consultant to a state energy firm', 'the energy firm\'s offices', { sharp: 3, trained: 2 }, [38, 55]],
+      ['an SVR officer home between postings', 'a lecturer at the Diplomatic Academy', 'the Academy\'s annexe', { trained: 3, sharp: 1, careless: 1 }, [40, 58]],
+      ['a missile engineer the GRU keeps close', 'a section head at a design bureau', 'the design bureau', { careless: 3, jumpy: 2 }, [35, 62]],
+      ['a banker who moves the Kremlin\'s circle\'s money', 'a vice-president of a private bank', 'the bank', { careless: 2, jumpy: 2, trained: 1 }, [34, 52]],
+      ['a colonel on the General Staff', 'a staff officer at the Defence Ministry', 'a Defence Ministry annexe', { trained: 2, careless: 2 }, [44, 58]],
+      ['a freight forwarder the GRU uses for sanctioned parts', 'the director of a logistics firm', 'the logistics firm\'s office', { careless: 2, jumpy: 2 }, [36, 60]],
+      ['a former KGB man who sells what he hears', 'a security consultant', 'a consultancy over a bank', { sharp: 2, trained: 2 }, [55, 68]],
+    ],
+    assets: ['a cipher clerk at the Foreign Ministry', 'a logistics officer at a defence plant', 'a secretary in the Presidential Administration', 'a programmer at a state telecoms firm',
+      'a defence engineer', 'a customs officer at Sheremetyevo', 'a translator at a state firm', 'a junior officer in the General Staff\'s archive', 'a banker\'s assistant', 'a journalist on a state daily'],
+    trip: { kind: 'sdr', station: 'Moscow station', why: 'their own officers are watched too closely to go near him this month', names: ['Gennady Orlov'], what: 'an FSB officer' },
   },
   streetName,
   boulevardName: (seed, row) => `${at(BOULEVARDS, seed, row, 'boulevard')} Boulevard`,
@@ -288,4 +303,17 @@ export const MOSCOW = {
     langs: (r) => ({ ru: 'native', ...(chance(r, 0.25) ? { en: pick(r, ['basic', 'working']) } : {}) }),
     look: (r, sex, age) => streetLook(r, sex, age),
   },
+  // The metro and the buses (sim/transit.js), the station's front (sim/cities/station.js).
+  transit: {
+    metro: { name: 'Metro', the: 'the metro', lines: [['Sokolnicheskaya', 0xc4302b], ['Zamoskvoretskaya', 0x24803c], ['Koltsevaya', 0x8f6345]],
+      front: { kind: 'pavilion', wall: 0xe2dac6, trim: 0xf4efe6, h: 6.6, door: 0x8f96a6, sign: 'МЕТРО' } },
+    buses: [3, 15, 31, 39, 45, 64, 101, 144, 255, 904],
+  },
+  // A flat's keeping house (sim/interiors/flat.js): a carpet over the bed, as Moscow does; the embassy's paint (sim/interiors/embassy.js).
+  home: { walls: ['damask', 'stripes', 'flowers', 'paint'], paints: [[0xd9c9a3, 0xb8a27a], [0xc9d3b4, 0x9fae86], [0xd6c0b0, 0xb08c7c], [0xe2dac6, 0xc4bba9], [0xcfd6dc, 0xa7b4bf]],
+    floors: { living: ['herringbone'], bedroom: ['herringbone', 'parquet'], kitchen: ['lino', 'checker'], bath: ['tiles'], hall: ['parquet'] }, floorWood: [0xa8784f, 0x8f6345, 0xb48459],
+    woods: ['walnut', 'teak', 'dark'], fabrics: ['brown', 'green', 'red', 'mustard'], phones: ['red', 'cream'], rugs: ['persian', 'persian', 'kilim'], wallCarpet: 0.6, moods: ['warm', 'warm', 'soft'] },
+  embassyLook: { lobby: 0xd9d2c0, station: 0xc8d4dc, floor: 'terrazzo' },
+  // (the free walk's line on the title, src/ui/ui.js; its words in the walk are the scene's own, sim/scenarios/walk.js)
+  walk: { about: 'A boulevard in central Moscow: plaster and Stalinist stone, the lanes north and south, the sun down at ten to five.' },
 };

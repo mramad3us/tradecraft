@@ -50,7 +50,7 @@ export default [
       const again = p.look.top.color, hung = (p.wardrobe ?? []).map(x => x.name);
       step(s, { act: ['desk:dress:leave:umbrella'] }, bus);
       const left = !p.hand && p.stash?.includes('umbrella');
-      step(s, { act: [`desk:dress:take:${p.stash.indexOf('umbrella')}`] }, bus);   // (the drawer has the station's pistol too: sim/campaign.js issue())
+      step(s, { act: [`desk:dress:take:${p.stash.indexOf('umbrella')}`] }, bus);   // (the umbrella, wherever it went in the drawer)
       console.log(`      bought: ${RAIL.clothes.find(x => `piece:${x.id}` === coat).id} worn (${coat0.color.toString(16)} → ${worn.toString(16)}), in the bag: ${bag}, in hand: ${hand}; home ${home}, unpacked ${unpacked}, the wardrobe: ${owned}; ways: ${ways.join(', ')}; the old coat back on (${again.toString(16)}), hung: ${hung}; the umbrella left ${left}, taken: ${p.hand}`);
       assert(worn !== coat0.color && bag?.length === 1 && hand === 'umbrella', 'the coat worn out, the old one bagged, the umbrella in hand');
       assert(home && unpacked && owned.length === 1, 'home, the bag unpacked into the wardrobe');

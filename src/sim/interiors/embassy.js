@@ -11,21 +11,17 @@
 // colleagues at their desks, the consular officer at her window on working days; applicants while the
 // visa room's open), from its posts (staff), seats, window and errands here. What's
 // done where (spots): 'desk' (yours: the day's work), 'chief' (in front of his desk: what's on). The way
-// out (exits): the street door. The city sets the paint; a seed, the rest.
+// out (exits): the street door. The city sets the paint (its profile's embassyLook, sim/cities/); a
+// seed, the rest.
 import { stream, int, pick, chance } from '../rng.js';
+import { cityById } from '../cities/index.js';
 
-const LOOK = {
-  moscow: { lobby: 0xd9d2c0, station: 0xc8d4dc, floor: 'terrazzo' },
-  london: { lobby: 0xe2dac6, station: 0xd0d8c0, floor: 'terrazzo' },
-  cairo: { lobby: 0xece6da, station: 0xd6ccb8, floor: 'terrazzo' },
-  beirut: { lobby: 0xe8dcc4, station: 0xc8d4dc, floor: 'terrazzo' },
-};
 export const W_M = 16, D_M = 11, N_M = 4.4, HALL_M = 1.8;              // (its width, its depth; the back band's depth, the corridor's)
 const DESKS = [[6.0, 0.6], [9.6, 0.6], [6.0, 2.85], [9.6, 2.85]];     // (the station's desks: their chairs' places, the desk in front)
 
 /** The embassy's plan, from its seed: { city }. */
 export function embassyPlan(seed, { city = 'moscow' } = {}) {
-  const r = stream('embassy', seed), L = LOOK[city] ?? LOOK.moscow, W = W_M, D = D_M, N = N_M, H = N + HALL_M;
+  const r = stream('embassy', seed), L = cityById(city).embassyLook, W = W_M, D = D_M, N = N_M, H = N + HALL_M;
   const rooms = [room('chief', 0, 0, 4.4, N, 'office'), room('station', 4.4, 0, 12, N, 'office'), room('tank', 12, 0, W, N, 'office'),
     room('hall', 0, N, W, H, 'hall'), room('consular', 0, H, 6.5, D, 'lobby'), room('lobby', 6.5, H, W, D, 'lobby')];
   const openings = [

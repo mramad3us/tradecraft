@@ -7,7 +7,10 @@
 // The instinct walks with you (instinct(), once a second): where a lane leads, where to cross, what
 // T would do here (what's at hand, the engine's: sim/acts.js affordance()), and, when it matters, the
 // weather (sim/weather.js weatherLine(): running on ice, hoods up in the rain, the fog).
-import { townOf } from '../cities/index.js';
+//
+// The words are Moscow's. In another city its profile's walk (sim/cities/) has its own: the line the
+// walk opens with, the languages a Handler posted there has, what the park's things are in its climate.
+import { townOf, CITIES } from '../cities/index.js';
 import { at, TICK_MS, hourOfDay } from '../clock.js';
 import { handler, seedFrom, asOfficer } from '../people.js';
 import { heatKey } from '../heat.js';
@@ -27,7 +30,8 @@ export const walk = {
   again: { another: ['Another walk', 'A new street, new people, new dice.'], same: ['The same walk again', 'The same streets and the same people; the dice fall as you play.'] },
   about: 'A boulevard in central Moscow, a November afternoon. Walk, look, get the feel of it; the lanes lead on north and south. The sun sets at ten to five.',
   setup(state, { city = null, character = null } = {}) {
-    const r = state.rng, C = CITY_WORDS[city] ?? null;
+    // (another city: its streets, and the walk's words there, its profile's walk; Moscow's are the scene's own, and a Moscow map carries no city)
+    const r = state.rng, K = city && city !== 'moscow' ? CITIES[city] ?? null : null, C = K?.walk ?? null;
     state.time.ms = at(2026, 11, 2, 15, 40);
     state.legend = { id: 'embassy', name: 'Second Secretary, US Embassy', cover: 'official', floor: 20 };
     state.heat[heatKey('embassy', state.country)] = 20;           // official cover starts warm
@@ -35,7 +39,7 @@ export const walk = {
     if (C && !character) Object.assign(me.langs, C.langs);                      // (posted there: the language learnt)
     state.people[me.id] = me;
     state.player = me.id;
-    state.map = { kind: 'street', seed: seedFrom(r), row: 0, i0: null, i1: null, crowd: 1, ...(C ? { city } : {}) };
+    state.map = { kind: 'street', seed: seedFrom(r), row: 0, i0: null, i1: null, crowd: 1, ...(K ? { city } : {}) };
     state.actors.push({ id: 'a0', who: me.id, seed: null, x: 1.5, z: -2.6, vx: 0, vz: 0, face: 'down', head: Math.PI / 2, gait: 'idle', stride: 0, stuck: 0, ai: null });
     state.scenario.prompt = null;
     state.scenario.rest = true;                                    // (the time's yours: H can rest the hours away, sim/aid.js)
@@ -63,7 +67,7 @@ export const walk = {
 /** The walk's instinct: { id, text, tone, act }. */
 function instinct(state, me) {
   const L = (id, text, act = null, tone = 'calm') => ({ id, tone, text: Array.isArray(text) ? say1(state, id, text) : text, act });
-  const S = sectionAt(state, me.x), seed = townOf(state.map), row = state.map.row ?? 0, C = CITY_WORDS[state.map.city] ?? null;
+  const S = sectionAt(state, me.x), seed = townOf(state.map), row = state.map.row ?? 0, C = CITIES[state.map.city]?.walk ?? null;
   if (!S) return null;
   if (me.glass?.car) return L('carglass', ['In a parked car\'s window, the pavement behind you, and the shop fronts: all but the middle of it, your own back.', 'Hold {watch} and slant your eyes along the car\'s glass: the pavement behind you, to either side.',
     'A car\'s window is a darker mirror than a shop\'s, and a man bent to one is a little odder than a man at the goods.']);
@@ -112,13 +116,3 @@ function instinct(state, me) {
 }
 
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
-
-// The walk's words in the other cities: the line it opens with, the languages a Handler posted there
-// has, what the park's things are in that climate.
-const CITY_WORDS = {
-  london: { hello: 'London in November: the light is going, and the rain hasn\'t made up its mind.', langs: {} },
-  beirut: { hello: 'Beirut in November: the heat\'s gone out of the day, and the generators are clearing their throats.', langs: { ar: 'working', fr: 'working' },
-    park: { fountain: 'A fountain, running. Pigeons, a man with a coffee, and every path in view.', beds: 'Flower beds, bright in November.' } },
-  cairo: { hello: 'Cairo in November: the dust settles at dusk, and the horns never do.', langs: { ar: 'working' },
-    park: { fountain: 'A fountain, running. Pigeons, a man with a tea, and every path in view.', beds: 'Flower beds, bright in November.' } },
-};

@@ -378,8 +378,34 @@ export const LONDON = {
   // The station (DESIGN.md, Stations and countries): risk (sim/xp.js), watched (sim/campaign.js watched()); the opposition's the Russians'.
   station: {
     risk: 0.8, watched: 0.25, embassy: 'US Embassy', cover: 'First Secretary, Economic Section, US Embassy',
-    opposition: { the: 'the Russian residency', an: 'an SVR', name: 'SVR', prison: 'a basement off Kensington Palace Gardens' },
+    opposition: { the: 'the Russian residency', short: 'the residency', an: 'an SVR', name: 'SVR', prison: 'a basement off Kensington Palace Gardens' },
     subjects: [['the oligarchs\' money', 'whose fortunes in London are the Kremlin\'s, held in trust'], ['the residency', 'the Russian intelligence officers under diplomatic cover, and whom they run']],
+    about: 'Home ground of a kind: the residency, and the money it watches.',
+    targets: [
+      ['an SVR officer of the residency', 'Third Secretary in the consular section', 'the consulate\'s annexe', { trained: 3, sharp: 1 }, [32, 48]],
+      ['a GRU officer under a journalist\'s cover', 'TASS\'s London correspondent', 'the TASS bureau', { trained: 2, sharp: 2 }, [35, 52]],
+      ['the residency\'s man at the trade delegation', 'a trade representative', 'the trade delegation', { trained: 2, careless: 1 }, [40, 58]],
+      ['an SVR officer who runs émigrés', 'a cultural attaché', 'the Russian cultural centre', { trained: 2, jumpy: 1 }, [38, 55]],
+      ['the residency\'s technical man', 'Aeroflot\'s station manager', 'the Aeroflot office', { careless: 1, trained: 2 }, [36, 50]],
+      ['a GRU officer under business cover', 'a partner in a shipping-insurance firm', 'the insurers\' chambers', { sharp: 2, trained: 2 }, [40, 56]],
+      ['an officer the station thinks supports an illegal', 'an attaché at the embassy\'s annexe', 'the embassy\'s annexe', { sharp: 3, jumpy: 1 }, [42, 60]],
+    ],
+    targetsFrom: 'moscow',                                          // (the residency's Russians: named as Moscow names its people)
+    assets: ['a clerk at the Russian trade delegation', 'an oligarch\'s driver', 'a chauffeur at the Russian embassy', 'a translator the residency hires', 'a Russian banker\'s personal assistant',
+      'a Russian journalist who has had enough', 'an émigré the residency leans on', 'a property agent who sells to Russians'],
+    learn: 'ru',                                                    // (its schools teach the opposition's tongue: you have the English)
+    // A junior officer's first tour is here (sim/campaign.js juniorPosting()): the station's liaison with MI5, the residency to watch.
+    firstTour: {
+      about: 'Station London, fresh from the Farm: MI5\'s liaison, the residency to watch, a team trip or two abroad.',
+      wanted: 'Station London needs a junior officer for the MI5 liaison: fresh from the Farm, a first tour. Three files on the desk.',
+      job: 'Attaché, Office of the Legal Attaché, US Embassy',
+      subject: 'the residency', goal: 'the Russian intelligence officers under diplomatic cover in London, and whom they run',
+      names: ['Viktor Lazarev', 'Oleg Sorokin', 'Pavel Rudnev', 'Denis Arkhipov', 'Igor Shatalov'],
+      what: 'an officer of the Russian residency, under diplomatic cover',
+      safehouse: 'MI5\'s flat over a launderette',
+      paper: 'On paper you work for the FBI\'s people in London; in fact you\'re the station\'s liaison with MI5',
+      work: 'With MI5\'s watchers, you\'ll follow the residency\'s people and photograph whom they meet',
+    },
   },
   streetName,
   boulevardName: (seed, row) => at(GARDENS, seed, row, 'boulevard'),
@@ -397,4 +423,15 @@ export const LONDON = {
     langs: (r) => ({ en: 'native', ...(chance(r, 0.25) ? { [pick(r, ['fr', 'es', 'pl', 'ar', 'hi', 'pt'])]: pick(r, ['working', 'fluent', 'native']) } : {}) }),
     look: (r, sex, age) => londonLook(r, sex, age),
   },
+  // The Underground and the buses (sim/transit.js); its stations' ox-blood tiles and roundel (sim/cities/station.js).
+  transit: {
+    metro: { name: 'Underground', the: 'the Underground', lines: [['Central', 0xc4302b], ['Northern', 0x23252f], ['District', 0x24803c]],
+      front: { kind: 'tiles', wall: 0x7a2a26, trim: 0x9e3c36, h: 8.4, door: 0x6e2a2e, sign: 'UNDERGROUND' } },
+    buses: [7, 23, 28, 31, 52, 70, 94, 148, 295, 452],
+  },
+  home: { walls: ['paint', 'paint', 'stripes', 'flowers'], paints: [[0xb4bfa0, 0x8f9c7c], [0xe8dcc4, 0xc9b99a], [0xb8c4cc, 0x8f9faa], [0xd6ccb8, 0xb0a48c], [0xd8bcb0, 0xb89488]],
+    floors: { living: ['planks', 'carpet'], bedroom: ['carpet'], kitchen: ['lino', 'checker'], bath: ['tiles', 'lino'], hall: ['planks'] }, floorWood: [0xb48459, 0xd6ad7a, 0x8f6345],
+    woods: ['oak', 'pine', 'white'], fabrics: ['navy', 'grey', 'green', 'cream', 'teal'], phones: ['black', 'cream'], rugs: ['kilim', 'plain', 'persian'], wallCarpet: 0, moods: ['soft', 'soft', 'cool'] },
+  embassyLook: { lobby: 0xe2dac6, station: 0xd0d8c0, floor: 'terrazzo' },
+  walk: { about: 'Notting Hill\'s terraces and pubs, a November afternoon, the pavements wet.', hello: 'London in November: the light is going, and the rain hasn\'t made up its mind.', langs: {} },
 };

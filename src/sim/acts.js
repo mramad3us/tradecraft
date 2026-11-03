@@ -46,7 +46,7 @@ export const KERB_SIDE_M = 1.2;                                    // (this clos
 import { stopNear, nextBus, linesOf, STOP_Z } from './buses.js';
 import { itemNear, pickUp } from './items.js';
 import { atKerb, taxiComing, hail } from './taxi.js';
-import { stationNear, metroName, stationName, destinations as metroWays } from './metro.js';
+import { stationNear, metroName, metroThe, stationName, destinations as metroWays } from './metro.js';
 import { spotIn, ways, doWay } from './shops.js';
 import { pay } from './money.js';
 import { weaponOf } from './weapons.js';
@@ -192,7 +192,7 @@ export function affordance(state, me) {
   }
   const station = !kerb && stationNear(state, me);                  // (at a station's door: down; sim/metro.js)
   const spot = !station && spotNear(state, me);                      // (a kiosk, a phone box: somewhere to watch from)
-  if (station) return { act: 'metro', text: ` {use} down into the ${metroName(state) === 'Underground' ? 'Underground' : 'metro'}.` };
+  if (station) return { act: 'metro', text: ` {use} down into ${metroThe(state)}.` };
   const pane = paneNear(state, me), car = !pane || me.z > Z.kerbN - KERB_SIDE_M ? carNear(state, me) : null;   // (a shop's window first; right by the kerb, a car's)
   const act = kerb && cross ? 'cross' : spot ? spot.kind : kerb && taxiComing(state, me) ? 'taxi' : car ? 'car' : pane ? 'window' : benchNear(state, me) !== null ? 'bench' : cross ? 'cross' : null;
   return act && { act, text: ` {use} ${COVER[act]}.` };
