@@ -125,7 +125,7 @@ export default [
     },
   },
   {
-    name: 'debug mode\'s files: Tradecraft 95, each for a reason of its own, and a campaign to play them in; and Tradecraft grows',
+    name: 'the legends: Tradecraft 95, each for a reason of its own, and a campaign to play them in; and XP from a tail',
     fn() {
       const seen = new Set(), ages = new Set(), tops = new Set();
       for (let seed = 1; seed <= 200; seed++) {
@@ -170,7 +170,7 @@ export default [
       const ordinary = candidates(7)[0], D = newCampaign(7, ordinary, 'moscow'), was = ordinary.os, t = D.posting.targets[0];
       const job = { id: 'x', kind: 'tail', who: t.id, status: 'open' };
       const paper = fold(D, job, { outcome: 'seen', sightings: [] }, ordinary, D.posting.startMs);
-      assert(D.character.os === was + 2 && paper.lines.some(l => /Tradecraft/.test(l)), 'a tail that saw the meeting: Tradecraft up');
+      assert(D.character.xp > 0 && D.character.os >= was && paper.lines.some(l => /XP|Tradecraft/.test(l)), `a tail that saw the meeting: XP, and Tradecraft grows of it (${paper.lines.find(l => /XP/.test(l))})`);
     },
   },
   {

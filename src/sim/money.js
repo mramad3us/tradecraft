@@ -1,19 +1,16 @@
 // TRADECRAFT sim: money in your pocket (DESIGN.md, Inventory: "… clothes that can be changed, clothes shops
 // to buy a change of clothes when tailed … and money"). The campaign keeps the bank and the operational
 // fund (sim/campaign.js); this is the cash on the character (p.cash, dollars underneath: CASH_START when
-// they've none yet), spent on the street and shown in the city's money (CURRENCY: the rate, the sign, a
-// sensible rounding). price() says a cost as the city has it; pay() takes it, or says you haven't got it.
+// they've none yet), spent on the street and shown in the country's money (its profile's currency: the
+// rate, the sign, a sensible rounding; sim/countries/). price() says a cost as the city has it; pay() takes it, or says you haven't got it.
 // Costs (in dollars, my call): a bite BITE_USD, a coat COAT_USD, a taxi's fare (sim/taxi.js).
 import { say } from './log.js';
+import { countryOfMap } from './countries/index.js';
 
 export const CASH_START = 300;
 export const BITE_USD = 6;
 export const COAT_USD = 120;
-export const CURRENCY = {
-  moscow: { sign: '₽', rate: 95, round: 50, after: true }, london: { sign: '£', rate: 0.79, round: 1 },
-  beirut: { sign: '$', rate: 1, round: 1 }, cairo: { sign: 'E£', rate: 48, round: 5, after: false },
-};
-const cur = (state) => CURRENCY[state.map?.city ?? 'moscow'] ?? CURRENCY.moscow;
+const cur = (state) => countryOfMap(state.map).currency;
 
 /** The cash on them, in dollars. */
 export const cashOf = (p) => p?.cash ?? CASH_START;

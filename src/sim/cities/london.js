@@ -375,6 +375,12 @@ const LOOKS = {
 
 export const LONDON = {
   id: 'london', name: 'London', country: 'gb', lang: 'en', geo: { lat: 51.51, lon: -0.19, tz: 0 }, drive: 'left',
+  // The station (DESIGN.md, Stations and countries): risk (sim/xp.js), watched (sim/campaign.js watched()); the opposition's the Russians'.
+  station: {
+    risk: 0.8, watched: 0.25, embassy: 'US Embassy', cover: 'First Secretary, Economic Section, US Embassy',
+    opposition: { the: 'the Russian residency', an: 'an SVR', name: 'SVR', prison: 'a basement off Kensington Palace Gardens' },
+    subjects: [['the oligarchs\' money', 'whose fortunes in London are the Kremlin\'s, held in trust'], ['the residency', 'the Russian intelligence officers under diplomatic cover, and whom they run']],
+  },
   streetName,
   boulevardName: (seed, row) => at(GARDENS, seed, row, 'boulevard'),
   parkName: (seed, row, i) => at(SQUARES, seed, row, Math.floor(i / STRETCH), 'park'),

@@ -2,7 +2,8 @@
 // stop: a diplomat's passport handed back and your name written down; questions by Deception; walking
 // away; searched, what shows found and pockets by their eyes against yours; a weapon taken, reported.
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
-import { patrolTick, stopChance, answer, PATROL_P } from '../src/sim/police.js';
+import { patrolTick, stopChance, answer } from '../src/sim/police.js';
+import { countryOfCity } from '../src/sim/countries/index.js';
 import { createBus } from '../src/sim/bus.js';
 import { heat } from '../src/sim/heat.js';
 import { stream, chance } from '../src/sim/rng.js';
@@ -25,7 +26,7 @@ export default [
   {
     name: 'police: patrols by city (Moscow\'s everywhere, London\'s seldom); what draws them: what shows, the city\'s habit, your heat',
     fn() {
-      const share = (city) => { let n = 0; for (let row = -6; row <= 6; row++) for (let h = 0; h < 40; h++) n += chance(stream('patrol', 5, row, 400000 + h), PATROL_P[city]); return n / (13 * 40); };
+      const share = (city) => { let n = 0; for (let row = -6; row <= 6; row++) for (let h = 0; h < 40; h++) n += chance(stream('patrol', 5, row, 400000 + h), countryOfCity(city).police.patrolP); return n / (13 * 40); };
       const { g, p } = walk('moscow');
       const clean = stopChance(g);
       p.bloody = { face: g.time.ms }; const face = stopChance(g);

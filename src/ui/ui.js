@@ -19,7 +19,7 @@ import { shopWord } from '../sim/shops.js';
 import { needsWords } from '../sim/needs.js';
 import { price, cashOf } from '../sim/money.js';
 import { clockText, stampText, dateText } from '../sim/clock.js';
-import { checkText, checkShort } from '../sim/checks.js';
+import { checkText, checkShort, won as rollWon } from '../sim/checks.js';
 import { SCENARIOS } from '../sim/scenarios/index.js';
 import { placeName } from '../sim/map/street.js';
 import { shownRolls } from '../sim/scenarios/sdr.js';
@@ -58,6 +58,7 @@ import { plaque, place } from './plaque.js';
 import { options as shootOptions, targets as shootTargets, odds as shootOdds, gunsOf } from '../sim/shooting.js';
 import { said as gunSaid, armOf, modelOf as gunModel } from '../sim/firearms.js';
 import { openMind } from './mind.js';
+import { outcomeWord } from '../sim/outcomes.js';
 
 // (a place's glyph on its plaque; how far, in the plaque's few letters: "2 streets north" → "2 ST N")
 const PLACE_ICON = { embassy: 'star', home: 'house', safe: 'key' };
@@ -99,7 +100,7 @@ export function createUI({ input, cb }) {
   const reach = el('div', { className: 'reach', hidden: true });       // a key over whoever's within reach
   const talkbox = el('div', { className: 'ask talkbox', hidden: true }); // a conversation, over them (time stands still)
   const states = [0, 1].map(() => el('div', { className: 'fstate', hidden: true }));   // staggered, dazed: over a fighter
-  const tags = el('div', { className: 'tags' });                   // faces you've marked: seen before, a tail
+  const tags = el('div', { className: 'tags' });                   // faces you've marked: familiar, a tail
   const signs = el('div', { className: 'tags' });                  // the places that are yours, over their doors (a scenario's signs())
   const feltTags = el('div', { className: 'tags' });                // what's felt, not seen (sim/sense.js): over them, or at the picture's edge
   const goal = el('canvas', { className: 'plaque goal', hidden: true });   // where you're going, when it's off the picture (src/ui/plaque.js)
@@ -277,7 +278,8 @@ export function createUI({ input, cb }) {
       t.hidden = !at;
       if (!at) return;
       const sure = sus[i][1] >= 2;
-      place(t, plaque({ text: sure ? 'tail' : 'seen before', style: sure ? 'tail' : 'seen', icon: 'eye' }), RES[0] / 2 + (at[0] - cam0.x) * 16, RES[1] / 2 + (at[1] - cam0.z) * 16 - 2.4 * 16, k0);
+      // (a face you've seen before: "familiar", which can't be read as them having seen you)
+      place(t, plaque({ text: sure ? 'tail' : 'familiar', style: sure ? 'tail' : 'seen', icon: 'eye' }), RES[0] / 2 + (at[0] - cam0.x) * 16, RES[1] / 2 + (at[1] - cam0.z) * 16 - 2.4 * 16, k0);
     });
     // The places that are yours on this street (a scenario's signs(): [{ x, z, label }]), over their doors.
     const sgs = (!sc.outcome && cam0 && SCENARIOS[sc.kind]?.signs?.(state)) || [];
@@ -519,7 +521,7 @@ export function createUI({ input, cb }) {
     if (e.hidden) return;                                          // (what the character didn't see)
     if (e.kind === 'radio') return radioLine(e);
     if (e.says && speakOver(e)) { if (e.aside) toast({ kind: e.kind, text: e.aside }); return; }   // (said aloud: a balloon; the rest top left)
-    const t = el('div', { className: `toast ${e.kind}${e.roll && !e.roll.ok ? ' fail' : ''}` }, ...keyed(e.text ?? ''), e.roll ? el('span', { className: 'num', textContent: checkShort(e.roll), title: checkText(e.roll) }) : null);   // (in brief: the whole sum is the log's, J)
+    const t = el('div', { className: `toast ${e.kind}${e.roll && !rollWon(e.roll) ? ' fail' : ''}` }, ...keyed(e.text ?? ''), e.roll ? el('span', { className: 'num', textContent: checkShort(e.roll), title: checkText(e.roll) }) : null);   // (in brief: the whole sum is the log's, J)
     t.born = hudMs;
     toasts.append(t);
     while (toasts.children.length > 3) toasts.firstChild.remove();
@@ -798,9 +800,9 @@ export function createUI({ input, cb }) {
       el('span', { className: 'stamp', textContent: 'PERSONNEL' }),
       el('h2', { textContent: 'WHO GOES' }),
       el('p', { className: 'note', textContent: junior ? 'Station London needs a junior officer for the MI5 liaison: fresh from the Farm, a first tour. Three files on the desk.' : `Station ${C.name} needs a Handler under official cover. Three files on the desk.` }), rungs, tabs, el('hr'),
-      ...list.flatMap((p, i) => [p.legend ? el('p', { className: 'note', textContent: 'Debug mode: a file from the basement.' }) : null, el('button', { className: `item cand${p.legend ? ' legend' : ''}`, onclick: () => { paper.hidden = true; paper.dataset.kind = ''; onPick(i); } },
+      ...list.flatMap((p, i) => [p.legend ? el('h3', { className: 'legends', textContent: 'LEGENDS', title: 'Someone of Tradecraft 95, and the reason for it: what no ordinary career makes.' }) : null, el('button', { className: `item cand${p.legend ? ' legend' : ''}`, onclick: () => { paper.hidden = true; paper.dataset.kind = ''; onPick(i); } },
         `${p.name}, ${p.age}`, el('small', { textContent: `${p.background}${p.anew ? ` ${p.anew}` : ''} ${p.bg ? `From it: ${Object.entries(p.bg.points).map(([k, v]) => `${SKILLS[k]?.name ?? k} +${v}`).join(', ')}. ` : ''}Best at: ${top(p)}. ${LANGS[lang] ?? lang}: ${p.langs[lang] ?? 'none'}. Tradecraft ${p.os}.` }))].filter(Boolean)),
-      another ? el('button', { className: 'item', onclick: another }, 'Another file from the basement') : null));
+      another ? el('button', { className: 'item', onclick: another }, 'Another legend') : null));
     if (back) paper.firstChild.append(el('hr'), el('button', { className: 'item', onclick: () => { paper.hidden = true; paper.dataset.kind = ''; back(); } }, 'Back to the title'));
     paper.hidden = false;
     paper.dataset.kind = 'brief';
@@ -868,11 +870,10 @@ export function createUI({ input, cb }) {
     return [el('p', { className: 'note', textContent: 'Debug, what you didn\'t see:' }),
       el('ul', { className: 'unseenlist' }, hid.slice(-6).map(e => el('li', {}, el('time', { textContent: clockText(e.ms) }), ` ${e.text}`)))];
   }
-  const OUTCOMES = { seen: 'SEEN', made: 'MADE', lost: 'LOST', missed: 'MISSED', blown: 'BLOWN' };
   // (made, but you didn't see him make you: you know only that something spooked him)
   // (his sightings of you that you saw happen; the rest you can only suspect)
   const seenText = (sc) => { const n = sc.sightings.filter(x => x.seen !== false).length; return `you saw him spot you ${n} time${n === 1 ? '' : 's'}`; };
-  const stampOf = (sc) => (sc.outcome === 'made' && sc.madeSeen === false ? 'SPOOKED' : OUTCOMES[sc.outcome] ?? sc.outcome);
+  const stampOf = (sc) => outcomeWord('tail', sc.outcome === 'made' && sc.madeSeen === false ? 'spooked' : sc.outcome).toUpperCase();   // (sim/outcomes.js)
   function showResult(state, { again, same, title, back = null, photo = null, lesson = null, home = false, next: stations = null }, { debug = false } = {}) {
     const sc = state.scenario, secs = Math.round((sc.ended - sc.began) / 1000);
     const go = (fn) => () => { paper.hidden = true; paper.dataset.kind = ''; fn(); };

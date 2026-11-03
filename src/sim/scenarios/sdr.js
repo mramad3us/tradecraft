@@ -68,6 +68,8 @@ import { keeps, behind, CHASE_SEE_M, CAB_FLAG, CHASE_WAIT_S } from '../taxi.js';
 import { freeShare } from '../traffic.js';
 import { DOORS_MOD } from '../buses.js';
 import { stays, BOARD_M as METRO_BOARD_M, RIDER_S } from '../metro.js';
+import { outcomeWord } from '../outcomes.js';
+import { gain, LOST_XP } from '../xp.js';
 
 const TPS = 1000 / TICK_MS;
 export const MEET_AFTER_MIN = [5, 6.5];
@@ -415,7 +417,7 @@ export const sdr = {
     const marked = Object.values(sc.faces).filter(f => f.n >= 2);
     const caught = sc.caught ?? [];
     const notes = [
-      marked.length ? `Faces you'd marked: ${list(marked.map(f => `${f.look} (${f.sure ? 'a tail, you\'d say' : 'seen before'})`))}.` : 'You marked no face as following you.',
+      marked.length ? `Faces you'd marked: ${list(marked.map(f => `${f.look} (${f.sure ? 'a tail, you\'d say' : 'familiar'})`))}.` : 'You marked no face as following you.',
       caught.length ? `You think ${list(caught.map(c => `${c.look} saw you ${CAUGHT[c.kind] ?? 'at it'}`))}.` : null,
       epilogue(state),
     ];
@@ -426,7 +428,7 @@ export const sdr = {
       notes.push(`Debug, what really happened: ${truth}; the meeting was ${sc.outcome}; written down: ${kinds.length ? list(kinds) : 'nothing'}.`);
     }
     return subAll(state, {
-      stamp: OUTCOMES[sc.outcome] ?? sc.outcome, good: sc.met,
+      stamp: outcomeWord('sdr', sc.outcome).toUpperCase(), good: sc.met,
       title: sc.campaign ? `MEETING: ${state.people.solovey.name}` : sdr.name.toUpperCase(), text: sc.endText,
       lead: sc.met ? `${clockText(sc.ended)}: SOLOVEY handed over a folded newspaper. Inside, next month's procurement schedule for the Western Military District.` : null,
       notes: notes.filter(Boolean),
@@ -473,7 +475,7 @@ function epilogue(state) {
 }
 
 // (the stamp says what the character knows: whether they sat down with him, not how it went)
-const OUTCOMES = { clean: 'MET', burned: 'MET', right: 'CALLED OFF', needless: 'CALLED OFF', missed: 'MISSED', incident: 'INCIDENT' };
+
 const CAUGHT_LINE = {
   bloody: (who) => `${who} looks at the blood on you a moment too long.`,
   armed: (who) => `${who}'s eyes go to your hand, and stay there.`,
@@ -875,7 +877,8 @@ export function teamSecond(state, bus, me) {
   if (sc.stopS === 1) snapshot(state, 'stop');
   if (sc.stopS === STOP_MOVE_S) sc.moves++;
   else if (vdir) sc.heading.s++;
-  // The team.
+  // The team. Shaken off, they teach you something, a covert team more (once a team: sim/xp.js LOST_XP).
+  if (sc.teamLost && !sc.shook && LOST_XP[sc.team]) { sc.shook = now; gain(state.people[state.player], LOST_XP[sc.team]); }
   if (!sc.teamLost) {
     const seers = sc.crew.map(c => actorOf(state, c.id)).filter(a => a && seesActor(state, a, me)), onUs = seers.length > 0, door = me.within && sc.inShop?.seen;
     if (onUs || door) sc.teamSeenMs = now;                         // (in a shop they saw you go into: they're watching its door)
@@ -1021,7 +1024,7 @@ function dropSeen(state, bus, me, doing) {
       mods: [e.role === 'eye' && sc.team === 'covert' && { why: 'the eye, watching for exactly this', v: 5 }, doing.what === 'load' && e.s >= DROP_S - 1 && { why: 'all of it, at a bench', v: 2 },
         crowd && { why: 'people round you', v: -Math.min(3, crowd) }, lightBand(lightHere(state, me.x, me.z)) === 'dark' && { why: 'the dark', v: -3 },
         e.m > 25 ? { why: 'far off', v: -3 } : e.m > 12 ? { why: 'a way off', v: -1 } : null].filter(Boolean) },
-    { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] });
+    { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] }, { them: true });
     const them = cap(describe(state.people[who].look, state.people[who].sex));
     if (!r.ok) say(state, bus, { kind: 'roll', roll: r, hidden: true, text: doing.what === 'load' ? `${them} saw someone retie a shoe on a bench, and looked away.` : `${them} saw someone lean on a lamppost.` });   // (his roll first: ok, he won)
     else if (doing.what === 'load') { sc.burned = true; say(state, bus, { kind: 'roll', roll: r, hidden: true, text: `${them} saw your hand go behind the bench's leg, and noted the place.` }); }
@@ -1146,7 +1149,7 @@ function brushPass(state, bus, me) {
     const r = opposed(state.rng, { skill: 'tracking', value: skill(state.people[w.who], 'tracking'), body: state.people[w.who],
       mods: [c.role === 'eye' && sc.team === 'covert' && { why: 'the eye, watching for exactly this', v: 5 }, stopped && { why: 'you stopped to do it', v: 3 }, !stopped && { why: 'both of you walking on', v: -1 }, crowd && { why: 'people round you', v: -Math.min(3, crowd) },
         light === 'dark' && { why: 'the dark', v: -3 }, (() => { const dw = Math.hypot(w.x - me.x, w.z - me.z); return dw > 25 ? { why: 'far off', v: -4 } : dw > 12 ? { why: 'a way off', v: -2 } : null; })()].filter(Boolean) },
-    { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] });
+    { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] }, { them: true });
     say(state, bus, { kind: 'roll', roll: r, hidden: true, text: !r.ok ? `${cap(describe(state.people[w.who].look, state.people[w.who].sex))} was looking, and saw two people pass.` : `${cap(describe(state.people[w.who].look, state.people[w.who].sex))} saw the paper change hands.` });
     if (r.ok) { sc.burned = true; break; }                          // (his roll first: ok, he won)
   }
@@ -1232,7 +1235,7 @@ function instinct(state, me, still) {
     return A(L('lane-out', 'note', 'Out of the lane. Stop somewhere natural and watch the mouth of it: whoever comes out after you, see what they do when you don\'t move.'));
   }
   // (a face seen before is enough to call it off, if you'd rather be safe: the reviewer found one sighting left you wandering till you'd missed him)
-  if (familiar.length && !me.glass) return { ...L('familiar', 'note', `${cap(familiar[0].look)}: seen before. Could be nothing: check again somewhere else, or {instinct} call it off, to be safe.`, 'abort'), at: familiar[0].id };
+  if (familiar.length && !me.glass) return { ...L('familiar', 'note', `${cap(familiar[0].look)}: you've seen that face before. Could be nothing: check again somewhere else, or {instinct} call it off, to be safe.`, 'abort'), at: familiar[0].id };
   if (sc.lead && now - sc.lead.ms < 12000) return A({ at: sc.lead.id, ...L(`lead-${sc.lead.ms}`, 'note', [`Behind you, going your way: ${sc.lead.look}. You'll know that face again.`, `${cap(sc.lead.look)}, a way back, walking your way. Probably nothing. Remember the face.`]) });
   // At a shop window: what it shows, and how to use it.
   if (me.glass && now < g.to) return L(sc.glassS < 7 ? 'glass' : 'glass-stay', 'calm', sc.glassS < 7

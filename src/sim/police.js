@@ -4,12 +4,12 @@
 // (scenario.police: the free walk, the campaign's own hours; not the mechanic tests, whose bots don't
 // answer a policeman).
 //
-// **Patrols** (patrolTick()): a street has a pair walking it this hour or not (PATROL_P by city: Moscow's
+// **Patrols** (patrolTick()): a street has a pair walking it this hour or not (its country's patrolP: sim/countries/; Moscow's
 // and Cairo's police are everywhere, London's seldom on foot), the hour's dice. The pair starts at the
-// far end of the stretch in play and walks its pavement past you, in uniform (LOOK by city), and goes.
+// far end of the stretch in play and walks its pavement past you, in uniform (the country's look), and goes.
 // **What draws them** (eyeTick()): an officer with you in sight within EYE_M weighs you once, and again
 // if more shows: what shows (sim/notice.js mods(): blood, something in your hand, at your belt, a bulge,
-// a sneeze), STOP_PER_POINT a point, with the city's habit of asking foreigners for their papers (BASE)
+// a sneeze), STOP_PER_POINT a point, with the city's habit of asking foreigners for their papers (stopBase)
 // and how hot you are (heat over HEAT_FROM, a point every HEAT_PER): the chance they stop you.
 // **The stop**: they come up to you, the pair, and ask for your documents. The UI's card (the bus:
 // 'police') offers the ways (ways()); walking off STOP_M before you answer is walking away.
@@ -22,7 +22,7 @@
 //   - **Searched**: what shows is found; what's in a pocket, their Awareness against your Deception
 //     (+POCKET_MOD). A weapon found on a diplomat is taken, and reported (+FOUND_HEAT, cover standing
 //     −FOUND_COVER: the ambassador hears). Nothing found: on your way, written down.
-// Officers' sheets are cops' (sim/skills.js): Awareness by the city's force (SKILL).
+// Officers' sheets are cops' (sim/skills.js): Awareness by the country's force (awareness).
 import { makeAgent, setRoute } from './agents.js';
 import { townOf } from './cities/index.js';
 import { LINE, routeFrom } from './city.js';
@@ -37,21 +37,11 @@ import { say } from './log.js';
 import { placed } from './items.js';
 import { weaponOf } from './weapons.js';
 import { HOUR } from './clock.js';
+import { policeOf } from './countries/index.js';
 
-export const PATROL_P = { moscow: 0.45, cairo: 0.4, beirut: 0.3, london: 0.12 };
-export const BASE = { moscow: 0.06, cairo: 0.04, beirut: 0.03, london: 0.004 };
-export const SKILL = { moscow: 9, cairo: 7, beirut: 7, london: 10 };
 export const EYE_M = 14, STOP_M = 6, STOP_PER_POINT = 0.07, HEAT_FROM = 30, HEAT_PER = 400, SPAWN_M = 70, GONE_M = 110;
 export const PAPERS_HEAT = 2, WALK_HEAT = 4, WALK_COVER = 3, FOUND_HEAT = 10, FOUND_COVER = 12, POCKET_MOD = 2, BLOOD_MOD = -4, HELD_MOD = -3;
-const LOOK = {
-  london: { top: { kind: 'uniform', color: 0x23252f, trim: 0xd6e04a }, legs: 0x23252f, hat: { kind: 'peaked', color: 0x14151c, band: 0xf6f4ee } },
-  moscow: { top: { kind: 'uniform', color: 0x4c5262, trim: 0x9e3c36 }, legs: 0x353947, hat: { kind: 'peaked', color: 0x4c5262, band: 0x9e3c36 } },
-  cairo: { top: { kind: 'uniform', color: 0xe6e2d8, trim: 0x14151c }, legs: 0x14151c, hat: { kind: 'peaked', color: 0x14151c, band: 0x14151c } },
-  beirut: { top: { kind: 'uniform', color: 0x3b4a5e, trim: 0xb9862e }, legs: 0x3b4a5e, hat: { kind: 'peaked', color: 0x3b4a5e, band: 0xb9862e } },
-};
-const ASK = { london: '"Excuse me. Can I see some identification, please?"', moscow: '"Документы, пожалуйста." Documents, please.', cairo: '"Your passport, please."', beirut: '"Your papers?"' };
-
-const cityOf = (state) => state.map.city ?? 'moscow';
+const P = (state) => policeOf(state.map);                         // (the country's police, the city's where it has its own: sim/countries/)
 const cops = (state) => state.actors.filter(a => a.cop);
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
 
@@ -59,21 +49,21 @@ const playerOf = (state) => state.actors.find(a => a.who === state.player);
 export function patrolTick(state) {
   const me = playerOf(state);
   if (!me || state.map.kind !== 'street') return;
-  const row = state.map.row ?? 0, hour = Math.floor(state.time.ms / HOUR), city = cityOf(state);
+  const row = state.map.row ?? 0, hour = Math.floor(state.time.ms / HOUR), K = P(state);
   for (const a of cops(state)) {
     const done = !a.ai.route || a.ai.s >= a.ai.route.length - 0.05;
     if ((a.row ?? row) !== row || Math.abs(a.x - me.x) > GONE_M || (done && !a.stopping)) { state.actors.splice(state.actors.indexOf(a), 1); delete state.people[a.who]; }
   }
   if (cops(state).length) return;
   const r = stream('patrol', state.map.seed, row, hour);
-  if (!chance(r, PATROL_P[city] ?? 0.3) || state.flags.patrol === `${row}|${hour}`) return;
+  if (!chance(r, K.patrolP) || state.flags.patrol === `${row}|${hour}`) return;
   state.flags.patrol = `${row}|${hour}`;                           // (this street's patrol this hour has been: not again)
   // (from the far end of the stretch in play, past you, along a pavement: two, a pace apart)
   const dir = chance(r, 0.5) ? 1 : -1, z = chance(r, 0.5) ? LINE.N : LINE.F, x0 = me.x - dir * SPAWN_M, town = townOf(state.map);
   for (let k = 0; k < 2; k++) {
     const who = `cop${hour % 1000}${k}`, sex = chance(r, 0.25) ? 'f' : 'm';
-    state.people[who] = sheet({ id: who, name: 'a police officer', sex, cls: 'cop', skills: { awareness: [SKILL[city] ?? 8, 0], cqc: [6, 0], tracking: [6, 0] },
-      look: { skin: pick(r, city === 'london' ? ['light', 'tan', 'brown', 'dark'] : city === 'moscow' ? ['light'] : ['tan', 'brown']), hair: { style: 'crew', color: pick(r, [0x23252f, 0x47302a]) }, shoes: 0x14151c, ...structuredClone(LOOK[city] ?? LOOK.moscow) } });
+    state.people[who] = sheet({ id: who, name: 'a police officer', sex, cls: 'cop', skills: { awareness: [K.awareness, 0], cqc: [6, 0], tracking: [6, 0] },
+      look: { skin: pick(r, K.skin), hair: { style: 'crew', color: pick(r, [0x23252f, 0x47302a]) }, shoes: 0x14151c, ...structuredClone(K.look) } });
     const a = makeAgent(state, { who, row, x: x0 - dir * k * 1.3, z: z + k * 0.4, speed: 1.15, face: dir > 0 ? 'right' : 'left' });
     a.cop = true;
     try { setRoute(state, a, routeFrom(town, { row, x: a.x, z: a.z }, { row, x: me.x + dir * (SPAWN_M + 20), z: a.z })); } catch { a.ai.route = null; }
@@ -83,7 +73,7 @@ export function patrolTick(state) {
 /** The chance an officer stops you, now: what shows, the city's habit, your heat. */
 export function stopChance(state) {
   const p = state.people[state.player], pts = shows(p).reduce((s, m) => s + m.v, 0);
-  return Math.min(0.95, (BASE[cityOf(state)] ?? 0.03) + pts * STOP_PER_POINT + Math.max(0, heat(state) - HEAT_FROM) / HEAT_PER);
+  return Math.min(0.95, P(state).stopBase + pts * STOP_PER_POINT + Math.max(0, heat(state) - HEAT_FROM) / HEAT_PER);
 }
 
 /** Once a second: officers who see you weigh you; a stop begun walks up to you and asks; walked off from, you've walked away. */
@@ -96,7 +86,7 @@ export function eyeTick(state, bus) {
     const d = Math.hypot(lead.x - me.x, lead.z - me.z);
     if (!S.asked) {
       for (const a of cops(state)) { a.stopping = true; try { setRoute(state, a, routeFrom(townOf(state.map), { row: state.map.row ?? 0, x: a.x, z: a.z }, { row: state.map.row ?? 0, x: me.x + (a.id === S.lead ? 0.9 : -0.9), z: me.z })); } catch {} }
-      if (d < 1.8) { S.asked = state.time.ms; S.at = { x: me.x, z: me.z }; say(state, bus, { kind: 'note', text: `Two police officers, and one of them's in your way. ${ASK[cityOf(state)] ?? ASK.moscow}` }); bus?.emit('police', { line: 'DOCUMENTS', ways: ways(state) }); }
+      if (d < 1.8) { S.asked = state.time.ms; S.at = { x: me.x, z: me.z }; say(state, bus, { kind: 'note', text: `Two police officers, and one of them's in your way. ${P(state).ask}` }); bus?.emit('police', { line: 'DOCUMENTS', ways: ways(state) }); }
       else if (d > EYE_M * 2) { delete state.$stop; for (const a of cops(state)) a.stopping = false; }
     } else if (Math.hypot(me.x - S.at.x, me.z - S.at.z) > STOP_M) answer(state, bus, 'walk');
     else if (state.time.ms - (S.again ?? S.asked) > 6000) { S.again = state.time.ms; bus?.emit('police', { line: 'DOCUMENTS', ways: ways(state) }); }   // (the card shut without an answer: asked again)
@@ -155,7 +145,7 @@ function search(state, bus, them, end, why = null) {
   for (const o of placed(p).out) {
     if (!weaponOf(o.kind)) continue;
     if (o.shows) { found.push(o.kind); continue; }
-    const r = opposed(state.rng, { skill: 'awareness', value: skill(them, 'awareness'), body: them }, { skill: 'deception', value: skill(p, 'deception'), body: p, mods: [{ why: 'in a pocket', v: POCKET_MOD }] });
+    const r = opposed(state.rng, { skill: 'awareness', value: skill(them, 'awareness'), body: them }, { skill: 'deception', value: skill(p, 'deception'), body: p, mods: [{ why: 'in a pocket', v: POCKET_MOD }] }, { them: true });
     if (r.ok) found.push(o.kind);
   }
   if (!found.length) return end('Hands down your coat, your pockets turned out: keys, a phone, coins. Nothing. "On your way." Your name\'s in the notebook.', PAPERS_HEAT);

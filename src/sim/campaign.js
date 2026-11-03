@@ -45,7 +45,7 @@
 // **Watched in your own hours** (watched(); DESIGN.md, Cover, heat and the hunt: "occasional
 // surveillance (20+), then regular tails (40+)"): out of the flat's door or the embassy's, the hour's
 // dice say whether they're on you (the same all that hour, at that door: the flat's window shows it):
-// WATCHED_CITY × (heat − 10) / 60, at most WATCHED_MAX, an overt pair or, as the heat climbs, a covert
+// the station's watched (its city's profile) × (heat − 10) / 60, at most WATCHED_MAX, an overt pair or, as the heat climbs, a covert
 // team ((heat − 30) / 40 of the time, at most COVERT_MAX). The scene is the hub's (sim/scenarios/
 // campaign.js), with being tailed's team; still on you when an asset meeting begins, they're its team.
 // **The goal** (GOAL_INTEL): the posting is done when the station has the intelligence it wanted, a few
@@ -58,6 +58,9 @@ import { at, DAY, HOUR, MIN, calendar } from './clock.js';
 import { CABINET } from './medicine.js';
 import { fileOf, assetFile, targetName, briefOf, CRAFT, ASSET_ROLES } from './dossier.js';
 import { newGun, newMag, isGun } from './firearms.js';
+import { outcomeWord } from './outcomes.js';
+import { cityById } from './cities/index.js';
+import { missionXP, gain, level, progress } from './xp.js';
 
 export const KINDS = {
   sdr: { name: 'An asset meeting', scenario: 'sdr', about: 'Meet the asset clean: a surveillance detection run to the bench, and only sit down if nobody\'s on you.' },
@@ -74,7 +77,6 @@ export const HEAT_LOW_PER_DAY = 6;                                // (a day lyin
 export const SAFE_LOW_K = 1.7;                                     // (… at a safe house)
 export const ARREST_PER_DAY = 0.25;
 export const EXPEL_HEAT = 95;
-export const WATCHED_CITY = { moscow: 1, cairo: 0.8, beirut: 0.6, london: 0.25 };   // (the FSB follows diplomats as a matter of course; London's SVR seldom can)
 export const WATCHED_MAX = 0.85, COVERT_MAX = 0.75;
 export const GOAL_INTEL = 10;                                  // (six or seven good operations: two or three weeks, done well)
 export const TRUSTED = 4;
@@ -97,20 +99,10 @@ export const SALARY = 7200;
 export const TRAVEL = { waitMin: 6, perRowMin: 4 };                 // (the metro or a taxi: a wait, and minutes a street away)                                        // ($ a month, after tax: a GS-12)
 export const FUND = 2500;                                          // ($ the operational fund, a month)
 
-const CITY = {
-  moscow: { country: 'ru', lang: 'ru', embassy: 'US Embassy', cover: 'Second Secretary, Political Section, US Embassy', service: 'the FSB' },
-  london: { country: 'gb', lang: 'en', embassy: 'US Embassy', cover: 'First Secretary, Economic Section, US Embassy', service: 'the Russian residency' },
-  beirut: { country: 'lb', lang: 'ar', embassy: 'US Embassy', cover: 'Second Secretary, Political Section, US Embassy', service: 'Hezbollah\'s security' },
-  cairo: { country: 'eg', lang: 'ar', embassy: 'US Embassy', cover: 'Second Secretary, Political Section, US Embassy', service: 'the GIS' },
-};
-/** What the agency wants from a posting, by city: [subject, what it means]. */
-export const SUBJECTS = {
-  moscow: [['sanctions evasion', 'who in the Kremlin\'s circle moves money and chips past the sanctions, and how'], ['the hypersonic programme', 'how far the new missile has come, and who builds it'],
-    ['Unit 29155', 'the GRU unit behind the sabotage in Europe: its officers, its next targets']],
-  london: [['the oligarchs\' money', 'whose fortunes in London are the Kremlin\'s, held in trust'], ['the residency', 'the Russian intelligence officers under diplomatic cover, and whom they run']],
-  beirut: [['the arms routes', 'how Iran\'s weapons reach Lebanon, by which ports and whose trucks'], ['the hostages', 'who holds the two Westerners taken in the spring, and where']],
-  cairo: [['the arms deals', 'what Egypt buys, from whom, paid how'], ['the Sinai networks', 'the jihadist cells in Sinai: their couriers in the city']],
-};
+// (a station's own: its embassy, the cover, the opposition, what the agency wants there, how closely you're watched; its city's profile, sim/cities/)
+const stationOf = (city) => cityById(city).station;
+/** What the agency wants from a posting, by city: [subject, what it means] (its station's). */
+export const subjectsOf = (city) => stationOf(city).subjects;
 const CODENAMES = ['SOLOVEY', 'ZHURAVL', 'SKVORETS', 'KUKUSHKA', 'SINITSA', 'GRACH', 'SOKOL', 'DROZD'];
 const ROLES = ['a ministry clerk', 'a defence engineer', 'a banker\'s assistant', 'a journalist', 'a customs officer', 'a translator at a state firm'];
 const MOTIVES = ['money', 'ideology', 'ego', 'revenge'];
@@ -132,8 +124,9 @@ export const BACKGROUNDS = [
 const US = { f: ['Rebecca', 'Laura', 'Megan', 'Claire', 'Diane', 'Hannah', 'Julia', 'Sarah'], m: ['Daniel', 'Michael', 'Thomas', 'Andrew', 'Mark', 'Peter', 'James', 'Robert'],
   family: ['Price', 'Walker', 'Brennan', 'Hollis', 'Mercer', 'Dalton', 'Keane', 'Whitlock', 'Sutton', 'Garrett'] };
 
-// The files in debug mode (the user, 2026-10-31: "when dev mode is on, the carrer mode should allow us to
-// select a special character with 95 tradecraft, give them a reason for it, make it varied"). Each is its own
+// The legends (the user, 2026-10-31: "when dev mode is on, the carrer mode should allow us to select a special
+// character with 95 tradecraft, give them a reason for it, make it varied"; 2026-11-03: "remove the debug
+// character, we should replace this section to read Legends and it should be available even with debug mode off"). Each is its own
 // reason for being what no ordinary career makes, and so its own skills on top of DEFAULT_LEGEND: its ages, its
 // languages, its names. legendFile() draws one, a person of the same seed the same way. What a file's reason
 // gives it, it has mastered (the user, 2026-11-03: "the debug profile with high tradecraft should also have
@@ -194,9 +187,9 @@ export const LEGENDS = [
     skills: { analysis: [20, 3], pathfinding: [20, 3], tracking: [20, 1], deception: [15, 1], fitness: [5, 1], cqc: [0, 2], weapons: [0, 0] } },
 ];
 
-/** A file from the basement (debug mode): someone of Tradecraft 95, with their reason (LEGENDS). n: another file for the same seed. */
+/** A legend's file: someone of Tradecraft 95, with their reason (LEGENDS), in the picker beside the career's own. n: another for the same seed. */
 export function legendFile(seed, city = 'moscow', level = 'handler', n = 0) {
-  const r = stream('legend', seed, city, level, n), L = LEGENDS[(int(stream('legend', seed), LEGENDS.length) + n * 5) % LEGENDS.length], sex = chance(r, 0.5) ? 'f' : 'm', lang = CITY[city]?.lang ?? 'ru';   // (another file, another reason: every one of them before any twice)
+  const r = stream('legend', seed, city, level, n), L = LEGENDS[(int(stream('legend', seed), LEGENDS.length) + n * 5) % LEGENDS.length], sex = chance(r, 0.5) ? 'f' : 'm', lang = cityById(city).lang;   // (another file, another reason: every one of them before any twice)
   const age = L.age[0] + int(r, L.age[1] - L.age[0] + 1), name = pick(r, L.names[sex]);
   const langs = { en: 'native', [lang]: 'fluent', ...L.langs };
   const p = sheet({ id: 'me', name, sex, cls: 'spook', os: 95, skills: structuredClone({ ...DEFAULT_LEGEND, ...L.skills }), langs, persistent: true });
@@ -221,8 +214,8 @@ export function candidates(seed, city = 'moscow', level = 'handler') {
       analysis: [5, int(r, 3)], tech: [5, int(r, 2)], medicine: [5, 0], cqc: [5, 1 + int(r, 2)], weapons: [5, int(r, 2)], fitness: [5, 1 + int(r, 3)] };
     const points = Object.fromEntries(Object.entries(bg.skills).map(([k, v]) => [k, Math.min(BG_MAX, v)]));
     for (const [k, v] of Object.entries(points)) base[k] = [base[k][0], Math.min(9, base[k][1] + v)];
-    const lang = CITY[city]?.lang ?? 'ru';
-    const p = sheet({ id: 'me', name: `${pick(r, US[sex])} ${pick(r, US.family)}`, sex, cls: 'spook', os: 30 + int(r, 16), skills: base,
+    const lang = cityById(city).lang;
+    const p = sheet({ id: 'me', name: `${pick(r, US[sex])} ${pick(r, US.family)}`, sex, cls: 'spook', os: junior ? 17 + int(r, 7) : 35 + int(r, 10), skills: base,   // (a beginner's Tradecraft round 20, an officer's round 40: the user, 2026-11-03; sim/xp.js)
       langs: { en: 'native', ...(lang !== 'en' ? { [lang]: pick(r, ['working', 'working', 'fluent']) } : junior ? { ru: pick(r, ['basic', 'basic', 'working']) } : {}) }, persistent: true });
     p.age = age;
     p.background = bg.text;
@@ -239,21 +232,21 @@ export function candidates(seed, city = 'moscow', level = 'handler') {
  */
 export function posting(seed, city = 'moscow', startMs = at(2026, 11, 2, WAKE_H), level = 'handler') {
   if (level === 'junior') return juniorPosting(seed, startMs);
-  const r = stream('posting', seed, city), C = CITY[city] ?? CITY.moscow;
-  const [subject, goal] = pick(r, SUBJECTS[city] ?? SUBJECTS.moscow);
+  const r = stream('posting', seed, city), K = cityById(city), C = K.station;
+  const [subject, goal] = pick(r, C.subjects);
   const mapSeed = Math.floor(range(r, 0, 4294967296));
   const names = CODENAMES.slice();
   const assets = [0, 1].slice(0, 1 + (chance(r, 0.5) ? 1 : 0)).map(i => {
     const codename = names.splice(int(r, names.length), 1)[0], sex = chance(r, 0.35) ? 'm' : 'm';   // (men for now: the scenes' words say he of an asset)
     return { id: `asset${i}`, codename, sex, role: pick(r, ROLES), motive: pick(r, MOTIVES), trust: 2 + int(r, 2), yield: 1, look: streetLook(r, sex, 35 + int(r, 25)), met: 0, last: null };
   });
-  const targets = [{ id: 'target0', name: pick(r, ['Gennady Orlov', 'Viktor Lazarev', 'Oleg Sorokin', 'Pavel Rudnev']), what: `an officer of ${C.service}, under commercial cover`, wary: chance(r, 0.3), followed: 0, last: null, contact: null }];
+  const targets = [{ id: 'target0', name: pick(r, ['Gennady Orlov', 'Viktor Lazarev', 'Oleg Sorokin', 'Pavel Rudnev']), what: `an officer of ${C.opposition.the}, under commercial cover`, wary: chance(r, 0.3), followed: 0, last: null, contact: null }];
   // (who they are, of the city's: sim/dossier.js; drawn from streams of their own, so nothing else here moves)
   const nr = stream('posting-names', seed, city);
   for (const t of targets) Object.assign(t, { name: targetName(nr, city), wary: false });
   for (const s of assets) s.role = pick(nr, ASSET_ROLES[city] ?? ASSET_ROLES.moscow);
   return {
-    city, country: C.country, agency: 'CIA', rank: 'Handler', level: 'handler', job: C.cover, legend: 'embassy', subject, goal,
+    city: K.id, country: K.country, agency: 'CIA', rank: 'Handler', level: 'handler', job: C.cover, legend: 'embassy', subject, goal,
     // (the embassy on the street the missions start from, "out of the embassy"; the flat a few streets off)
     mapSeed, home: { id: 'home', row: 2 + int(r, 2), label: 'the flat' }, embassy: { id: 'embassy', row: 0, label: C.embassy },
     safehouses: [{ id: 'sh0', row: 1 + int(r, 2), label: 'a flat above a pharmacy', known: true, burned: false }, { id: 'sh1', row: -3 - int(r, 2), label: 'a garage in a courtyard', known: true, burned: false }],
@@ -269,7 +262,7 @@ export function posting(seed, city = 'moscow', startMs = at(2026, 11, 2, WAKE_H)
  * a week or so apart, each on its own day.
  */
 function juniorPosting(seed, startMs) {
-  const r = stream('posting', seed, 'junior'), C = CITY.london, day0 = dayOf(startMs);
+  const r = stream('posting', seed, 'junior'), K = cityById('london'), C = K.station, day0 = dayOf(startMs);
   const mapSeed = Math.floor(range(r, 0, 4294967296)), names = RESIDENCY.slice();
   const nr = stream('posting-names', seed, 'junior');
   const targets = [0, 1].map(i => ({ id: `target${i}`, name: (names.splice(int(r, names.length), 1)[0], targetName(nr, 'london')), what: 'an officer of the Russian residency, under diplomatic cover', wary: false, followed: 0, last: null, contact: null }));
@@ -282,7 +275,7 @@ function juniorPosting(seed, startMs) {
     return trip;
   });
   return {
-    city: 'london', country: C.country, agency: 'CIA', rank: 'Junior officer', level: 'junior', job: 'Attaché, Office of the Legal Attaché, US Embassy', legend: 'embassy',
+    city: 'london', country: K.country, agency: 'CIA', rank: 'Junior officer', level: 'junior', job: 'Attaché, Office of the Legal Attaché, US Embassy', legend: 'embassy',
     subject: 'the residency', goal: 'the Russian intelligence officers under diplomatic cover in London, and whom they run',
     mapSeed, home: { id: 'home', row: 2 + int(r, 2), label: 'the flat' }, embassy: { id: 'embassy', row: 0, label: C.embassy },
     safehouses: [{ id: 'sh0', row: 1 + int(r, 2), label: 'MI5\'s flat over a launderette', known: true, burned: false }],
@@ -504,7 +497,7 @@ export function context(c, a) {
   const p = c.posting, r = stream('ctx', c.seed, a.id), T = a.trip ? p.trips.find(t => t.id === a.who) : null;
   // (a trip's in its own city, on its own streets; the opposition there knows you only as a visitor: TRIP_HEAT)
   const city = T?.city ?? p.city, heat = T ? TRIP_HEAT : p.heat;
-  const ctx = { campaign: true, player: structuredClone(c.character), mapSeed: T?.mapSeed ?? p.mapSeed, startMs: a.start, assignment: a.id, city, country: CITY[city]?.country ?? p.country };
+  const ctx = { campaign: true, player: structuredClone(c.character), mapSeed: T?.mapSeed ?? p.mapSeed, startMs: a.start, assignment: a.id, city, country: cityById(city).country ?? p.country };
   // (walked to: its place on the posting's streets, and where you stood when you began: sim/places.js, sim/scenarios/campaign.js begin())
   if (!T && a.at) Object.assign(ctx, { at: a.at, me: a.me ?? null, startMs: a.began ?? a.start });
   ctx.brief = briefOf(c, a);                                       // (its words: sim/dossier.js)
@@ -525,7 +518,7 @@ export function context(c, a) {
 export const TRIP_HEAT = 35;
 
 /** The odds the opposition's on you as you step out (heat, a city's id), and of a covert team when they are. */
-export const watchedOdds = (heat, city) => (WATCHED_CITY[city] ?? 0.6) * Math.max(0, Math.min(WATCHED_MAX, (heat - 10) / 60));
+export const watchedOdds = (heat, city) => (stationOf(city)?.watched ?? 0.6) * Math.max(0, Math.min(WATCHED_MAX, (heat - 10) / 60));
 export const covertShare = (heat) => Math.max(0, Math.min(COVERT_MAX, (heat - 30) / 40));
 /** Whether they're on you out of a door ('home', 'embassy', 'street') this hour: 'none', 'overt' or 'covert'. */
 export function watched(c, door, ms, heat = c.posting.heat) {
@@ -545,9 +538,13 @@ export function fold(c, a, sc, player, endMs, heatNow) {
   c.done.push(a);
   c.character = { ...structuredClone(player), id: 'me' };
   const lines = [];
-  // (Tradecraft comes of doing it: a bonus per assignment that went well, DESIGN.md Q118; the rest of the growth is still to come)
-  const up = TRADECRAFT_UP[sc.outcome] ?? 0;
-  if (up && (c.character.os ?? 0) < 100) { c.character.os = Math.min(100, (c.character.os ?? 0) + up); lines.push(`Tradecraft ${c.character.os}: you do this a little better now, and it shows on the street.`); }
+  // (Tradecraft comes of doing it, slowly and slower as it climbs: the assignment's XP, by its kind, how it went, how hard and how risky; sim/xp.js)
+  const T0 = a.trip ? p.trips?.find(t => t.id === a.who) : null, target = a.kind !== 'sdr' ? (T0?.target ?? p.targets.find(t => t.id === a.who)) : null;
+  const xp = missionXP({ kind: a.kind, outcome: sc.outcome === 'made' && sc.madeSeen === false ? 'spooked' : sc.outcome, craft: target?.craft ?? null, team: a.kind === 'sdr' ? sc.team ?? 'none' : 'none',
+    risk: cityById(T0?.city ?? p.city).station?.risk ?? 1, heat: heatNow ?? p.heat, trip: !!a.trip });
+  gain(c.character, xp);
+  const ups = level(c.character), pr = progress(c.character);
+  lines.push(ups ? `Tradecraft ${pr.os}: you do this a little better now, and it shows on the street. (${xp} XP; ${pr.have} of ${pr.need} toward ${pr.os + 1}.)` : `${xp} XP from it: ${pr.words}.`);
   if (a.trip) return foldTrip(c, a, sc, endMs, heatNow, lines);
   if (heatNow !== undefined) p.heat = Math.max(20, Math.min(100, heatNow));
   if (a.kind === 'sdr') {
@@ -593,10 +590,9 @@ export function fold(c, a, sc, player, endMs, heatNow) {
   }
   goalMet(c, endMs, lines);
   plan(c, endMs);
-  return { title: `${KINDS[a.kind].name.toUpperCase()}: ${String(sc.outcome ?? 'over').toUpperCase()}`, lines };
+  return { title: `${KINDS[a.kind].name.toUpperCase()}: ${outcomeWord(a.kind, sc.outcome === 'made' && sc.madeSeen === false ? 'spooked' : sc.outcome).toUpperCase()}`, lines };   // (its words: sim/outcomes.js)
 }
 
-export const TRADECRAFT_UP = { clean: 2, seen: 2, photo: 2, soft: 1, right: 1 };   // (points of Tradecraft, by how an assignment ended)
 
 /** The posting's goal met: done (a Handler's), or promoted (a first tour's: promote()). */
 function goalMet(c, ms, lines) {
@@ -627,7 +623,7 @@ function foldTrip(c, a, sc, endMs, heatNow, lines) {
   lines.push(`The night flight back, and the flat in London by ${WAKE_H} in the morning.`);
   goalMet(c, endMs, lines);
   plan(c, home);
-  return { title: `${place.toUpperCase()}: ${String(o ?? 'over').toUpperCase()}`, lines };
+  return { title: `${place.toUpperCase()}: ${outcomeWord(a.kind, o).toUpperCase()}`, lines };
 }
 
 /**

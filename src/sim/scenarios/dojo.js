@@ -217,7 +217,7 @@ export const dojoScenario = {
       stats: `CQC ${cqcOf(state, state.player)}`,
     };
     if (sc.chapter === 'remembered') return {
-      stamp: sc.outcome === 'won' ? 'WALKED AWAY' : 'TAKEN', good: sc.outcome === 'won',
+      stamp: sc.outcome === 'won' ? 'WALKED AWAY' : 'CAPTURED', good: sc.outcome === 'won',
       title: 'THE FARM, REMEMBERED', text: sc.endText,
       notes: [
         `At the Farm, years ago: ${sc.bouts.map(b => `${b.name}, ${result(b)}`).join('; ')}.`,

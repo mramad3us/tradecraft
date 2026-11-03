@@ -188,7 +188,7 @@ export const hunted = {
         light === 'dark' && { why: 'the dark', v: -3 }, light === 'dim' && { why: 'the dusk', v: -1 },
         crowd && { why: 'people round you', v: -Math.min(4, crowd) }, d > 15 && { why: 'at a distance', v: -Math.round((d - 15) / 4) },
         me.gait === 'run' && { why: 'running', v: 6 }, ...showsMods(state.people.me), ...weatherMods(state)].filter(Boolean) },
-      { skill: 'deception', value: skill(state.people.me, 'deception'), body: state.people.me });
+      { skill: 'deception', value: skill(state.people.me, 'deception'), body: state.people.me }, { them: true });
       sc.rolls++;
       say(state, bus, { kind: 'roll', roll, hidden: true, text: roll.ok ? `${cap(p.seen)} knows you.` : `${cap(p.seen)} looks you over, and looks away.` });
       if (roll.ok) {
@@ -261,7 +261,7 @@ export const hunted = {
   },
 
   result(state) {
-    const sc = state.scenario, stamp = { out: 'OUT', captured: 'TAKEN', stranded: 'STRANDED', dead: 'DEAD' }[sc.outcome] ?? sc.outcome;
+    const sc = state.scenario, stamp = { out: 'GOT OUT', captured: 'CAPTURED', stranded: 'STRANDED', dead: 'DEAD' }[sc.outcome] ?? sc.outcome;
     return {
       stamp, good: sc.outcome === 'out', title: 'BLOWN', text: sc.endText,
       notes: [`They knew you ${sc.seenBy} time${sc.seenBy === 1 ? '' : 's'} on the way; you fought ${sc.fights}; ${sc.safehouses.filter(h => h.used).length} safe house${sc.safehouses.filter(h => h.used).length === 1 ? '' : 's'} used.`].filter(Boolean),

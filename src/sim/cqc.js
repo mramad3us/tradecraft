@@ -290,7 +290,7 @@ export function resolve(state, f, ours) {
     const off = (s) => (was[s] === 'staggered' ? [{ why: 'off balance', v: STAGGER_MOD }] : was[s] === 'dazed' ? [{ why: 'dazed', v: DAZE_MOD }] : []);
     // (a weapon: awkward costs every roll; a hand full, a grab)
     const held = (s) => { const w = arms[s]; return !w ? [] : [...(w.awkward ? [{ why: `${bare(w)}, awkward`, v: w.awkward }] : []), ...(moves[s] === 'grapple' && w.grab ? [{ why: 'a hand full', v: w.grab }] : [])]; };
-    const roll = opposed(r, { skill: 'cqc', value: cqcOf(state, f.a), mods: [...hurtMods(A, 'cqc'), ...off('a'), ...held('a')] }, { skill: 'cqc', value: cqcOf(state, f.b), mods: [...hurtMods(B, 'cqc'), ...off('b'), ...held('b')] });
+    const roll = opposed(r, { skill: 'cqc', value: cqcOf(state, f.a), mods: [...hurtMods(A, 'cqc'), ...off('a'), ...held('a')] }, { skill: 'cqc', value: cqcOf(state, f.b), mods: [...hurtMods(B, 'cqc'), ...off('b'), ...held('b')] }, { them: f.a !== state.player });
     out.roll = roll;
     by = roll.ok ? 'a' : 'b';
   }
@@ -429,7 +429,7 @@ function throughGuard(state, f, out, w, l, tech, arms) {
   const g = tech[w]?.weapon ? arms[w]?.guard ?? 0 : 0;
   if (g >= SOLID_GUARD) { out.clean = 'tool'; return; }
   const Wd = w === 'a' ? f.a : f.b, La = w === 'a' ? f.b : f.a, P = state.people[Wd];
-  const roll = opposed(r, { skill: 'cqc', value: cqcOf(state, Wd), mods: [...hurtMods(P, 'cqc'), ...(g ? [{ why: `${bare(arms[w])} across it`, v: Math.round(g * GUARD_PER_PT) }] : [])] }, { skill: 'cqc', value: cqcOf(state, La) });
+  const roll = opposed(r, { skill: 'cqc', value: cqcOf(state, Wd), mods: [...hurtMods(P, 'cqc'), ...(g ? [{ why: `${bare(arms[w])} across it`, v: Math.round(g * GUARD_PER_PT) }] : [])] }, { skill: 'cqc', value: cqcOf(state, La) }, { them: Wd !== state.player });
   out.guardRoll = roll;
   if (roll.ok) { out.clean = 'block'; return; }
   const part = weighted(r, Object.entries(THROUGH_AT));

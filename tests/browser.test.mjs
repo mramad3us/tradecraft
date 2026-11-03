@@ -61,7 +61,7 @@ export default [
         await page.locator('#title .campaign').click();
         await page.waitForSelector('.cand.legend', { timeout: 30000 });
         const one = await page.locator('.cand.legend').innerText();
-        await page.locator('button', { hasText: 'Another file' }).click();
+        await page.locator('button', { hasText: 'Another legend' }).click();
         await page.waitForTimeout(100);
         const two = await page.locator('.cand.legend').innerText();
         await page.locator('.cand.legend').click();
@@ -135,7 +135,7 @@ export default [
         await page.waitForSelector('.candidates', { timeout: 30000 });
         // (a new career starts at the bottom: a first tour, Station London; a posting of your own locked till a game reaches above it)
         const rungs = await page.evaluate(() => [...document.querySelectorAll('.candidates .cities button')].map(b => `${b.textContent}${b.classList.contains('on') ? '*' : ''}${b.disabled ? '!' : ''}`));
-        const names = await page.locator('.cand').count();
+        const names = await page.locator('.cand:not(.legend)').count();   // (and a legend beside them: sim/campaign.js LEGENDS)
         await page.locator('.cand').first().click();
         await page.waitForFunction('window.__ready === true && window.__tradecraft.state?.scenario.kind === "campaign"', null, { timeout: 30000 });
         const flat = await page.evaluate(() => window.__tradecraft.state.map.place), level = await page.evaluate(() => window.__tradecraft.state.campaign.posting.level);

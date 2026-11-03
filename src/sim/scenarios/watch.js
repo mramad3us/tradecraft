@@ -39,6 +39,7 @@ import { mods as showsMods } from '../notice.js';
 import { strain } from '../needs.js';
 import { shopWord } from '../shops.js';
 import { weatherAt, weatherMods, sightM, FALLS } from '../weather.js';
+import { outcomeWord } from '../outcomes.js';
 
 const TPS = 1000 / TICK_MS;
 export const WINDOW_MIN = [6, 16];                                 // (from the start: when the subject's due)
@@ -157,7 +158,7 @@ export const watchTest = {
       if (me?.inside && Math.abs(me.inside.x - sc.cafe.x) < 1 && m && !sc.made) {
         sc.rolls++;
         const roll = opposed(state.rng, { skill: 'awareness', value: skill(state.people.minder, 'awareness'), body: state.people.minder, mods: [{ why: 'a face at the window of the very café', v: 4 }] },
-          { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] });
+          { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] }, { them: true });
         if (roll.ok) made(state, bus, roll, 'at the café\'s own window');   // (his roll first: ok, he won)
       }
     }
@@ -203,7 +204,7 @@ export const watchTest = {
   },
 
   result(state) {
-    const sc = state.scenario, stamp = { photo: 'PHOTOGRAPHED', soft: 'A SOFT PRINT', seen: 'WITNESSED', missed: 'MISSED', blown: 'MADE' }[sc.outcome];
+    const sc = state.scenario, stamp = outcomeWord('watch', sc.outcome).toUpperCase();
     const text = {
       photo: 'The print comes up in the tray: Volkov, and the man in the camel coat, faces to the lens, sharp. Somebody at Langley will know who he is by Friday.',
       soft: 'The print comes up soft: two men outside a café, one of them Volkov. The other could be anyone with a camel coat. It\'s something.',
@@ -246,7 +247,7 @@ function minderLooks(state, bus, me, m) {
   sc.rolls++;
   const roll = opposed(state.rng, { skill: 'awareness', value: skill(state.people.minder, 'awareness'), body: state.people.minder,
     mods: [...reasons, crowd && { why: 'people round you', v: -Math.min(3, crowd) }, light === 'dark' && { why: 'the dark', v: -3 }, d > 20 && { why: 'at a distance', v: -2 }, ...showsMods(state.people[state.player]), ...weatherMods(state)].filter(Boolean) },
-  { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] });
+  { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] }, { them: true });
   if (roll.ok) return made(state, bus, roll, reasons[0].why);   // (his roll first: ok, he won)
   tell(state, bus, { kind: 'roll', roll, hidden: true, text: `The man across the road looks you over, and moves on.` });
 }
@@ -289,7 +290,7 @@ function photograph(state, bus, me) {
   if (m && !sc.made && !me.hidden && seesActor(state, m, me)) {
     sc.rolls++;
     const r2 = opposed(state.rng, { skill: 'awareness', value: skill(state.people.minder, 'awareness'), body: state.people.minder, mods: [{ why: 'a camera raised', v: 6 }] },
-      { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] });
+      { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] }, { them: true });
     if (r2.ok) made(state, bus, r2, 'a camera raised');
   }
 }

@@ -260,6 +260,12 @@ const LOOKS = {
 
 export const BEIRUT = {
   id: 'beirut', name: 'Beirut', country: 'lb', lang: 'ar', geo: { lat: 33.89, lon: 35.5, tz: 2 }, drive: 'right',
+  // The station (DESIGN.md, Stations and countries): risk (sim/xp.js), watched (sim/campaign.js watched()).
+  station: {
+    risk: 1.3, watched: 0.6, embassy: 'US Embassy', cover: 'Second Secretary, Political Section, US Embassy',
+    opposition: { the: 'Hezbollah\'s security', an: 'a Hezbollah security', name: 'Hezbollah security', prison: 'a basement in the Dahiyeh' },
+    subjects: [['the arms routes', 'how Iran\'s weapons reach Lebanon, by which ports and whose trucks'], ['the hostages', 'who holds the two Westerners taken in the spring, and where']],
+  },
   streetName,
   boulevardName: (seed, row) => at(AVENUES, seed, row, 'boulevard'),
   parkName: (seed, row, i) => at(JARDINS, seed, row, Math.floor(i / STRETCH), 'park'),

@@ -269,6 +269,14 @@ function posterOf(L) { const [words, bg, fg, art] = pick(L, POSTERS); return { w
 
 export const MOSCOW = {
   id: 'moscow', name: 'Moscow', country: 'ru', lang: 'ru', geo: { lat: 55.75, lon: 37.62, tz: 3 }, drive: 'right',
+  // The station (DESIGN.md, Stations and countries): the work here. risk: how dangerous the trade is here (sim/xp.js);
+  // watched: how closely the opposition follows a diplomat in their own hours (sim/campaign.js watched()).
+  station: {
+    risk: 1.4, watched: 1, embassy: 'US Embassy', cover: 'Second Secretary, Political Section, US Embassy',
+    opposition: { the: 'the FSB', an: 'an FSB', name: 'FSB', prison: 'Lefortovo' },
+    subjects: [['sanctions evasion', 'who in the Kremlin\'s circle moves money and chips past the sanctions, and how'], ['the hypersonic programme', 'how far the new missile has come, and who builds it'],
+      ['Unit 29155', 'the GRU unit behind the sabotage in Europe: its officers, its next targets']],
+  },
   streetName,
   boulevardName: (seed, row) => `${at(BOULEVARDS, seed, row, 'boulevard')} Boulevard`,
   parkName: (seed, row, i) => at(PARKS, seed, row, Math.floor(i / STRETCH), 'park'),

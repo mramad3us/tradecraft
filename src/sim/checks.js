@@ -40,24 +40,34 @@ export function check(rng, { skill, value, dc, mods = [], hook = false, body = n
   return { kind: 'check', ...s, dc: against, hook, ok, margin: s.total - against };
 }
 
-/** An opposed roll: ours and theirs ({ skill, value, mods }) → result, ok when our side wins. */
-export function opposed(rng, ours, theirs, { hook = false } = {}) {
+/**
+ * An opposed roll: the first side and the second ({ skill, value, mods }) → result, ok when the first side
+ * wins (ties its). them: the first side is someone else's, rolling against the player (a watcher's Tracking
+ * against your Deception), so the words say who won the right way round (won()).
+ */
+export function opposed(rng, ours, theirs, { hook = false, them = false } = {}) {
   const a = side(rng, ours), b = side(rng, theirs);
   if (hook) { b.raw = b.total; b.total = halve(b.total); }
   const ok = a.total >= b.total;
-  return { kind: 'opposed', ours: a, theirs: b, hook, ok, margin: a.total - b.total };
+  return { kind: 'opposed', ours: a, theirs: b, hook, ok, margin: a.total - b.total, ...(them ? { them: true } : {}) };
 }
+/** Whether a roll went the player's way: a check made, an opposed roll won by their side. */
+export const won = (r) => (r.kind === 'opposed' && r.them ? !r.ok : r.ok);
 
 const name = (key) => SKILLS[key]?.name ?? key;
 const sum = (s) => [s.roll, s.value, ...s.mods.map(m => `${m.v < 0 ? '− ' + -m.v : m.v} (${m.why})`)].join(' + ').replace(/\+ − /g, '− ')
   + (s.raw !== undefined ? ` = ${s.raw}, halved by a hook to ${s.total}` : ` = ${s.total}`);
 const natural = (n) => n === 20 ? ', a natural 20' : n === 1 ? ', a natural 1' : '';
 
-/** A roll in brief, for the line at the top left (the whole sum is the log's, J): 'Deception 28 against 15 · made'. */
+/**
+ * A roll in brief, for the line at the top left (the whole sum is the log's, J): 'Deception 28 against 15 ·
+ * passed', 'Pathfinding 24 against Tracking 19 · you win'. (Not "made": in this trade, made is what you are
+ * when they've spotted you.)
+ */
 export function checkShort(r) {
   const nat = (n) => (n === 20 ? ' (a natural 20)' : n === 1 ? ' (a natural 1)' : '');
-  if (r.kind === 'check') return `${name(r.skill)} ${r.total} against ${r.dc}${nat(r.nat)} · ${r.ok ? 'made' : 'missed'}`;
-  return `${name(r.ours.skill)} ${r.ours.total}${nat(r.ours.nat)} against ${name(r.theirs.skill)} ${r.theirs.total}${nat(r.theirs.nat)} · ${r.ok ? 'ours' : 'theirs'}`;
+  if (r.kind === 'check') return `${name(r.skill)} ${r.total} against ${r.dc}${nat(r.nat)} · ${r.ok ? 'passed' : 'failed'}`;
+  return `${name(r.ours.skill)} ${r.ours.total}${nat(r.ours.nat)} against ${name(r.theirs.skill)} ${r.theirs.total}${nat(r.theirs.nat)} · ${won(r) ? 'you win' : 'they win'}`;
 }
 
 /** The log's line for a roll: 'Deception check: 14 + 12 + 2 (night) = 28 against 15, success.' */
@@ -65,5 +75,5 @@ export function checkText(r) {
   if (r.kind === 'check') {
     return `${name(r.skill)} check: ${sum(r)} against ${r.dc}${r.hook ? ' (a hook spent)' : ''}${natural(r.nat)}, ${r.ok ? 'success' : 'failure'}.`;
   }
-  return `${name(r.ours.skill)} against ${name(r.theirs.skill)}: ${sum(r.ours)}${natural(r.ours.nat)}, against ${sum(r.theirs)}${natural(r.theirs.nat)}. ${r.ok ? 'Ours' : 'Theirs'}.`;
+  return `${name(r.ours.skill)} against ${name(r.theirs.skill)}: ${sum(r.ours)}${natural(r.ours.nat)}, against ${sum(r.theirs)}${natural(r.theirs.nat)}. ${won(r) ? 'You win' : 'They win'}.`;
 }

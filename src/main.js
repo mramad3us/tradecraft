@@ -85,12 +85,12 @@ function pickOfficer(city = 'moscow', level = null) {
   const seed = randomSeed(), list = candidates(seed, city, level);
   home = null;
   ui.hideTitle();
-  // (debug mode: a fourth file, Tradecraft 95, a different one each time: sim/campaign.js LEGENDS)
+  // (the legends: a fourth file, Tradecraft 95, a different one each time, debug mode or not: sim/campaign.js LEGENDS; the user, 2026-11-03)
   let n = 0;
   const show = () => {
-    if (settings.debug) list[3] = legendFile(seed, city, level, n);
+    list[3] = legendFile(seed, city, level, n);
     ui.showCandidates(list, (i) => launch(newGame({ seed, scenario: 'campaign', version: VERSION, campaign: newCampaign(seed, list[i], city, level), weather: WEATHER })),
-      city, { cities: level === 'junior' ? null : (c) => pickOfficer(c, level), back: () => showTitle(), level, another: settings.debug ? () => { n++; show(); } : null,
+      city, { cities: level === 'junior' ? null : (c) => pickOfficer(c, level), back: () => showTitle(), level, another: () => { n++; show(); },
         levels: LEVELS.map((L, k) => ({ id: L.id, name: L.name, open: open(k), why: k ? `Opens when a game of yours reaches the rung above it${settings.debug ? ' (open: debug mode)' : ''}.` : null })), levelTo: (id) => pickOfficer(id === 'junior' ? 'london' : 'moscow', id) });
   };
   show();

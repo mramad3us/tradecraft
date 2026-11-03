@@ -1178,7 +1178,7 @@ export const umbrellaTest = {
 
   result(state) {
     const sc = state.scenario, h = sc.hit, d = h.done;
-    const stamp = { done: 'DONE', wrong: 'WRONG MAN', taken: 'TAKEN', missed: 'MISSED', made: 'MADE', lost: 'LOST', off: 'CALLED OFF', dead: 'DEAD' }[sc.outcome] ?? sc.outcome;
+    const stamp = { done: 'DONE', wrong: 'WRONG MAN', taken: 'CAPTURED', missed: 'MEETING MISSED', made: 'YOU WERE MADE', lost: 'LOST HIM', off: 'CALLED OFF', dead: 'DEAD' }[sc.outcome] ?? sc.outcome;
     const notes = [];
     if (d && !d.wrong) {
       notes.push('By midnight he has a fever of forty. On Saturday the doctors at the Burdenko call it sepsis of unknown origin; on Sunday he dies. Nobody flies to Helsinki.');
@@ -1238,7 +1238,7 @@ function hitSecond(state, bus, me, t, d) {
       mods: [h.eyes && { why: 'his eyes already on you', v: 3 }, d < 3 && { why: 'right by his man', v: 2 }, crowd ? { why: 'people round you', v: -Math.min(4, crowd) } : !atStop(state, me) && Math.hypot(me.vx, me.vz) > 0.3 && { why: 'walking up behind his man on an empty pavement', v: 2 },
         rainy(state) && { why: 'umbrellas everywhere', v: -2 }, lightBand(lightHere(state, me.x, me.z)) === 'dark' && { why: 'the dark', v: -2 }, dm > 8 && { why: 'a way off', v: -1 },
         atStop(state, me) && { why: 'waiting at the stop like the others', v: -2 }, ...umbrellaMods(state)].filter(Boolean) },
-    { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] });
+    { skill: 'deception', value: skill(state.people[state.player], 'deception'), body: state.people[state.player] }, { them: true });
     sc.rolls++;
     say(state, bus, { kind: 'roll', roll: r, hidden: true, text: r.ok ? 'His minder\'s eyes settle on you, and stay.' : 'His minder\'s eyes pass over you.' });   // (his roll first: ok, he won)
     if (r.ok) {
@@ -1279,7 +1279,7 @@ function jab(state, bus, me) {
     const r = opposed(state.rng, { skill: 'awareness', value: skill(state.people.minder, 'awareness'), body: state.people.minder,
       mods: [h.eyes && { why: 'his eyes already on you', v: 5 }, crowd ? { why: 'people between', v: -Math.min(4, crowd) } : { why: 'an empty pavement', v: 3 }, dm < 3 && { why: 'right by him', v: 2 }, rainy(state) && { why: 'umbrellas everywhere', v: -2 },
         dark && { why: 'the dark', v: -2 }, dm > 6 && { why: 'a way off', v: -Math.round((dm - 6) / 3) }].filter(Boolean) },
-    { skill: 'deception', value: skill(p, 'deception'), body: p, mods: yours.filter(y => y.why !== 'people round you' && y.why !== 'nobody round you but him') });
+    { skill: 'deception', value: skill(p, 'deception'), body: p, mods: yours.filter(y => y.why !== 'people round you' && y.why !== 'nobody round you but him') }, { them: true });
     sc.rolls++;
     minder = r.ok;                                                    // (his roll first: ok, he won)
     say(state, bus, { kind: 'roll', roll: r, hidden: !minder, text: minder ? `His minder saw your hand, and the umbrella's tip. He's coming.` : 'His minder\'s looking at the bus.' });

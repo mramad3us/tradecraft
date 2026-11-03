@@ -7,6 +7,8 @@
 // at the top left lingers, and the aside goes top left (the user, 2026-10-27: "speech bubbles for
 // scripted speech"); the log keeps the whole line. How it reads on screen is the UI's (src/ui/ui.js,
 // src/ui/log.js), through checkText() for the numbers.
+import { fromRoll } from './xp.js';
+
 export const LOG_MAX = 500;
 
 /** The words in a line's quotes (“…” or "…"), joined: what a balloon shows. */
@@ -17,6 +19,7 @@ export const speak = (state, bus, id, text, aside = null) => say(state, bus, { k
 
 export function say(state, bus, entry) {
   const e = { ms: state.time.ms, ...entry };
+  fromRoll(state, e);                                              // (a roll of yours gone your way: a little XP, sim/xp.js)
   state.log.push(e);
   if (state.log.length > LOG_MAX) state.log.splice(0, state.log.length - LOG_MAX);
   bus?.emit('log', e);

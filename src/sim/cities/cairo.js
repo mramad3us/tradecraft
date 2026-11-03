@@ -316,6 +316,12 @@ const LOOKS = {
 
 export const CAIRO = {
   id: 'cairo', name: 'Cairo', country: 'eg', lang: 'ar', geo: { lat: 30.05, lon: 31.24, tz: 2 }, drive: 'right',
+  // The station (DESIGN.md, Stations and countries): risk (sim/xp.js), watched (sim/campaign.js watched()).
+  station: {
+    risk: 1.2, watched: 0.8, embassy: 'US Embassy', cover: 'Second Secretary, Political Section, US Embassy',
+    opposition: { the: 'the GIS', an: 'a GIS', name: 'GIS', prison: 'Tora' },
+    subjects: [['the arms deals', 'what Egypt buys, from whom, paid how'], ['the Sinai networks', 'the jihadist cells in Sinai: their couriers in the city']],
+  },
   streetName,
   boulevardName: (seed, row) => at(AVENUES, seed, row, 'boulevard'),
   parkName: (seed, row, i) => at(MIDANS, seed, row, Math.floor(i / STRETCH), 'park'),
