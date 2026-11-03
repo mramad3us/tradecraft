@@ -60,6 +60,9 @@ export const MAX_M = 60;
 export const BULLET = 7, HEAD_KILL = 0.6;
 export const STRAY = { widthM: 0.7, rangeM: 80, hit: 0.25 };
 export const HEAR_M = 70, SHOT_HEAT = 8;
+// A fumbled gun going off (firearms.js act()'s 'discharge'): where it pointed, give or take DISCHARGE_SPREAD (radians);
+// drawing or holstering, SELF_SHOT of the time into your own leg; who's in its line, STRAY's, DISCHARGE_HIT of the time.
+export const DISCHARGE_SPREAD = 0.5, SELF_SHOT = { draw: 0.35, holster: 0.45 }, DISCHARGE_HIT = 0.6;
 const OUT_MS = 60000;
 
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
@@ -190,7 +193,7 @@ export function choose(state, bus, key) {
     ms = r.ms; text = r.text;
     sh.doing.r = r;
     if (r.roll) say(state, bus, { kind: 'roll', roll: r.roll, text: r.ok ? text : `${text} Fumbled, it takes longer.`.trim() });
-    if (r.mishap === 'discharge') heard(state, bus, me, me.x, me.z, modelOf(g.id)?.loud ?? 1);
+    if (r.mishap === 'discharge') discharge(state, bus, me, p, g.id, k, r.fired);
     if (['dropMag', 'insertMag', 'release', 'rack', 'clear', 'chamber1', 'safety'].includes(k) && sh.aim) sh.aim.settled = now + ms;   // (hands off the aim: it settles again after)
   }
   sh.doing.until = now + Math.max(TICK_MS, ms);
@@ -207,32 +210,24 @@ function stress(state, me) {
 }
 
 /**
- * G with a gun, out of the mode (sim/game.js): it comes out, or goes away, in its time and with its roll,
- * as you walk (me.$gun; the end in tick()). Returns whether it was a gun's to do (a knife's is sim/items.js).
+ * G (or the pockets' Take out) with a gun (sim/game.js): drawing it is meaning to use it (the user, 2026-11-03: "we
+ * shouldn't be able to draw a firearm out by pressing G … taking it out should imply we intend on using it,
+ * meaning that time stops and we enter the weapon ready sequence"): into the mode, that gun its gun, the draw its
+ * first step. Returns whether it was a gun's to do (a knife's is sim/items.js).
  */
-export function quickDraw(state, bus, me, want = null) {
+export function readyGun(state, bus, me, want = null) {
   const p = me && state.people[me.who];
-  if (!p || me.$gun) return !!me?.$gun;
-  const next = want ?? (p.items ?? []).find(k => weaponOf(k) && k !== p.hand), id = isGun(p.hand) && (!want || want === p.hand || !isGun(want)) ? p.hand : isGun(next) && !p.hand ? next : null;
+  if (!p) return false;
+  const next = want ?? (p.items ?? []).find(k => weaponOf(k) && k !== p.hand), id = isGun(want) ? want : isGun(p.hand) ? p.hand : isGun(next) && !p.hand ? next : null;
   if (!id) return false;
-  const what = p.hand === id ? 'holster' : 'draw', from = what === 'draw' ? gunsOf(p).find(o => o.id === id)?.where : 'hand';
-  const r = gunAct(state.rng, p, id, what, { from, mods: stress(state, me) });
-  me.$gun = { what, id, until: state.time.ms + r.ms, r };
-  if (r.roll && !r.ok) say(state, bus, { kind: 'roll', roll: r.roll, text: `You fumble ${modelOf(id).short} ${what === 'draw' ? 'out' : 'away'}.` });
-  if (r.mishap === 'discharge') heard(state, bus, me, me.x, me.z, modelOf(id)?.loud ?? 1);
+  if (!state.shoot) toggle(state, bus);
+  if (state.shoot) state.shoot.gun = id;
   return true;
 }
 
-/** Once a tick (sim/game.js): a quick draw's end; a step playing out (the aim coming round), and its end. */
+/** Once a tick (sim/game.js): a step playing out (the aim coming round), and its end. */
 export function tick(state, bus) {
   const sh = state.shoot, me = playerOf(state), p = me && state.people[me.who];
-  if (me?.$gun && state.time.ms >= me.$gun.until && p) {
-    const { what, id, r } = me.$gun;
-    delete me.$gun;
-    if (r.mishap === 'dropped') { take(p, id); if (p.hand === id) p.hand = null; drop(state, p, me, id); say(state, bus, { kind: 'note', text: `${modelOf(id).short} slips out of your hand and clatters on the ground.` }); }
-    else if (what === 'draw') { if (p.hand && p.hand !== id) stowHand(state, p, me); take(p, id); p.hand = id; say(state, bus, { kind: 'note', text: `${modelOf(id).short} in your hand.` }); }
-    else { p.hand = null; (p.items ??= []).push(id); if (!placed(p).out.find(o => o.kind === id)?.at) { p.items.pop(); p.hand = id; say(state, bus, { kind: 'note', text: 'There\'s nowhere on you to put it.' }); } else say(state, bus, { kind: 'note', text: `${modelOf(id).short} away.` }); }
-  }
   if (!sh) return;
   if (!me || !p || p.dead || !canStand(p)) { state.shoot = null; return; }
   const now = state.time.ms, d = sh.doing;
@@ -260,10 +255,11 @@ const setHead = (me, h) => { me.head = h; me.face = faceOf(h); };
 function finish(state, bus, me, p) {
   const sh = state.shoot, d = sh.doing, r = d.r;
   if (d.what === 'draw') {
-    if (r?.mishap === 'dropped') { take(p, sh.gun); drop(state, p, me, sh.gun); say(state, bus, { kind: 'note', text: `${modelOf(sh.gun).short} slips out of your hand and clatters on the ground.` }); }
-    else if (!r?.mishap) { if (p.hand && p.hand !== sh.gun) stowHand(state, p, me); take(p, sh.gun); p.hand = sh.gun; }
+    if (r?.mishap === 'dropped') { take(p, sh.gun); drop(state, p, me, sh.gun); }   // (it's on the ground at your feet: the roll's line said so)
+    else { if (p.hand && p.hand !== sh.gun) stowHand(state, p, me); take(p, sh.gun); p.hand = sh.gun; }   // (out, fumbled or not; gone off as it came out, out all the same)
   } else if (d.what === 'holster') {
     if (r?.mishap === 'dropped') drop(state, p, me, sh.gun);
+    else if (r?.mishap === 'discharge') { sh.doing = null; sh.phase = 'choose'; return; }   // (it went off going in: still in your hand)
     else { p.hand = null; (p.items ??= []).push(sh.gun); if (!placed(p).out.find(o => o.kind === sh.gun)?.at) { p.items.pop(); p.hand = sh.gun; say(state, bus, { kind: 'note', text: 'There\'s nowhere on you to put it.' }); } }
     state.shoot = null;
     return;
@@ -314,6 +310,22 @@ export function shot(state, bus, me, p, id) {
   if (sh?.aim) sh.aim.settled = state.time.ms + Math.round(RECOVER_S * M.recoil * pace(p) * (1 + 0.3 * (fired - 1)) * 1000);   // (the muzzle comes down: steady again after)
   if (sh?.doing) sh.doing.ms = fireMs(p, M, fired);
   return f;
+}
+
+/**
+ * A gun gone off in a fumbling hand (firearms.js act()'s mishap): heard; drawing or holstering, likely into your
+ * own leg; otherwise where it pointed, give or take, into whoever's in its line, or the ground.
+ */
+export function discharge(state, bus, me, p, id, action, f = null) {
+  if (f && !f.fired) { say(state, bus, { kind: 'note', text: 'Click: a dud, and the luckiest one you\'ll ever have.' }); return; }
+  const M = modelOf(id), r = state.rng, row = state.map.row ?? 0;
+  heard(state, bus, me, me.x, me.z, M.loud);
+  if (chance(r, SELF_SHOT[action] ?? 0.1)) { say(state, bus, { kind: 'note', text: `Bang. It goes into your own leg. ${bullet(state, bus, me, 'legs', M, me)}` }); return; }
+  const head = (me.head ?? 0) + range(r, -DISCHARGE_SPREAD, DISCHARGE_SPREAD), ux = Math.cos(head), uz = Math.sin(head);
+  const hit = state.actors.filter(a => a !== me && !a.hidden && rowOf(state, a) === row).map(a => ({ a, along: (a.x - me.x) * ux + (a.z - me.z) * uz, off: Math.abs((a.x - me.x) * uz - (a.z - me.z) * ux) }))
+    .filter(o => o.along > 0.3 && o.along < STRAY.rangeM && o.off < STRAY.widthM).sort((p1, p2) => p1.along - p2.along)[0];
+  if (hit && chance(r, DISCHARGE_HIT)) say(state, bus, { kind: 'note', text: `Bang. The round goes where the gun was pointing. ${bullet(state, bus, hit.a, pick(r, ['torso', 'legs', 'torso']), M, me)}` });
+  else say(state, bus, { kind: 'note', text: `Bang. The round ${chance(r, 0.5) ? 'goes into the ground a step away' : 'goes off down the street and hits nothing'}, and everyone looks at you.` });
 }
 
 /** A thing lying about, hit: a bottle breaks; the rest jump. */

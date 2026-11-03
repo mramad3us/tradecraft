@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.7 (2026-11-03)
+
+- **Taking out a gun means using it.** G (or Take out in the pockets screen) with a gun no longer just puts it in your hand as you walk. Time stops and you're in the shooting sequence, with the draw as the first step. A knife's G is as it was.
+- **Fumbles have consequences, by your hand.** Missing an action's roll by a little is a fumble that costs time. Missing by more drops the gun or the magazine at your feet. Missing badly, with the gun ready to fire, means it goes off, and the round flies. Drawing, it goes into your own leg a third of the time (holstering, nearly half). Otherwise it goes where the gun was pointing and can hit whoever's in its line. A natural 1 depends on the hand: an untrained one drops the gun or fires it, a Handler's sometimes drops it, an expert's only fumbles. Over 2000 draws of a chambered Glock: the untrained dropped it 56 times and fired it 28; a Handler dropped it 34 times; an expert never did. The words say what happened ("It slips out of your hand and clatters on the ground").
+- **Ammunition by its calibre.** Loose rounds come in boxes named for their cartridge (9×19 mm Parabellum, .38 Special, 5.45×39 mm…), and magazines for their gun and calibre ("a SIG P229 magazine, 9×19 mm Parabellum"). A box can be put down from the pockets screen and picked up again, and left in the flat's drawer and taken out again.
+
 ## v0.1.6 (2026-11-03)
 
 - **Waiting for a bus, just by waiting.** A bus only ever came for someone sat in the shelter (R at it). Now standing still at a stop for a few seconds is waiting too: you take a seat in the shelter, and when the bus pulls in it asks where to. Pick a stop with its number; the card's last line is standing by the doors to step off as they close.

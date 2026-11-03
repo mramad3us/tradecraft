@@ -209,10 +209,10 @@ export function step(state, input = {}, bus) {
       continue;
     }
     if (String(act).startsWith('read:')) { if (me && !state.fight) reading.act(state, bus, me, act.slice(5), scenario, skip); continue; }   // (a book, sat somewhere: sim/reading.js)
-    if (act === 'draw') { if (state.fight) fight.drawMove(state, bus, scenario); else if (me && !state.shoot && !shooting.quickDraw(state, bus, me)) items.use(state, bus, me, 'draw'); continue; }   // (G: sim/items.js, a gun's in its time: sim/shooting.js; in a fight, it costs the exchange)
+    if (act === 'draw') { if (state.fight) fight.drawMove(state, bus, scenario); else if (me && !state.shoot && !shooting.readyGun(state, bus, me)) items.use(state, bus, me, 'draw'); continue; }   // (G: sim/items.js; a gun's into shooting's mode, time standing still: sim/shooting.js; in a fight, it costs the exchange)
     if (act === 'aim') { shooting.toggle(state, bus); continue; }   // (X: shooting, in stop motion: sim/shooting.js)
     if (String(act).startsWith('shoot:')) { shooting.choose(state, bus, act.slice(6)); continue; }
-    if (String(act).startsWith('inv:')) { if (me && !state.fight && !state.shoot && !(/^(wield|stow)(:|$)/.test(act.slice(4)) && shooting.quickDraw(state, bus, me, act.slice(4).split(':')[1] ?? null))) items.use(state, bus, me, act.slice(4)); continue; }   // (the inventory's buttons; a gun's out or away in its time: sim/shooting.js)
+    if (String(act).startsWith('inv:')) { if (me && !state.fight && !state.shoot && !(/^(wield|stow)(:|$)/.test(act.slice(4)) && shooting.readyGun(state, bus, me, act.slice(4).split(':')[1] ?? null))) items.use(state, bus, me, act.slice(4)); continue; }   // (the inventory's buttons; a gun's into shooting's mode: sim/shooting.js)
     if (act === 'glance' && me && !me.glance) me.glance = Math.round(GLANCE_S * TICKS_PER_S);
     // R: what's at hand (sim/acts.js affordance()), whatever the scene's line offers; T is the line's own.
     if (act === 'use') {

@@ -4,6 +4,8 @@
 // what goes wrong by condition, and a gun's state kept by its id wherever it goes.
 import { MODELS, KINDS, FAMILIES, ACTIONS, newGun, newMag, armOf, moveArm, act, fire, canDo, said, service, fillMag, pace, misfire, jamChance, BROKEN, isGun, isLong, sparesFor, ready } from '../src/sim/firearms.js';
 import { sizeOf, weaponOf } from '../src/sim/weapons.js';
+import { armName, boxWord } from '../src/sim/firearms.js';
+import { wardrobeWays, dress } from '../src/sim/clothes.js';
 import { placed, fits } from '../src/sim/items.js';
 import { sheet } from '../src/sim/people.js';
 import { skill } from '../src/sim/skills.js';
@@ -184,6 +186,23 @@ export default [
       assert(g.at === 'belt' && !g.shows, `the Glock at the belt, under the coat: ${g.at}`);
       const two = newGun(p, 'mp5');
       assert(!fits(p, two), 'one sling: a second long gun has nowhere to go but the hand');
+    },
+  },
+  {
+    name: 'firearms: rounds by their calibre: a box of each, named; dropped, picked up, left in the drawer and taken again',
+    fn() {
+      const p = sheet({ id: 'me', persistent: true, look: { top: { kind: 'coat' } } });
+      p.rounds = { '9x19': 20, '.38': 12 };
+      assert(armName('box-9x19') === 'a box of 9×19 mm Parabellum' && boxWord('.38', 12) === 'a box of .38 Special (12)', 'named by the calibre');
+      const boxes = placed(p).out.filter(o => o.kind === 'rounds');
+      assert(boxes.length === 2 && boxes.every(o => o.at), `a box of each, in a pocket (${boxes.map(o => `${o.cal} ${o.n} in ${o.at}`).join(', ')})`);
+      const way = wardrobeWays(p).find(w => w.key === 'leave:box-9x19');
+      assert(way && /9×19/.test(way.label), `the drawer: ${way?.label}`);
+      dress(p, 'leave:box-9x19');
+      assert(!p.rounds['9x19'] && p.stashN['box-9x19'] === 20, 'in the drawer, counted');
+      dress(p, `take:${p.stash.indexOf('box-9x19')}`);
+      assert(p.rounds['9x19'] === 20, 'and out again');
+      assert(armName(newMag(p, 'p229', 13)) === 'a SIG P229 magazine, 9×19 mm Parabellum', 'a magazine: its gun and its calibre');
     },
   },
 ];

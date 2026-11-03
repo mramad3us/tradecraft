@@ -3,7 +3,7 @@
 // distance, the aim held and the skill; a bullet's wound; a gunshot heard empties the street.
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
 import { newGun, newMag, armOf, said } from '../src/sim/firearms.js';
-import { toggle, options, choose, targets, aimMs, odds, bullet, MAX_M } from '../src/sim/shooting.js';
+import { toggle, options, choose, targets, aimMs, odds, bullet, discharge, MAX_M } from '../src/sim/shooting.js';
 import { MODELS } from '../src/sim/firearms.js';
 import { sheet } from '../src/sim/people.js';
 import { skill } from '../src/sim/skills.js';
@@ -11,6 +11,8 @@ import { check } from '../src/sim/checks.js';
 import { stream } from '../src/sim/rng.js';
 import { stateOf } from '../src/sim/health.js';
 import { assert, fmt } from './helpers.mjs';
+import * as FA from '../src/sim/firearms.js';
+const rngOf = (who) => stream('fumbles', who);
 
 // (a street at noon, a Handler with a Makarov at their belt and a spare magazine)
 function armed(seed = 4, weapons = [5, 1]) {
@@ -145,6 +147,40 @@ export default [
       bullet(w.g, null, a, 'torso', MODELS.traumatic, w.me);
       const hit = w.g.people[a.who];
       assert(!hit.dead && !hit.injuries?.some(i => i.gunshot), 'a rubber round: no gunshot wound');
+    },
+  },
+  {
+    name: 'shooting: G with a gun is meaning to use it: time stops, the draw the first step; G with a knife is a knife, at once',
+    fn() {
+      const { g, me, p, id } = armed();
+      const t0 = g.time.ms;
+      step(g, { act: ['draw'] }, null);
+      assert(g.shoot?.phase === 'choose' && g.shoot.gun === id && options(g)[0]?.key === 'draw' && p.hand !== id, 'G: into the mode, the gun not yet out');
+      for (let i = 0; i < 20; i++) step(g, {}, null);
+      assert(g.time.ms === t0, 'time stands still');
+      step(g, { act: ['aim'] }, null);
+      p.items = p.items.filter(k => k !== id); p.items.push('penknife');
+      step(g, { act: ['draw'] }, null);
+      assert(!g.shoot && p.hand === 'penknife', 'a knife: out, at once');
+    },
+  },
+  {
+    name: 'shooting: a fumble\'s consequence is the hand\'s: the untrained drop it, now and then it goes off and the round goes somewhere; an expert only fumbles',
+    fn() {
+      // (the rolls themselves, 2000 draws of a chambered Glock each: firearms.js act())
+      const out = [['the untrained', 0, 0], ['a Handler', 5, 38], ['an expert', 15, 60]].map(([who, base, os]) => {
+        const P = sheet({ id: 'me', cls: 'spook', os, skills: { weapons: [base, 1] } }), r = rngOf(who);
+        let f = 0, d = 0, sh = 0;
+        for (let i = 0; i < 2000; i++) { const x = FA.act(r, P, FA.newGun(P, 'glock17'), 'draw', { from: 'belt' }); if (x.fumbled) f++; if (x.mishap === 'dropped') d++; if (x.mishap === 'discharge') sh++; }
+        return { who, f, d, sh };
+      });
+      assert(out[0].sh > 0 && out[0].d > 0, `the untrained: dropped ${out[0].d}, went off ${out[0].sh} in 2000`);
+      assert(out[2].d === 0 && out[2].sh === 0, 'an expert only fumbles');
+      // (and the round goes somewhere: drawing, often your own leg)
+      let self = 0, others = 0;
+      for (let k = 0; k < 40; k++) { const w = armed(10 + k, [0, 0]); const before = w.g.people[w.g.player].injuries?.length ?? 0; discharge(w.g, null, w.me, w.p, w.id, 'draw'); if ((w.g.people[w.g.player].injuries?.length ?? 0) > before) self++; else if (Object.values(w.g.people).some(q => q !== w.p && q.injuries?.some(i => i.gunshot))) others++; }
+      assert(self > 5, `a discharge drawing: into your own leg ${self} times in 40, someone else ${others}`);
+      console.log(`      2000 draws of a chambered Glock: ${out.map(o => `${o.who} fumbled ${o.f}, dropped ${o.d}, went off ${o.sh}`).join('; ')}; a discharge drawing, 40 of them: your own leg ${self}, someone else ${others}`);
     },
   },
 ];

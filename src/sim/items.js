@@ -25,7 +25,7 @@ import { mouthOf } from './map/street.js';
 import { townOf } from './cities/index.js';
 import { stream, hash, int, chance, pick, range, weighted } from './rng.js';
 import { WEAPONS, weaponOf, sizeOf } from './weapons.js';
-import { BOX, isArm, isGun, isMag, isLong, armOf, moveArm } from './firearms.js';
+import { BOX, isArm, isGun, isMag, isLong, isBox, boxCal, boxWord, armName, armOf, moveArm } from './firearms.js';
 import { packsOf, useSupply, supplyWord } from './medicine.js';
 import { bookOf } from './training.js';
 import { say } from './log.js';
@@ -170,6 +170,7 @@ export function pickUp(state, p, a, it) {
     if (g?.type === 'gun') { if (g.by !== p.id) g.known = false; g.by = p.id; }
   }
   if (isMag(it.kind)) { (p.items ??= []).push(it.kind); if (placed(p).out.find(o => o.kind === it.kind)?.at) return null; p.items.pop(); }   // (a magazine goes in a pocket, if there's room)
+  if (isBox(it.kind)) { const cal = boxCal(it.kind); (p.rounds ??= {})[cal] = (p.rounds[cal] ?? 0) + (it.n ?? 0); return null; }   // (a box of rounds: with yours of its calibre)
   if (p.hand) off = stow(p) ? null : drop(state, p, a);
   p.hand = it.kind;
   return off;
@@ -226,11 +227,17 @@ export function use(state, bus, a, cmd) {
     say(state, bus, { kind: 'note', text: `You take out ${weaponOf(kind).name}.` });
   } else if (verb === 'stow' && was) {
     say(state, bus, { kind: 'note', text: stow(p) ? `You put ${weaponOf(was).name} away.` : `Nowhere to put ${weaponOf(was).name}.` });
+  } else if (verb === 'drop' && isBox(kind)) {                      // (a box of loose rounds, the lot of that calibre, on the ground: 'drop:box-9x19')
+    const cal = boxCal(kind), n = p.rounds?.[cal] ?? 0;
+    if (!n) return;
+    delete p.rounds[cal];
+    drop(state, p, a, kind).n = n;
+    say(state, bus, { kind: 'note', text: `You put ${boxWord(cal, n)} down.` });
   } else if (verb === 'drop' && kind) {
     if (p.hand !== kind && (p.items ?? []).includes(kind)) { p.items.splice(p.items.indexOf(kind), 1); drop(state, p, a, kind); }
     else if (p.hand === kind) drop(state, p, a);
     else return;
-    say(state, bus, { kind: 'note', text: `You drop ${weaponOf(kind).name}.` });
+    say(state, bus, { kind: 'note', text: `You drop ${weaponOf(kind)?.name ?? armName(kind) ?? 'it'}.` });
   } else if (verb === 'discard' && kind) {
     const n = Number(arg) || 1;
     if (kind === 'book') {                                           // (not thrown: left, with what you'd read of it. 'discard:book:<id>')

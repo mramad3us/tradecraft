@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { PX_PER_M } from '../art/pixelart.js';
 import { lyingAbout } from '../sim/items.js';
 import { hash } from '../sim/rng.js';
-import { isGun, isMag, isLong } from '../sim/firearms.js';
+import { isGun, isMag, isBox, isLong } from '../sim/firearms.js';
 
 export const MAX_PIXELS = 3000;
 const INK = 0x14151c;
@@ -41,11 +41,12 @@ export const SHAPES = {
   pistol: ['ssssss', 'ss    '],                                    // (a handgun: sim/firearms.js)
   rifle: ['sssssssssssss', 'ss  s        '],                      // (a long gun)
   mag: ['ssss'],
+  box: ['yyy', 'yyy'],                                             // (a box of rounds)
 };
 
 /** The pixels of one item: [{ x, z, c }] in metres, its outline first. */
 function pixels(it) {
-  const kind = isMag(it.kind) ? 'mag' : isGun(it.kind) ? (isLong(it.kind) ? 'rifle' : 'pistol') : it.kind;   // (a gun's or a magazine's id: sim/firearms.js)
+  const kind = isMag(it.kind) ? 'mag' : isBox(it.kind) ? 'box' : isGun(it.kind) ? (isLong(it.kind) ? 'rifle' : 'pistol') : it.kind;   // (a gun's, a magazine's, a box's id: sim/firearms.js)
   const rows = SHAPES[kind] ?? SHAPES.stick, h = hash(it.id), P = 1 / PX_PER_M;
   const along = h % 2 === 0, flip = (h >> 1) % 2 === 1;
   const W = Math.max(...rows.map(r => r.length)), H = rows.length, on = new Set(), out = [];

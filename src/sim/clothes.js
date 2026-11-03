@@ -25,7 +25,7 @@
 // time, if there's room, and what's on you put back. Nothing comes out of it unasked (the user,
 // 2026-10-31: "i never asked to take the medication when washing up").
 import { weaponOf } from './weapons.js';
-import { armName } from './firearms.js';
+import { armName, isBox, boxCal, boxWord } from './firearms.js';
 import { bookOf } from './training.js';
 import { fits, fitsSupply, placed, ALWAYS } from './items.js';
 import { hash } from './rng.js';
@@ -190,7 +190,8 @@ export function wardrobeWays(p) {
   for (const x of p.wardrobe ?? []) out.push({ key: `wear:${x.id}`, label: `Put on ${x.name}${p.look?.[x.slot] ? `, for ${nameOf(x.slot, p.look[x.slot])}` : ''}` });
   for (const slot of ['hat', 'glasses']) if (p.look?.[slot] && p.look[slot].kind !== 'hijab') out.push({ key: `off:${slot}`, label: `Take off ${nameOf(slot, p.look[slot])}` });
   for (const k of [p.hand, ...(p.items ?? [])].filter(Boolean)) out.push({ key: `leave:${k}`, label: `Leave ${thingName(k)} in the drawer` });
-  (p.stash ?? []).forEach((k, i) => out.push({ key: `take:${i}`, label: `Take ${thingName(k)} from the drawer` }));
+  for (const [cal, n] of Object.entries(p.rounds ?? {})) if (n > 0) out.push({ key: `leave:box-${cal}`, label: `Leave ${boxWord(cal, n)} in the drawer` });   // (loose rounds, by the box: sim/firearms.js)
+  (p.stash ?? []).forEach((k, i) => out.push({ key: `take:${i}`, label: `Take ${isBox(k) ? boxWord(boxCal(k), p.stashN?.[k] ?? 0) : thingName(k)} from the drawer` }));
   return out;
 }
 
@@ -211,6 +212,14 @@ export function dress(p, key) {
     (p.wardrobe ??= []).push(was);
     return `${cap(was.name)} off, and put away.`;
   }
+  if (what === 'leave' && isBox(arg)) {                               // (a box of rounds: the lot of that calibre, counted, p.stashN)
+    const cal = boxCal(arg), n = p.rounds?.[cal] ?? 0;
+    if (!n) return null;
+    delete p.rounds[cal];
+    if (!(p.stash ??= []).includes(arg)) p.stash.push(arg);
+    (p.stashN ??= {})[arg] = (p.stashN[arg] ?? 0) + n;
+    return `${cap(boxWord(cal, p.stashN[arg]))} in the drawer.`;
+  }
   if (what === 'leave') {
     if (p.hand === arg) p.hand = null;
     else { const i = (p.items ?? []).indexOf(arg); if (i < 0) return null; p.items.splice(i, 1); }
@@ -221,6 +230,7 @@ export function dress(p, key) {
     const k = p.stash?.[Number(arg)];
     if (!k) return null;
     p.stash.splice(Number(arg), 1);
+    if (isBox(k)) { const cal = boxCal(k), n = p.stashN?.[k] ?? 0; delete p.stashN?.[k]; (p.rounds ??= {})[cal] = (p.rounds[cal] ?? 0) + n; return `${cap(boxWord(cal, n))} from the drawer, in a pocket.`; }
     const at = carry(p, k);
     return `${cap(thingName(k))} from the drawer, ${at === 'hand' ? 'in your hand' : at === 'pocket' ? 'in a pocket' : 'in the bag'}.`;
   }

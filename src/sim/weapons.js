@@ -26,7 +26,7 @@
 // thrusts with its end too. Armed, the trained use the weapon most of the time but not always
 // (WEAPON_PREF: the user, "skilled characters will prefer hitting with a weapon than kick or elbow
 // most of the time but not all the time"); the untrained nearly always.
-import { MODELS, isGun, isMag, modelOf, magSize, isLong } from './firearms.js';
+import { MODELS, isGun, isMag, isBox, modelOf, magSize, isLong } from './firearms.js';
 
 export const SOLID_GUARD = 0.8;
 // (length cm, volume litres; the long ones go nowhere but the hand. Not only weapons: everything that goes in
@@ -40,7 +40,7 @@ export const SIZES = {
   pipe: [90, 1.5], crowbar: [75, 1.2], stick: [90, 1.0], umbrella: [90, 1.2], shovel: [130, 6],
 };
 // (a gun or a magazine is carried by its id, `${model}#n` or `mag#n`: sim/firearms.js; its size is its model's)
-export const sizeOf = (kind) => (isGun(kind) ? modelOf(kind).size : isMag(kind) ? magSize(kind) : SIZES[kind] ?? [100, 5]);
+export const sizeOf = (kind) => (isGun(kind) ? modelOf(kind).size : isMag(kind) ? magSize(kind) : isBox(kind) ? SIZES.rounds : SIZES[kind] ?? [100, 5]);
 export const HEAVY_K = 1.5;
 export const FUMBLE_PER_PT = 0.08;
 export const NO_GRAB = -6;

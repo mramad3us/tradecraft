@@ -37,12 +37,13 @@
 //
 // **Every action on a gun takes its time and a roll** against Weapon handling (ACTIONS: base seconds and a
 // DC; act()): time is base × pace(skill) (a long gun's 15% slower in the hands), and the roll, failed, costs
-// FUMBLE_K more of it; failed by MISHAP_BY or more (or a natural 1 short by NAT1_BY) is a mishap: the gun or
-// the magazine dropped, or, ready to fire, a shot where it pointed (the caller's to resolve: act() says so).
+// FUMBLE_K more of it; failed worse (DROP_BY), the gun or the magazine dropped; worse still (DISCHARGE_BY), and
+// ready to fire, a shot where it pointed (the caller's to resolve: act() says so). Only a poor hand fails by that
+// much: a master's natural 1 is a fumble, an untrained hand's can be a shot.
 // Stress and the dark make every action harder (the caller's mods).
 import { check } from './checks.js';
 import { skill } from './skills.js';
-import { chance } from './rng.js';
+import { chance, next } from './rng.js';
 
 // What each kind of gun is like to use: how far it reaches (sim/shooting.js: a DC by the metre and the
 // metre's square), aimed (sight: the sight picture, turn: how quickly it comes round, × a pistol's), held
@@ -58,11 +59,21 @@ export const KINDS = {
   shotgun: { word: 'a shotgun', perM: 0.3, perM2: 0.02, sight: 1.1, turn: 0.85, hands: 2, maxM: 50, close: -3, closeM: 12 },
 };
 // What a round does (dmg: × the bullet's points, sim/shooting.js); less: less-lethal (a traumatic pistol's rubber).
+// word: the cartridge by its name (the user, 2026-11-03: "ammunition shouldn't be 'rounds' it should be very specific
+// calibers based on specific caliber magazines used on specific weapons"): a box of it is a box of that.
 export const CALIBRES = {
-  '9x17': { dmg: 0.8 }, '9x18': { dmg: 0.9 }, '9x19': { dmg: 1 }, '7.62x25': { dmg: 1.05 }, '.45': { dmg: 1.15 }, '.38': { dmg: 0.95 }, '.357': { dmg: 1.25 },
-  '10x28T': { dmg: 0.2, less: true }, '4.6x30': { dmg: 1.05 }, '9x39': { dmg: 1.45 },
-  '5.45x39': { dmg: 1.5 }, '5.56x45': { dmg: 1.5 }, '7.62x39': { dmg: 1.7 }, '7.62x51': { dmg: 2 }, '7.62x54R': { dmg: 2.05 }, '12ga': { dmg: 2.2 },
+  '9x17': { dmg: 0.8, word: '.380 ACP (9×17 mm)' }, '9x18': { dmg: 0.9, word: '9×18 mm Makarov' }, '9x19': { dmg: 1, word: '9×19 mm Parabellum' },
+  '7.62x25': { dmg: 1.05, word: '7.62×25 mm Tokarev' }, '.45': { dmg: 1.15, word: '.45 ACP' }, '.38': { dmg: 0.95, word: '.38 Special' }, '.357': { dmg: 1.25, word: '.357 Magnum' },
+  '10x28T': { dmg: 0.2, less: true, word: '10×28 mm T rubber' }, '4.6x30': { dmg: 1.05, word: '4.6×30 mm' }, '9x39': { dmg: 1.45, word: '9×39 mm subsonic' },
+  '5.45x39': { dmg: 1.5, word: '5.45×39 mm' }, '5.56x45': { dmg: 1.5, word: '5.56×45 mm NATO' }, '7.62x39': { dmg: 1.7, word: '7.62×39 mm' },
+  '7.62x51': { dmg: 2, word: '7.62×51 mm NATO' }, '7.62x54R': { dmg: 2.05, word: '7.62×54 mmR' }, '12ga': { dmg: 2.2, word: '12-gauge buckshot' },
 };
+/** A calibre by its name ('9×19 mm Parabellum'). */
+export const calWord = (cal) => CALIBRES[cal]?.word ?? cal;
+/** A box of loose rounds, as a thing on the ground or in the drawer: `box-${calibre}` (its count kept beside it). */
+export const isBox = (id) => typeof id === 'string' && id.startsWith('box-') && !!CALIBRES[id.slice(4)];
+export const boxCal = (id) => (isBox(id) ? id.slice(4) : null);
+export const boxWord = (cal, n) => `a box of ${calWord(cal)}${n !== undefined ? ` (${n})` : ''}`;
 // A box magazine's family: its rounds and its size (one made for a pistol is its model's, MAG_SIZE).
 export const FAMILIES = {
   ak545: { word: 'an AK-74 magazine', cap: 30, size: [23, 0.3] }, ak762: { word: 'an AKM magazine', cap: 30, size: [24, 0.32] },
@@ -135,7 +146,13 @@ export const SERVICE_MIN = 30;
 export const MISFIRE = 0.002, MISFIRE_WORN = 0.05;                 // (a round that doesn't go off: new, and as the gun goes to BROKEN)
 export const JAM = 0.004, JAM_WORN = 0.12, JAM_LIMP = 0.03, LIMP_BELOW = 6;   // (a stoppage as it cycles; a weak grip's on a pistol, Weapon handling under LIMP_BELOW)
 export const DOUBLE_SHARE = 0.3;                                   // (of stoppages, a double feed; the rest a stovepipe)
-export const FUMBLE_K = 0.6, MISHAP_BY = 8, NAT1_BY = 3;
+// A roll failed (the user, 2026-11-03: "fumbling should have consequences … the consequence should depend on weapons
+// handling skill … could result in accidental discharge"): short by under DROP_BY, a fumble, FUMBLE_K more time; by
+// DROP_BY, it's dropped (the magazine, putting one in or taking it out); by DISCHARGE_BY, and ready to fire, it
+// goes off (sim/shooting.js discharge()). A natural 1 is the hand's: under NAT1_DROP_BELOW Weapon handling a drop,
+// NAT1_DROP of the time; under NAT1_SHOT_BELOW (the untrained) a shot NAT1_SHOT of the time too, if it's ready;
+// the rest, and better hands always, a fumble.
+export const FUMBLE_K = 0.6, DROP_BY = 6, DISCHARGE_BY = 10, NAT1_DROP_BELOW = 10, NAT1_SHOT_BELOW = 5, NAT1_SHOT = 0.4, NAT1_DROP = 0.4;
 export const PACE = { min: 0.5, max: 1.6, per: 1 / 30 };          // (time × max − skill × per, between min and max)
 export const LONG_K = 1.15;                                         // (a long gun's actions, slower in the hands)
 export const AUTO_ROUNDS = 4;                                      // (a short burst, on auto: sim/shooting.js)
@@ -174,7 +191,7 @@ export const famCap = (fam) => FAMILIES[fam]?.cap ?? MODELS[fam]?.cap ?? 0;
 export const magModel = (id) => (isMag(id) ? id.slice(4, id.indexOf('#')) : null);
 export const magSize = (id) => FAMILIES[magModel(id)]?.size ?? MAG_SIZE;
 /** A gun's or a magazine's name, from its id alone (for the pockets, the drawer, the log). */
-export const armName = (id) => (isGun(id) ? modelOf(id).name : isMag(id) ? FAMILIES[magModel(id)]?.word ?? `a ${MODELS[magModel(id)]?.short ?? 'pistol'} magazine` : null);
+export const armName = (id) => (isGun(id) ? modelOf(id).name : isMag(id) ? `${FAMILIES[magModel(id)]?.word ?? `a ${(MODELS[magModel(id)]?.name ?? 'a pistol').replace(/^an? /, '')} magazine`}, ${calWord(famCal(magModel(id)))}` : isBox(id) ? boxWord(boxCal(id)) : null);
 /** Whether a long gun (two hands: a sling, not a pocket). */
 export const isLong = (id) => (kindOf(id)?.hands ?? 1) > 1;
 /** A gun's or a magazine's state ({ type, … }), kept by its holder h (a sheet, or a thing lying about: h.arms), or null. */
@@ -282,14 +299,18 @@ export function act(rng, p, id, action, opts = {}) {
   let s = base.s * pace(p);
   if (!roll.ok) s *= 1 + FUMBLE_K;
   const out = { ms: Math.round(s * 1000), ok: roll.ok, roll, mishap: null, did: action, text: '' };
-  if (!roll.ok && (roll.margin <= -MISHAP_BY || (roll.nat === 1 && roll.margin <= -NAT1_BY))) {   // (a natural 1 alone is a fumble: a mishap only in a poor hand)
-    // (a mishap: what a fumbling hand does with a gun)
-    if (ready(g, M) && ['draw', 'holster', 'safety', 'selector', 'check', 'insertMag', 'closeCyl'].includes(action)) { out.mishap = 'discharge'; fire(rng, p, id); }
+  // (a natural 1's own die: what the hand does with it, by the hand)
+  const u = !roll.ok && roll.nat === 1 && roll.value < NAT1_DROP_BELOW ? next(rng) : 1;
+  const shot = !roll.ok && (roll.margin <= -DISCHARGE_BY || (roll.value < NAT1_SHOT_BELOW && u < NAT1_SHOT));
+  const drop = !roll.ok && (shot || roll.margin <= -DROP_BY || u < (roll.value < NAT1_SHOT_BELOW ? NAT1_SHOT : 0) + NAT1_DROP);
+  if (drop) {
+    // (a mishap: what a fumbling hand does with a gun, worse the worse the hand)
+    if (shot && ready(g, M) && ['draw', 'holster', 'safety', 'selector', 'check', 'insertMag', 'closeCyl', 'rack', 'release'].includes(action)) { out.mishap = 'discharge'; out.fired = fire(rng, p, id); }
     else if (['insertMag', 'dropMag', 'stowMag'].includes(action)) out.mishap = 'dropMag';
     else out.mishap = 'dropped';
-    out.text = { discharge: 'Your finger was on the trigger: it went off.', dropMag: 'The magazine slips out of your fingers.', dropped: 'It slips out of your hand.' }[out.mishap];
+    out.text = { discharge: 'Your finger\'s inside the trigger guard, and it goes off.', dropMag: 'The magazine slips out of your fingers and clatters away.', dropped: `${M.short} slips out of your hand and clatters on the ground.` }[out.mishap];
     if (out.mishap !== 'dropMag') return out;
-  }
+  } else if (!roll.ok) out.fumbled = true;
   const mag = g.mag && armOf(p, g.mag), loose = p.rounds?.[M.cal] ?? 0;
   switch (action) {
     case 'safety': g.safety = !g.safety; out.text = g.safety ? 'Safety on.' : 'Safety off.'; break;

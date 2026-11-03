@@ -51,6 +51,7 @@ import { spotIn, ways, doWay } from './shops.js';
 import { pay } from './money.js';
 import { weaponOf } from './weapons.js';
 import { offer as bookOffer, open as openBook } from './reading.js';
+import { armName, isBox, boxCal, boxWord } from './firearms.js';
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 // (in a shop: the spot's act, and the instinct's words for it)
@@ -181,7 +182,7 @@ export function affordance(state, me) {
   if (book) return book;
   if (!me || me.ai || me.busy || me.inside || me.glass || me.gait === 'sit') return null;
   const it = itemNear(state, me);
-  if (it) return { act: 'pickup', text: ` {use} pick up ${weaponOf(it.kind)?.name ?? 'it'}.` };
+  if (it) return { act: 'pickup', text: ` {use} pick up ${weaponOf(it.kind)?.name ?? (isBox(it.kind) ? boxWord(boxCal(it.kind), it.n) : armName(it.kind)) ?? 'it'}.` };
   if (state.map.kind !== 'street' || !sectionAt(state, me.x)) return null;
   // (at the kerb: the zebra if it's there, else a taxi; the window behind you is for the pavement)
   const kerb = atKerb(state, me), cross = crossingNear(state, me, 4);

@@ -12,7 +12,7 @@ import { heldIcon } from '../art/sprites.js';
 import { doll as figure, W as DOLL_W, H as DOLL_H } from '../art/doll.js';
 import { placed, fits, SPACES, ALWAYS } from '../sim/items.js';
 import { weaponOf } from '../sim/weapons.js';
-import { isGun, isMag, isLong, armOf, armName, modelOf as gunModel } from '../sim/firearms.js';
+import { isGun, isMag, isLong, armOf, armName, boxWord, modelOf as gunModel } from '../sim/firearms.js';
 import { worn } from '../sim/clothes.js';
 import { cashOf } from '../sim/money.js';
 import { bagWord } from '../sim/clothes.js';
@@ -45,17 +45,17 @@ export function openPockets(host, state, deps) {
         first[0].startsWith('drop:') ? null : el('button', { onclick: go(`drop:${kind}`) }, 'Drop')));
   };
   // (something small: its picture, its name, thrown away if it can be)
-  const small = ({ kind, n, id }) => {
-    const word = isMag(kind) ? `${cap(armName(kind))}: ${armOf(p, kind)?.n ?? '?'} rounds` : kind === 'rounds' ? `${n} loose rounds` : kind === 'book' ? bookOf(id).title : kind === 'wallet' ? `Wallet: ${deps.price(cashOf(p))}` : kind === 'phone' ? 'Your phone' : kind === 'burner' ? (n > 1 ? `${n} burners` : 'A burner') : cap(supplyWord(kind, n));
+  const small = ({ kind, n, id, cal }) => {
+    const word = isMag(kind) ? `${cap(armName(kind))}: ${armOf(p, kind)?.n ?? '?'} in it` : kind === 'rounds' ? cap(boxWord(cal, n)) : kind === 'book' ? bookOf(id).title : kind === 'wallet' ? `Wallet: ${deps.price(cashOf(p))}` : kind === 'phone' ? 'Your phone' : kind === 'burner' ? (n > 1 ? `${n} burners` : 'A burner') : cap(supplyWord(kind, n));
     return el('div', { className: 'pk-thing' }, pixIcon(SUPPLY_PIX[kind]), el('span', { className: 'pk-name' }, word),
-      ALWAYS.includes(kind) || kind === 'rounds' ? null : isMag(kind) ? el('span', { className: 'pk-btns' }, el('button', { onclick: go(`drop:${kind}`) }, 'Drop')) : el('span', { className: 'pk-btns' }, el('button', { className: 'pk-bin', title: kind === 'book' ? 'Leave it behind, to make room (what you\'ve read of it goes too)' : 'Throw it away, to make room', onclick: go(`discard:${kind}:${kind === 'book' ? id : n}`) }, 'Bin')));
+      ALWAYS.includes(kind) ? null : kind === 'rounds' ? el('span', { className: 'pk-btns' }, el('button', { onclick: go(`drop:box-${cal}`), title: 'Put the box down where you stand' }, 'Drop')) : isMag(kind) ? el('span', { className: 'pk-btns' }, el('button', { onclick: go(`drop:${kind}`) }, 'Drop')) : el('span', { className: 'pk-btns' }, el('button', { className: 'pk-bin', title: kind === 'book' ? 'Leave it behind, to make room (what you\'ve read of it goes too)' : 'Throw it away, to make room', onclick: go(`discard:${kind}:${kind === 'book' ? id : n}`) }, 'Bin')));
   };
   // (what's in a place: a weapon by itself, the same small things together)
   const row = (list) => {
     const out = [];
     for (const o of list) {
       if (weaponOf(o.kind) || o.kind === 'book') { out.push({ ...o }); continue; }
-      const had = out.find(x => x.kind === o.kind);
+      const had = out.find(x => x.kind === o.kind && x.cal === o.cal);   // (rounds by their calibre: a box each)
       if (had) had.n += o.n ?? 1; else out.push({ ...o, n: o.n ?? 1 });
     }
     return out.map(o => (weaponOf(o.kind) ? thing(o.kind, false) : small(o)));
