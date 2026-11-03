@@ -47,7 +47,7 @@ import { Z, streetName } from '../map/street.js';
 import { townOf, cityById, FIRST_TOUR_CITY } from '../cities/index.js';
 import { skip, newMap } from '../game.js';
 import { eat, soothe } from '../needs.js';
-import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, watched, KINDS, WORK, TRAVEL, EXCUSES } from '../campaign.js';
+import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, watched, KINDS, WORK, TRAVEL, EXCUSES, EXCUSE_LINES } from '../campaign.js';
 import { screen } from '../screening.js';
 import { ways as tableWays, work as gunWork } from '../gunwork.js';
 import { discharge } from '../shooting.js';
@@ -132,8 +132,8 @@ export const campaignHub = {
       eat(state.people.me, state.time.ms - 4 * HOUR, 5);             // (lunch in the canteen: sim/needs.js)
       if (state.scenario.outcome) return;
       // (at your desk: still there at six, up from it; from anywhere else, the day worked and out of its door)
-      if (here) { const me = state.actors.find(a => a.who === state.player), d = spotOf(state, 'desk'); if (me && d) Object.assign(me, { x: d.x, z: d.z, face: 'left', head: headOf('left'), gait: 'idle' }); say(state, bus, { kind: 'note', text: 'Six o\'clock: the cables read, the safe locked, your coat off the back of the chair.' }); }
-      else { goTo(state, bus, c.posting.embassy, `${early ? `${clockText(to)}, out early (${EXCUSES[Math.floor(now / DAY) % EXCUSES.length]}, you told them),` : 'Six o\'clock, and out of the embassy'} onto ${streetName(townOf({ seed: c.posting.mapSeed, city: c.posting.city }), c.posting.embassy.row)}.`); outing(state, 'embassy'); }
+      if (here) { const me = state.actors.find(a => a.who === state.player), d = spotOf(state, 'desk'); if (me && d) Object.assign(me, { x: d.x, z: d.z, face: 'left', head: headOf('left'), gait: 'idle' }); say(state, bus, { kind: 'note', text: early ? `${EXCUSE_LINES[Math.floor(now / DAY) % EXCUSE_LINES.length]} ${clockText(to)}: the safe locked, your coat off the back of the chair.` : 'Six o\'clock: the cables read, the safe locked, your coat off the back of the chair.' }); }
+      else { goTo(state, bus, c.posting.embassy, `${early ? `${clockText(to)}, out early (${EXCUSES[Math.floor(now / DAY) % EXCUSES.length]}, as the chief's assistant reminded you, for the section's ears),` : 'Six o\'clock, and out of the embassy'} onto ${streetName(townOf({ seed: c.posting.mapSeed, city: c.posting.city }), c.posting.embassy.row)}.`); outing(state, 'embassy'); }
     } else if (what === 'sleep') {                                  // (a night's sleep, and breakfast: sim/needs.js; you wake in the flat)
       until(rest(c, now), state.map.place === 'home' ? 'To bed.' : 'Home, and to bed.'); soothe(state.people.me, 60);   // (rested, calmer: not fed; sim/needs.js)
       if (state.map.place !== 'home' && !state.scenario.outcome) enterHome(state, bus, 'sleep');

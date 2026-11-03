@@ -53,11 +53,11 @@ export default [
             p.cash = 2000;
             const w = ways(g, d, 'counter').map(o => o.id), way = { gym: 'train', club: 'class', school: 'lesson' }[kind] ?? w.find(x => x.startsWith('book:'));
             assert(w.includes(way), `${city} ${kind}: offered (${w.join(', ')})`);
-            const t0 = g.time.ms, cash0 = cashOf(p), before = JSON.stringify([p.skills, p.langs, p.training]);
+            const t0 = g.time.ms, cash0 = cashOf(p), before = JSON.stringify([p.skills, p.langs, p.training, p.fit]);
             step(g, { act: [`shop:${way}`] }, null);
             for (let t = 0; t < 20 * 200 && me.inside; t++) step(g, {}, null);   // (a book's three minutes at the counter; the hours of the rest, skipped by the game)
             const mins = (g.time.ms - t0) / 60000;
-            assert(cashOf(p) < cash0 && (kind === 'books' ? p.books?.length === 1 : JSON.stringify([p.skills, p.langs, p.training]) !== before), `${city} ${kind}: paid, and something for it`);
+            assert(cashOf(p) < cash0 && (kind === 'books' ? p.books?.length === 1 : JSON.stringify([p.skills, p.langs, p.training, p.fit]) !== before), `${city} ${kind}: paid, and something for it`);   // (the gym: the week's training load, sim/fitness.js)
             if (kind === 'books') {
               // (and an hour of it over a coffee: at a café, 'read')
               const c = atShop(g, 'cafe', 'sit');

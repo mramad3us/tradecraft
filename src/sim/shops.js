@@ -38,6 +38,8 @@ import { price, pay, cashOf, BITE_USD } from './money.js';
 import { RAIL, GOODS, SLOTS, railOf, putOn, carry, shed } from './clothes.js';
 import { weaponOf } from './weapons.js';
 import { train, learn, shelf, bookOf, bookLine } from './training.js';
+import { exercise, weekWords, SESSION_PTS, CLASS_PTS } from './fitness.js';
+import { practise } from './rust.js';
 import { onYou, cardOf, PASTIME } from './reading.js';
 import { fits } from './items.js';
 import { taughtIn } from './cities/index.js';
@@ -248,10 +250,15 @@ export function insideTick(state, bus, me, scenario) {
     say(state, bus, { kind: 'note', text: `${ins.what.charAt(0).toUpperCase() + ins.what.slice(1)}: ${at === 'hand' ? 'in your hand' : at === 'pocket' ? 'in a pocket' : at === 'some' ? 'what would go in your pockets, and the rest in the shop\'s bag' : 'in the shop\'s bag, no room for it about you'}.` });
   } else if (ins.way === 'train' || ins.way === 'class') {
     // (the gym: fitness; the club: close combat; hungry after, as you would be)
-    const g = ins.way === 'train' ? train(p, 'fitness', GYM_S / 3600, GYM_UP_TO) : train(p, 'cqc', CLASS_S / 3600, CLUB_UP_TO), what = ins.way === 'train' ? 'Fitness' : 'CQC';
+    // (a session's load on your fitness, sim/fitness.js; the club's on your close combat as before, and a session of its practice, sim/rust.js)
+    const g = ins.way === 'train' ? null : train(p, 'cqc', CLASS_S / 3600, CLUB_UP_TO), what = 'CQC';
+    exercise(state, bus, p, ins.way === 'train' ? SESSION_PTS : CLASS_PTS);
+    if (ins.way === 'class') practise(state, bus, p, 'cqc', 1);
     p.workedOut = state.time.ms;                                   // (and that's the day's: WORKOUT_GAP_H)
     if (p.needs) p.needs.ate = Math.min(p.needs.ate ?? state.time.ms, state.time.ms - 3 * HOUR);
-    say(state, bus, { kind: 'note', text: `${ins.way === 'train' ? 'The weights, the bag, the bike to nowhere: an hour and a half, and a shower.' : 'Two hours of throws and falls, and holds you can\'t get out of until you can.'} ${g.gained ? `${what} up a point: ${g.base}.` : g.toNext === null ? `${ins.way === 'train' ? 'The gym' : 'The club'} has taught you all it can.` : `${Math.ceil(g.toNext)} hours more to the next point.`}` });
+    const W = weekWords(p, state.time.ms);
+    if (!g) say(state, bus, { kind: 'note', text: `The weights, the bag, the bike to nowhere: an hour and a half, and a shower. This week's training: ${W.load}${W.up ? ` of the ${W.up} that would make you fitter` : ''}; ${W.hold} keeps you as you are.` });
+    else say(state, bus, { kind: 'note', text: `${ins.way === 'train' ? 'The weights, the bag, the bike to nowhere: an hour and a half, and a shower.' : 'Two hours of throws and falls, and holds you can\'t get out of until you can.'} ${g.gained ? `${what} up a point: ${g.base}.` : g.toNext === null ? `${ins.way === 'train' ? 'The gym' : 'The club'} has taught you all it can.` : `${Math.ceil(g.toNext)} hours more to the next point.`}` });
   } else if (ins.way === 'lesson') {
     const lang = langHere(state), g = learn(p, lang, LESSON_S / 3600, 'fluent');
     say(state, bus, { kind: 'note', text: `Ninety minutes of ${LANG_NAME[lang] ?? 'the language'}: verbs, a newspaper read aloud, the teacher's patience. ${g.gained ? `Your ${LANG_NAME[lang]} is ${g.level} now.` : g.toNext === null ? 'There\'s nothing more the school can teach you.' : `${Math.ceil(g.toNext)} hours more to the next level.`}` });

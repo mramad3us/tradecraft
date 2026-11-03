@@ -18,6 +18,7 @@
 // five of them a point (fewer in riskier Moscow); at 60, twenty-five; at 95, a legend's, a point is some 7,000
 // XP, and nothing much moves them.
 import { won } from './checks.js';
+import { practise, ROLL_SESSION } from './rust.js';
 
 export const COST0 = 8, COST_FROM = 20, COST_K = Math.pow(6.25, 1 / 20);   // (a point: 8 XP at 20, 50 at 40, 312 at 60, some 7,000 at 95)
 export const ROLL_XP = 0.1;
@@ -60,6 +61,9 @@ export function missionXP({ kind, outcome, craft = null, team = 'none', risk = 1
 export function fromRoll(state, e) {
   if (!e?.roll || e.hidden || !state?.player) return;
   if (won(e.roll)) gain(state.people[state.player], ROLL_XP);
+  // (and a little practice at the skill rolled, won or not: what you use keeps, sim/rust.js; yours, their side's skill when it's their roll)
+  const key = e.roll.kind === 'opposed' ? (e.roll.them ? e.roll.theirs?.skill : e.roll.ours?.skill) : e.roll.skill;
+  if (key && !e.roll.them && state.campaign) practise(state, null, state.people[state.player], key, ROLL_SESSION);
 }
 
 /** Where they stand: Tradecraft, and the XP toward the next point, in words for the sheet and the debrief. */

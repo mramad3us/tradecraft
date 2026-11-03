@@ -433,7 +433,17 @@ export function pass(c, from, to) {
 
 // (out early for an assignment before six: the user, 2026-11-03, "the work day should automatically end soon enough and
 // give us an excuse to leave for it"; what you tell the section, by the day)
-export const EXCUSES = ['a dentist\'s appointment', 'a call from a friend\'s school', 'a reception you\'re down for at another embassy', 'a plumber at the flat, at last', 'a meeting with a contact at the ministry, you say, and it\'s nearly true'];
+// (who gives it, and how: the chief's assistant, who knows what you are, says it for the section, who don't: the user,
+// 2026-11-03, "the exact texts you generate should roleplay the excuse the embassy senior staff who know who we are and
+// why we have to get out early give us"). The excuse itself, and the line it's given in.
+export const EXCUSES = ['your dentist', 'the reception at the Canadians\'', 'the plumber at your flat', 'the landlord, again', 'the ministry, the meeting about the visas'];
+export const EXCUSE_LINES = [
+  'The chief\'s assistant puts her head round the door: "Your dentist, don\'t forget. They won\'t hold it." Loud enough for the section.',
+  'The chief\'s assistant, on the internal line, for the room to hear: "The reception at the Canadians\'. The car won\'t wait."',
+  'The chief\'s assistant, passing your desk: "The plumber\'s at your flat at last. Go, before he gives up on you."',
+  'The chief\'s assistant, for the room: "Your landlord\'s been on the phone again. Go and sort it out, please."',
+  'The chief\'s assistant leaves a note on your keyboard, where the section can read it: the ministry, the meeting about the visas, the half hour.',
+];
 /**
  * The cover job: from ms to 18:00 (if it's a working day and before then), or to `end` if that's sooner (an
  * assignment to be off for: an excuse made). Cover standing by the share of the day worked. Returns the time after.
@@ -446,7 +456,7 @@ export function work(c, ms, end = null) {
   c.worked[d] = true;
   const share = Math.max(0.3, Math.min(1, (until - from) / ((WORK.to - WORK.from) * HOUR)));
   c.posting.cover = Math.min(100, c.posting.cover + Math.round(COVER_PER_DAY * share));
-  c.log.push({ ms: until, text: until < six ? `A day at the embassy, and out early: ${EXCUSES[d % EXCUSES.length]}, you tell the section.` : 'A day at the embassy: cables, a meeting about a meeting, the ambassador\'s mood.' });
+  c.log.push({ ms: until, text: until < six ? `A day at the embassy, and out early: ${EXCUSES[d % EXCUSES.length]}, as the chief's assistant reminded you for the section's benefit.` : 'A day at the embassy: cables, a meeting about a meeting, the ambassador\'s mood.' });
   return until;
 }
 

@@ -247,14 +247,14 @@ export default [
       assert(joined === CLUB_MONTH_USD.gym && session === 0, 'a month paid; a session free');
       // (one hard session a day: the second refused, and saying why; the next day, again)
       for (let t = 0; t < 10; t++) step(s, {}, bus);
-      const n0 = s.log.length, sk1 = JSON.stringify(p().skills.fitness), tr1 = p().training?.fitness ?? 0;
+      const n0 = s.log.length, ld1 = p().fit?.load ?? 0;            // (a session's load on your fitness this week: sim/fitness.js)
       step(s, { act: ['shop:train'] }, bus);
       for (let t = 0; t < 10; t++) step(s, {}, bus);
-      assert(p().workedOut && s.log.slice(n0).some(e => /Not today/.test(e.text ?? '')) && (p().training?.fitness ?? 0) === tr1, `a second session the same day: refused (${s.log.slice(n0).map(e => e.text).join(' / ')})`);
+      assert(p().workedOut && s.log.slice(n0).some(e => /Not today/.test(e.text ?? '')) && Math.abs((p().fit?.load ?? 0) - ld1) < 1, `a second session the same day: refused (${s.log.slice(n0).map(e => e.text).join(' / ')})`);
       p().workedOut -= 20 * 3600 * 1000;                             // (a day on)
       step(s, { act: ['shop:train'] }, bus);
       for (let t = 0; t < 10; t++) step(s, {}, bus);
-      assert((p().training?.fitness ?? 0) !== tr1 || JSON.stringify(p().skills.fitness) !== sk1, 'the next day: the gym floor again');
+      assert((p().fit?.load ?? 0) >= ld1 + 9, `the next day: the gym floor again (the week's load ${ld1} → ${p().fit?.load})`);
     },
   },
 ];

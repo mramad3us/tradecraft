@@ -27,10 +27,12 @@ import { SCENARIOS } from '../sim/scenarios/index.js';
 import { placeName } from '../sim/map/street.js';
 import { shownRolls } from '../sim/scenarios/sdr.js';
 import { SCREEN_HALF_M } from '../sim/crowd.js';
-import { SKILLS, CLASSES, TRAINED, skill } from '../sim/skills.js';
+import { SKILLS, CLASSES, TRAINED, skill, rawSkill } from '../sim/skills.js';
 import { feelWords, feltList } from '../sim/sense.js';
 import { sharpM } from '../sim/perception.js';
 import { PARTS, stateOf, stateText, injuriesOn, FITNESS_K } from '../sim/health.js';
+import { weekWords } from '../sim/fitness.js';
+import { rustOff } from '../sim/rust.js';
 import { atHand, options as interactOptions } from '../sim/interact.js';
 import { allowed, cqcOf, BREAK_CQC } from '../sim/cqc.js';
 import { deathPaper } from '../sim/game.js';
@@ -646,7 +648,7 @@ export function createUI({ input, cb }) {
       const [base = 0, practice = 0] = p.skills?.[k] ?? [], w = cls?.weights[k] ?? 0, bg = Math.min(practice, p.bg?.points?.[k] ?? 0);
       return el('tr', { className: base ? '' : 'none' },
         el('td', { textContent: sk.name, title: sk.about }),
-        el('td', { className: 'lvl', textContent: `${LEVEL[base] ?? `base ${base}`}${practice ? ` ${'◆'.repeat(bg)}${'•'.repeat(practice - bg)}` : ''}`, title: bg ? `${bg} from your background` : '' }),
+        el('td', { className: 'lvl', textContent: `${LEVEL[base] ?? `base ${base}`}${practice ? ` ${'◆'.repeat(bg)}${'•'.repeat(practice - bg)}` : ''}${p.rust?.[k] && rustOff(p, k, rawSkill(p, k)) ? ` · rusty −${rustOff(p, k, rawSkill(p, k))}` : ''}${k === 'fitness' && p.fit?.off ? ` · ${p.fit.off > 0 ? 'kept up' : 'let go'} ${p.fit.off > 0 ? '+' : ''}${p.fit.off}` : ''}`, title: [bg ? `${bg} from your background` : '', p.rust?.[k] ? 'Rusty: unpractised a month or more. Two sessions a month keep it; each one takes a step of rust away.' : ''].filter(Boolean).join(' · ') }),
         el('td', { className: 'mult', textContent: w && os ? `× ${(1 + w * os / 100).toFixed(2)}` : '' }),
         el('td', { className: 'val', textContent: String(skill(p, k)) }));
     });
@@ -674,7 +676,9 @@ export function createUI({ input, cb }) {
           p.strain ? el('p', { className: 'blood pale', textContent: `Tired: ${p.strain} to every skill, until you sleep.` }) : null,
           stageOf(p) ? el('p', { className: 'blood shock', textContent: `${Math.round((p.core ?? 37) * 10) / 10} °C: ${({ shivering: 'shivering', hypothermia: 'hypothermia', severe: 'hypothermia, badly', collapse: 'collapsed with the cold', hot: 'too hot', exhaustion: 'heat exhaustion', stroke: 'heat stroke' })[stageOf(p).id] ?? stageOf(p).id}: get ${p.core < 37 ? 'warm' : 'cool'}, and soon.` }) : null,   // (the cold or the heat in you: sim/thermal.js)
           el('p', { className: `blood ${bandOf(p)}`, textContent: `Blood ${Math.round(bloodOf(p))}%: ${BAND_WORDS[bandOf(p)]}${bleedRate(p, state.time.ms) ? `; bleeding ${bleedRate(p, state.time.ms) >= 8 ? 'fast' : bleedRate(p, state.time.ms) >= 0.8 ? 'steadily' : 'a little'} (${input.label('aid')}: first aid)` : ''}.` }),
-          el('p', { className: 'note', textContent: `Fitness ${fit}: the body takes ${fit ? `${Math.round(100 * fit / FITNESS_K)}% more` : 'only what it takes'} before it gives.` }))),
+          el('p', { className: 'note', textContent: `Fitness ${fit}: the body takes ${fit ? `${Math.round(100 * fit / FITNESS_K)}% more` : 'only what it takes'} before it gives.` }),
+          // (how fit you're keeping: this week's training against what your base asks: sim/fitness.js)
+          state.campaign ? (() => { const W = weekWords(p, state.time.ms); return el('p', { className: 'note', textContent: `Your base is ${W.base}${W.off ? `, and you're ${W.off > 0 ? `${W.off} above it` : `${-W.off} below it`}` : ''}. This week's training: ${W.load}; ${W.hold} keeps you as you are${W.up ? `, ${W.up} makes you fitter` : W.cap === 0 ? '; at the top, nothing takes you above it' : ''}.` }); })() : null)),
       el('p', { className: 'note', textContent: `${input.label('sheet')} or ${input.label('menu')} to close.` }),
     ));
     card.hidden = false;

@@ -65,6 +65,8 @@ import * as shooting from './shooting.js';
 import * as armed from './armed.js';
 import * as emergency from './emergency.js';
 import * as reflex from './reflex.js';
+import { onFoot, rollWeeks } from './fitness.js';
+import { rustRoll } from './rust.js';
 import { isGun } from './firearms.js';
 import * as interact from './interact.js';
 import * as talk from './talk.js';
@@ -80,6 +82,7 @@ export const GLANCE_S = 1.2;                                       // a look ove
 export const AUTOSAVE_MS = 30 * MIN;
 const DT = TICK_MS / 1000;
 const TICKS_PER_S = Math.round(1000 / TICK_MS);
+const TELEPORT_M = 10;                                             // (more than this in a second is a jump, not a walk: a new street, a cab)
 export const SLANT_DEG_S = 70;                                     // (the eyes slanted along a shop's glass, E held: degrees a second)
 
 /**
@@ -335,6 +338,14 @@ export function step(state, input = {}, bus) {
   // 6. The map and the crowd, once a second; and whoever bleeds, their blood (sim/health.js).
   if (state.tick % TICKS_PER_S === 0) {
     drips(state);
+    // (your feet's metres, the week's training, the month's rust: sim/fitness.js, sim/rust.js; a jump of more than
+    // TELEPORT_M in a second (a new street, a cab) isn't walking)
+    if (me && mine && state.campaign) {                             // (the campaign's: its weeks and months; a scene's an hour)
+      const d = me.$was ? Math.hypot(me.x - me.$was[0], me.z - me.$was[1]) : 0;
+      if (d > 0.05 && d < TELEPORT_M && !me.cab) onFoot(state, bus, mine, me.gait === 'run' || d > 2.6 ? 0 : d, me.gait === 'run' || d > 2.6 ? d : 0);
+      me.$was = [me.x, me.z];
+      rollWeeks(state, bus, mine); rustRoll(state, bus, mine);
+    }
     if (state.tick % (60 * TICKS_PER_S) === 0) wash(state, weatherAt(state), 1);   // (a minute's weather on the street's blood: sim/blood.js)
     for (const a of state.actors) if (a.who) bloodBeat(state, bus, a, 1);
     notice(state, bus, me);                                         // (blood on you, seen: a face remembered: sim/notice.js)
@@ -419,6 +430,7 @@ export function skip(state, bus, ms) {
   const f = focusActor(state);
   if (f && !recycle(state, f.x, ms)) populate(state, f.x);         // (long enough, and the street's crowd is all new: sim/crowd.js recycle())
   rehash(state);
+  { const p = state.campaign && state.people[state.player]; if (p) { rollWeeks(state, bus, p); rustRoll(state, bus, p); } }   // (weeks of training, months of rust, gone by: sim/fitness.js, sim/rust.js)
   if (Math.floor(state.time.ms / AUTOSAVE_MS) !== before) bus?.emit('autosave', 'skip');
 }
 

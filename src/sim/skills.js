@@ -11,6 +11,7 @@
 // Tradecraft's weights are the design's (my call, to be tuned in playtests). The other classes' tables
 // are settled when they're needed (DESIGN.md, Open questions); until then their over-skill
 // multiplies nothing. The skill list is data, so it can grow or merge.
+import { rustOff } from './rust.js';
 
 export const SKILLS = {
   deception: { name: 'Deception', about: 'Blending in, staying unseen, lying, being hard to remember.' },
@@ -43,7 +44,13 @@ export const LANG_LEVELS = ['none', 'basic', 'working', 'fluent', 'native'];
 
 /** A skill's value on a sheet ({ cls, os, skills: { key: [base, practice] }, strain }): strain, what the body's needs cost every skill (sim/campaign.js fatigue()). */
 export function skill(sheet, key) {
+  const total = rawSkill(sheet, key);
+  return Math.max(0, total - (sheet.rust?.[key] ? rustOff(sheet, key, total) : 0) + (sheet.strain ?? 0));
+}
+/** A skill as it stands before rust and the day's strain: its base, its practice, Tradecraft's multiplier; fitness its effective (sim/fitness.js). */
+export function rawSkill(sheet, key) {
   const [base = 0, practice = 0] = sheet.skills?.[key] ?? [];
   const w = CLASSES[sheet.cls]?.weights[key] ?? 0;
-  return Math.max(0, Math.round((base + practice) * (1 + w * (sheet.os ?? 0) / 100)) + (sheet.strain ?? 0));
+  const own = base + practice + (key === 'fitness' ? sheet.fit?.off ?? 0 : 0);
+  return Math.round(own * (1 + w * (sheet.os ?? 0) / 100));
 }

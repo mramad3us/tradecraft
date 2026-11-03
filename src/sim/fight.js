@@ -32,6 +32,7 @@ import { draw, drop } from './items.js';
 import { wear } from './health.js';
 import { strain } from './needs.js';
 import { chance } from './rng.js';
+import { practise, FIGHT_SESSIONS } from './rust.js';
 
 export const FIGHT_GAP_M = 1.5;
 export const READ_EVERY = 4;
@@ -86,6 +87,7 @@ export function begin(state, bus, them, opts = {}) {
   const me = playerOf(state);
   const f = startFight(state, state.player, them.who, opts);
   strain(state, bus, opts.bout || opts.script ? 3 : 12);            // (a real fight, not a bout: the heart going: sim/needs.js)
+  if (!opts.bout && !opts.script && state.campaign) practise(state, bus, state.people[state.player], 'cqc', FIGHT_SESSIONS);   // (a fight in the street: two sessions' practice, sim/rust.js)
   if (opts.adv) f.adv.a = opts.adv;
   const dir = them.x >= me.x ? 1 : -1;
   f.marks = opts.marks ?? { a: { x: me.x, z: me.z }, b: { x: me.x + dir * FIGHT_GAP_M, z: me.z } };

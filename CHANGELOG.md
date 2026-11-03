@@ -4,6 +4,18 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.17 (2026-11-03)
+
+- **Keeping fit.** Fitness, the skill, is now your base. Your effective fitness, what your body actually does, sits up to 3 above or below it depending on how you train. The week's training is counted:
+  - **The load:** a gym session is 10 points, a class at the club 7, each kilometre walked 0.6 and run 2.5.
+  - **Week's end:** at base 10, 45 points (four sessions and a little walking) put effective up a point, under 22 it drops one, and in between it holds.
+  - **Two weeks at an edge move the base.** Two weeks running at +3 raise the base a point and leave effective where it is, so you're +2 and can climb again. Two weeks at −3 lower it the same way.
+  - **Higher is harder:** base 14 asks 63 points to climb, 18 asks 81. Near the top there's less room above, and at the top (24) you can never be above your base: holding it takes seven sessions a week and plenty of walking.
+  - The gym now gives a week's training rather than base fitness directly. Your sheet shows your base, where you are against it, and this week's load against what it asks.
+- **Rusty skills.** A skill above 15 needs two practice sessions in each four weeks: a class at the club is one for close combat, a fight in the street two, and every roll a quarter of one, so what you use in the field keeps. Short of that, it's a step rustier each month, up to three, each step costing a sixth of what it's above 15. A legend's CQC of 30 left alone three months fights at 22, and each session takes a step back. Fitness has its own keeping, and this only runs in the campaign.
+- **Out early, with cover.** When you leave the embassy early for an assignment, the chief's assistant reminds you of your "appointment" loud enough for the section to hear: the dentist, a reception, the plumber at your flat.
+- Tests: `tests/fitness.test.mjs` (the weeks of training up and down, the top of the scale, rust by the month and its practice back).
+
 ## v0.1.16 (2026-11-03)
 
 - **Fixed: a hood from the side still showed the jaw and neck.** It stopped two rows short of the head's bottom. It now comes down to the collar, the face showing only in its opening (brow, eye, nose), and a beard stays inside it.
