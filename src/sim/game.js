@@ -61,6 +61,7 @@ import { drips } from './blood.js';
 import { glassAhead, affordance, act as doAct } from './acts.js';
 import * as fight from './fight.js';
 import * as shooting from './shooting.js';
+import * as armed from './armed.js';
 import * as interact from './interact.js';
 import * as talk from './talk.js';
 import * as items from './items.js';
@@ -313,7 +314,8 @@ export function step(state, input = {}, bus) {
   }
   // 5. A fight played out (sim/fight.js); the scenario; and what's at hand, for the instinct's line (runtime: sim/acts.js).
   fight.tick(state, bus, scenario);
-  shooting.tick(state, bus);                                       // (a gun's step played out, a quick draw: sim/shooting.js)
+  shooting.tick(state, bus);                                       // (a gun's step played out: sim/shooting.js)
+  armed.tick(state, bus);                                          // (an officer's gun readied, and fired, in real time: sim/armed.js)
   scenario.tick?.(state, bus);
   if (state.tutor) tutorTick(state, bus);                          // (a lesson: Hale in your ear: sim/tutorial/earpiece.js)
   state.$offer = me && !state.fight && !scenario.holds?.(state) ? affordance(state, me) : null;   // (nothing's at hand in a fight, or while the scene has your feet)
@@ -337,7 +339,8 @@ export function step(state, input = {}, bus) {
     } else if (me) me.$atStop = 0;
     metro.stepsTick(state);                                         // (whoever rode with you, up the steps after you: sim/metro.js)
     chaseTick(state);                                               // (whoever kept your taxi in sight, out of their car behind you: sim/taxi.js)
-    if (scenario.police && !state.tutor) { police.patrolTick(state); police.eyeTick(state, bus); }   // (ordinary law: sim/police.js)
+    if (scenario.police && !state.tutor) { police.patrolTick(state); police.eyeTick(state, bus); armed.second(state, bus, me); }   // (ordinary law: sim/police.js; a gun seen, sim/armed.js)
+    if (state.$held) { const ms = state.$held; delete state.$held; skip(state, bus, ms); }   // (taken in: the hours at the station, sim/armed.js arrest())
     if (state.tick % (TICKS_PER_S * 60) === 0 && state.people[state.player]) bodyNotes(state, bus, heal(state.people[state.player], 1 / 1440, state.time.ms, { blood: false }));   // (your wounds, a minute on: sim/medicine.js)
     weatherTick(state, bus);                                        // (the weather turning, in the log: sim/weather.js)
     if (me?.gait === 'run' && !me.ai && !state.fight) slipUp(state, bus, me);

@@ -3,7 +3,8 @@
 // week's review), and assignments run with the campaign's context and folded back: a meeting by way of
 // a detection run, a tail; the character's body carried through.
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
-import { candidates, newCampaign, plan, pass, context, fold, agenda, lieLow, promote, KINDS, CADENCE } from '../src/sim/campaign.js';
+import { candidates, newCampaign, plan, pass, context, fold, agenda, lieLow, promote, KINDS, CADENCE, WORK } from '../src/sim/campaign.js';
+import { windowOf } from '../src/sim/scenarios/campaign.js';
 import { DAY, HOUR, calendar } from '../src/sim/clock.js';
 import { injure, bloodOf } from '../src/sim/health.js';
 import { oblivious } from './bots.mjs';
@@ -32,6 +33,26 @@ const atWindow = (g, bus) => {
 };
 
 export default [
+  {
+    name: 'campaign: an assignment before six on a working day: the day\'s work ends in time for it, with an excuse for the section',
+    fn() {
+      // (a campaign's first assignment, moved to 17:30 on a weekday: that morning, at nine, the day's work)
+      const c = newCampaign(3, candidates(3, 'london')[0], 'london'), g = newGame({ seed: 3, scenario: 'campaign', campaign: c });
+      start(g, null);
+      const a = c.assignments.find(x => x.status === 'open' && !x.trip);
+      let day = Math.floor(g.time.ms / DAY) + 1;
+      while (calendar(day * DAY + 12 * HOUR).weekday >= 5) day++;
+      const shift = day * DAY + 17.5 * HOUR - a.from;
+      Object.assign(a, { from: a.from + shift, to: a.to + shift, start: a.start + shift });
+      g.time.ms = day * DAY + 9 * HOUR;
+      const n0 = c.log.length;
+      step(g, { act: ['desk:work'] }, null);
+      const done = a && { left: g.time.ms, from: a.from, log: c.log.slice(n0).map(e => e.text).join(' ') };
+      assert(done, 'an assignment with its place');
+      assert(done.left < done.from && /out early/.test(done.log), `out ${Math.round((done.from - done.left) / 60000)} min before it: ${done.log}`);
+      console.log(`      out of the embassy ${Math.round((done.from - done.left) / 60000)} min before the assignment: ${done.log}`);
+    },
+  },
   {
     name: 'the hub: heat cools as the days go and lying low (the street\'s heat and the campaign\'s kept one)',
     fn() {

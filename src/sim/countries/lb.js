@@ -6,6 +6,7 @@ export const LB = {
     patrolP: 0.3, stopBase: 0.03, awareness: 7, skin: ['tan', 'brown'],
     look: { top: { kind: 'uniform', color: 0x3b4a5e, trim: 0xb9862e }, legs: 0x3b4a5e, hat: { kind: 'peaked', color: 0x3b4a5e, band: 0xb9862e } },
     ask: '"Your papers?"',
+    order: '"Drop it! On the ground, now!"',                         // (the order to drop it: sim/armed.js)
     // (the ISF and the army bear arms; army checkpoints and patrols in the city; their rifles, M16s and M4s and AKs: uncertain)
     arms: { patrol: ['glock17', 'browning'], patrolLong: ['m16a4', 'm4'], response: ['m4', 'akm'], visible: 'army checkpoints with rifles' },
     response: { unit: 'the army', minutes: [5, 15] },

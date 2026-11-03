@@ -176,6 +176,7 @@ function walkDetour(state, a, v) {
 export function stepAgent(state, a, scenario, bus) {
   const ai = a.ai, x0 = a.x, z0 = a.z, row0 = a.row;
   if (ai.fighting) return;                                          // (in a fight, its feet are the fight's: sim/fight.js)
+  if (ai.gunner) { a.vx = a.vz = 0; return; }                       // (a gun up: standing to shoot, sim/armed.js)
   if (ai.downUntil > state.time.ms) { a.vx = a.vz = 0; a.gait = 'down'; return; }   // (knocked out: lying there a while)
   if (ai.wait > 0) {
     a.vx = a.vz = 0;

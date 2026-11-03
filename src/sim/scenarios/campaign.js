@@ -47,7 +47,7 @@ import { Z, streetName } from '../map/street.js';
 import { townOf, cityById, FIRST_TOUR_CITY } from '../cities/index.js';
 import { skip, newMap } from '../game.js';
 import { eat, soothe } from '../needs.js';
-import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, watched, KINDS, WORK, TRAVEL } from '../campaign.js';
+import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, watched, KINDS, WORK, TRAVEL, EXCUSES } from '../campaign.js';
 import { signOf, missionPlace } from '../places.js';
 import { fileOf, assetFile } from '../dossier.js';
 import { open as openBook } from '../reading.js';
@@ -117,14 +117,17 @@ export const campaignHub = {
     c.posting.heat = heatNow(state);
     const until = (to, text) => passTo(state, bus, to, text);
     if (what === 'work') {
-      const to = work(c, now), here = state.map.place === 'embassy';
+      // (an assignment to be off for before six: out in time for it, with an excuse: sim/campaign.js work())
+      const six = Math.floor(now / DAY) * DAY + WORK.to * HOUR, soon = c.assignments.filter(a => a.status === 'open' && !a.trip && windowOf(a)[1] > now && a.from < six + 2 * HOUR)
+        .map(a => { const at = missionPlace(c, a); return at ? leaveBy(state, a, at) - SPARE_MIN * MIN : null; }).filter(t => t !== null && t < six).sort((x, y) => x - y)[0];
+      const to = work(c, now, soon ?? null), here = state.map.place === 'embassy', early = to < six;
       if (to === now) return say(state, bus, { kind: 'instinct', text: 'Not a working day, or it\'s over: nobody at the embassy wants you now.' });
       until(to, here ? 'The day\'s cables, a meeting about the meetings, the canteen at one.' : 'The metro to the embassy, the guard\'s nod, the day\'s cables.');
       eat(state.people.me, state.time.ms - 4 * HOUR, 5);             // (lunch in the canteen: sim/needs.js)
       if (state.scenario.outcome) return;
       // (at your desk: still there at six, up from it; from anywhere else, the day worked and out of its door)
       if (here) { const me = state.actors.find(a => a.who === state.player), d = spotOf(state, 'desk'); if (me && d) Object.assign(me, { x: d.x, z: d.z, face: 'left', head: headOf('left'), gait: 'idle' }); say(state, bus, { kind: 'note', text: 'Six o\'clock: the cables read, the safe locked, your coat off the back of the chair.' }); }
-      else { goTo(state, bus, c.posting.embassy, `Six o'clock, and out of the embassy onto ${streetName(townOf({ seed: c.posting.mapSeed, city: c.posting.city }), c.posting.embassy.row)}.`); outing(state, 'embassy'); }
+      else { goTo(state, bus, c.posting.embassy, `${early ? `${clockText(to)}, out early (${EXCUSES[Math.floor(now / DAY) % EXCUSES.length]}, you told them),` : 'Six o\'clock, and out of the embassy'} onto ${streetName(townOf({ seed: c.posting.mapSeed, city: c.posting.city }), c.posting.embassy.row)}.`); outing(state, 'embassy'); }
     } else if (what === 'sleep') {                                  // (a night's sleep, and breakfast: sim/needs.js; you wake in the flat)
       until(rest(c, now), state.map.place === 'home' ? 'To bed.' : 'Home, and to bed.'); soothe(state.people.me, 60);   // (rested, calmer: not fed; sim/needs.js)
       if (state.map.place !== 'home' && !state.scenario.outcome) enterHome(state, bus, 'sleep');
@@ -488,6 +491,7 @@ function passTo(state, bus, to, text) {
 }
 
 /** When an assignment's place takes T: a tail from a little before he's out till just after; a meeting till near the bench's end; a photograph a while into his window. */
+export const SPARE_MIN = 10;                                        // (out of the embassy this much before you'd need to leave for an assignment: sim/campaign.js work())
 export const windowOf = (a) => [a.from - BEGIN_EARLY_MIN * MIN, a.kind === 'sdr' ? a.to - 3 * MIN : a.from + (a.kind === 'tail' ? 2 : 5) * MIN];
 export const BEGIN_EARLY_MIN = 15, LEAD_H = 3;
 export const MISSION_AT_M = { tail: 30, sdr: 40, watch: 40 };

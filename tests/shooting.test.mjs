@@ -3,7 +3,7 @@
 // distance, the aim held and the skill; a bullet's wound; a gunshot heard empties the street.
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
 import { newGun, newMag, armOf, said } from '../src/sim/firearms.js';
-import { toggle, options, choose, targets, aimMs, odds, bullet, discharge, MAX_M } from '../src/sim/shooting.js';
+import { toggle, options, choose, targets, aimMs, odds, bullet, discharge, heard, MAX_M } from '../src/sim/shooting.js';
 import { MODELS } from '../src/sim/firearms.js';
 import { sheet } from '../src/sim/people.js';
 import { skill } from '../src/sim/skills.js';
@@ -137,7 +137,10 @@ export default [
         if (gun.mode) gun.mode = 'auto';
         const before = armOf(w.p, gun.mag)?.n;
         take(w.g, 'fire');
-        return { used: before - armOf(w.p, gun.mag).n, ran: w.g.actors.filter(a => a.ai?.fled).length };
+        // (who'd run at the sound alone, on a street of its own: those who see a gun in your hand run too, sim/armed.js)
+        const h = armed(6, [15, 1]);
+        heard(h.g, null, h.me, h.me.x, h.me.z, MODELS[model].loud);
+        return { used: before - armOf(w.p, gun.mag).n, ran: h.g.actors.filter(a => a.ai?.fled).length };
       };
       const ak = run('ak74m'), val = run('asval');
       assert(ak.used === 4 && val.used === 4, `a burst of four: ${ak.used}, ${val.used}`);

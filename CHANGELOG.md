@@ -4,6 +4,13 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.9 (2026-11-03)
+
+- **Armed police.** Patrols now carry their country's sidearm in a holster: a Makarov or a PL-15K in Moscow, a Browning or a Glock in Beirut, a CZ, a Helwan or a 686 revolver in Cairo. London's patrols carry nothing. A gun in your hand sends the passers-by who see it running, and now and then one calls it in; so does a shot that's heard (not a suppressed one). An officer who sees it, or hears it, shouts the order, in the country's words. Put it away or drop it, keep your hands empty, and you're taken in: the gun taken, three hours at the station until the embassy's man comes, +25 heat, cover standing −30. Keep it in your hand past the order, or fire, and an armed officer draws and shoots, going through the same steps you do, in real time (a Moscow patrolman fired 3.8 s after his order). An unarmed one holds back.
+- **The armed response.** A call, an officer's or a passer-by's, brings the country's armed unit within its minutes: London's in 4 to 8, Moscow's in 6 to 12. Three officers arrive at the end of the street, long guns up (an MCX or a G36C in London, an AK-74M in Moscow, an M4 in Beirut, an MP5 in Cairo), and they stand down after a minute without seeing you.
+- **Out early for an assignment.** An assignment that starts before six on a working day used to be lost to the day's work. Now the work ends in time to get there, ten minutes to spare beside the trip, with an excuse for the section (a dentist, a call from a friend's school…), and the cover standing it earns is the share of the day you worked.
+- Tests: `tests/armed.test.mjs` (patrols armed by country, the order and the shot, taken in, the armed response); the early finish for an assignment.
+
 ## v0.1.8 (2026-11-03)
 
 - **Dry indoors.** In a shop, the floor no longer takes the street's rain: no wet sheen, no puddles, no snow or frost on it. And an umbrella comes down, a hood goes back, under a roof.

@@ -119,15 +119,44 @@ export function odds(state, me, p, key = state.shoot?.pick, part = state.shoot?.
   const aim = state.shoot?.aim;
   if (aim?.key === key && aim.settled !== undefined) { const held = (state.time.ms - aim.settled) / 1000; mods.push(held >= 0 ? { why: 'the aim held', v: Math.round(Math.min(HELD_MAX, held * HELD)) } : { why: 'still coming down from the last', v: -2 }); }
   else mods.push({ why: 'no aim: a point shot', v: POINT });
-  const sp = T.a ? Math.hypot(T.a.vx ?? 0, T.a.vz ?? 0) : 0;
-  if (sp > 2.5) mods.push({ why: 'running', v: -5 }); else if (sp > 0.3) mods.push({ why: 'walking', v: -2 });
+  if ((state.$shotAtMs ?? -1e9) > state.time.ms - 5000) mods.push({ why: 'being shot at', v: -4 });
+  const o = shotOf(state, M, K, d, T, part, mods);
+  const need = o.dc - skill(p, 'weapons') - o.mods.reduce((s, m) => s + m.v, 0);
+  return { d, dc: o.dc, mods: o.mods, p: Math.max(0.05, Math.min(0.95, (21 - need) / 20)) };
+}
+
+/** A shot's DC and the moment's modifiers at a target T ({ x, z, a?, item? }) d away: its movement, the light on it, a shotgun's spread close, the part; mods: the shooter's own (the aim). */
+function shotOf(state, M, K, d, T, part, mods = []) {
+  const out = [...mods], sp = T.a ? Math.hypot(T.a.vx ?? 0, T.a.vz ?? 0) : 0;
+  if (sp > 2.5) out.push({ why: 'running', v: -5 }); else if (sp > 0.3) out.push({ why: 'walking', v: -2 });
   const band = lightBand(lightHere(state, T.x, T.z));
-  if (band === 'dark') mods.push({ why: 'the dark', v: -4 }); else if (band === 'dim') mods.push({ why: 'poor light', v: -2 });
-  if ((state.shoot?.shotAt ?? -1e9) > state.time.ms - 5000) mods.push({ why: 'being shot at', v: -4 });
-  if (K.close && d <= K.closeM) mods.push({ why: 'the spread of the shot', v: -K.close });
-  const dc = Math.round(SHOT.dc + (d * K.perM + d * d * K.perM2) * M.acc + (T.item ? 4 : PART_DC[part] ?? 0));
-  const need = dc - skill(p, 'weapons') - mods.filter(m => m.v).reduce((s, m) => s + m.v, 0);
-  return { d, dc, mods: mods.filter(m => m.v), p: Math.max(0.05, Math.min(0.95, (21 - need) / 20)) };
+  if (band === 'dark') out.push({ why: 'the dark', v: -4 }); else if (band === 'dim') out.push({ why: 'poor light', v: -2 });
+  if (K.close && d <= K.closeM) out.push({ why: 'the spread of the shot', v: -K.close });
+  return { dc: Math.round(SHOT.dc + (d * K.perM + d * d * K.perM2) * M.acc + (T.item ? 4 : PART_DC[part] ?? 0)), mods: out.filter(m => m.v) };
+}
+
+/**
+ * Someone else's trigger pulled at a (the player, or anyone), the aim held heldS (sim/armed.js): the rounds the
+ * selector sends, each a roll of their Weapon handling at your odds' DC; a hit's a bullet (bullet()). Returns the
+ * time it took, the recovery with it (ms). The player's "being shot at" from now (state.$shotAtMs).
+ */
+export function npcShot(state, bus, a, p, id, target, heldS = 0) {
+  const M = modelOf(id), K = kindOf(id), g = armOf(p, id), n = roundsOf(g, M), d = Math.hypot(target.x - a.x, target.z - a.z);
+  let fired = 0, hits = 0, last = null, f = null;
+  for (let k = 0; k < n; k++) {
+    f = fire(state.rng, p, id);
+    if (!f.fired) break;
+    if (!fired) heard(state, bus, a, a.x, a.z, M.loud);
+    fired++;
+    const o = shotOf(state, M, K, d, { x: target.x, z: target.z, a: target }, 'torso', [{ why: 'the aim held', v: Math.round(Math.min(HELD_MAX, Math.max(0, heldS) * HELD)) }, k ? { why: 'the muzzle climbing', v: -Math.round(BURST_K * k * M.recoil) } : { v: 0 }]);
+    const roll = check(state.rng, { skill: 'weapons', value: skill(p, 'weapons'), dc: o.dc, mods: o.mods, body: p });
+    if (roll.ok) { hits++; last = bullet(state, bus, target, 'torso', M, a); }
+    if (f.stoppage || f.empty || state.people[target.who]?.dead) break;
+  }
+  if (target.who === state.player) state.$shotAtMs = state.time.ms;
+  const who = cap(p.known === false ? p.seen ?? p.name ?? 'someone' : p.name ?? 'someone');
+  if (fired) say(state, bus, { kind: 'note', text: `${who} fires${fired > 1 ? `, ${fired} rounds` : ''}. ${hits ? last : 'Wide.'}` });
+  return fired ? fireMs(p, M, fired) : 400;
 }
 
 /**
@@ -205,7 +234,7 @@ export function choose(state, bus, key) {
 function stress(state, me) {
   const out = [];
   if (lightBand(lightHere(state, me.x, me.z)) === 'dark') out.push({ why: 'no light to see it by', v: -2 });
-  if ((state.shoot?.shotAt ?? -1e9) > state.time.ms - 5000) out.push({ why: 'being shot at', v: -3 });
+  if ((state.$shotAtMs ?? -1e9) > state.time.ms - 5000) out.push({ why: 'being shot at', v: -3 });
   return out;
 }
 
@@ -372,6 +401,7 @@ export function bullet(state, bus, a, part, M, from) {
 /** A shot heard: passers-by within HEAR_M run, away from it; in the campaign, heat (once a minute). */
 export function heard(state, bus, shooter, x, z, loud = 1) {
   const row = state.map.row ?? 0, R = HEAR_M * loud;            // (a suppressed gun is heard a fraction as far: its loud)
+  if (shooter?.who === state.player && loud >= 0.5) state.$shotBy = { ms: state.time.ms, x, z };   // (yours, heard: the police come for it, sim/armed.js; a suppressed one isn't)
   let ran = 0;
   for (const a of state.actors) if (a !== shooter && isPasserby(a) && !a.hidden && a.gait !== 'down' && rowOf(state, a) === row && Math.hypot(a.x - x, a.z - z) < R) { flee(state, a, x); ran++; }
   if (ran && (state.$panicMs ?? -1e9) < state.time.ms - 20000) say(state, bus, { kind: 'note', text: 'The crack of it rolls down the street. Someone screams; people run.' });

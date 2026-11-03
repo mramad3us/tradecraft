@@ -38,6 +38,7 @@ import { placed } from './items.js';
 import { weaponOf } from './weapons.js';
 import { HOUR } from './clock.js';
 import { policeOf } from './countries/index.js';
+import { armCop } from './armed.js';
 
 export const EYE_M = 14, STOP_M = 6, STOP_PER_POINT = 0.07, HEAT_FROM = 30, HEAT_PER = 400, SPAWN_M = 70, GONE_M = 110;
 export const PAPERS_HEAT = 2, WALK_HEAT = 4, WALK_COVER = 3, FOUND_HEAT = 10, FOUND_COVER = 12, POCKET_MOD = 2, BLOOD_MOD = -4, HELD_MOD = -3;
@@ -52,6 +53,7 @@ export function patrolTick(state) {
   const row = state.map.row ?? 0, hour = Math.floor(state.time.ms / HOUR), K = P(state);
   for (const a of cops(state)) {
     const done = !a.ai.route || a.ai.s >= a.ai.route.length - 0.05;
+    if (a.alert || a.unit) continue;                                 // (an alarm's up: they stay: sim/armed.js)
     if ((a.row ?? row) !== row || Math.abs(a.x - me.x) > GONE_M || (done && !a.stopping)) { state.actors.splice(state.actors.indexOf(a), 1); delete state.people[a.who]; }
   }
   if (cops(state).length) return;
@@ -64,6 +66,7 @@ export function patrolTick(state) {
     const who = `cop${hour % 1000}${k}`, sex = chance(r, 0.25) ? 'f' : 'm';
     state.people[who] = sheet({ id: who, name: 'a police officer', sex, cls: 'cop', skills: { awareness: [K.awareness, 0], cqc: [6, 0], tracking: [6, 0] },
       look: { skin: pick(r, K.skin), hair: { style: 'crew', color: pick(r, [0x23252f, 0x47302a]) }, shoes: 0x14151c, ...structuredClone(K.look) } });
+    armCop(state, state.people[who], 'patrol', stream('patrol-arms', state.map.seed, row, hour, k));   // (its country's sidearm, holstered, or none: sim/armed.js)
     const a = makeAgent(state, { who, row, x: x0 - dir * k * 1.3, z: z + k * 0.4, speed: 1.15, face: dir > 0 ? 'right' : 'left' });
     a.cop = true;
     try { setRoute(state, a, routeFrom(town, { row, x: a.x, z: a.z }, { row, x: me.x + dir * (SPAWN_M + 20), z: a.z })); } catch { a.ai.route = null; }
@@ -79,7 +82,7 @@ export function stopChance(state) {
 /** Once a second: officers who see you weigh you; a stop begun walks up to you and asks; walked off from, you've walked away. */
 export function eyeTick(state, bus) {
   const me = playerOf(state), S = state.$stop;
-  if (!me || me.hidden || state.fight || state.map.kind !== 'street') return;
+  if (!me || me.hidden || state.fight || state.map.kind !== 'street' || state.$alarm) return;   // (an alarm's up: no papers now, sim/armed.js)
   if (S) {
     const lead = state.actors.find(a => a.id === S.lead);
     if (!lead) { delete state.$stop; return; }

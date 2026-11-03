@@ -6,6 +6,7 @@ export const US = {
     patrolP: 0.2, stopBase: 0.01, awareness: 9, skin: ['light', 'tan', 'brown', 'dark'],
     look: { top: { kind: 'uniform', color: 0x23252f, trim: 0xb9862e }, legs: 0x23252f, hat: { kind: 'peaked', color: 0x23252f, band: 0xb9862e } },
     ask: '"License and ID, please."',
+    order: '"Police! Drop the gun! Drop it!"',                         // (the order to drop it: sim/armed.js)
     arms: { patrol: ['glock17'], patrolLong: ['m4', 'rem870'], response: ['m4', 'glock17'], visible: 'patrols' },
     response: { unit: 'SWAT', minutes: [5, 15] },
   },

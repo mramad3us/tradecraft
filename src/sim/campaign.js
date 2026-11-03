@@ -419,14 +419,22 @@ export function pass(c, from, to) {
   return papers;
 }
 
-/** The cover job: from ms to 18:00 (if it's a working day and before then). Returns the time after. */
-export function work(c, ms) {
+// (out early for an assignment before six: the user, 2026-11-03, "the work day should automatically end soon enough and
+// give us an excuse to leave for it"; what you tell the section, by the day)
+export const EXCUSES = ['a dentist\'s appointment', 'a call from a friend\'s school', 'a reception you\'re down for at another embassy', 'a plumber at the flat, at last', 'a meeting with a contact at the ministry, you say, and it\'s nearly true'];
+/**
+ * The cover job: from ms to 18:00 (if it's a working day and before then), or to `end` if that's sooner (an
+ * assignment to be off for: an excuse made). Cover standing by the share of the day worked. Returns the time after.
+ */
+export function work(c, ms, end = null) {
   const k = calendar(ms), d = dayOf(ms);
   if (!isWorkday(ms) || k.hour >= WORK.to) return ms;
-  const until = d * DAY + WORK.to * HOUR;
+  const six = d * DAY + WORK.to * HOUR, until = end !== null && end < six ? end : six, from = Math.max(ms, d * DAY + WORK.from * HOUR);
+  if (until <= ms) return ms;
   c.worked[d] = true;
-  c.posting.cover = Math.min(100, c.posting.cover + COVER_PER_DAY);
-  c.log.push({ ms: until, text: 'A day at the embassy: cables, a meeting about a meeting, the ambassador\'s mood.' });
+  const share = Math.max(0.3, Math.min(1, (until - from) / ((WORK.to - WORK.from) * HOUR)));
+  c.posting.cover = Math.min(100, c.posting.cover + Math.round(COVER_PER_DAY * share));
+  c.log.push({ ms: until, text: until < six ? `A day at the embassy, and out early: ${EXCUSES[d % EXCUSES.length]}, you tell the section.` : 'A day at the embassy: cables, a meeting about a meeting, the ambassador\'s mood.' });
   return until;
 }
 
