@@ -26,7 +26,7 @@
 // thrusts with its end too. Armed, the trained use the weapon most of the time but not always
 // (WEAPON_PREF: the user, "skilled characters will prefer hitting with a weapon than kick or elbow
 // most of the time but not all the time"); the untrained nearly always.
-import { MODELS, MAG_SIZE, isGun, isMag, modelOf } from './firearms.js';
+import { MODELS, isGun, isMag, modelOf, magSize, isLong } from './firearms.js';
 
 export const SOLID_GUARD = 0.8;
 // (length cm, volume litres; the long ones go nowhere but the hand. Not only weapons: everything that goes in
@@ -40,7 +40,7 @@ export const SIZES = {
   pipe: [90, 1.5], crowbar: [75, 1.2], stick: [90, 1.0], umbrella: [90, 1.2], shovel: [130, 6],
 };
 // (a gun or a magazine is carried by its id, `${model}#n` or `mag#n`: sim/firearms.js; its size is its model's)
-export const sizeOf = (kind) => (isGun(kind) ? modelOf(kind).size : isMag(kind) ? MAG_SIZE : SIZES[kind] ?? [100, 5]);
+export const sizeOf = (kind) => (isGun(kind) ? modelOf(kind).size : isMag(kind) ? magSize(kind) : SIZES[kind] ?? [100, 5]);
 export const HEAVY_K = 1.5;
 export const FUMBLE_PER_PT = 0.08;
 export const NO_GRAB = -6;
@@ -89,8 +89,8 @@ export const TECHS = {
  * in a full hand, its fight-profile here (gun: true; firing it is sim/shooting.js); a magazine is no weapon.
  */
 const WHIPS = {};
-export const weaponOf = (kind) => (!kind ? null : WEAPONS[kind] ?? (isGun(kind) ? (WHIPS[kind.split('#')[0]] ??= gunWhip(kind.split('#')[0])) : null));
-const gunWhip = (model) => ({ name: MODELS[model].name, short: MODELS[model].short, kind: 'blunt', edge: null, k: 1.2, guard: 0.15, grab: -2, awkward: 0, carry: 'belt', gun: model });
+export const weaponOf = (kind) => (!kind ? null : WEAPONS[kind] ?? (isGun(kind) ? (WHIPS[kind.split('#')[0]] ??= gunWhip(kind)) : null));
+const gunWhip = (id) => { const model = id.split('#')[0], long = isLong(id); return { name: MODELS[model].name, short: MODELS[model].short, kind: 'blunt', edge: null, k: long ? 1.6 : 1.2, guard: long ? 0.7 : 0.15, grab: long ? -4 : -2, awkward: long ? -1 : 0, carry: long ? 'sling' : 'belt', gun: model, ...(long ? { long: true } : {}) }; };
 /** What a person has in hand, if a weapon. */
 export const wielded = (p) => weaponOf(p?.hand);
 /** The ways a weapon is used. */

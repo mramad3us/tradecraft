@@ -2,7 +2,7 @@
 // magazine in and out, a round chambered with none, the slide locked back on the last, a dud, a stovepipe,
 // a double feed and its drill, a worn gun that won't fire), each action's time and roll by Weapon handling,
 // what goes wrong by condition, and a gun's state kept by its id wherever it goes.
-import { MODELS, ACTIONS, newGun, newMag, armOf, moveArm, act, fire, canDo, said, service, fillMag, pace, misfire, jamChance, BROKEN, isGun } from '../src/sim/firearms.js';
+import { MODELS, KINDS, FAMILIES, ACTIONS, newGun, newMag, armOf, moveArm, act, fire, canDo, said, service, fillMag, pace, misfire, jamChance, BROKEN, isGun, isLong, sparesFor, ready } from '../src/sim/firearms.js';
 import { sizeOf, weaponOf } from '../src/sim/weapons.js';
 import { placed, fits } from '../src/sim/items.js';
 import { sheet } from '../src/sim/people.js';
@@ -118,6 +118,72 @@ export default [
       moveArm(p, it, id); moveArm(it, other, id);
       assert(JSON.stringify(armOf(other, id)) === before && !armOf(p, id) && armOf(other, armOf(other, id).mag), 'dropped and picked up by someone else: the same gun, its magazine with it');
       assert(fits(p, newMag(p, 'makarov', 8)), 'a spare magazine fits too');
+    },
+  },
+  {
+    name: 'firearms: the arsenal: every model whole (handguns, revolvers, submachine guns, carbines, rifles, a marksman\'s, shotguns), loaded new, and it fires',
+    fn() {
+      const kinds = {}, rng = stream('fa', 5);
+      for (const [model, M] of Object.entries(MODELS)) {
+        assert(M.name && M.short && M.cal && M.cap > 0 && M.size?.length === 2 && KINDS[M.kind], `${model}: whole`);
+        if (M.safety === 'selector') assert(M.modes?.length, `${model}: a selector has modes`);
+        const p = sure(), id = newGun(p, model, { safety: false });
+        assert(ready(armOf(p, id), M), `${model}: loaded new, ready (${said(p, id)})`);
+        assert(fire(rng, p, id).fired, `${model}: fires`);
+        (kinds[M.kind] ??= []).push(M.short);
+      }
+      assert(Object.keys(kinds).length === Object.keys(KINDS).length && Object.keys(MODELS).length >= 40, 'every kind, and many of them');
+      console.log(`      ${Object.keys(MODELS).length} models: ${Object.entries(kinds).map(([k, v]) => `${v.length} ${k}`).join(', ')}`);
+    },
+  },
+  {
+    name: 'firearms: a revolver turns to the next chamber, a dud just clicks on; opened, emptied, loaded a round at a time, shut',
+    fn() {
+      const rng = stream('fa', 6), p = sure(), id = newGun(p, 'model10'), g = armOf(p, id);
+      let shots = 0;
+      for (let i = 0; i < 8; i++) if (fire(rng, p, id).fired) shots++;
+      assert(shots === 6 && fire(rng, p, id).why === 'empty', `six, then clicks: ${said(p, id)}`);
+      p.rounds = { '.38': 4 };
+      assert(canDo(p, id)[0] === 'openCyl', 'it opens');
+      act(rng, p, id, 'openCyl'); act(rng, p, id, 'eject');
+      for (let i = 0; i < 4; i++) act(rng, p, id, 'load1');
+      assert(fire(rng, p, id).why === 'open', 'open: it won\'t fire');
+      act(rng, p, id, 'closeCyl');
+      let n = 0; for (let i = 0; i < 6; i++) if (fire(rng, p, id).fired) n++;
+      assert(n === 4 && p.rounds['.38'] === 0, `four loaded, four fired (${said(p, id)})`);
+    },
+  },
+  {
+    name: 'firearms: a pump leaves its case till it\'s worked; an AK on its selector, safe, auto, semi; magazines fit their family',
+    fn() {
+      const rng = stream('fa', 7), p = sure(), sg = newGun(p, 'rem870', { safety: false }), g = armOf(p, sg);
+      assert(fire(rng, p, sg).fired && g.chamber === 'case' && fire(rng, p, sg).why === 'case', 'a pump: the case stays in till it\'s worked');
+      act(rng, p, sg, 'rack');
+      assert(g.chamber === 'live' && g.tube === 3, `pumped: ${said(p, sg)}`);
+      const ak = newGun(p, 'ak74m'), a = armOf(p, ak);
+      assert(a.mode === 'safe' && fire(rng, p, ak).why === 'safety', 'an AK on safe');
+      act(rng, p, ak, 'selector');
+      assert(a.mode === 'auto', 'the lever\'s first stop is auto, as an AK\'s is');
+      act(rng, p, ak, 'selector');
+      assert(a.mode === 'semi', 'then semi');
+      const spare = newMag(p, 'ak74m', 30);
+      p.items = [spare];
+      assert(sparesFor(p, 'aks74u')[0] === spare && sparesFor(p, 'm4').length === 0, 'an AK-74 magazine fits an AKS-74U, not an M4');
+      for (let i = 0; i < 40 && fire(rng, p, ak).fired; i++);
+      assert(!a.locked && !a.chamber, 'an AK doesn\'t lock back on the last round');
+    },
+  },
+  {
+    name: 'firearms: long guns go on a sling, and show; a pistol in its holster under a coat doesn\'t',
+    fn() {
+      const p = sheet({ id: 'me', persistent: true, look: { top: { kind: 'coat' } } });
+      const ak = newGun(p, 'ak74m'), pistol = newGun(p, 'glock17');
+      p.items = [ak, pistol];
+      const P = placed(p).out, a = P.find(o => o.kind === ak), g = P.find(o => o.kind === pistol);
+      assert(isLong(ak) && a.at === 'sling' && a.shows, `the AK slung, and seen: ${a.at}`);
+      assert(g.at === 'belt' && !g.shows, `the Glock at the belt, under the coat: ${g.at}`);
+      const two = newGun(p, 'mp5');
+      assert(!fits(p, two), 'one sling: a second long gun has nowhere to go but the hand');
     },
   },
 ];

@@ -967,7 +967,8 @@ const HELD = {
   pipe: { line: 'vvvvvvvvvv' }, crowbar: { line: 'vvvvvvvvv', end: [[1, 1, 'v'], [0, 1, 'v']] }, stick: { line: 'oooooooooo' },
   umbrella: { line: 'nuuuuuuuuu', end: [[0, 1, 'u'], [-1, 1, 'u']] }, shovel: { line: 'ooooooo', end: [[1, 0, 'v'], [1, 1, 'v'], [1, -1, 'v'], [2, 0, 'v'], [2, 1, 'v'], [2, -1, 'v']] },
   bikelock: { line: 'iv', end: [[1, 1, 'v'], [1, -1, 'v'], [2, 1, 'v'], [2, -1, 'v'], [3, 0, 'v']] }, chain: { line: 'v.v.v.v' },
-  pistol: { line: 'nnnn', end: [[-3, 1, 'n'], [-3, 2, 'n']] },   // (a gun, any model: sim/firearms.js; the slide forward, the grip in the hand)
+  pistol: { line: 'nnnn', end: [[-3, 1, 'n'], [-3, 2, 'n']] },   // (a handgun, any model: sim/firearms.js; the slide forward, the grip in the hand)
+  rifle: { line: 'nnnnnnnnnn', end: [[-9, 1, 'n'], [-7, 1, 'n'], [-5, 1, 'n'], [-5, 2, 'n']] },   // (a long gun: the stock back, the grip and the magazine below)
 };
 /** Which way what's held points, by frame (side on): [dx, dy], x forward, y down. Anything else hangs. */
 const HOLD = {

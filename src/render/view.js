@@ -68,6 +68,7 @@ import { createTraffic } from './traffic.js';
 import { createItems } from './items.js';
 import { sky, indoors, lightAt, lightLevel, LAMP } from '../sim/light.js';
 import { Z, SECTION_M } from '../sim/map/street.js';
+import { isGun, isLong } from '../sim/firearms.js';
 import { passerby } from '../sim/people.js';
 import { geoOf } from '../sim/cities/index.js';
 import { focusActor, playerActor } from '../sim/game.js';
@@ -478,7 +479,8 @@ export function createView({ parent, bus, month = () => 11 }) {
       if (!look) continue;
       // (blood worn, what's in the hand, and the rainwear the weather puts on them are part of the look: their own sheet)
       // (a named person's sheet keyed by their look too, so a change of clothes is drawn: sim/clothes.js; a shop's bag in the hand)
-      const P = a.who && state.people[a.who], bl = P?.bloody, hand = P?.hand, rain = rainwearOf(wx, a.who ?? a.seed, hand, a.who === state.player, look), bag = P?.bag?.length ? 'bag' : null;
+      // (a gun's id in the hand: its picture's a handgun's or a long gun's, sim/firearms.js)
+      const P = a.who && state.people[a.who], bl = P?.bloody, hand = isGun(P?.hand) ? (isLong(P.hand) ? 'rifle' : 'pistol') : P?.hand, rain = rainwearOf(wx, a.who ?? a.seed, hand, a.who === state.player, look), bag = P?.bag?.length ? 'bag' : null;
       const base = a.who ? `${a.who}#${lookKey(look)}` : a.seed;
       const key = bl || hand || rain || bag ? `${base}~${bl ? Object.keys(bl).sort().join('') : ''}~${hand ?? ''}~${rain ?? ''}~${bag ?? ''}` : base;
       people.push({ key, look: bl || hand || rain || bag ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}), ...(rain ? { rainwear: rain } : {}), ...(bag ? { carry: 'bag' } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S), own: a.who === state.player });

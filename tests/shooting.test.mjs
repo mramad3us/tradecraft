@@ -113,4 +113,38 @@ export default [
       console.log(`      ${rows.torso} shot in the body, ${rows.head} in the head: ${rows.dead} dead, ${rows.down} more down`);
     },
   },
+  {
+    name: 'shooting: a rifle reaches where a pistol can\'t; a shotgun\'s spread helps close; a burst climbs; a suppressed gun is heard close only; rubber bruises',
+    fn() {
+      const p = sheet({ id: 'x', cls: 'spook', os: 60, skills: { weapons: [15, 1] } }), me = { x: 0, z: 0, head: 0 };
+      const g = { shoot: { gun: null, pick: 'a1', part: 'torso', aim: { key: 'a1', settled: 8500 } }, time: { ms: 10000 }, actors: [], $world: { lamps: [] }, map: { row: 0 } };
+      const at = (model, d) => { g.shoot.gun = `${model}#x.1`; g.actors = [{ id: 'a1', x: d, z: 0, vx: 0, vz: 0 }]; return odds(g, me, p).p; };
+      const rows = ['glock17', 'mp5', 'm4', 'ak74m', 'svd', 'rem870'].map(m => [m, [5, 25, 50, 100].map(d => at(m, d))]);
+      const R = Object.fromEntries(rows);
+      assert(R.m4[2] > R.glock17[2] + 0.4 && R.svd[3] > R.m4[3], 'at 50 m a carbine, at 100 m a marksman\'s rifle');
+      assert(R.rem870[0] >= R.glock17[0] && R.rem870[2] < R.m4[2], 'a shotgun: easy close, nothing far');
+      console.log(`      an expert, aimed, at 5/25/50/100 m: ${rows.map(([m, v]) => `${m} ${v.map(x => fmt(x * 100, 0)).join('/')}%`).join('; ')}`);
+      // (a burst on auto: four rounds, each its own roll; a suppressed one heard close only)
+      const run = (model) => {
+        const w = armed(6, [15, 1]), id = newGun(w.p, model, { safety: false });
+        w.p.hand = id;
+        step(w.g, { act: ['aim'] }, null);
+        const t = targets(w.g, w.me).sort((a, b) => a.d - b.d)[0];
+        w.g.shoot.gun = id; w.g.shoot.pick = t.key;
+        const gun = armOf(w.p, id);
+        if (gun.mode) gun.mode = 'auto';
+        const before = armOf(w.p, gun.mag)?.n;
+        take(w.g, 'fire');
+        return { used: before - armOf(w.p, gun.mag).n, ran: w.g.actors.filter(a => a.ai?.fled).length };
+      };
+      const ak = run('ak74m'), val = run('asval');
+      assert(ak.used === 4 && val.used === 4, `a burst of four: ${ak.used}, ${val.used}`);
+      assert(val.ran < ak.ran / 2, `the AS Val heard close only: ${val.ran} ran, against the AK's ${ak.ran}`);
+      console.log(`      a burst on auto: the AK-74M ${ak.used} rounds, ${ak.ran} ran; the AS Val (suppressed) ${val.used} rounds, ${val.ran} ran`);
+      const w = armed(7), a = w.g.actors.find(o => o.ai?.civ && !o.who);
+      bullet(w.g, null, a, 'torso', MODELS.traumatic, w.me);
+      const hit = w.g.people[a.who];
+      assert(!hit.dead && !hit.injuries?.some(i => i.gunshot), 'a rubber round: no gunshot wound');
+    },
+  },
 ];

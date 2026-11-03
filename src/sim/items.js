@@ -25,7 +25,7 @@ import { mouthOf } from './map/street.js';
 import { townOf } from './cities/index.js';
 import { stream, hash, int, chance, pick, range, weighted } from './rng.js';
 import { WEAPONS, weaponOf, sizeOf } from './weapons.js';
-import { BOX, isArm, isGun, isMag, armOf, moveArm } from './firearms.js';
+import { BOX, isArm, isGun, isMag, isLong, armOf, moveArm } from './firearms.js';
 import { packsOf, useSupply, supplyWord } from './medicine.js';
 import { bookOf } from './training.js';
 import { say } from './log.js';
@@ -47,6 +47,7 @@ export const SPACES = [
   { id: 'inside', n: 1, l: 0.4, cm: 26, label: 'the inside pocket', top: true },
   { id: 'coat', n: 2, l: 0.9, cm: 24, label: 'a coat pocket', top: true },
   { id: 'belt', n: 2, l: 0.5, cm: 36, label: 'the beltline', belt: true, one: true },   // (a thing tucked in each: a knife, a hammer; not a brick)
+  { id: 'sling', n: 1, l: 8, cm: 125, label: 'slung on your shoulder', sling: true, one: true },   // (a long gun, and nothing else: it always shows, sim/firearms.js)
 ];
 export const POCKETED = new Set(['coat', 'jacket', 'suit']);      // (tops with pockets, and an inside one)
 export const COVERS = new Set(['coat', 'jacket', 'suit', 'sweater']);   // (tops that hang over the beltline)
@@ -74,8 +75,8 @@ export function placed(p, extra = []) {
   }
   const list = [...things(p), ...extra.map(kind => ({ kind }))];
   const rank = (t) => (ALWAYS.includes(t.kind) ? Infinity : sizeOf(t.kind)[1]);
-  const room = (s, t, cm, l) => cm <= s.cm && s.used + l <= s.l + 1e-9 && !(s.one && s.n1) && (!s.belt || !!weaponOf(t.kind));
-  const hides = (s, l) => (s.belt ? COVERS.has(top) : s.used + l <= BULGE * s.l + 1e-9);
+  const room = (s, t, cm, l) => cm <= s.cm && s.used + l <= s.l + 1e-9 && !(s.one && s.n1) && (!s.belt || !!weaponOf(t.kind)) && (!s.sling || isLong(t.kind)) && !(isLong(t.kind) && !s.sling);
+  const hides = (s, l) => (s.sling ? false : s.belt ? COVERS.has(top) : s.used + l <= BULGE * s.l + 1e-9);
   for (const t of [...list].sort((a, b) => rank(b) - rank(a))) {
     const [cm, l] = sizeOf(t.kind), fit = spaces.filter(s => room(s, t, cm, l)), sp = (isGun(t.kind) && fit.find(s => s.belt && hides(s, l))) || (fit.find(s => hides(s, l)) ?? fit[0]);   // (a gun in its holster at the beltline, if a top hangs over it: sim/firearms.js DRAW)
     if (sp) { sp.used += l; sp.n1 = (sp.n1 ?? 0) + 1; t.sp = sp; }
@@ -83,7 +84,7 @@ export function placed(p, extra = []) {
   return {
     spaces,
     out: list.map(({ kind, n, id, sp }) => ({ kind, n, id, at: sp?.id ?? null, slot: sp ? spaces.indexOf(sp) : -1, label: sp?.label ?? null,
-      shows: !!sp && (sp.belt ? !COVERS.has(top) : sp.used > BULGE * sp.l + 1e-9), how: sp ? (sp.belt ? 'at your belt' : 'a bulge in your pocket') : null })),
+      shows: !!sp && (sp.sling || (sp.belt ? !COVERS.has(top) : sp.used > BULGE * sp.l + 1e-9)), how: sp ? (sp.sling ? 'slung on your shoulder' : sp.belt ? 'at your belt' : 'a bulge in your pocket') : null })),
   };
 }
 const nowhere = (P) => P.out.filter(o => o.at === null).length;

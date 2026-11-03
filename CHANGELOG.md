@@ -4,6 +4,13 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.2 (2026-11-03)
+
+- **The arsenal: 43 guns.** 19 pistols (among them the Makarov, the PL-15K, the Yarygin, Glocks, SIGs, the Beretta 92, the CZ 75, the Browning, the Helwan, the Tokarev, the 1911, the PPK, the Canik, a converted blank-firer that misfires and jams four times as often, and a traumatic pistol whose rubber rounds bruise rather than wound). 2 revolvers. 7 submachine guns (the MP5 and the suppressed MP5SD, the Uzi, the Bizon, the PP-2000, the Skorpion, the MP7). 11 assault rifles and carbines (the AK-74M, AK-12, AKS-74U, AKM, the suppressed AS Val, the M4, M16A4, HK416, SIG MCX, G36C, FN FAL). The SVD and a bolt-action hunting rifle. The Remington 870 pump and the Saiga-12.
+- **Each works as it does.** Magazines fit their family: an AK-74 magazine fits the AK-74M, the AKS-74U and the AK-12. A revolver swings out, empties, takes a round at a time and shuts; a dud just clicks on to the next chamber. A pump or a bolt-action leaves its case in the chamber until it's worked. Selectors go round in the lever's order (an AK's safe, auto, semi), and on auto a pull is a short burst of 4 (an M16's burst 3, an AK-12's 2), each round rolled separately as the muzzle climbs. An AK doesn't lock back on its last round. Calibres hit harder up the scale, and suppressed guns are heard a fraction as far: an AS Val burst sent 2 people running where an AK-74M's sent 29.
+- **Long guns** go on a sling (one, and always seen) or in the hand, never in a pocket. They're 15% slower to handle and slower to aim and to come round, but they reach: an expert hits 95% at 50 m with an M4 and 60% at 100 m with an AK-74M, where a Glock is down to 5% at 50 m. A shotgun's spread helps inside 12 m.
+- Tests: the arsenal (every model whole, loaded new, ready and firing), a revolver's cylinder, a pump, an AK's selector, magazine families, the sling; reach by kind, a burst, a suppressed gun heard close only, a rubber round.
+
 ## v0.1.1 (2026-11-03)
 
 - **Guns.** A gun is a real thing now, with its own parts and state. It has a magazine with its rounds counted, a chamber that can hold a round (with or without a magazine in), a dud or a spent case, and it can jam with a double feed. The slide locks back on an empty magazine. It has a safety where the model has one, and a condition that wears with every round. Below 0.6 it misfires and jams far more often; below 0.25 it won't fire until it's serviced. The state goes wherever the gun goes: dropped, it's the same gun when picked up, and someone else's is a question until you check it. The pistols: the Makarov PM and the Yarygin, the Glock 17, the SIG P229, the Browning Hi-Power, the Helwan and the Tokarev TT.

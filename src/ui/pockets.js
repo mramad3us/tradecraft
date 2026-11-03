@@ -12,7 +12,7 @@ import { heldIcon } from '../art/sprites.js';
 import { doll as figure, W as DOLL_W, H as DOLL_H } from '../art/doll.js';
 import { placed, fits, SPACES, ALWAYS } from '../sim/items.js';
 import { weaponOf } from '../sim/weapons.js';
-import { isGun, isMag, armOf, armName, modelOf as gunModel } from '../sim/firearms.js';
+import { isGun, isMag, isLong, armOf, armName, modelOf as gunModel } from '../sim/firearms.js';
 import { worn } from '../sim/clothes.js';
 import { cashOf } from '../sim/money.js';
 import { bagWord } from '../sim/clothes.js';
@@ -21,7 +21,7 @@ import { bookOf } from '../sim/training.js';
 
 const K = 2, ICON_K = 3;
 const hex = (c) => `#${c.toString(16).padStart(6, '0')}`;
-const GROUPS = [['coat', 'Coat pockets'], ['inside', 'The inside pocket'], ['trousers', 'Trouser pockets'], ['belt', 'The beltline']];
+const GROUPS = [['coat', 'Coat pockets'], ['inside', 'The inside pocket'], ['trousers', 'Trouser pockets'], ['belt', 'The beltline'], ['sling', 'On a sling']];
 // (the small things' own pictures: [rows], a letter a colour)
 const SUPPLY_PIX = {
   book: ['qqqqqq', 'qwwwwq', 'qqqqqq', 'qqqqqq'], wallet: ['bbbbbb', 'bBBBBb', 'bbbbbb', 'bbbbbb'], phone: ['nnnn', 'neen', 'neen', 'neen', 'nnnn'], burner: ['nnn', 'nen', 'nmn', 'nnn'],
@@ -72,7 +72,7 @@ export function openPockets(host, state, deps) {
   const inHand = p.hand ? thing(p.hand, true) : null;   // (the hand's first: 1)
   const groups = GROUPS.map(([id, name]) => {
     const idxs = P.spaces.map((sp, i) => [sp, i]).filter(([sp]) => sp.id === id);
-    if (!idxs.length) return null;
+    if (!idxs.length || (id === 'sling' && !P.out.some(o => o.at === 'sling'))) return null;   // (a sling only when a long gun's on it)
     return el('div', { className: 'pk-group' }, el('h3', {}, name), el('div', { className: 'pk-pockets' }, ...idxs.map(([sp, i], k) => pocket(sp, i, k, idxs.length > 1))));
   }).filter(Boolean);
   const nowhere = P.out.filter(o => o.slot < 0);
@@ -110,7 +110,7 @@ function doll(p, P) {
 
 // (a thing's picture, from its shape in the hand, haloed so a dark one shows on the glass)
 function icon(kind) {
-  const cells = heldIcon(kind), W = 12, H = 5, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const cells = heldIcon(isGun(kind) ? (isLong(kind) ? 'rifle' : 'pistol') : kind), W = 12, H = 5, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const g = cv.getContext('2d');
   const set = new Set(cells.map(([x, y]) => `${x}|${y}`));
   g.fillStyle = '#4c5262';
