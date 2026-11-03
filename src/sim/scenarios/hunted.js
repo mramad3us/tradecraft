@@ -35,6 +35,7 @@ import { makeAgent, setRoute, follow, rowOf } from '../agents.js';
 import { seesActor, inView, lightHere } from '../perception.js';
 import { lightBand } from '../light.js';
 import { begin as beginFight } from '../fight.js';
+import { reach, missed, REACH_M } from '../reflex.js';
 import { canStand } from '../health.js';
 
 const TPS = 1000 / TICK_MS;
@@ -175,7 +176,9 @@ export const hunted = {
       const d = Math.hypot(a.x - me.x, a.z - me.z);
       if (sc.known[id]) {
         sc.lastSeen = { row: state.map.row, x: me.x, ms: now };
-        if (d <= CAPTURE_M && !state.fight && !me.hidden) { grab(state, bus, a); return; }
+        // (closing to grab: seen coming, the reflex, sim/reflex.js; made to miss, not this time)
+        if (d <= CAPTURE_M + REACH_M && !state.fight && !me.hidden && reach(state, bus, me, a, { seen: inView(state, a.id), title: `${cap(state.people[a.who].seen)}, reaching for you`, fight: { style: 'wrestler', owner: 'hunted', line: 'You turn into him before the hand lands.' } })) return;
+        if (d <= CAPTURE_M && !state.fight && !me.hidden && !missed(state, a)) { grab(state, bus, a); return; }
         continue;
       }
       if (d > SEE_M || !seesActor(state, a, me)) continue;

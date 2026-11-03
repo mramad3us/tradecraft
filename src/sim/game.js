@@ -62,6 +62,8 @@ import { glassAhead, affordance, act as doAct } from './acts.js';
 import * as fight from './fight.js';
 import * as shooting from './shooting.js';
 import * as armed from './armed.js';
+import * as reflex from './reflex.js';
+import { isGun } from './firearms.js';
 import * as interact from './interact.js';
 import * as talk from './talk.js';
 import * as items from './items.js';
@@ -212,6 +214,7 @@ export function step(state, input = {}, bus) {
     if (String(act).startsWith('read:')) { if (me && !state.fight) reading.act(state, bus, me, act.slice(5), scenario, skip); continue; }   // (a book, sat somewhere: sim/reading.js)
     if (act === 'draw') { if (state.fight) fight.drawMove(state, bus, scenario); else if (me && !state.shoot && !shooting.readyGun(state, bus, me)) items.use(state, bus, me, 'draw'); continue; }   // (G: sim/items.js; a gun's into shooting's mode, time standing still: sim/shooting.js; in a fight, it costs the exchange)
     if (act === 'aim') { shooting.toggle(state, bus); continue; }   // (X: shooting, in stop motion: sim/shooting.js)
+    if (String(act).startsWith('reflex:')) { const R = state.$reflex, o = reflex.chosen(state, act.slice(7)); if (o && me) react(state, bus, me, o, R, scenario); continue; }   // (a moment seen coming: the choice, sim/reflex.js)
     if (String(act).startsWith('shoot:')) { shooting.choose(state, bus, act.slice(6)); continue; }
     if (String(act).startsWith('inv:')) { if (me && !state.fight && !state.shoot && !(/^(wield|stow)(:|$)/.test(act.slice(4)) && shooting.readyGun(state, bus, me, act.slice(4).split(':')[1] ?? null))) items.use(state, bus, me, act.slice(4)); continue; }   // (the inventory's buttons; a gun's into shooting's mode: sim/shooting.js)
     if (act === 'glance' && me && !me.glance) me.glance = Math.round(GLANCE_S * TICKS_PER_S);
@@ -224,7 +227,7 @@ export function step(state, input = {}, bus) {
     scenario.act?.(state, bus, act);
   }
   // A fight waiting for a choice, a conversation, a shot being readied: time stands still (sim/fight.js, sim/talk.js, sim/shooting.js).
-  if (state.fight?.phase === 'choose' || state.talk || state.shoot?.phase === 'choose') return;
+  if (state.fight?.phase === 'choose' || state.talk || state.shoot?.phase === 'choose' || state.$reflex) return;
   if (me?.inside && LIVED.has(me.inside.way) && (input.mx || input.mz)) Object.assign(me.inside, { until: state.time.ms, cut: true });   // (the window's coffee: moving, you've had enough of it: sim/shops.js)
   if (state.fight || state.shoot || scenario.holds?.(state) || me?.inside || me?.cab) input = { act: me?.cab ? [] : input.act };   // (a fight, a shot, the scenario, a shop or a taxi has the player's feet)
   if (me?.inside?.long && !me.inside.skipped) { me.inside.skipped = true; skip(state, bus, me.inside.until - state.time.ms); }   // (what's done in a shop, however it was chosen: an action that takes time, the clock skipped)
@@ -244,6 +247,7 @@ export function step(state, input = {}, bus) {
   buses.waitTick(state, bus, me);                                  // (sat at a stop: the bus comes, waits, goes: sim/buses.js)
   const mine = me && state.people[me.who], fallen = mine && (mine.dead || !canStand(mine));
   if (fallen) input = { act: [] };                                 // (collapsed, out cold or dead: nothing answers)
+  if (me?.$flee && !(input.mx || input.mz)) { if (state.time.ms < me.$flee.until) input = { ...input, mx: me.$flee.dir, mz: 0, run: me.$flee.run }; else delete me.$flee; }   // (a reflex's run, or its step back: sim/reflex.js)
   if (me && !me.ai) {
     let mx = input.mx ?? 0, mz = input.mz ?? 0;
     const n = Math.hypot(mx, mz);
@@ -420,6 +424,26 @@ function bodyHeat(state, bus, me, minutes, skipped = false) {
   thermalLive(p, w, minutes, { hour, running: !skipped && me.gait === 'run',
     say: (t) => t && say(state, bus, { kind: 'note', text: t }),
     kill: (why) => { kill(p, state.time.ms, why); diedOf(state, bus); } });
+}
+
+/**
+ * A reflex's choice done (sim/reflex.js): the scene's own first (scenario.onReflex(): a grab met with an edge, a
+ * step back from it), then the engine's: a cover (sim/acts.js), into shooting, the gun dropped, a run away, a
+ * step back, nothing. A run or a step is a movement in its time (me.$flee), not a jump.
+ */
+function react(state, bus, me, o, R, scenario) {
+  if (scenario.onReflex?.(state, bus, o, R)) return;
+  const [what, arg] = String(o.do).split(':'), p = state.people[me.who], now = state.time.ms, away = Math.sign(me.x - (R?.x ?? me.x - 1)) || 1;
+  const them = R?.who && state.actors.find(a => a.id === R.who);
+  // (a hand reaching: stepped back from or run from, it misses; met, the fight's first edge is yours)
+  if ((what === 'back' || what === 'run') && them?.ai) them.ai.$missUntil = now + reflex.MISS_S * 1000;
+  if (what === 'cover') doAct(state, bus, me, arg, { toward: scenario.toward?.(state, me), scenario });
+  else if (what === 'draw') shooting.readyGun(state, bus, me, isGun(p?.hand) ? p.hand : (p?.items ?? []).find(isGun) ?? null);
+  else if (what === 'drop' && p?.hand) { items.drop(state, p, me); say(state, bus, { kind: 'note', text: 'You let it fall, and show your hands.' }); }
+  else if (what === 'run') { me.$flee = { until: now + reflex.RUN_S * 1000, dir: away, run: true }; say(state, bus, { kind: 'note', text: 'You\'re off before the hand closes.' }); }
+  else if (what === 'back') { me.$flee = { until: now + 1000 * reflex.BACK_M / WALK_MS, dir: away, run: false }; say(state, bus, { kind: 'note', text: 'A step back, and the hand closes on air.' }); }
+  else if (what === 'edge' && them) { say(state, bus, { kind: 'note', text: R.fight?.line ?? 'You go in first.' }); fight.begin(state, bus, them, { style: R.fight?.style ?? 'even', owner: R.fight?.owner ?? 'street', adv: 1 }); }
+  else if (what === 'stop') { me.vx = me.vz = 0; say(state, bus, { kind: 'note', text: 'You stop, as if you\'d thought of something.' }); }
 }
 
 /**

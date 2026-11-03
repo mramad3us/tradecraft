@@ -26,7 +26,10 @@
 import { isGun, armOf, modelOf, newGun, act as gunAct, ready, canDo, MODELS, KINDS } from './firearms.js';
 import { policeOf } from './countries/index.js';
 import { aimMs, npcShot, flee } from './shooting.js';
-import { seesActor } from './perception.js';
+import { seesActor, inView } from './perception.js';
+import { offer, isArmed } from './reflex.js';
+import { check } from './checks.js';
+import { skill } from './skills.js';
 import { isPasserby } from './crowd.js';
 import { makeAgent, setRoute } from './agents.js';
 import { routeFrom, LINE } from './city.js';
@@ -42,7 +45,7 @@ export const COP_WEAPONS = { patrol: [8, 1], response: [15, 2] };
 export const HEARD_M = 60, SHOT_FRESH_S = 30, SEE_GUN_M = 30;
 export const COMPLY_S = 3, ARREST_M = 6, ORDER_EVERY_S = 6, LOST_S = 60;
 export const CALL_P = 0.12, RESPONDERS = 3;
-export const HELD_H = 3, ARREST_HEAT = 25, ARREST_COVER = 30;
+export const GUN_SEEN_DC = 8, HELD_H = 3, ARREST_HEAT = 25, ARREST_COVER = 30;
 
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
 const cops = (state) => state.actors.filter(a => a.cop);
@@ -170,6 +173,20 @@ function gunner(state, bus, a, me) {
   if (now < G.until) return;
   const id = G.gun, g = armOf(p, id), M = modelOf(id);
   if (!g) { a.ai.gunner = null; return; }
+  // (the moment it starts, seen: your Awareness against the distance, and the reflex, sim/reflex.js)
+  if (G.read === undefined) {
+    G.read = false;
+    const d = Math.hypot(me.x - a.x, me.z - a.z), mine = state.people[me.who];
+    if (state.$reflexes && inView(state, a.id) && check(state.rng, { skill: 'awareness', value: skill(mine, 'awareness'), body: mine, dc: GUN_SEEN_DC + Math.round(d / 5) }).ok) {
+      G.read = true;
+      const held = isGun(mine.hand), who = p.name ?? 'the officer';
+      if (offer(state, bus, { why: 'gun', title: `${who.charAt(0).toUpperCase() + who.slice(1)}, ${p.hand === id ? 'bringing his gun up' : 'going for his gun'}`, x: a.x, who: a.id, options: [
+        ...(held ? [{ key: 'drop', label: 'Drop it, show your hands', do: 'drop' }] : []),
+        ...(isArmed(mine) ? [{ key: 'draw', label: held ? 'Aim at him' : 'Your gun', do: 'draw' }] : []),
+        { key: 'run', label: 'Run for it', do: 'run' },
+      ] })) return;
+    }
+  }
   const step = (action, opts = {}) => { const r = gunAct(state.rng, p, id, action, opts); G.until = now + r.ms; if (r.mishap === 'dropped') { p.hand = null; a.ai.gunner = null; } };
   if (p.hand !== id) { p.items = (p.items ?? []).filter(k => k !== id); p.hand = id; return step('draw', { from: 'belt' }); }
   if (M.safety === 'manual' && g.safety) return step('safety');

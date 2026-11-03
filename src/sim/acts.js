@@ -176,6 +176,17 @@ export function coverHere(state, a) {
 
 const COVER = { window: 'look in the window', car: 'look in a parked car\'s window', bench: 'sit on the bench', mobile: 'look at your phone', lace: 'tie a shoelace', cross: 'cross', taxi: 'hail a taxi', kiosk: 'buy a paper at the kiosk', phone: 'make a call from the phone box', shelter: 'wait for a bus', notices: 'read the notices' };
 
+/** Every cover at hand, for a reflex's card (sim/reflex.js): [{ key, label, do }], the likeliest first. */
+export function coversHere(state, a) {
+  if (!a || a.busy || a.glass || a.gait === 'sit' || state.map.kind !== 'street' || !sectionAt(state, a.x)) return [];
+  const t = state.time.ms, sc = state.scenario, list = [];
+  if (paneNear(state, a)) list.push('window');
+  if (benchNear(state, a) !== null) list.push('bench');
+  if (t - (sc.mobileMs ?? -1e12) > MOBILE_AGAIN_S * 1000) list.push('mobile');
+  if (t - (sc.laceMs ?? -1e12) > LACE_AGAIN_S * 1000) list.push('lace');
+  return list.map(c => ({ key: c, label: COVER[c].charAt(0).toUpperCase() + COVER[c].slice(1), do: `cover:${c}` }));
+}
+
 /** What's at hand for T, the engine's: a shop window, a free seat, a zebra ({ act, text }), or null. */
 export function affordance(state, me) {
   const book = bookOffer(state, me);                                // (sat somewhere, a book on you: sim/reading.js)

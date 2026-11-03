@@ -4,6 +4,14 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.10 (2026-11-03)
+
+- **The reflex.** When you see something coming, time stops and a card asks what you do about it. Nothing is always one of the choices, and closing the card is nothing. It comes up three ways:
+  - **Your quarry about to check behind him.** When you read his tell, you're offered the covers at hand: the shop window, a bench, your phone, a shoelace. Or walk on.
+  - **A hand reaching for you**, a hunter's or the umbrella minder's. It's your Awareness against their Deception, harder each time. Step back and the hand closes on air. Run, and you're off before it closes. Meet it, and the fight's first edge is yours. Or go for your gun, if you carry one.
+  - **An officer going for his gun**, or bringing his rifle up. Drop yours and show your hands (he holds, and you're taken in rather than shot), aim at him, or run.
+- Tests: `tests/reflex.test.mjs` (the tell's covers, time standing, the hand made to miss, met with the edge, the officer's draw and the gun dropped).
+
 ## v0.1.9 (2026-11-03)
 
 - **Armed police.** Patrols now carry their country's sidearm in a holster: a Makarov or a PL-15K in Moscow, a Browning or a Glock in Beirut, a CZ, a Helwan or a 686 revolver in Cairo. London's patrols carry nothing. A gun in your hand sends the passers-by who see it running, and now and then one calls it in; so does a shot that's heard (not a suppressed one). An officer who sees it, or hears it, shouts the order, in the country's words. Put it away or drop it, keep your hands empty, and you're taken in: the gun taken, three hours at the station until the embassy's man comes, +25 heat, cover standing −30. Keep it in your hand past the order, or fire, and an armed officer draws and shoots, going through the same steps you do, in real time (a Moscow patrolman fired 3.8 s after his order). An unarmed one holds back.

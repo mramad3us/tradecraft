@@ -151,6 +151,7 @@ function stop() {
 function launch(s, { hour = null } = {}) {
   stop();
   state = s;
+  if (!s.autoplay) s.$reflexes = true;                              // (the played game's: time stops for a moment seen coming, sim/reflex.js)
   if (settings.debug) armDebug(s);                                 // (debug mode: the station's pistol on you, to try the guns: sim/firearms.js)
   lastPhoto = null; snapWanted = null;
   bus = createBus();
@@ -173,6 +174,7 @@ function launch(s, { hour = null } = {}) {
   bus.on('photo', (w) => { snapWanted = w; });                    // (sim/scenarios/watch.js: the frame, at the next draw)
   bus.on('shop', ({ shop, ways }) => ui.openChoices('SHOP', shopWord(shop).replace(/^the /, '').toUpperCase(), ways.map(w => ({ key: w.id, label: w.label, off: w.off ?? undefined })), (key) => acts.push(`shop:${key}`)));   // (sim/shops.js)
   // (sim/buses.js; stood by the doors, off as they close: the same stops, a second card)
+  bus.on('reflex', (R) => ui.openChoices('REFLEX', R.title, R.options.map(o => ({ key: o.key, label: o.label })), (key) => acts.push(`reflex:${key}`)));   // (a moment seen coming: sim/reflex.js)
   bus.on('bus', ({ line, towards, list }) => {
     const card = (doors) => ui.openChoices('BUS', doors ? `THE ${line}: OFF AS THE DOORS CLOSE` : `THE ${line}, FOR ${String(towards).toUpperCase()}: WHERE TO?`, [
       ...list.map(d => ({ key: doors ? `${d.id}:doors` : d.id, label: `${d.label.charAt(0).toUpperCase() + d.label.slice(1)} · ${price(state, d.fare)}` })),
@@ -383,6 +385,7 @@ function frame(now) {
   last = now;
   if (running) {
     const live = !paused && !ui.overlay();
+    if (live && state.$reflex && !acts.some(k => String(k).startsWith('reflex:'))) acts.push('reflex:none');   // (the reflex's card closed without a choice: nothing, and time goes on: sim/reflex.js)
     if (live) {
       acc += dt;
       while (acc >= TICK_MS / 1000) {

@@ -53,7 +53,7 @@ import { skill } from '../skills.js';
 import { feltOf, feelM, feelOf } from '../sense.js';
 import { opposed, check } from '../checks.js';
 import { range, int, chance, pick, weighted, hash, stream } from '../rng.js';
-import { act, offer, paneNear, seatTaken, crossingAt, crossingNear, say1 } from '../acts.js';
+import { act, offer, paneNear, seatTaken, crossingAt, crossingNear, say1, coversHere } from '../acts.js';
 import { settle, place, onStreet } from '../instinct.js';
 import { Z, SECTION_M, inLane, streetName } from '../map/street.js';
 import { near, sectionAt } from '../world.js';
@@ -63,6 +63,7 @@ import { mods as showsMods } from '../notice.js';
 import { weatherMods, weatherAt } from '../weather.js';
 import { sendBus, busLeadMs, pulledIn, release } from '../traffic.js';
 import { begin as beginFight } from '../fight.js';
+import { reach, missed, offer as offerReflex, REACH_M } from '../reflex.js';
 import { strain } from '../needs.js';
 import { makeAgent, setRoute, follow as followTarget, rowOf, onMap } from '../agents.js';
 import { isPasserby } from '../crowd.js';
@@ -490,7 +491,14 @@ function tell(state, bus, t, kind) {
     dc: 10 + (sc.wary ? 3 : 0) + Math.round(sc.alert / 25) + (d > 35 ? 6 : d > 25 ? 3 : 0) });
   sc.rolls++;
   if (r.ok) { sc.tell.read = true; sc.warned++; }
+  // (read in time, and nothing yet between you: the reflex, the street's covers at hand, sim/reflex.js)
+  if (r.ok && !me.busy && !me.glass) {
+    const covers = coversHere(state, me);
+    if (covers.length) offerReflex(state, bus, { why: 'tell', title: TELL_TITLE[kind] ?? TELL_TITLE.look, x: t.x, options: covers, none: 'Walk on, as you were' });
+  }
 }
+const TELL_TITLE = { turn: 'He\'s slowing at the corner: he\'ll look back', look: 'He\'s slowing: he\'s going to look back', window: 'He\'s drifting to a shop window: he\'ll use the glass',
+  cross: 'He\'s going to cross: he\'ll look both ways', exit: 'He\'s coming out of the shop', double: 'He\'s turning back this way' };
 
 /** A check under way: the first moment we're in his sight, he rolls. */
 function scanning(state, bus, me, t, d) {
@@ -1302,7 +1310,9 @@ function away(state, bus) {
   if (!me || state.fight) return;
   const sameRow = m && rowOf(state, m) === rowOf(state, me), dm = m ? Math.hypot(m.x - me.x, m.z - me.z) : 99;
   if (h.chased && m && (sameRow ? !m.ai.follow?.lost || dm < CHASE_M : false)) {
-    if (dm <= GRAB_M && !me.hidden) {
+    // (closing to grab: seen coming, the reflex, sim/reflex.js; made to miss, not this time)
+    if (dm <= GRAB_M + REACH_M && !me.hidden && reach(state, bus, me, m, { seen: inView(state, m.id), title: 'His minder, reaching for you', fight: { style: 'wrestler', owner: 'umbrella', line: 'You turn into the minder before his hand lands.' } })) return;
+    if (dm <= GRAB_M && !me.hidden && !missed(state, m)) {
       speak(state, bus, m.id, 'A hand like a vice on your arm. "Stoi."', 'A hand like a vice on your arm.');
       beginFight(state, bus, m, { style: 'wrestler', owner: 'umbrella' });
       return;
