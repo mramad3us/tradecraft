@@ -4,6 +4,10 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0 (2026-11-03)
+
+- **Alpha 1.** The release candidate validated by the user (2026-11-03: "promote the current version as 0.1.0, this is Alpha 1 worthy"): 0.1.0-rc56 as it was, the career from a first tour to a posting of your own, the tested missions on its streets, and the city round them. Work goes on in 0.1.x.
+
 ## v0.1.0-rc56 (2026-11-03)
 
 - **The team that tails you knows only what it has seen.** Before, whoever was on you walked to wherever you really were, seen or not. Up a lane none of them saw you take, at night, they came and stood over you. In 12 evenings, an officer who walked up a lane and waited was never lost, even when nobody saw them go in. Now the team goes by radio: where one of them last saw you, and which way you were going. Out of sight, they make for that spot and on 4 s the way you were heading, looking about, and after 30 s (covert) or 40 s (overt) with nobody seeing you, they've lost you.
