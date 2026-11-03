@@ -4,6 +4,19 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.14 (2026-11-03)
+
+- **The emergency services.** Someone down in the street (shot, knocked flat, collapsed, dead, you included) and seen by passers-by gets called in. The caller stands on the phone for a while.
+  - **When they come:** police and an ambulance, each in its city's minutes. Moscow's police take 8 to 15 and its ambulance 12 to 25 (its legal norm is 20). London's police take 6 to 14, its ambulance 6 to 12. Beirut's police are slow, 10 to 25, and the Red Cross ambulance quicker. Cairo's both take 10 to 30.
+  - **Your instinct's timer:** if you see or hear the call made, the watch shows how long they'll be. At Tradecraft 70 and over it's to the minute ("police: 6 min · ambulance: 9 min"), from 40 it's "about" so many, and under that it's "a few minutes", "any moment", "a while yet". The guess is off by more the less Tradecraft you have.
+  - **They come by car:** an ambulance and a police car in the city's colours (Battenburg in London, the white and blue ПОЛИЦИЯ in Moscow, the Red Cross in Beirut), lights flashing, pulling up at the kerb.
+  - **The paramedics** kneel and work (what's bleeding on the outside gets dressed), then stretcher the casualty away, the dead under a sheet. In hospital, the bleeding inside is stopped. If it's you, it's eight hours there; if the police have your description, there's an officer in the corridor.
+  - **The police** tape the place off for a day, leave an officer posted at the tape ("Police line. Back, please."), and take statements. The tape and its officer are still there when you come back to that street.
+- **Your description.** If you were seen at it (a shot, a killing, a fight) in the two minutes before the call, the caller describes you: what you were wearing, your hat, your hair. Every officer in the city has it for four days. One who sees you dressed like that knows you, with the order, the cuffs, and the armed response if you're armed; in the campaign your cover standing drops 35, once. Change your coat, hat or hair, and they don't.
+- **Fixed: the flickering stripes up the buildings.** A façade took its fog of view from the rooms behind its front, seen through its windows or not, which striped it top to bottom and shifted as you walked. Now a wall reads as the pavement in front of it.
+- **Umbrellas and bags, held as people hold them.** With the umbrella up, the arm is bent and the fist is at the chest, holding a shaft that runs up to the canopy's middle, still as they walk. A closed umbrella hangs from the hand, its tip by the ankle. A shop's plastic bag, a briefcase or a newspaper hangs from the fist wherever the arm swings (from the other hand when one's on the umbrella). Before, a bag or a paper was a white block on the chest.
+- Tests: `tests/emergency.test.mjs` (the call and the minutes, the guess by Tradecraft, the ambulance and the police at work, the description and a change of coat).
+
 ## v0.1.13 (2026-11-03)
 
 - **Fixed: police shot from the ground, and kept shooting you when you were down.** An officer who's been shot down stays down and doesn't fire. With you down, or your hands empty, they cover you without firing, and the nearest comes in to cuff you. You can't go into shooting mode lying down, or with both arms out.

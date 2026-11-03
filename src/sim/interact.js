@@ -33,6 +33,7 @@ import { heard } from './shooting.js';
 import { kill } from './health.js';
 import { spatter } from './blood.js';
 import { TICK_MS } from './clock.js';
+import { markViolent } from './emergency.js';
 import { skill } from './skills.js';
 import { chance, pick, hash } from './rng.js';
 import { say } from './log.js';
@@ -203,7 +204,8 @@ owners.street = {
       run(state, them);
       say(state, bus, { kind: 'note', text: pick(state.rng, [`${cap(name)} backs off, then runs.`, `${cap(name)} has had enough, and goes, fast.`, `${cap(name)} turns and runs.`]) });
     }
-    // Whoever saw it.
+    // Whoever saw it (and will describe you, when it's called in: sim/emergency.js).
+    markViolent(state, playerOf(state));
     const me = playerOf(state), saw = state.actors.filter(a => a !== me && a !== them && !a.hidden && Math.hypot(a.x - me.x, a.z - me.z) < WITNESS_M && seesActor(state, a, me)).length;
     if (saw && state.legend) {
       addHeat(state, Math.min(WITNESS_MAX, saw) * WITNESS_HEAT * (p.dead ? KILL_HEAT_K : 1));
@@ -242,6 +244,7 @@ export function finishDowned(state, bus, me, key) {
     say(state, bus, { kind: 'note', text: `${cap(name)} is dead.` });
   }
   const saw = state.actors.filter(a => a !== me && a !== them && !a.hidden && Math.hypot(a.x - me.x, a.z - me.z) < WITNESS_M && seesActor(state, a, me)).length;
+  if (what !== 'search') markViolent(state, me);                    // (seen at it: described when it's called in, sim/emergency.js)
   if (saw && state.legend && what !== 'search') {
     addHeat(state, Math.min(WITNESS_MAX, saw) * WITNESS_HEAT * (what === 'kill' ? KILL_HEAT_K : 1));
     say(state, bus, { kind: 'note', text: what === 'kill' ? 'Someone saw. A scream, and running feet.' : 'Someone saw you at it, and hurries off.' });

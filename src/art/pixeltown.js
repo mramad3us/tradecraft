@@ -1709,15 +1709,19 @@ const CARS = {
  * rack, a van, an SUV with a spare wheel; 'taxi' a yellow sedan with its chequered band and roof
  * sign). Its painted faces are made once a make and colour.
  */
-export function car(color = 0x3b6296, { taxi = false, seed = 5, kind = 'sedan', free = true } = {}) {
+export function car(color = 0x3b6296, { taxi = false, seed = 5, kind = 'sedan', free = true, livery = null } = {}) {
   if (kind === 'taxi') { taxi = true; kind = 'sedan'; color = 0xe7b84a; }
+  // (an ambulance or a police car, in the city's livery (its country's ems: sim/countries/): a van or a saloon in its
+  // colour, its band along the side (two colours, Battenburg where they alternate), its word, a light bar on the roof)
+  const ems = kind === 'ambulance' || kind === 'police' ? kind : null, Lv = ems ? livery ?? { body: 0xf6f4ee, stripe: [0x3b6296, 0x3b6296], word: ems === 'police' ? 'POLICE' : 'AMBULANCE' } : null;
+  if (ems) { kind = ems === 'ambulance' ? 'van' : 'sedan'; color = Lv.body; }
   const city = kind === 'cairotaxi' ? 'cairo' : kind === 'servis' ? 'beirut' : null;     // Cairo's white taxi with its chequered band; Beirut's service taxi, an old Mercedes, its red plate
   if (city === 'cairo') { kind = 'sedan'; color = 0xf6f4ee; taxi = true; }
   if (city === 'beirut') { kind = 'boxy'; color = pick3(seed, 1, [0xf6f4ee, 0xdfe2e8, 0xc4bba9, 0x8f96a6]); taxi = true; }
   const cab = kind === 'cab';
   if (cab) color = 0x23252f;
   const K = CARS[kind] ?? CARS.sedan;
-  const L = 4.2, Wd = 1.8, body = mat(color), dark = 0x23252f, key = `${kind}-${color}-${taxi}-${city}`;
+  const L = 4.2, Wd = 1.8, body = mat(color), dark = 0x23252f, key = `${kind}-${color}-${taxi}-${city}${ems ? `-${ems}-${Lv.stripe.join('.')}-${Lv.word}` : ''}`;
   const side = keep(`car-side-${key}`, () => mat(0, paint(Math.round(L * M), Math.round(K.body * 16), (px, W, H) => {
     px(0, 0, W, H, color);
     px(0, 0, W, 1, 0xdfe2e8);                                    // the lit crease
@@ -1725,6 +1729,10 @@ export function car(color = 0x3b6296, { taxi = false, seed = 5, kind = 'sedan', 
     if (kind === 'van') px(Math.floor(W * 0.8), 1, 1, H - 3, dark);
     px(Math.floor(W * 0.4), 4, 3, 1, dark); px(Math.floor(W * 0.66), 4, 3, 1, dark);           // handles
     if (taxi && city !== 'beirut') for (let x = 0; x < W; x += 2) { px(x, 6, 1, 1, x % 4 ? 0xf6f4ee : dark); px(x + 1, 7, 1, 1, x % 4 ? dark : 0xf6f4ee); }   // the chequered band
+    if (ems) {
+      for (let x = 0; x < W; x += 4) px(x, H - 7, 4, 3, Lv.stripe[(x / 4) % 2]);                 // the band: blocks of its two colours
+      const tw = textWidth(Lv.word); if (tw < W - 4) text(px, Math.floor((W - tw) / 2), 1, Lv.word, ems === 'police' ? Lv.stripe[0] : 0xc95c45);
+    }
     if (K.chrome) px(0, H - 4, W, 1, 0xb8bdc8);
     px(0, H - 3, W, 3, dark);                                    // the sill
   })));
@@ -1770,6 +1778,16 @@ export function car(color = 0x3b6296, { taxi = false, seed = 5, kind = 'sedan', 
     t.position.set(K.at + K.cab / 2 - 0.5, K.ride + K.body + K.cabH - 0.06, 0);
     t.rotation.y = Math.PI / 2;
     g.add(part(t));
+  }
+  if (ems) {                                                     // the light bar: blue (and red for an ambulance), lit and flashing while it's on a call (src/render/traffic.js)
+    const lit = keep(`ems-bar-${ems}`, () => mat(0, paint(14, 4, (px) => { px(0, 0, 7, 4, 0x5d8fc2); px(7, 0, 7, 4, ems === 'ambulance' ? 0xc95c45 : 0x5d8fc2); }, { glows: [0x5d8fc2, 0xc95c45] })));
+    const off = keep('ems-bar-off', () => mat(0x4c5262));
+    const top = K.ride + K.body + K.cabH - 0.03;
+    for (const [m, on] of [[lit, true], [off, false]]) {
+      const b = box(0.32, 0.14, 1.1, { sides: m, top: m, front: m, back: m });
+      b.position.set(K.at + 0.2, top + 0.07, 0); b.visible = !on;
+      g.add(part(b)); (g.userData.bar ??= {})[on ? 'on' : 'off'] = b;
+    }
   }
   if (taxi) {
     const word = city === 'beirut' ? 'TAXI' : city === 'cairo' ? 'تاكسي' : 'TAXI';

@@ -507,7 +507,8 @@ const T = {
       '.uuuuuuuuuuuuuuuuuuuu.',
       'uUuuUuuUuuUuuUuuUuuUuu',
       'U..U..U..U..U..U..U..U']],
-    shaft: { down: [4, 5, ['n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n']], right: [11, 5, ['n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n', 'n']] },
+    // (from the canopy's middle down to the fist before the chest, the head hiding it where they cross: compose())
+    shaft: { down: [10, 4, Array(19).fill('n')], up: [12, 4, Array(19).fill('n')], right: [13, 5, Array(17).fill('n')] },
   },
   // ----- hats -----
   hat: {
@@ -767,6 +768,11 @@ function armFront(x0, kind, reach, side) {
     const up = ['......ss', '......ss', '.....tt.', '....tt..', '...tt...', '..tt....', '.tt.....', 'tt......', 'tt......', 't.......'];
     return side > 0 ? [x0, 10, up] : [x0 - 6, 10, up.map(r => [...r].reverse().join(''))];
   }
+  // (an umbrella up: the forearm in, the fist before the chest, under the shaft)
+  if (reach === 'umb') {
+    const bent = ['tt.....', 'tt.....', '.tt....', '..ttt..', '....ss.'];
+    return side < 0 ? [x0, 19, bent] : [x0 - 6, 19, bent.map(r => [...r].reverse().join(''))];
+  }
   // (a phone looked at: the forearm in to the chest, the hands together under it)
   if (reach === 'phone') {
     const bent = ['tt....', 'tt....', 'tt....', '.tt...', '..ttss'];
@@ -925,16 +931,20 @@ function compose(spec, dir, frame) {
   const rig = GUN_RIGS[spec.hand] ? gunRig(spec.hand, view, frame, kind) : null;
   const drawAll = (list, dx) => { for (const t of list) draw(t, dx, bob); };
 
+  // (an umbrella up: its arm bent, the fist before the chest holding the shaft, still as they walk; the user, 2026-11-03:
+  // "fix the holding an umbrella animations, they mostly make no sense")
+  const brolly = spec.rainwear === 'umbrella' && !rig;
+  let other = 0;                                                   // (the other hand's part: a bag hangs from it when the near one's on the umbrella)
   if (view === 'right') {
     // Far side first: the far arm and leg, shaded; then the near leg, the body, the near arm.
     const air = Math.min(0, bob);                                // in the air, the legs rise with the body
-    if (rig) drawAll(rig.under, lean); else draw(armSide(kind, P.swing[1], true), lean, bob);
+    if (rig) drawAll(rig.under, lean); else { draw(armSide(kind, P.swing[1], true), lean, bob); other = part; }
     draw(legsSide(P.side[1], false), 0, air);
     if (!P.legOver) draw(legsSide(P.side[0], true), 0, air);
     draw(torsoSide(kind), lean, bob);
     if (P.legOver) draw(legsSide(P.side[0], true), 0, air);        // (a kick: the leg comes in front)
     if (rig) drawAll(rig.body, lean);
-    else if (!P.over) { draw(armSide(kind, P.swing[0], false), lean, bob); hand = part; }
+    else if (!P.over) { draw(armSide(kind, brolly ? 2 : P.swing[0], false), lean, bob); hand = part; }
   } else {
     draw(legsFront(view === 'up' ? -P.front : P.front, P.sit));
     draw(torsoFront(kind, view === 'up'), 0, bob);
@@ -942,21 +952,20 @@ function compose(spec, dir, frame) {
     // (an arm up, drawn after the head, over it where they cross: below)
     if (rig) drawAll(rig.body, 0);
     else {
-      if (l !== 'up') draw(armFront(5, kind, l, -1), 0, bob);
+      // (the umbrella's in the camera's left hand from the front, the right from behind: the same hand)
+      if (l !== 'up') draw(armFront(5, kind, brolly && view === 'down' ? 'umb' : l, -1), 0, bob);
       hand = part;
-      if (r !== 'up') draw(armFront(16, kind, r, 1), 0, bob);
+      if (r !== 'up') draw(armFront(16, kind, brolly && view === 'up' ? 'umb' : r, 1), 0, bob);
+      other = part;
+      if (brolly && view === 'up') [hand, other] = [other, hand];
     }
   }
   if (P.phone && view !== 'up') draw(view === 'right' ? [12, 21, ['kk', 'kV', 'kk']] : [9, 23, ['kkkk', 'kVVk', 'kkkk']], view === 'right' ? lean : 0, bob);   // (the phone, its screen lit)
-  if (spec.carry && view !== 'up') {                              // in the hand nearest the camera's left
-    const item = spec.carry === 'briefcase'
-      ? (view === 'right' ? [10, 25, ['.kk.', 'xxxxx', 'xxxxx', 'xxxxx', 'XXXXX']] : [3, 25, ['.kk.', 'xxxx', 'xxxx', 'xxxx', 'XXXX']])
-      : (view === 'right' ? [9, 21, ['wwww', 'WWWW']] : [4, 21, ['ww', 'ww', 'WW']]);
-    draw(item, view === 'right' ? lean : 0, bob);
-  }
-  // (an umbrella's shaft, from the hand up: before the head, which hides it where they cross)
+  // (a bag or a briefcase: hung from the fist, wherever the arm's swung it; from the other hand when this one's on an umbrella)
+  if (spec.carry && !rig) hang(cells, W, H, brolly ? other : hand, ++part, CARRIED_THINGS[spec.carry] ?? CARRIED_THINGS.bag);
+  // (an umbrella's shaft, from its fist up to the canopy's middle: before the head, which hides it where they cross)
   const rain = spec.rainwear;
-  if (rain === 'umbrella') draw(view === 'right' ? T.umbrella.shaft.right : T.umbrella.shaft.down, view === 'right' ? lean : 0, bob);
+  if (rain === 'umbrella') draw(T.umbrella.shaft[view] ?? T.umbrella.shaft.down, view === 'right' ? lean : 0, bob);
   // The head and everything on it.
   const hb = bob + (P.head ?? 0);
   draw(pick(T.head) ?? T.head.down, lean, hb);
@@ -976,7 +985,7 @@ function compose(spec, dir, frame) {
   if (spec.blood?.clothes && view !== 'up') draw(BLOOD.clothes[view], lean, bob, true);
   if (rain === 'hood') draw(T.hood[view] ?? T.hood.down, lean, hb);
   else if (hat) draw(hat[view] ?? hat.down, lean, hb);
-  if (rain === 'umbrella') draw(T.umbrella.canopy, view === 'right' ? lean : 0, hb);
+  if (rain === 'umbrella') draw(T.umbrella.canopy, (view === 'right' ? lean + 1 : view === 'down' ? -2 : 0), hb);   // (centred over its shaft)
   if (rig) { drawAll(rig.over, lean); return cells; }              // (a gun up before the face: drawn over the head)
   if (P.over && view === 'right') { draw(armSide(kind, P.swing[0], false), lean, bob); hand = part; }   // (a fist before the face)
   if (P.armOver && view !== 'right') {                             // (an arm up past the head: a taxi hailed)
@@ -984,7 +993,8 @@ function compose(spec, dir, frame) {
     if (l === 'up') draw(armFront(5, kind, 'up', -1), 0, bob);
     if (r === 'up') draw(armFront(16, kind, 'up', 1), 0, bob);
   }
-  if (spec.hand && view !== 'up' && HELD[spec.hand] && !(spec.hand === 'umbrella' && spec.rainwear === 'umbrella')) held(   // (an umbrella up is the canopy and its shaft, not the furled one)
+  if (spec.hand === 'umbrella' && rain !== 'umbrella') hang(cells, W, H, hand, ++part, CARRIED_THINGS.umbrella);   // (furled: it hangs from the hand, its tip by the ankle)
+  else if (spec.hand && view !== 'up' && HELD[spec.hand] && !(spec.hand === 'umbrella' && spec.rainwear === 'umbrella')) held(   // (an umbrella up is the canopy and its shaft, not the furled one)
     cells, W, H, hand, ++part, HELD[spec.hand], view === 'right' ? (HOLD[frame] ?? [0, 1]) : [0, 1]);
   return cells;
 }
@@ -1006,6 +1016,23 @@ const HELD = {
   pistol: { line: 'nnnn', end: [[-3, 1, 'n'], [-3, 2, 'n']] },   // (a handgun, any model: sim/firearms.js; the slide forward, the grip in the hand)
   rifle: { line: 'nnnnnnnnnn', end: [[-9, 1, 'n'], [-7, 1, 'n'], [-5, 1, 'n'], [-5, 2, 'n']] },   // (a long gun: the stock back, the grip and the magazine below)
 };
+// Things that hang from a fist (hang()): a shop's plastic bag, its handles in the hand; a briefcase by its handle; a newspaper;
+// a furled umbrella by its crook, its tip by the ankle. Rows from the fist down, centred on it.
+const CARRIED_THINGS = {
+  bag: ['.w.w.', 'wwwww', 'wwwwW', 'wwwwW', 'WwwwW', '.WWW.'],
+  briefcase: ['.kk.', 'xxxxx', 'xxxxx', 'xxxxx', 'XXXXX'],
+  paper: ['ww', 'wk', 'wW', 'wk', 'WW'],                           // (a folded newspaper, its print showing)
+  umbrella: ['n.', 'uu', 'uu', 'uU', 'uU', 'u.', 'u.', 'n.'],
+};
+/** What hangs from the fist of the `hand` part (CARRIED_THINGS' rows): its top under the fist's lowest pixel, centred on it, clipped to the cell. */
+function hang(cells, W, H, hand, part, rows) {
+  let x0 = Infinity, x1 = -Infinity, y1 = -1;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const c = cells[y][x]; if (c && c.part === hand && (c.ch === 's' || c.ch === 'S')) { if (y > y1) { y1 = y; x0 = x1 = x; } else if (y === y1) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); } } }
+  if (y1 < 0) return;
+  const w = Math.max(...rows.map(r => r.length)), left = Math.round((x0 + x1) / 2 - (w - 1) / 2);
+  rows.forEach((row, j) => [...row].forEach((ch, i) => { const X = left + i, Y = y1 + j; if (ch !== '.' && X >= 0 && Y >= 0 && X < W && Y < H) cells[Y][X] = { ch, part }; }));
+}
+
 /** Which way what's held points, by frame (side on): [dx, dy], x forward, y down. Anything else hangs. */
 const HOLD = {
   punch: [1, 0], grab: [1, 0], throw: [1, 0], sweep: [1, 0], parry: [1, -1],

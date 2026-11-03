@@ -50,6 +50,7 @@ import { LINE } from './city.js';
 import { weaponOf } from './weapons.js';
 import { person } from './interact.js';
 import { addHeat } from './heat.js';
+import { markViolent } from './emergency.js';
 import { TICK_MS } from './clock.js';
 
 export const AIM = { sight: 0.6, turn: { base: 90, per: 6 }, arc: { base: 30, per: 2, max: 100 }, feet: 0.4 };
@@ -478,6 +479,7 @@ export function bullet(state, bus, a, part, M, from) {
 /** A shot heard: passers-by within HEAR_M run, away from it; in the campaign, heat (once a minute). */
 export function heard(state, bus, shooter, x, z, loud = 1) {
   const row = state.map.row ?? 0, R = HEAR_M * loud;            // (a suppressed gun is heard a fraction as far: its loud)
+  if (shooter?.who === state.player) markViolent(state, shooter);   // (seen at it: whoever calls it in describes you, sim/emergency.js)
   if (shooter?.who === state.player && loud >= 0.5) state.$shotBy = { ms: state.time.ms, x, z };   // (yours, heard: the police come for it, sim/armed.js; a suppressed one isn't)
   let ran = 0;
   for (const a of state.actors) if (a !== shooter && isPasserby(a) && !a.hidden && a.gait !== 'down' && rowOf(state, a) === row && Math.hypot(a.x - x, a.z - z) < R) { flee(state, a, x); ran++; }

@@ -67,6 +67,7 @@ import { unitAt } from '../sim/interiors/use.js';
 import { createCrowd, gunPose, FLASH_LIT_M, FLASH_LIGHT } from './crowd.js';
 import { createBlood } from './blood.js';
 import { createTraffic } from './traffic.js';
+import { createTape } from './tape.js';
 import { createItems } from './items.js';
 import { sky, indoors, lightAt, lightLevel, LAMP } from '../sim/light.js';
 import { Z, SECTION_M } from '../sim/map/street.js';
@@ -147,6 +148,7 @@ export function createView({ parent, bus, month = () => 11 }) {
   const crowd = createCrowd(scene, stage.renderer);
   const blood = createBlood(scene);
   const traffic = createTraffic(scene);
+  const tape = createTape(scene);                                  // (the police tape round a place: sim/emergency.js)
   const items = createItems(scene);                                // (things lying about: src/render/items.js)
   const looks = new Map();                                         // passer-by seed (and the day's band) → look (generated once)
   let city = null, band = null;
@@ -513,7 +515,8 @@ export function createView({ parent, bus, month = () => 11 }) {
     }
     crowd.update(people, t);
     blood.update(state);
-    traffic.update(state, alpha, S.glow > 0.35, pc && !aware ? (x, z) => fogAt(x, z) > 0.5 : null);   // (only those in sight: the fog, as for people)                   // (the cars on the road, their lights on after dark: src/render/traffic.js)
+    traffic.update(state, alpha, S.glow > 0.35, pc && !aware ? (x, z) => fogAt(x, z) > 0.5 : null);
+    tape.update(state);   // (only those in sight: the fog, as for people)                   // (the cars on the road, their lights on after dark: src/render/traffic.js)
     items.update(state);
     stage.render();
     for (const s of dying) s.dispose();                            // (the last street's, now the next's have their shaders)
@@ -599,7 +602,7 @@ export function createView({ parent, bus, month = () => 11 }) {
     shadows();
   }
   /** Done with the view (a new game makes its own): its GPU context given back, not left for the browser to cap. */
-  function dispose() { traffic.dispose(); clear(); for (const s of dying.splice(0)) s.dispose(); off.forEach(f => f()); fogTex.dispose(); crowd.atlas.dispose(); crowd.dispose(); stage.dispose(); }
+  function dispose() { traffic.dispose(); tape.dispose(); clear(); for (const s of dying.splice(0)) s.dispose(); off.forEach(f => f()); fogTex.dispose(); crowd.atlas.dispose(); crowd.dispose(); stage.dispose(); }
 
   return { stage, frame, resize, clear, dispose, flush: () => build(Infinity), canvas: stage.renderer.domElement, get camera() { return cam; }, posOf: (id) => drawn.get(id),
     fogAt };

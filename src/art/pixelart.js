@@ -316,7 +316,11 @@ export function pixelStage({ background = 0x23252f, outline = true, palette = PA
         vec3 wp = w4.xyz / w4.w;                                     // (the world under the pixel)
         bool unseen = false;
         if (fogOn > 0.5 && raw < 0.99999) {
-          vec2 fv = texture(tFog, (wp.xz - fogBox.xy) / fogBox.zw).rg;
+          // (a surface above the ground takes the fog of the ground in front of it, south toward the street, half a metre a metre
+          // up: a facade reads as the pavement at its foot, not the rooms behind its front, seen through its windows and not,
+          // which striped it up its height and flickered as you walked: the user, 2026-11-03, "the flickering shadows on the buildings")
+          vec2 fp = wp.xz + vec2(0.0, clamp(wp.y, 0.0, 1.0) * 0.5);
+          vec2 fv = texture(tFog, (fp - fogBox.xy) / fogBox.zw).rg;
           if (fv.r < bayer(gl_FragCoord.xy)) { col = dim(col); unseen = true; }
           else if (fv.g > bayer(gl_FragCoord.xy + vec2(2.0, 1.0))) col = feltTint(col);
         }

@@ -10,6 +10,8 @@ export const GB = {
     // (patrols unarmed; the Met's armed response vehicles: three officers, a Glock and a SIG MCX; rifles in the open at Parliament, Downing Street, embassies, airports)
     arms: { patrol: [], patrolLong: [], response: ['glock17', 'mcx', 'g36c'], visible: 'armed officers at embassies, Parliament and the airports' },
     response: { unit: 'an armed response vehicle', minutes: [4, 8] },
+    // (London: an emergency's 15 minutes for the Met, a category 1 call's 7 for the ambulance service, on average 8 or so; Battenburg on both)
+    ems: { police: [6, 14], ambulance: [6, 12], policeCar: { body: 0xf6f4ee, stripe: [0x3b6296, 0xf8e08a], word: 'POLICE' }, ambulanceCar: { body: 0xf8e08a, stripe: [0x356f42, 0xf8e08a], word: 'AMBULANCE' }, medic: { top: { kind: 'uniform', color: 0x356f42, trim: 0xf8e08a }, legs: 0x24503a } },
   },
   // (handguns prohibited since 1997; rifles and shotguns on a certificate with a good reason; no civilian carry)
   law: { handgun: 'banned', long: 'licensed', carry: 'banned', ranges: 'club', diplomats: 'permit' },

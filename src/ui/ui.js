@@ -61,6 +61,7 @@ import { LESSONS, FARM, lessonOf, numberOf, nextLesson } from '../sim/tutorial/i
 import { READ_S, WORD_S } from '../sim/tutorial/earpiece.js';
 import { HEARSAY } from '../sim/hale.js';
 import { plaque, place, bracket } from './plaque.js';
+import { waiting as waitingFor } from '../sim/emergency.js';
 import { options as shootOptions, targets as shootTargets, odds as shootOdds, gunsOf, aimMs } from '../sim/shooting.js';
 import { said as gunSaid, armOf, modelOf as gunModel } from '../sim/firearms.js';
 import { openMind } from './mind.js';
@@ -88,7 +89,7 @@ let hudMs = 0, lastReal = 0;                                      // (the HUD's 
 
 export function createUI({ input, cb }) {
   const frame = el('div', { id: 'frame' });
-  const watch = el('div', { className: 'watch' }, el('div', { className: 'time' }), el('div', { className: 'date' }), el('div', { className: 'place' }), el('div', { className: 'sky' }), el('div', { className: 'hand' }));
+  const watch = el('div', { className: 'watch' }, el('div', { className: 'time' }), el('div', { className: 'date' }), el('div', { className: 'place' }), el('div', { className: 'sky' }), el('div', { className: 'hand' }), el('div', { className: 'sirens' }));
   // (a lesson of the tutorial: Hale on the earpiece, his line at a time, and the lesson's checklist under the watch: sim/tutorial/)
   const earpiece = el('div', { className: 'earpiece', hidden: true }, el('div', { className: 'who' }), el('div', { className: 'line' }));
   const lessonBox = el('div', { className: 'lesson', hidden: true });
@@ -244,6 +245,9 @@ export function createUI({ input, cb }) {
     const me = state.actors.find(a => a.who === state.player);
     const held = weaponOf(state.people[state.player]?.hand);       // (what's in your hand, under the watch: sim/items.js)
     put(watch.querySelector('.hand'), held ? `in hand: ${bare(held)}` : '');
+    // (a call you know of: your instinct's guess at how long they'll be, by your Tradecraft: sim/emergency.js)
+    const sirens = waitingFor(state);
+    put(watch.querySelector('.sirens'), sirens ? sirens.map(e => `${e.kind === 'police' ? 'police' : 'ambulance'}: ${e.text}`).join(' · ') : '');
     if (me && state.map?.kind === 'street') put(watch.querySelector('.place'), placeName(townOf(state.map), state.map.row ?? 0, me.x, me.z));
     else put(watch.querySelector('.place'), SCENARIOS[state.scenario.kind]?.place?.(state) ?? '');
     { const w = weatherAt(state); put(watch.querySelector('.sky'), w.indoors || w.temp === undefined ? w.words : `${w.words}, ${Math.round(w.temp)}°`); }   // (the weather, in a few words, and the temperature: sim/weather.js)

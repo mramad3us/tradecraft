@@ -10,6 +10,7 @@
 import { car, busModel } from '../art/pixeltown.js';
 import { emissiveOf } from '../art/pixelart.js';
 import { cityById, townOf } from '../sim/cities/index.js';
+import { policeOf } from '../sim/countries/index.js';
 import { lineNumber } from '../sim/map/street.js';
 
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -58,7 +59,7 @@ export function createTraffic(scene) {
       if (m && c.taxi && m.userData.free !== c.taxi.free) { free(c.id); m = null; }   // (a taxi's light changed: hailed and taken, or let go)
       if (!m) {
         const C = cityById(state.map.city);
-        m = c.kind === 'bus' ? busModel(C.bus, lineNumber(townOf(state.map), state.map.row ?? 0)) : car(c.color, { seed: c.seed, kind: c.kind, free: c.taxi?.free ?? true });
+        m = c.kind === 'bus' ? busModel(C.bus, lineNumber(townOf(state.map), state.map.row ?? 0)) : car(c.color, { seed: c.seed, kind: c.kind, free: c.taxi?.free ?? true, livery: c.ems ? policeOf(state.map)?.ems?.[`${c.ems.kind}Car`] : null });
         m.userData.free = c.taxi?.free;
         m.traverse(o => { if (o.isMesh) o.castShadow = false; });
         m.rotation.y = c.dir > 0 ? 0 : Math.PI;
@@ -69,6 +70,8 @@ export function createTraffic(scene) {
       const x = lerp(c.px ?? c.x, c.x, alpha), z = lerp(c.pz ?? c.z, c.z, alpha), half = c.kind === 'bus' ? 5 : 2.2;
       m.position.set(x, 0, z);
       m.visible = !seen || seen(x, z) || seen(x - half, z) || seen(x + half, z);
+      // (on a call: its lights going, on and off twice a second on the game's clock)
+      if (m.userData.bar) { const on = !!c.ems?.lights && Math.floor(state.time.ms / 250) % 2 === 0; m.userData.bar.on.visible = on; m.userData.bar.off.visible = !on; }
     }
     for (const id of [...meshes.keys()]) if (!live.has(id)) free(id);
   }

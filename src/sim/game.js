@@ -63,6 +63,7 @@ import { glassAhead, affordance, act as doAct } from './acts.js';
 import * as fight from './fight.js';
 import * as shooting from './shooting.js';
 import * as armed from './armed.js';
+import * as emergency from './emergency.js';
 import * as reflex from './reflex.js';
 import { isGun } from './firearms.js';
 import * as interact from './interact.js';
@@ -351,8 +352,9 @@ export function step(state, input = {}, bus) {
     } else if (me) me.$atStop = 0;
     metro.stepsTick(state);                                         // (whoever rode with you, up the steps after you: sim/metro.js)
     chaseTick(state);                                               // (whoever kept your taxi in sight, out of their car behind you: sim/taxi.js)
-    if (scenario.police && !state.tutor) { police.patrolTick(state); police.eyeTick(state, bus); armed.second(state, bus, me); }   // (ordinary law: sim/police.js; a gun seen, sim/armed.js)
-    if (state.$held) { const ms = state.$held; delete state.$held; skip(state, bus, ms); }   // (taken in: the hours at the station, sim/armed.js arrest())
+    if (scenario.police && !state.tutor) { police.patrolTick(state); police.eyeTick(state, bus); armed.second(state, bus, me); emergency.second(state, bus, me); }   // (and the emergency services: sim/emergency.js)   // (ordinary law: sim/police.js; a gun seen, sim/armed.js)
+    if (state.$held) { const ms = state.$held; delete state.$held; skip(state, bus, ms); }
+    if (state.$hospital) emergency.afterHospital(state, bus, me, skip);   // (taken to hospital: the hours there, sim/emergency.js)   // (taken in: the hours at the station, sim/armed.js arrest())
     if (state.tick % (TICKS_PER_S * 60) === 0 && state.people[state.player]) bodyNotes(state, bus, heal(state.people[state.player], 1 / 1440, state.time.ms, { blood: false }));   // (your wounds, a minute on: sim/medicine.js)
     weatherTick(state, bus);                                        // (the weather turning, in the log: sim/weather.js)
     if (me?.gait === 'run' && !me.ai && !state.fight) slipUp(state, bus, me);
@@ -546,6 +548,7 @@ export function newMap(state, bus, map, x, keep = []) {
   attach(state, bus, x);
   rehash(state);
   populate(state, x, { fill: true });
+  emergency.onMap(state);                                          // (the officers posted at its police tape: sim/emergency.js)
   rehash(state);
   bus?.emit('map', state.map);
 }

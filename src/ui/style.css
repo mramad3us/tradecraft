@@ -251,6 +251,8 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .moves .move.spend.ender { color: #f4efe6; background: #6e2a2e; border-color: #c95c45; }
 .moves .move.spend.ender.foul { background: #3a1416; border-style: dashed; }
 .watch .hand { color: var(--brass); font-size: calc(11px * var(--ui, 1)); }
+.watch .sirens { color: #c4574e; font-size: calc(11px * var(--ui, 1)); }   /* a call you know of: how long they'll be, your instinct's guess (sim/emergency.js) */
+.watch .sirens:empty { display: none; }
 .inventory td.where { color: #6a7182; font-size: calc(12px * var(--ui, 1)); }
 .inventory button.small { font: calc(12px * var(--ui, 1)) var(--mono); margin-left: 6px; padding: 2px 8px; cursor: pointer; pointer-events: auto; }
 .bloodveil { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(40, 0, 0, 0) 35%, rgba(46, 6, 8, 0.55) 70%, rgba(20, 2, 4, 0.92) 100%); transition: opacity 1s; }

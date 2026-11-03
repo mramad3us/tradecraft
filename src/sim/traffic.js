@@ -85,7 +85,7 @@ function spawn(state, dir, x, opts = {}) {
   const t = T(state), P = cityOf(townOf(state.map)), r = stream('traffic', state.map.seed, t.row, t.n);
   const bus = opts.bus ?? (chance(r, BUS_SHARE) && dir === busDir(state));
   const kind = opts.kind ?? (bus ? 'bus' : chance(r, TAXI_SHARE) ? P.taxi : weighted(r, P.LOOKS.car));
-  const len = bus ? (P.bus?.len ?? 11) : kind === 'van' ? 4.8 : 4.2, w = bus ? (P.bus?.kind === 'van' ? 1.95 : 2.5) : 1.8;
+  const len = bus ? (P.bus?.len ?? 11) : kind === 'van' || kind === 'ambulance' ? 4.8 : 4.2, w = bus ? (P.bus?.kind === 'van' ? 1.95 : 2.5) : 1.8;
   const c = { id: `v${t.n++}`, kind, color: pick(r, P.carColours), seed: int(r, 1000), dir, x, z: laneOf(state, dir), len, w, v: bus ? BUS_MS : range(r, VMAX_MS[0], VMAX_MS[1]),
     vmax: bus ? BUS_MS : range(r, VMAX_MS[0], VMAX_MS[1]), px: x, pz: laneOf(state, dir), ...(bus ? { bus: { served: [] } } : {}), ...opts.extra };
   // (a taxi: its light lit or not, from a stream of its own, so nothing else on the road moves)
@@ -127,6 +127,18 @@ export function sendFare(state, x, plain = false) {
   if (t.cars.some(c => c.dir === dir && Math.abs(c.x - from) < 14)) return null;
   const P = cityOf(townOf(state.map)), kind = plain ? weighted(stream('fare-car', state.map.seed, t.n), P.LOOKS.car.filter(([k]) => k !== P.taxi)) : P.taxi;
   return spawn(state, dir, from, { bus: false, kind, extra: { taxi: { free: false, plain, hail: { x, by: null } } } });
+}
+
+/**
+ * An ambulance or a police car for a call (sim/emergency.js), sent along the south kerb's lane from the upstream edge,
+ * its lights going, to stop by x (a hail of its own: taxiStop()) and stay there while c.ems.hold. The car, or null.
+ */
+export function sendEms(state, kind, x, call) {
+  const t = T(state);
+  if (!t || state.map.kind !== 'street' || !state.$world) return null;
+  const dir = laneOf(state, 1) === LANE_Z.south ? 1 : -1, [x0, x1] = state.$world.bx, from = dir > 0 ? x0 + 2 : x1 - 2;
+  if (t.cars.some(c => c.dir === dir && Math.abs(c.x - from) < 14)) return null;
+  return spawn(state, dir, from, { bus: false, kind, extra: { taxi: { free: false, plain: true, hail: { x, by: null } }, ems: { kind, call, hold: true, lights: true } } });
 }
 
 /** The taxi you've just got out of, stopped at the south kerb by x, its light dark; it goes in a moment, free again. */
@@ -282,7 +294,7 @@ export function trafficTick(state, bus) {
 function taxiStop(state, c, ahead, stopAt) {
   const h = c.taxi.hail, now = state.time.ms, d = ahead(h.x + c.dir * (c.len / 2 - 0.9));
   if (c.taxi.stopped) {
-    if (now - c.taxi.stopped < TAXI_WAIT_S * SEC) return stopAt(-1);
+    if (now - c.taxi.stopped < TAXI_WAIT_S * SEC || c.ems?.hold) return stopAt(-1);   // (an ambulance or a police car on its call: there till it's done)
     c.taxi.hail = null; c.taxi.stopped = 0; return;
   }
   if (d < -0.5 || (d < c.v * c.v / (2 * HARD_MS2) && c.v > 2)) { c.taxi.hail = null; return; }   // (too late to stop: on it goes)

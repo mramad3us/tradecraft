@@ -53,7 +53,7 @@ export function patrolTick(state) {
   const row = state.map.row ?? 0, hour = Math.floor(state.time.ms / HOUR), K = P(state);
   for (const a of cops(state)) {
     const done = !a.ai.route || a.ai.s >= a.ai.route.length - 0.05;
-    if (a.alert || a.unit) continue;                                 // (an alarm's up: they stay: sim/armed.js)
+    if (a.alert || a.unit || a.ems) continue;                       // (an alarm's up, or they're on a call: they stay: sim/armed.js, sim/emergency.js)                                 // (an alarm's up: they stay: sim/armed.js)
     if ((a.row ?? row) !== row || Math.abs(a.x - me.x) > GONE_M || (done && !a.stopping)) { state.actors.splice(state.actors.indexOf(a), 1); delete state.people[a.who]; }
   }
   if (cops(state).length) return;
