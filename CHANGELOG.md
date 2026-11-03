@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.15 (2026-11-03)
+
+- **Hoods, redrawn.** From the side, a hood now closes under the chin and runs down the back of the neck to the collar, with a rim round the face. Before, it stopped at the jaw and read as hair over a bare neck. From behind it has a seam.
+- **Headscarves, redrawn.** An oval round the face, wrapped closed under the chin and draped smooth over the shoulders: no more knot in front. No hair shows outside the scarf, or as a fringe inside its opening.
+- **Glasses, redrawn.** Spectacles are thin grey frames round each eye, with the eye showing, a bridge, and arms to the temples. Sunglasses are the same frames with dark lenses and a glint. Before, they sat a pixel off and covered the eyes: a grey band across the face.
+
 ## v0.1.14 (2026-11-03)
 
 - **The emergency services.** Someone down in the street (shot, knocked flat, collapsed, dead, you included) and seen by passers-by gets called in. The caller stands on the phone for a while.

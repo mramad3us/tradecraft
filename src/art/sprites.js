@@ -472,33 +472,35 @@ const T = {
     up: [3, 4, [
       '.....ttttttt.....',
       '...ttttttttttt...',
-      '..ttttttttttttt..',
-      '.ttttttttttttttt.',
-      '.ttttttttttttttt.',
-      'ttttttttttttttttt',
-      'ttttttttttttttttt',
-      'ttttttttttttttttt',
-      'ttttttttttttttttt',
-      'ttttttttttttttttt',
-      'ttttttttttttttttt',
-      'ttttttttttttttttt',
+      '..ttttttTtttttt..',
+      '.tttttttTttttttt.',
+      '.tttttttTttttttt.',
+      'ttttttttTtttttttt',
+      'ttttttttTtttttttt',
+      'ttttttttTtttttttt',
+      'ttttttttTtttttttt',
+      'ttttttttTtttttttt',
+      'tttttttttttttttTt',
+      'Ttttttttttttttttt',
       '.ttttttttttttttt.',
       '..ttttttttttttt..',
       '...TTTTTTTTTTT...']],
+    // (side on: round the head, its rim round the face's opening, and closed under the chin, down the back of the neck to the
+    // collar: the user, 2026-11-03, "hoods see from the side look like hair with the neck uncovered")
     right: [4, 4, [
-      '.....tttttt.....',
-      '...tttttttttt...',
+      '....tttttttt....',
       '..tttttttttttt..',
       '.ttttttttttttt..',
-      'tttttttttttttTt.',
+      'tttttttttttttT..',
       'tttttttttttTT...',
       'ttttttttttT.....',
       'ttttttttttT.....',
       'ttttttttttT.....',
-      'tttttttttT......',
-      'tttttttttT......',
-      '.tttttttt.......',
-      '..ttttttt.......']],
+      'ttttttttttT.....',
+      'tttttttttttT....',
+      'ttttttttttttTt..',
+      '.tttttttttttttt.',
+      '..tttttttttttt..']],
   },
   umbrella: {
     canopy: [1, 0, [
@@ -601,6 +603,8 @@ const T = {
         'yyyyyyyyyyyy...']],
     },
     // A headscarf (hijab): over the head and round the face, down over the shoulders (Cairo's, Beirut's, London's).
+    // (from the front: an oval round the face, wrapped closed under the chin, the drape smooth over the shoulders; no knot under
+    // it: the user, 2026-11-03, "headscarves shouldn't have that weird knot in front")
     hijab: {
       down: [3, 5, [
         '.....aaaaaaa.....',
@@ -608,16 +612,16 @@ const T = {
         '..aaaaaaaaaaaaa..',
         '.aaaaaaaaaaaaaaa.',
         '.aaaaaaaaaaaaaaa.',
-        '.aaa.........aaa.',
-        '.aa...........aa.',
-        '.aa...........aa.',
-        '.aa...........aa.',
-        '.aa...........aa.',
-        '.aaa.........aaa.',
-        '..aaa.......aaa..',
-        '..AAaaa...aaaAA..',
+        '.aaaA.......Aaaa.',
+        '.aaA.........Aaa.',
+        '.aaA.........Aaa.',
+        '.aaA.........Aaa.',
+        '.aaA.........Aaa.',
+        '.aaaA.......Aaaa.',
+        '..aaaA.....Aaaa..',
+        '..aaaaaaaaaaaaa..',
         '.aaaaaaaaaaaaaaa.',
-        'aaaaaaaaaaaaaaaaa']],
+        'AaaaaaaaaaaaaaaaA']],
       up: [3, 5, [
         '.....aaaaaaa.....',
         '...aaaaaaaaaaa...',
@@ -709,8 +713,11 @@ const T = {
     right: [15, 16, ['.rrr', '.r..']],
   },
   glasses: {
-    shades: { down: [5, 12, ['..kkkkk.kkkkk..', '..klkkkkklkkk..', '...kkk...kkk...']], right: [14, 12, ['kkkk', 'lkkk', '.kk.']] },
-    specs: { down: [5, 12, ['..mmmm...mmmm..', '..m..mmmmm..m..', '...mm.....mm...']], right: [13, 12, ['mmmmm', 'm..m.', '.mm..']] },
+    // (each lens a box round its eye, the eyes at x 8 and 14 from the front, at 15 side on: the frames thin and grey, the eye
+    // inside left showing, a bridge, the arms to the temples; dark lenses with a glint for shades. They sat a pixel off and
+    // over the eyes, a grey band across the face: the user, 2026-11-03, "also improve glasses")
+    shades: { down: [6, 12, ['.kkkkkkkkk.', 'kklk...klkk', '.kkk...kkk.']], right: [10, 12, ['....kkk', 'kkkkklk', '....kkk']] },
+    specs: { down: [6, 12, ['.lll...lll.', 'll.lllll.ll', '.l.l...l.l.', '.lll...lll.']], right: [10, 12, ['....lll', 'lllll.l', '....l.l', '....lll']] },
   },
 };
 
@@ -974,7 +981,7 @@ function compose(spec, dir, frame) {
   else if (spec.moustache && view !== 'up') draw(pick(T.moustache), lean, hb);
   const hair = T.hair[style];
   const cropped = ['short', 'crew', 'side'].includes(style);       // (a short cut is all under a hat; longer hair shows below it)
-  if (rain === 'hood') {}                                          // (the hood's over it all)
+  if (rain === 'hood' || spec.hat?.kind === 'hijab') {}          // (the hood's over it all; a headscarf covers every hair, long or short, inside its opening too)
   else if (!(hat && cropped)) draw(hair[view] ?? hair.down, lean, hb);
   else if (view === 'up') draw(hair.up, lean, hb);
   // (under a hat, a short cut shows only at the temples, inside the head's outline: a crew cut not at all; the
