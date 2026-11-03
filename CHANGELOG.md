@@ -4,6 +4,13 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.0-rc56 (2026-11-03)
+
+- **The team that tails you knows only what it has seen.** Before, whoever was on you walked to wherever you really were, seen or not. Up a lane none of them saw you take, at night, they came and stood over you. In 12 evenings, an officer who walked up a lane and waited was never lost, even when nobody saw them go in. Now the team goes by radio: where one of them last saw you, and which way you were going. Out of sight, they make for that spot and on 4 s the way you were heading, looking about, and after 30 s (covert) or 40 s (overt) with nobody seeing you, they've lost you.
+- **Losing sight of you is a roll.** When they lose you after having you a while (at most one roll in 10 s), the best tracker among those who had you rolls Tracking against your Pathfinding. The dark (−3), people round you (−1 to −3) and the distance (−2 a way off, −4 far off) are on your side; running is on theirs (+2); ties go to you. If they win, they saw where you went, round the corner or in at a door, for 6 s. If you win, all they have is where you were. Out of every eye and moved 30 m on, a master (Pathfinding 45) was lost 6 times in 6 and never came for; so was a Handler, the team reading where they'd gone once in 6.
+- **Time passing doesn't keep them on you by itself.** In your own hours, a class or a book keeps the team on you only if they had you when it began (in sight, or watching the door of the shop they saw you go into). Before, any time skipped renewed them.
+- Tests: being tailed, out of sight and moved (a master lost every time and never come for; a Handler's roll counted).
+
 ## v0.1.0-rc55 (2026-11-03)
 
 - **Debug mode's files are masters of what made them.** Each Tradecraft 95 file now has a master's 20 in every skill its reason gives it, where some had 15 or 18: the illegal in Tracking and Social as well as the street, the defector in Analysis and CQC, the Farm's instructor in Social, CQC, Weapon handling and Fitness, the Berlin veteran in Analysis, the hostage in Pathfinding, the Naples pickpocket in Social and Fitness, the A4 watcher in Awareness, the one out of Tehran in Deception, Fitness and CQC, the embassy child in Awareness, the deaf officer in Tracking, Social and Analysis. Remote viewer and chess prodigy were already there. A small extra (the hostage's Medicine 10) stays small, and what a reason takes away (the old Berliner's legs, the remote viewer's fists) stays gone.

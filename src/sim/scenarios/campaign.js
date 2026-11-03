@@ -66,7 +66,7 @@ import { opposed } from '../checks.js';
 import { keeps, behind, CAB_FLAG, CHASE_WAIT_S } from '../taxi.js';
 import { freeShare } from '../traffic.js';
 import { stays, RIDER_S } from '../metro.js';
-import { sdr, rowsText, crewFor, newTeam, pickUp, join, teamTick, teamSecond, glanced, FLAG_HEAT } from './sdr.js';
+import { sdr, rowsText, crewFor, newTeam, pickUp, join, fix, teamTick, teamSecond, glanced, FLAG_HEAT } from './sdr.js';
 
 const TPS = 1000 / TICK_MS;
 
@@ -235,8 +235,10 @@ export const campaignHub = {
   /** Time spent in passing (a book, sim/reading.js): what the days bring, and whoever's on you still on you when you look up. */
   pass(state, bus, ms) {
     state.campaign.posting.heat = heatNow(state);
+    // (whoever's on you through it is still on you after, if they had you as it began: in sight, or at the door of the shop they saw you go into; otherwise the time's lost you)
+    const t = state.scenario.tail, had = t && !t.teamLost && state.time.ms - t.teamSeenMs <= 1500;
     passTo(state, bus, state.time.ms + ms);
-    if (state.scenario.tail) state.scenario.tail.teamSeenMs = state.time.ms;
+    if (had) t.teamSeenMs = state.time.ms;
   },
 
   /** At the window, your feet are the window's: nothing but T takes you from it. */
@@ -607,6 +609,7 @@ function arriveWith(state, k) {
   if (k.by === 'taxi') { behind(state, k.kept.map(i => join(state, t.crew[i], 0)), { plain: k.team === 'covert' }); t.teamSeenMs = now + CHASE_WAIT_S * 1000; }
   else if (k.by === 'metro') { t.arrival = { x: me.x, z: me.z }; k.kept.forEach((i, n) => t.pending.push({ crew: i, at: now + Math.round(range(r, ...RIDER_S) * 1000) + n * 900, bus: true, metro: true })); t.teamSeenMs = now; }
   else { for (const i of k.kept) join(state, t.crew[i], -range(r, 14, 22)); t.teamSeenMs = now; }
+  fix(state);                                                       // (they came with you: they know where you got out)
 }
 
 /**

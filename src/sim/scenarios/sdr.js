@@ -22,6 +22,14 @@
 //   - **Being followed.** The watchers keep KEEP metres back, on your pavement or the other, and go
 //     where you go (sim/nav.js), up lanes too. Out of all their sight for LOSE_S they've lost you.
 //     Take a lane none of them saw you take, and they never know where you went.
+//     They go by what the team knows (sc.known; the user, 2026-11-03: "does the tailing parties also roll
+//     to decide if they still know where we are? It seems like they always see me"): where one of them
+//     last saw you, and which way you were going, shared by radio; never where you are. Out of sight,
+//     they make for it, and GUESS_S on the way you were going, looking about. Losing sight of you
+//     (after they'd had you a while), the team rolls (lostSight(): your Pathfinding against the best of
+//     their Tracking, the dark, a crowd and the distance on your side): theirs, and they saw where you
+//     went (READ_S: round the corner, up the lane, in at the door); yours, and all they have is where you
+//     were.
 //   - **What they write down.** Seen by a watcher, the conspicuous things are noted (flag()), and the
 //     character doesn't know it unless they catch the watcher at it (their Awareness against the
 //     watcher's Deception, with the watcher in view): a hedged line, and a face counted. Running,
@@ -67,6 +75,9 @@ export const MEET_FOR_MIN = 8;
 export const MEET_S = 20;
 export const LOSE_S = { overt: 40, covert: 30 };
 export const KEEP_M = { overt: [8, 13], covert: [17, 26] };
+export const GUESS_S = 4;                                          // out of sight, they reckon you on this long the way you were going
+export const READ_S = 6;                                           // their roll won as they lose sight of you: this long, they saw where you went
+export const HAD_S = 2, ROLL_AGAIN_S = 10;                          // (a loss of sight is one after they'd had you this long; one roll in this long)
 export const HANDOVER_S = [70, 110];
 export const STOP_MOVE_S = 5;                                     // standing this long is a move a tail must copy
 export const STAYED_S = 90;                                        // or a face still behind us this long
@@ -186,7 +197,7 @@ export const sdr = {
     if (phase === 'out') {
       const kept = (sc.cabKept ?? []).map(k => join(state, sc.crew[k], 0));
       sc.cabKept = null;
-      if (kept.length) { behind(state, kept, { plain: sc.team === 'covert' }); sc.teamSeenMs = state.time.ms + CHASE_WAIT_S * 1000; }
+      if (kept.length) { behind(state, kept, { plain: sc.team === 'covert' }); sc.teamSeenMs = state.time.ms + CHASE_WAIT_S * 1000; fix(state); }
       return;
     }
     flag(state, bus, 'taxi');
@@ -241,7 +252,7 @@ export const sdr = {
     sc.riders.forEach((k, n) => sc.pending.push({ crew: k, at: now + 1200 + n * 900, bus: true }));
     const car = sc.carKeeps && sc.crew.findIndex((c, k) => !boarded.includes(k));
     if (car !== false && car >= 0) sc.pending.push({ crew: car, at: now + Math.round(range(stream('bus-car', state.map.seed, now), 60, 150) * 1000), car: true });
-    sc.teamSeenMs = now;
+    sc.teamSeenMs = now; fix(state);
     sc.check = { tick: state.tick + 3 * TPS, why: 'alight', bonus: 1 };   // (who gets off with you: anyone looks)
   },
 
@@ -259,7 +270,7 @@ export const sdr = {
     if (phase === 'up') {
       sc.arrival = { x: me.x, z: me.z };
       (sc.metroRiders ?? []).forEach((k, n) => sc.pending.push({ crew: k, at: now + Math.round(range(state.rng, ...RIDER_S) * 1000) + n * 900, bus: true, metro: true }));
-      if (sc.metroRiders?.length) sc.teamSeenMs = now;
+      if (sc.metroRiders?.length) { sc.teamSeenMs = now; fix(state); }
       sc.metroRiders = null;
       return;
     }
@@ -378,7 +389,7 @@ export const sdr = {
       const kind = id === 'talk' ? 'spoke' : 'assaulted';
       if (sc.flags.filter(f => f.kind === kind).length < FLAGS_MAX) sc.flags.push({ kind, ms: state.time.ms, who: them.who });
       if (kind === 'assaulted') addHeat(state, ASSAULT_HEAT);
-      sc.teamSeenMs = state.time.ms;
+      sc.teamSeenMs = state.time.ms; fix(state);
       say(state, bus, { kind: 'note', hidden: true, text: kind === 'spoke' ? 'That was one of them, and now they know you know.' : 'That was one of them. There\'ll be an incident report with your name on it by morning.' });
     }
     if (them.who === 'solovey' && id !== 'talk' && !sc.after) sc.after = ['incident', 'You turned on your own source, in the street, in front of whoever was watching. Whatever SOLOVEY was, he isn\'t yours any more.'];
@@ -548,6 +559,7 @@ export function teamTick(state, bus, me) {
     const c = sc.crew[p.crew], a = p.car ? join(state, c, -Math.sign(me.vx || 1) * range(state.rng, 18, 30)) : join(state, c, 0, sc.arrival);
     a.ai.seenMs = state.time.ms; a.ai.fromLane = !p.bus; a.ai.fromBus = !!p.bus && !p.metro; a.ai.fromMetro = !!p.metro;
     sc.teamSeenMs = state.time.ms;
+    if (p.car) fix(state); else if (sc.arrival) fix(state, sc.arrival);   // (the car kept you in sight; the others know where they came up after you)
   }
   if (sc.check && state.tick >= sc.check.tick) { look(state, bus, sc.check.why, sc.check.bonus); sc.check = null; }
   return state.tick % TPS === 0;
@@ -559,6 +571,25 @@ export function pickUp(state, r = state.rng) {
   const sc = teamOf(state);
   for (const c of sc.crew) if (c.role !== 'spare') join(state, c, -range(r, 21, 25));
   sc.teamSeenMs = state.time.ms + 60000;                          // (they know the door you came out of)
+  fix(state);
+}
+
+/**
+ * What the team knows of where you are (sc.known: { x, z, vx, vz, dir, ms }): set when one of them sees
+ * you, and when they come on knowing it (at the door you came out of, off the bus after you); at:
+ * somewhere else they know you were (the top of the lane they came up after you). Never otherwise.
+ */
+export function fix(state, at = null) {
+  const sc = teamOf(state), me = playerOf(state);
+  if (!sc || !me) return;
+  sc.known = at ? { x: at.x, z: at.z, vx: 0, vz: 0, dir: sc.heading?.dir ?? 1, ms: state.time.ms }
+    : { x: me.x, z: me.z, vx: me.vx, vz: me.vz, dir: sc.heading?.dir ?? 1, ms: state.time.ms };
+}
+
+/** Where the team reckons you are now: where you were seen, and GUESS_S on the way you were going. */
+function guess(state, sc) {
+  const k = sc.known, t = Math.min(GUESS_S, Math.max(0, (state.time.ms - k.ms) / 1000));
+  return { x: k.x + k.vx * t, z: k.z + k.vz * t, dir: k.dir };
 }
 
 /** A watcher steps onto the street (behind us by dx, or at a lane's end `from`). */
@@ -584,32 +615,59 @@ function thinkWatcher(state, a) {
     if (a.ai.gone) state.actors = state.actors.filter(o => o !== a);
     return;
   }
-  if (seesActor(state, a, me)) a.ai.seenMs = state.time.ms;
-  const dir = sc.heading.dir, zone = zoneOf(state, me.x, me.z);
+  const now = state.time.ms, sees = seesActor(state, a, me);
+  if (sees) a.ai.seenMs = now;
+  if (sees || sc.read > now || !sc.known) fix(state);              // (seen, or read as they lost you: lostSight(); a team from before this knew, as it was)
+  // (where the team reckons you are, by radio: not where you are)
+  const K = guess(state, sc), dir = K.dir, zone = zoneOf(state, K.x, K.z);
   // (they have to see you to follow you: closer in the dark, and closer still out of sight a while)
-  const blind = state.time.ms - (a.ai.seenMs ?? 0) > 4000, dark = lightHere(state, me.x, me.z) < 0.25;
+  const blind = now - (a.ai.seenMs ?? 0) > 4000, dark = lightHere(state, K.x, K.z) < 0.25;
   const keep = (c.role === 'eye' ? c.keep : c.keep + 8) * (dark ? 0.55 : 1) * (blind ? 0.5 : 1);
   let tx, tz;
-  if (zone === 'north' || zone === 'south') { tx = me.x; tz = me.z + (zone === 'north' ? 1 : -1) * keep * 0.7; }
-  else if (c.side === 'across' && zone === 'street') { tx = me.x - dir * keep * 0.5; tz = me.z < Z.kerbN ? laneMid('near') : laneMid('far'); }
-  else { tx = me.x - dir * keep; tz = me.z; }
+  if (zone === 'north' || zone === 'south') { tx = K.x; tz = K.z + (zone === 'north' ? 1 : -1) * keep * 0.7; }
+  else if (c.side === 'across' && zone === 'street') { tx = K.x - dir * keep * 0.5; tz = K.z < Z.kerbN ? laneMid('near') : laneMid('far'); }
+  else { tx = K.x - dir * keep; tz = K.z; }
   const [wx, wz] = waypoint(state, a, tx, tz);
   const d = Math.hypot(tx - a.x, tz - a.z);
+  // (eyes where they reckon you are; out of sight a while, looking about for you)
+  const look = () => Math.atan2(K.z - a.z, K.x - a.x) + (now - (a.ai.seenMs ?? 0) > 2000 ? Math.sin(now / 900 + a.x) * 1.1 : 0);
   if (d < 1) {
     a.vx = a.vz = 0; a.gait = 'idle';
-    const toMe = Math.atan2(me.z - a.z, me.x - a.x);
+    const toMe = look();
     if (sc.team === 'overt') { a.head = toMe; a.face = Math.abs(Math.cos(toMe)) > Math.abs(Math.sin(toMe)) ? (Math.cos(toMe) > 0 ? 'right' : 'left') : (Math.sin(toMe) > 0 ? 'down' : 'up'); }
     else if (paneAt(state, a.x, a.z)) {                               // (at a shop's glass: watching us in it)
       a.glass ||= { ...paneAt(state, a.x, a.z), since: state.time.ms };
-      a.face = 'up'; a.head = gazeInto(a.glass, a.x, a.z, me.x, me.z);
+      a.face = 'up'; a.head = gazeInto(a.glass, a.x, a.z, K.x, K.z);
     } else { a.head = toMe; a.face = Math.cos(toMe) > 0 ? 'right' : 'left'; }
     return;
   }
   a.glass = false;
   steer(state, a, wx, wz, d > 8 ? 2.1 : d > 3 ? 1.6 : 1.15, d > 4);
-  // (their eyes on you, whichever way their feet go: that's the job)
-  const toMe = Math.atan2(me.z - a.z, me.x - a.x);
+  // (their eyes on you, whichever way their feet go: that's the job; on where they reckon you are)
+  const toMe = look();
   if (Math.abs(((toMe - a.head + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI) < 2.2) a.head = toMe;
+}
+
+/**
+ * Out of their sight, after they'd had you a while (teamSecond()): the best of those who last had you
+ * rolls Tracking against your Pathfinding (DESIGN.md: losing a tail), the dark, a crowd round you and
+ * the distance on your side, running on theirs. Theirs: they saw where you went, and the team knows it
+ * READ_S on (sc.read). Yours: all they have is where you were (sc.known). Ties are yours.
+ */
+function lostSight(state, bus, me, ids) {
+  const sc = teamOf(state), now = state.time.ms, you = state.people[state.player];
+  const had = ids.map(id => actorOf(state, id)).filter(Boolean);
+  if (!had.length || !you) return;
+  const w = had.sort((p, q) => skill(state.people[q.who], 'tracking') - skill(state.people[p.who], 'tracking'))[0], dw = Math.hypot(w.x - me.x, w.z - me.z);
+  const crowd = state.actors.filter(o => o !== me && !o.hidden && isPasserby(o) && Math.hypot(o.x - me.x, o.z - me.z) < 4).length;
+  sc.rolls++; sc.rolledMs = now;
+  const r = opposed(state.rng, { skill: 'pathfinding', value: skill(you, 'pathfinding'), body: you },
+    { skill: 'tracking', value: skill(state.people[w.who], 'tracking'), body: state.people[w.who],
+      mods: [lightBand(lightHere(state, me.x, me.z)) === 'dark' && { why: 'the dark', v: -3 }, crowd && { why: 'people round you', v: -Math.min(3, crowd) },
+        dw > 25 ? { why: 'far off', v: -4 } : dw > 12 ? { why: 'a way off', v: -2 } : null, me.gait === 'run' && { why: 'you ran', v: 2 }].filter(Boolean) });
+  const them = cap(describe(state.people[w.who].look, state.people[w.who].sex));
+  if (!r.ok) { sc.read = now + READ_S * 1000; fix(state); }
+  say(state, bus, { kind: 'roll', roll: r, hidden: true, text: r.ok ? `${them} lost sight of you, and couldn't say where you'd gone.` : `${them} lost sight of you for a moment, and saw where you went.` });
 }
 
 /** Lost us: the team drifts off, the way they were going. */
@@ -819,8 +877,11 @@ export function teamSecond(state, bus, me) {
   else if (vdir) sc.heading.s++;
   // The team.
   if (!sc.teamLost) {
-    const onUs = sc.crew.some(c => { const a = actorOf(state, c.id); return a && seesActor(state, a, me); });
-    if (onUs || (me.within && sc.inShop?.seen)) sc.teamSeenMs = now;   // (in a shop they saw you go into: they're watching its door)
+    const seers = sc.crew.map(c => actorOf(state, c.id)).filter(a => a && seesActor(state, a, me)), onUs = seers.length > 0, door = me.within && sc.inShop?.seen;
+    if (onUs || door) sc.teamSeenMs = now;                         // (in a shop they saw you go into: they're watching its door)
+    if (!onUs && !door && (sc.hadS ?? 0) >= HAD_S && now - (sc.rolledMs ?? -1e9) >= ROLL_AGAIN_S * 1000) lostSight(state, bus, me, sc.seers ?? []);
+    sc.hadS = onUs ? (sc.hadS ?? 0) + 1 : 0;
+    sc.seers = seers.map(a => a.id);
     if (sc.crew.some(c => c.id) && !sc.pending.length && now - sc.teamSeenMs > LOSE_S[sc.team] * 1000) { loseUs(state, bus); sc.lostHow = sc.lostHow ?? 'in the crowd'; }
     if (sc.team === 'covert' && now >= sc.nextHandover) { handover(state); sc.nextHandover = now + Math.round(range(state.rng, ...HANDOVER_S)) * 1000; }
     if (me.gait === 'run') flag(state, bus, 'ran');

@@ -6,6 +6,8 @@
 import { newGame, start, step } from '../src/sim/game.js';
 import { toJSON, fromJSON } from '../src/sim/state.js';
 import { oblivious, checker, pro } from './bots.mjs';
+import { teamOf, READ_S, LOSE_S } from '../src/sim/scenarios/sdr.js';
+import { seesActor } from '../src/sim/perception.js';
 import { assert, fmt } from './helpers.mjs';
 
 function play(seed, bot) {
@@ -21,7 +23,47 @@ function play(seed, bot) {
 const tally = (rs) => rs.reduce((o, r) => ((o[r.outcome] = (o[r.outcome] || 0) + 1), o), {});
 const mean = (rs, k) => fmt(rs.reduce((s, r) => s + r[k], 0) / Math.max(1, rs.length), 2);
 
+// (an evening with a team on you, walked to where they have you: the game, its team, you; null without one)
+function onYou(seed) {
+  const g = newGame({ seed, scenario: 'sdr', weather: 'clear' });
+  start(g, null);
+  const sc = teamOf(g), me = () => g.actors.find(a => a.who === g.player), crew = () => sc.crew.map(c => g.actors.find(a => a.id === c.id)).filter(Boolean);
+  if (sc.team === 'none') return null;
+  for (let t = 0; t < 20 * 240 && !g.scenario.outcome; t++) { step(g, oblivious(g, me()), null); if (t > 20 * 60 && crew().length >= 2 && crew().some(w => seesActor(g, w, me()))) return { g, sc, me, crew }; }
+  return null;
+}
+
 export default [
+  {
+    name: 'being tailed: they go by what they\'ve seen, never where you are; losing sight of you, they roll (their Tracking, your Pathfinding)',
+    fn() {
+      const rows = [];
+      for (const master of [true, false]) {
+        let n = 0, read = 0, toward = 0, lost = 0;
+        for (let seed = 1; seed <= 40 && n < 6; seed++) {
+          const o = onYou(seed);
+          if (!o) continue;
+          const { g, sc, me, crew } = o, you = g.people[g.player];
+          if (master) Object.assign(you, { os: 95, skills: { ...you.skills, pathfinding: [20, 3] } });
+          // (out of every eye, and 30 m on along the street the other way: the yard behind a shop, as far as their eyes go)
+          const m = me(), read0 = sc.read ?? 0, d0 = Math.min(...crew().map(w => Math.hypot(w.x - m.x - 30, w.z - m.z)));
+          m.hidden = true; m.x += 30;
+          for (let t = 0; t < 20 * (LOSE_S[sc.team] + 5); t++) step(g, {}, null);
+          n++;
+          const readNow = (sc.read ?? 0) > read0;
+          if (readNow) read++;
+          const near = crew().length ? Math.min(...crew().map(w => Math.hypot(w.x - me().x, w.z - me().z))) : null;
+          if (near !== null && near < d0 - 8) toward++;
+          if (sc.teamLost) lost++;
+          if (master) assert(!readNow && (near === null || near >= d0 - 8), `seed ${seed}: a master's out of sight, and they don't come for where you went (${near?.toFixed(1)} m, from ${d0.toFixed(1)})`);
+        }
+        assert(n >= 5, `evenings with a team on you: ${n}`);
+        if (master) assert(lost === n, `a master out of their sight ${LOSE_S.overt} s and more: lost every time (${lost} of ${n})`);
+        rows.push(`${master ? 'a master (Pathfinding 45)' : 'a Handler'}: ${n} evenings, read where you went ${read}, came your way ${toward}, lost you ${lost}`);
+      }
+      console.log(`      out of sight and moved 30 m: ${rows.join('; ')} (they read it for ${READ_S} s)`);
+    },
+  },
   {
     name: 'being tailed: a save and a load in the middle play on the same',
     fn() {
