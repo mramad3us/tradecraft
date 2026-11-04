@@ -55,6 +55,13 @@ const TPS = 1000 / TICK_MS;
 const LINES_W = [['F', 5], ['N', 3.5], ['P', 3], ['S', 2]];        // which pavement, by how busy
 
 export const isPasserby = (a) => !!a.ai?.civ;
+/**
+ * A passer-by lying where they fell (down, dead, or shot and sat against a wall: sim/wounded.js): kept, on whatever street,
+ * through a time skip and a street changed or a door gone in at, till the emergency services take them (sim/emergency.js;
+ * the user, 2026-11-04: "shot and down NPCs get recycled out when we skip time or move away and come back they should stay
+ * loaded for a reasonable amount of time").
+ */
+export const lies = (state, a) => isPasserby(a) && !!a.who && (a.gait === 'down' || !!a.ai?.hurt || !!state.people[a.who]?.dead);
 
 /** How busy the street is at a game time, 0..1 of CROWD_PER_100M. */
 export function density(ms) {
@@ -113,20 +120,20 @@ function spawn(state, r, from, dir = 0) {
 export const RECYCLE_S = 120;
 export function recycle(state, focusX, ms) {
   if (state.map.kind !== 'street' || !(ms >= RECYCLE_S * 1000)) return false;
-  const gone = new Set(state.actors.filter(isPasserby).map(a => a.id));
+  const gone = new Set(state.actors.filter(a => isPasserby(a) && !lies(state, a)).map(a => a.id));   // (not who's lying in the street: lies())
   state.actors = state.actors.filter(a => !gone.has(a.id));
   for (const id of gone) { if (state.mind?.seen) delete state.mind.seen[id]; if (state.mind?.felt) delete state.mind.felt[id]; }
   populate(state, focusX, { fill: true });
   return true;
 }
 
-/** Whether a passer-by stays: in the bubble, not in at their door; a casualty (shot, dead), KEEP_HURT_M along. */
-export const KEEP_HURT_M = 120;
+/** Whether a passer-by stays: in the bubble, not in at their door; a casualty (down, shot, dead), wherever they are. */
+export const KEEP_HURT_M = 120;                                     // (no longer a limit: kept for a test's sake of what was)
 function stays(state, a, rows, focusX) {
   if (a.ai.waiting?.kind === 'enter') return false;
   // (the shot don't walk off, and the dead don't get up: they're there till the ambulance takes them, sim/wounded.js, sim/emergency.js)
-  const far = a.ai.hurt || state.people[a.who]?.dead ? KEEP_HURT_M : WINDOW_M + 6;
-  return rows.includes(rowOf(state, a)) && Math.abs(a.x - focusX) <= far;
+  if (lies(state, a)) return true;
+  return rows.includes(rowOf(state, a)) && Math.abs(a.x - focusX) <= WINDOW_M + 6;
 }
 
 /**

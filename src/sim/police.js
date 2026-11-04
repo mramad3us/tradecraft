@@ -61,7 +61,7 @@ export function policeHeat(state, n) {
 }
 export const PAPERS_HEAT = 2, WALK_HEAT = 4, WALK_COVER = 3, FOUND_HEAT = 10, FOUND_COVER = 12, POCKET_MOD = 2, BLOOD_MOD = -4, HELD_MOD = -3;
 const P = (state) => policeOf(state.map);                         // (the country's police, the city's where it has its own: sim/countries/)
-const cops = (state) => state.actors.filter(a => a.cop);
+const cops = (state) => state.actors.filter(a => a.cop && !a.guard);   // (not a station's guards, at its door: sim/hunt.js guards())
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
 
 /** Once a second: a patrol on this street this hour, or not; walking past; gone when it's past. */

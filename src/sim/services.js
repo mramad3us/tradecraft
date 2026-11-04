@@ -36,10 +36,10 @@ import { sectionOf } from './city.js';
 import { townOf } from './cities/index.js';
 import { policeOf } from './countries/index.js';
 import { SECTION_M, Z, streetName } from './map/street.js';
-import { fullCare, isOpen, infectionOf } from './medicine.js';
-import { stateOf, bloodOf, bleedRate, BLOOD, PARTS } from './health.js';
+import { fullCare, isOpen, infectionOf, addSupply, DOSE_H } from './medicine.js';
+import { stateOf, bloodOf, bleedRate, BLOOD, PARTS, heal, incapacitated, canStand } from './health.js';
 import { say } from './log.js';
-import { HOUR } from './clock.js';
+import { HOUR, DAY } from './clock.js';
 
 // (the engine's own, given by sim/game.js as it loads: see the header)
 export const ENGINE = { loadRow: null };
@@ -48,7 +48,7 @@ export const SERVICE_WORDS = { police: 'the police station', hospital: 'the hosp
 export const SERVICES = ['police', 'hospital'];
 export const SERVICE_ROWS = 8, SERVICE_SECTIONS = 30, ROW_WALK_M = 80, OUT_M = 0.8;   // (OUT_M: out of the door onto the pavement)
 // A doctor's hours, by what's done (my calls, from an A&E's own): the wait (seen at once if it's bad), then each thing.
-export const TREAT_H = { seen: 0.25, wait: 1.5, inside: 4, artery: 1.5, bullet: 1, stitch: 0.5, set: 1.5, xray: 0.5, blood: 1, drip: 1, dress: 0.25, look: 0.5, tourniquet: 0.25 };
+export const TREAT_H = { feed: 2, seen: 0.25, wait: 1.5, inside: 4, artery: 1.5, bullet: 1, stitch: 0.5, set: 1.5, xray: 0.5, blood: 1, drip: 1, dress: 0.25, look: 0.5, tourniquet: 0.25 };
 export const TREAT_MAX_H = 12, TRANSFUSE_BELOW = BLOOD.pale, TRANSFUSE_PER = 15, URGENT_RATE = 1;   // (a transfusion's hour a TRANSFUSE_PER % lost; bleeding URGENT_RATE % a minute, straight through)
 export const VISIT_HEAT = 2;                                       // (an official hospital's records: in the campaign, at the end of the hours, sim/emergency.js afterHospital())
 // What a desk officer and a nurse wear (deskLook()): the country's police uniform (its cap and all), a nurse's tunic.
@@ -63,6 +63,7 @@ const deepCut = (i) => i.kind === 'cut' && (i.deep || i.artery);
 const NUMBERS = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
 /** Hours in words, to the half hour: "An hour and a half", "Five hours", "Six and a half hours" (the desk's, the log's). */
 export function hoursWords(h) {
+  if (h >= 36) { const d = Math.round(h / 24); return `${cap(NUMBERS[d] ?? String(d))} days`; }   // (days in a bed, past a day and a half: bedHours())
   const n = Math.floor(h), half = h - n >= 0.375 && h - n < 0.875, w = n + (h - n >= 0.875 ? 1 : 0);
   if (w === 0) return half ? 'Half an hour' : 'A quarter of an hour';
   return w === 1 ? (half ? 'An hour and a half' : 'An hour') : `${cap(NUMBERS[w] ?? String(w))}${half ? ' and a half' : ''} hours`;
@@ -136,6 +137,7 @@ export function needsOf(p, ms) {
   for (const k of LIMBS) if (stateOf(p, k) === 'out' && !p.set?.[k]) add('set', `the ${SIDE[k]} set and plastered`, TREAT_H.set);
   if (p?.tourniquets && !out.some(n => n.key === 'artery')) add('tourniquet', 'the tourniquet off', TREAT_H.tourniquet);
   if (infectionOf(p)) add('drip', 'antibiotics on a drip', TREAT_H.drip);
+  if (p?.needs?.ate !== undefined && (ms - p.needs.ate) / HOUR >= 48) add('feed', 'a drip, and something to eat, slowly', TREAT_H.feed);   // (weak from hunger, or worse: sim/needs.js WEAK_H)
   if (bloodOf(p) < TRANSFUSE_BELOW) add('blood', 'the blood put back, a bag at a time', TREAT_H.blood * Math.ceil((100 - bloodOf(p)) / TRANSFUSE_PER));
   for (const k of Object.keys(PARTS)) if (['wounded', 'out'].includes(stateOf(p, k)) && p.tended?.[k] === undefined) add('look', `the ${PART_WORD[k]} looked at`, TREAT_H.look);
   const urgent = out.some(n => n.key === 'inside' || n.key === 'artery') || bloodOf(p) < BLOOD.shock || bleedRate(p, ms) >= URGENT_RATE;
@@ -160,6 +162,28 @@ export function care(p, ms) {
 }
 
 /**
+ * How long in a hospital bed after the work is done (the user, 2026-11-04: "we should stay in hospital long enough to be able
+ * to move"): none if, on the painkillers they send you out on, you can stand and walk at the end of it (sim/health.js
+ * incapacitated()); else a day at a time of mending in the bed (heal(), tended) till you can, BED_DAYS at most. In hours.
+ */
+export const BED_DAYS = 21;
+export function bedHours(p, ms, workH) {
+  const end = ms + workH * HOUR, q = structuredClone(p), dose = (t) => { q.dosed = { at: t, until: t + DOSE_H * HOUR }; }, able = (t) => canStand(q) && !incapacitated(q, t);
+  dose(end);
+  if (able(end)) return 0;
+  for (let d = 1; d <= BED_DAYS; d++) { heal(q, 1, end + d * DAY, { tended: true }); dose(end + d * DAY); if (able(end + d * DAY)) return d * 24; }
+  return BED_DAYS * 24;
+}
+/** Out of the hospital, or a cell: fed (their meals), dosed as you go, and a packet of painkillers with you if you've none on you. */
+export function discharged(p, ms) {
+  if (!p) return;
+  const n = (p.needs ??= { stress: 0 }); n.ate = ms; n.ms = ms; delete p.faint;   // (sim/needs.js: fed, as eat() does; this module imports the engine's leaves only)
+  if (!(p.injuries?.length || p.body)) return;
+  p.dosed = { at: ms, until: ms + DOSE_H * HOUR };
+  if (!(p.kit?.painkillers > 0) && !(p.bag ?? []).some(x => x.supply === 'painkillers')) addSupply(p, { painkillers: 4 });
+}
+
+/**
  * Taken in at a hospital's desk (sim/shops.js doWay(): 'treat'; door: its door, to come out of): cared for at once, and
  * the hours set to be skipped (state.$hospital: sim/emergency.js afterHospital(), which counts what an official
  * hospital costs at the end of them). official false: a doctor who asks no questions (no name, no report); out: the kind
@@ -169,7 +193,8 @@ export function care(p, ms) {
 export function admit(state, bus, me, { official = true, door = null, out = 'hospital' } = {}) {
   const p = state.people[me.who], ms = state.time.ms, N = needsOf(p, ms);
   if (!N.needs.length) return null;
-  const done = care(p, ms), report = official ? N.reported : null;
+  const done = care(p, ms), report = official ? N.reported : null, bed = bedHours(p, ms, N.hours);
+  N.hours += bed; N.bed = bed;                                       // (and the days in a bed till you can walk out: bedHours())
   state.$hospital = { ms: Math.round(N.hours * HOUR), from: door ? { row: state.map.row ?? 0, x: door.x } : null, walkin: true, official, report, out };
   const list = done.length > 2 ? `${done.slice(0, -1).join('; ')}; and ${done.at(-1)}` : done.join(' and ');   // (its words have their own commas and ands)
   say(state, bus, { kind: 'note', text: `${N.urgent ? 'One look, and the nurse at the desk calls for a trolley: straight through, past the waiting room.' : official ? 'Your name and your passport at the desk, a form, a plastic chair, and a long wait under the strip lights.' : 'No forms, no names: a back room, and a doctor who doesn\'t ask.'} Then ${list}.${report ? ` ${report === 'gunshot' ? 'A gunshot wound' : 'A knife wound'}, though: they call the police, as they must, and an officer comes to the curtain with a notebook and questions about where you were.` : ''}` });

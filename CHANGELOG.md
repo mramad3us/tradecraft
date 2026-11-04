@@ -4,6 +4,19 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.36 (2026-11-04)
+
+- **Your own violence lights the logos.** After you shoot or knock people down in the street, you know someone will call it in, even with the caller out of sight. The police and ambulance logos light up, and the hunt's three icons appear with your Tradecraft's read of them. In 0.1.35, three shot and two knocked out showed nothing, because nobody had phoned in front of you.
+- **The people lying in the street stay there.** People down, dead, or shot and sitting against a wall are no longer swept away when you skip time, change street, or go into a shop and come out. They stay until the ambulance or the police take them. On a street you've left, they're taken when that call is done; if nobody called, someone finds them 8–25 minutes later.
+- **No more half-frozen street when you're down.** Lying on the pavement, you were seeing only a standing person's forward cone, so everyone behind you stayed frozen where you'd last seen them, with no fog to show it. You now see all round as soon as you're down.
+- **The hospital keeps you until you can walk.** After the treatment, a hospital keeps you in bed, a day at a time, until you can stand on the painkillers it sends you out with. This applies whether you walked in, came by ambulance, or were arrested hurt. You leave a hospital or a cell fed and dosed, with a packet of painkillers if you had none.
+- **X is in the keys help.** The street's line in the ? menu now lists X: aim, with time stopped; press it again and time runs with the gun still up. The shooting line says the same.
+- **Hunger has limits.** Two days without food leaves you weak: −3 to every roll and no running. From three days you have fainting spells; faint on a street and someone calls an ambulance, and the hospital feeds you (hospitals now treat starvation too). Three weeks without food kills you. All this only in the campaign: a scene that jumps years on doesn't starve you.
+
+- **Police stations look guarded.** Police cars are always parked at the kerb in front of every station, in the country's livery; where a station is set back round a square, they're in its forecourt. An armed officer stands at the door: two while a search is out, three after someone's been shot or killed. Guards watch the street like any officer, and one drawn off by an alarm walks back to the door afterwards.
+- **A red location marker means police on every street you reach.** Once the search has deployed, any street you come to inside their perimeter gets police straight away: a car with its lights where the search has cars (a gun seen and worse; otherwise a pair on foot), plus an officer at a corner for anything worse than a fight. Outside the perimeter, the usual schedule.
+- **The search follows your latest sighting.** Each time you're spotted or a new call describes you, the search area and its window restart from there. A search that had been called off and starts again waits for its first responders, as a new one does.
+
 ## v0.1.35 (2026-11-04)
 
 - **The phone.** A new leaf in the mind (Tab, then 5) lists what you can ring for, each from a burner (single use, nothing to trace), your own phone, or at the flat its line.

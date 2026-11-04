@@ -3,7 +3,11 @@
 // a suspect searched and questioned, the full description the alarm, a knife found an arrest for the hunt's kind; and the
 // police's fixes of the same day (sim/armed.js): no officer on another street hears or shouts, the one coming to cuff you
 // walks, into a shop after you; and a reflex's answer kept a while (sim/reflex.js).
-import { newGame, start as begin, step, playerActor } from '../src/sim/game.js';
+import { newGame, start as begin, step, playerActor, loadRow } from '../src/sim/game.js';
+import { nearestDoor } from '../src/sim/services.js';
+import { townOf } from '../src/sim/cities/index.js';
+import { sectionOf } from '../src/sim/city.js';
+import { SECTION_M } from '../src/sim/map/street.js';
 import { armCop, arrest } from '../src/sim/armed.js';
 import { start, know, badges, mods, perimeterM, routeInto, HUNTS, PERIM0_M, PERIM_MS, QUESTION, DEPLOY_MIN } from '../src/sim/hunt.js';
 import { makeAgent } from '../src/sim/agents.js';
@@ -11,9 +15,12 @@ import { sheet } from '../src/sim/people.js';
 import { opposed } from '../src/sim/checks.js';
 import { use } from '../src/sim/items.js';
 import { waiting, emsBadges, ON_ALERT_K } from '../src/sim/emergency.js';
-import { eyes } from '../src/sim/perception.js';
+import { eyes, inView } from '../src/sim/perception.js';
 import { newGun, isGun } from '../src/sim/firearms.js';
-import { bloodOf, hurt, takes, kill } from '../src/sim/health.js';
+import { bloodOf, hurt, takes, kill, incapacitated, painLimit, stateOf, PARTS } from '../src/sim/health.js';
+import { painOf } from '../src/sim/medicine.js';
+import { bullet } from '../src/sim/shooting.js';
+import { MODELS } from '../src/sim/firearms.js';
 import { person } from '../src/sim/interact.js';
 import { skill } from '../src/sim/skills.js';
 import { policeOf } from '../src/sim/countries/index.js';
@@ -209,6 +216,21 @@ export default [
     },
   },
   {
+    name: 'armed: three rounds in the chest and taken in: the hospital keeps you till you can walk, and out of the station on your feet, dosed, painkillers on you (the user, 2026-11-04)',
+    fn() {
+      const w = scene('london'), p = w.p;
+      const cop = { x: w.me.x + 5, z: w.me.z, who: 'nobody' }; for (let k = 0; k < 3; k++) bullet(w.g, w.bus, w.me, 'torso', MODELS.glock19, cop);
+      const before = incapacitated(p, w.g.time.ms);
+      w.g.$takedown = { cop: 'none', stage: 'pin', why: 'the shots' };
+      arrest(w.g, w.bus, w.me, 'submitted');
+      const paper = w.papers.find(x => x.kind === 'arrest'), held = w.g.$held / HOUR;
+      seconds(w, 2);
+      const now = w.g.time.ms, after = incapacitated(p, now), pain = Math.round(painOf(p, stateOf, Object.keys(PARTS)));
+      console.log(`      down before ${before}; ${paper?.lines.find(l => /hospital first/.test(l))} (${fmt(held / 24, 1)} days held in all); out: down ${after}, pain ${pain} against ${painLimit(p)}, dosed ${!!p.dosed}, painkillers on you ${p.kit?.painkillers ?? 0}`);
+      assert(before && !after && !p.dead && p.dosed && (p.kit?.painkillers ?? 0) > 0, JSON.stringify({ before, after, pain }));
+    },
+  },
+  {
     name: 'armed: taken in hurt (two bullets in the chest, in shock): a hospital first, under guard, everything seen to, its hours before the station\'s; out on the steps alive',
     fn() {
       const w = scene(), p = w.p, ms = w.g.time.ms;
@@ -285,6 +307,68 @@ export default [
       const own = (v.g.hunt.deploy - v.g.time.ms) / MIN;              // (no call: an officer's own sighting, called in)
       console.log(`      before the call's police (3 min): ${before.posts} at the corners, ${before.units} units; after: ${after.posts} at the corners, ${after.units} units; an officer's own sighting: deployed ${own} min on`);
       assert(before.posts === 0 && before.units === 0 && after.posts >= 1 && own === DEPLOY_MIN, JSON.stringify({ before, after, own }));
+    },
+  },
+  {
+    name: 'police: a station has its police cars at the kerb in front, always, and an armed officer at its door; three with a killing\'s search out (the user, 2026-11-04)',
+    fn() {
+      const out = [];
+      for (const city of ['moscow', 'london', 'beirut', 'cairo']) {
+        const w = scene(city), st = nearestDoor(w.g, 'police');
+        if (st.row !== (w.g.map.row ?? 0)) loadRow(w.g, w.bus, st.row, st.x, { quiet: true });
+        w.me = playerActor(w.g); Object.assign(w.me, { x: st.x + 6, z: LINE.F });
+        const town = townOf(w.g.map), S = sectionOf(town, st.row, Math.floor(st.x / SECTION_M));
+        const cars = S.props.filter(p => p.kind === 'car' && p.police && Math.abs(p.x - st.x) < 4);
+        seconds(w, 4);
+        const calm = w.g.actors.filter(a => a.guard);
+        const armed = calm.filter(a => isGun(w.g.people[a.who]?.hand) || (w.g.people[a.who]?.items ?? []).some(isGun)).length;
+        start(w.g, w.bus, { why: 'killed', row: st.row + 3, x: st.x, who: false, wearing: false }); w.g.hunt.deploy = w.g.time.ms;
+        seconds(w, 4);
+        const alert = w.g.actors.filter(a => a.guard).length;
+        out.push({ city, cars: cars.length, guards: calm.length, armed, alert, at: calm[0] ? Math.round(Math.abs(calm[0].x - st.x) * 10) / 10 : null });
+      }
+      console.log(`      ${out.map(o => `${o.city}: ${o.cars} police cars at its kerb, ${o.guards} at its door (${o.armed} armed, ${o.at} m from it), ${o.alert} with the search out`).join('; ')}`);
+      assert(out.every(o => o.cars >= 1 && o.guards === 1 && o.armed === 1 && o.alert === 3), JSON.stringify(out));
+    },
+  },
+  {
+    name: 'hunt: the place icon red, every street you come to has the police on it at once: a car and an officer at a corner; outside it, not; a sighting moves the search to you, and a search over and up again waits for its first responders (the user, 2026-11-04)',
+    fn() {
+      const w = scene('moscow'), p = w.p;
+      p.skills.deception = [60, 0];
+      start(w.g, w.bus, { why: 'gun', x: w.me.x, who: false, wearing: true }); w.g.hunt.deploy = w.g.time.ms; w.g.hunt.next = w.g.time.ms + HOUR;
+      const arrive = (row) => {
+        loadRow(w.g, w.bus, row, w.me.x, { quiet: true }); w.me = playerActor(w.g);
+        let car = false, post = false;
+        for (let t = 0; t < 30; t++) { seconds(w, 1); car ||= (w.g.traffic?.cars ?? []).some(c => c.ems?.hunt) || !!w.g.hunt?.car; post ||= w.g.actors.some(a => a.huntPost && (a.row ?? w.g.map.row) === w.g.map.row); }
+        return { car, post };
+      };
+      const row0 = w.g.map.row ?? 0, a = arrive(row0 + 1);                // (a street on: inside the perimeter)
+      w.g.hunt.where.ms = w.g.time.ms; w.g.hunt.where.row = row0 + 30; w.g.hunt.origin.row = row0 + 2; w.g.hunt.next = w.g.time.ms + HOUR;   // (they had you far off: outside it)
+      const b = arrive(row0 + 2);
+      const H = w.g.hunt;
+      start(w.g, w.bus, { why: 'gun', x: w.me.x, who: true, wearing: true, sure: true });
+      const moved = H.origin.row === w.g.map.row && H.where.row === w.g.map.row;
+      H.search = w.g.time.ms - 1;                                    // (called off)
+      start(w.g, w.bus, { why: 'gun', x: w.me.x, who: true, wearing: true, sure: true });
+      const again = Math.round((H.deploy - w.g.time.ms) / MIN);
+      console.log(`      inside the perimeter, the next street: a car ${a.car}, a corner ${a.post}; far outside it: a car ${b.car}, a corner ${b.post}; spotted: the search centred on you ${moved}; called off and up again: deployed ${again} min on`);
+      assert(a.car && a.post && !b.car && !b.post && moved && again === DEPLOY_MIN, JSON.stringify({ a, b, moved, again }));
+    },
+  },
+  {
+    name: 'perception: down on the pavement, you see all round you each moment: whoever\'s behind you moving, not frozen where you last saw them (the user, 2026-11-04, "half frozen scenes")',
+    fn() {
+      const w = scene('london'), p = w.p, me = w.me;
+      hurt(p, 'legL', takes(p, 'legL')); hurt(p, 'legR', takes(p, 'legR'));   // (both legs gone: down, and awake)
+      Object.assign(me, { head: 0, face: 'right' });
+      w.g.people.watcher = sheet({ id: 'watcher', cls: 'civilian' });
+      const v = makeAgent(w.g, { who: 'watcher', row: w.g.map.row ?? 0, x: me.x - 12, z: me.z + 0.5, speed: 1.1, face: 'right' });   // (stood behind you, past what's felt close by)
+      v.ai.route = null;
+      let seen = 0, n = 0;
+      for (let t = 0; t < 40; t++) { step(w.g, {}, w.bus); n++; if (inView(w.g, v.id)) seen++; }
+      console.log(`      lying ${me.gait}, facing right; someone 12 m behind: in view ${seen} of ${n} ticks`);
+      assert(me.gait === 'down' && seen === n, `${seen} of ${n}`);
     },
   },
   {

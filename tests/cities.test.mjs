@@ -47,8 +47,9 @@ export default [
       // with them so every other door is where it was (a door dump of 2,772 sections in the four cities: only those
       // doors, their signs (on boards, in a police station's colours, a hospital's: sim/cities/signs.js) and their floors changed); seed 7
       // has a station, 77 a station and two hospitals, 1234 three
-      // stations: sim/services.js)
-      const want = { 7: 2980980494, 77: 2561036788, 1234: 3593916305, people: 2649027127 };
+      // stations: sim/services.js). In 0.1.36, a station's police cars at its kerb, where the street's own were
+      // (sim/map/street.js stationCars(), a stream of its own: with it left out, the hashes before it, checked)
+      const want = { 7: 3630721626, 77: 2468670460, 1234: 2001736832, people: 2649027127 };
       for (const seed of [7, 77, 1234]) {
         const parts = [];
         // (the bus shelters and notice boards of 0.1.0-rc16, from a stream of their own, left out)

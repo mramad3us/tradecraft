@@ -242,7 +242,7 @@ const counted = (words) => { const n = new Map(); for (const w of words) n.set(w
 
 /** Whether this person can grapple (two working arms) and stand (one working leg at least). */
 export const canGrapple = (p) => ARMS.every(k => stateOf(p, k) !== 'out' && !p.tourniquets?.[k]);
-export const canStand = (p) => !p.dead && !thermalDown(p) && bloodOf(p) >= BLOOD.collapse && LEGS.some(k => stateOf(p, k) !== 'out') && stateOf(p, 'torso') !== 'out' && stateOf(p, 'head') !== 'out';
+export const canStand = (p) => !p.dead && !thermalDown(p) && !p.faint && bloodOf(p) >= BLOOD.collapse && LEGS.some(k => stateOf(p, k) !== 'out') && stateOf(p, 'torso') !== 'out' && stateOf(p, 'head') !== 'out';
 
 // How well someone moves, wounded (the user, 2026-11-03: "wounds should slow everyone down especially gunshot
 // wounds"): a factor on the walk and the run, each leg's and the torso's state, the blood lost, a fresh bullet
@@ -259,7 +259,7 @@ export function mobility(p, ms = 0) {
   if ((p.injuries ?? []).some(i => i.gunshot && ms - i.ms < GUNSHOT_DAYS * DAY)) k *= MOBILITY.gunshot;
   return k * armourMobility(p);
 }
-export const canRun = (p, ms = 0) => mobility(p, ms) >= RUN_BELOW && bandOf(p) !== 'shock';
+export const canRun = (p, ms = 0) => mobility(p, ms) >= RUN_BELOW && bandOf(p) !== 'shock' && !p.needs?.weak;   // (weak from hunger: sim/needs.js)
 
 /** Out cold whatever the clock says: dead, collapsed from the blood lost, the cold or the heat, a bullet in the skull. */
 export const outCold = (p) => !!p.dead || thermalDown(p) || bloodOf(p) < BLOOD.collapse || (p.injuries ?? []).some(i => i.internal && i.part === 'head');

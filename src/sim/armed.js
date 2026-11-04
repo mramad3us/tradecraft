@@ -54,7 +54,7 @@ import { stream, chance, pick, range } from './rng.js';
 import { issue } from './armour.js';
 import { say } from './log.js';
 import { HOUR } from './clock.js';
-import { outside, nearestDoor, needsOf, care, hoursWords } from './services.js';
+import { outside, nearestDoor, needsOf, care, hoursWords, bedHours, discharged } from './services.js';
 const low = (t) => t.charAt(0).toLowerCase() + t.slice(1);
 
 export const COP_WEAPONS = { patrol: [8, 1], response: [15, 2] };
@@ -292,14 +292,15 @@ export function underGuard(p, ms) {
   const N = needsOf(p, ms);
   if (!N.needs.length) return null;
   care(p, ms);
-  const what = N.needs.map(n => n.words), list = what.length > 1 ? `${what.slice(0, -1).join(', ')} and ${what.at(-1)}` : what[0];
-  return { h: N.hours, line: `Hurt as you were, they took you to a hospital first, an officer at the door: ${list}. ${hoursWords(N.hours)} of it, cuffed to the bed.` };
+  const what = N.needs.map(n => n.words), list = what.length > 1 ? `${what.slice(0, -1).join(', ')} and ${what.at(-1)}` : what[0], bed = bedHours(p, ms, N.hours), h = N.hours + bed;
+  return { h, line: `Hurt as you were, they took you to a hospital first, an officer at the door: ${list}. ${bed ? `Then ${hoursWords(bed).toLowerCase()} in the bed till you could walk` : `${hoursWords(N.hours)} of it`}, cuffed to it.` };
 }
 
 /** Out of the station, its hours over (sim/game.js, after they're skipped): on its steps, the nearest station's (sim/services.js). */
 export function released(state, bus, me) {
   if (!state.$released) return;
   delete state.$released;
+  { const p = me && state.people[me.who]; if (p) discharged(p, state.time.ms); }   // (what the hospital sent with you, given you at the desk: on your feet out of the door)
   const at = outside(state, bus, 'police');
   say(state, bus, { kind: 'note', text: at ? `Out onto the steps of ${low(at.label)}, the embassy's car already gone.` : 'Out onto the street again, the embassy\'s car already gone.' });
 }

@@ -2,7 +2,8 @@
 // ambulance in the country's minutes, your instinct's guess at how long by your Tradecraft; the paramedics work and
 // carry them off, the police tape the place off for a day with an officer at it; seen at it, you're described, and
 // an officer who sees you dressed so knows you, till you change.
-import { newGame, start, step, playerActor } from '../src/sim/game.js';
+import { newGame, start, step, playerActor, loadRow, newMap, skip } from '../src/sim/game.js';
+import { MIN } from '../src/sim/clock.js';
 import { bullet } from '../src/sim/shooting.js';
 import { MODELS } from '../src/sim/firearms.js';
 import { etaOf, waiting, seenLook, markViolent, CORDON_H } from '../src/sim/emergency.js';
@@ -95,6 +96,28 @@ export default [
       assert(H && H.why === 'wounded' && H.where.row === (w.g.map.row ?? 0) && Math.abs(H.where.x - V.x) < 0.01 && H.wearing.known === (H.wearing.look === wearOf(p)) && H.next >= w.g.calls[0].at.police - 1, `the hunt: ${JSON.stringify(H && { why: H.why, who: H.who.known, wearing: H.wearing.known })}`);
       const out = [0.5, 3, 7, 12, 20].map(d => `${d} m ${Math.round(faceP(d, 1) * 100)}%`).join(', '), dark = Math.round(faceP(3, 0.1) * 100);
       console.log(`      ${H.what}: the caller ${fmt(V.d, 1)} m off; your clothes ${H.wearing.known ? 'described' : 'not'}, your face ${H.who.known ? 'described' : 'not'}; a caller's chance of your face by day: ${out}; 3 m in the dark ${dark}%`);
+    },
+  },
+  {
+    name: 'emergency: the shot stay where they fell: a street on and back, a shop and out, ten minutes gone by, and they\'re there; left to it, found and called in, and taken when it\'s done (the user, 2026-11-04)',
+    fn() {
+      const w = scene('london'), row = w.g.map.row ?? 0, here = () => w.g.actors.some(a => a.id === w.a.id && (a.row ?? w.g.map.row) === row);
+      seconds(w, 2);
+      const t0 = here();
+      loadRow(w.g, w.bus, row + 1, w.me.x, { quiet: true }); seconds(w, 20);
+      loadRow(w.g, w.bus, row, w.me.x, { quiet: true }); seconds(w, 2);
+      const t1 = here();
+      const street = { ...w.g.map };
+      newMap(w.g, w.bus, { kind: 'shop', seed: 1, row }, 0); newMap(w.g, w.bus, street, w.me.x); seconds(w, 2);
+      const t2 = here();
+      skip(w.g, w.bus, 10 * MIN); seconds(w, 2);
+      const t3 = here();
+      // (a street on, and away for an hour: found if nobody had called, the call played out off it, and taken)
+      loadRow(w.g, w.bus, row + 2, w.me.x, { quiet: true });
+      for (let m = 0; m < 70; m++) { w.g.time.ms += MIN; seconds(w, 1); }
+      const gone = !w.g.actors.some(a => a.id === w.a.id), call = (w.g.calls ?? []).find(c => c.who.includes(w.a.id));
+      console.log(`      lying there: at first ${t0}; a street on and back ${t1}; into a shop and out ${t2}; ten minutes skipped ${t3}; an hour off the street: the call ${call ? (call.done ? 'done' : 'not done') : 'none'}, taken ${gone}`);
+      assert(t0 && t1 && t2 && t3 && gone && call?.done, JSON.stringify({ t0, t1, t2, t3, gone, call: !!call }));
     },
   },
 ];

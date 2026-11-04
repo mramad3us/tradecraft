@@ -153,7 +153,9 @@ const inArea = (state, H) => HUNTS[H.why].rows === CITY || Math.abs((state.map.r
 export function start(state, bus, { why, row = state.map.row ?? 0, x, who = false, wearing = false, what = null, aware = false, sure = false, first = null }) {
   const now = state.time.ms, p = state.people[state.player], H0 = huntOf(state), w = H0 ? worse(H0.why, why) : why, S = HUNTS[w];
   const fresh = {
-    id: H0?.id ?? `hunt${now}`, city: state.map.city ?? null, why: w, ms: H0?.ms ?? now, origin: H0?.origin ?? { row, x },
+    // (where they had you last is where the search is centred: a sighting or a new call moves it, the user, 2026-11-04:
+    // "reset at our location everytime we get spotted again")
+    id: H0?.id ?? `hunt${now}`, city: state.map.city ?? null, why: w, ms: H0?.ms ?? now, origin: { row, x },
     search: Math.max(H0?.search ?? 0, now + S.searchH * HOUR), until: Math.max(H0?.until ?? 0, now + S.keepD * DAY),
     who: who ? { known: true, look: whoOf(p) } : H0?.who ?? { known: false },
     wearing: wearing ? { known: true, look: wearOf(p) } : H0?.wearing ?? { known: false },
@@ -165,7 +167,8 @@ export function start(state, bus, { why, row = state.map.row ?? 0, x, who = fals
     fled: H0?.fled ?? false, read: H0?.read ?? null, aware: H0?.aware ?? null, reads: H0?.reads ?? 0,
     // (the search deployed only once the first responders are there: the call's police; an officer's own sighting, a few
     // minutes on; the user, 2026-11-04: "they are FIRST responders")
-    deploy: H0?.deploy ?? first ?? now + DEPLOY_MIN * MIN,
+    // (a search called off and up again: its first responders again first)
+    deploy: H0 && now < H0.search ? H0.deploy ?? now : first ?? now + DEPLOY_MIN * MIN,
   };
   const H = H0 ? Object.assign(H0, fresh) : (state.hunt = fresh);   // (the same hunt brought up to date: whoever holds it holds this one)
   if (!H0 || w !== H0.why) { if (state.legend) addHeat(state, HUNT_HEAT); policeHeat(state, POLICE_WANTED); }   // (your description out to every officer: the police's own file, sim/police.js)
@@ -238,6 +241,7 @@ export function second(state, bus, me) {
   }
   sighted(state, bus, me, now);
   chaseIn(state, me, now);
+  guards(state, me, now);
   const H = huntOf(state);
   // (the search called off, or the hunt over (they've had you): the corners stood down)
   if ((!H || now >= H.search) && state.actors.some(a => a.huntPost && !a.alert)) state.actors = state.actors.filter(a => !a.huntPost || a.alert);
@@ -328,8 +332,12 @@ function noticed(state, bus, me, H) {
 function units(state, bus, me, H, now) {
   const S = HUNTS[H.why], row = state.map.row ?? 0;
   if (now >= H.search || !inArea(state, H) || now < (H.deploy ?? 0)) return;   // (nothing deployed before the first responders are on the scene)
-  const K = policeOf(state.map);
-  posts(state, me, H, S, K, row);
+  const K = policeOf(state.map), hot = fromM(state, H, me) < perimeterM(H, now), at = `${state.map.seed}:${row}`;
+  // (a street you've come to inside their perimeter (the place icon red): police on it, every time, at once: a car where the
+  // hunt has them, else a pair on foot, and a corner where it's more than a fight; the user, 2026-11-04: "when the location
+  // indicator is red, police should be spawned on the map we travel to systematically, both car patrols and cops at corners")
+  if (H.$at !== at) { H.$at = at; if (hot) { H.next = Math.min(H.next, now); H.$car = S.cars > 0; } }
+  posts(state, me, H, hot && H.why !== 'fight' ? Math.max(1, S.posts) : S.posts, K, row, S.armed);
   // (a car waiting for room at an end of the stretch, as a call's does: tried each second, CAR_WAIT_S, then the pair on foot)
   if (H.car) {
     const P = H.car, d = P.dir;
@@ -345,7 +353,9 @@ function units(state, bus, me, H, now) {
   // round a place, not the whole city)
   const r = stream('hunt-unit', H.id, H.n), inside = S.rows === CITY || fromM(state, H, me) < perimeterM(H, now), id = `${H.id}u${H.n++}`;
   H.next = now + range(r, ...S.every) * MIN / S.most * (inside ? 1 : OUTSIDE_SLOW);
-  if (chance(r, S.cars)) {
+  const car = H.$car || chance(r, S.cars);
+  H.$car = false;
+  if (car) {
     const crew = `${id}c`, d = chance(r, 0.5) ? 1 : -1;
     officerSheet(state, crew, K, r, S.armed);
     if (cruiser(state, id, crew, d) || cruiser(state, id, crew, -d)) return;   // (from the other end, where a car's at this one)
@@ -366,21 +376,58 @@ function officerSheet(state, who, K, r, armed = false) {
 
 // Officers stood at the street's corners while the search is on (S.posts of them on the street you're on, at the lanes'
 // mouths nearest you within POST_NEAR_M; one a second as you come): each a unit of its own, checking whoever passes it.
-function posts(state, me, H, S, K, row) {
-  if (!S.posts) return;
+function posts(state, me, H, n, K, row, armed) {
+  if (!n) return;
   const here = state.actors.filter(a => a.huntPost && (a.row ?? row) === row);
-  if (here.length >= S.posts) return;
+  if (here.length >= n) return;
   const town = townOf(state.map), i0 = Math.floor(me.x / SECTION_M), corners = [];
   for (let i = i0 - 2; i <= i0 + 2; i++) for (const g of sectionOf(town, row, i).gapsN) { const m = mouthOf(g); corners.push({ x: m.x1 + 0.6, z: LINE.F - 0.4, face: 'down' }, { x: m.x0 - 0.6, z: LINE.F - 0.4, face: 'down' }); }
   const free = corners.filter(c => Math.abs(c.x - me.x) < POST_NEAR_M && !here.some(a => Math.abs(a.huntPost.x - c.x) < 4)).sort((a, b) => Math.abs(a.x - me.x) - Math.abs(b.x - me.x));
   const c = free[0];
   if (!c) return;
   const id = `${H.id}p${row}:${Math.round(c.x)}`, who = `${id}o`, r = stream('hunt-post', id);
-  officerSheet(state, who, K, r, S.armed);
+  officerSheet(state, who, K, r, armed);
   const a = makeAgent(state, { who, row, x: c.x, z: c.z, speed: 1.1, face: c.face });
   Object.assign(a, { cop: true, hunt: id, huntPost: { x: c.x, z: c.z } });
   a.ai.route = null; a.head = Math.PI / 2;
 }
+// Officers at a police station's door, always (the user, 2026-11-04: "at least one (can be more when high alert) armed police
+// officer in front of the police stations"): the armed response's (soldiers where it's the army), stood by the door facing
+// the street, GUARDS of them, more with a search out in the city (the city's whole for someone shot or killed); there while
+// you're within GUARD_M of the door, on its street, and an ordinary officer's eyes on what they see (sim/police.js eyeTick).
+export const GUARD_M = 80, GUARDS = { calm: 1, search: 2, city: 3 };
+function guards(state, me, now) {
+  const row = state.map.row ?? 0, town = townOf(state.map), i0 = Math.floor(me.x / SECTION_M), H = huntOf(state);
+  const out = state.actors.filter(a => a.guard && !a.alert && ((a.row ?? row) !== row || Math.abs(a.guard.x - me.x) > GUARD_M * 1.5));
+  if (out.length) state.actors = state.actors.filter(a => !out.includes(a));
+  // (one drawn off by an alarm and let go: back to the door, and facing the street again)
+  for (const a of state.actors) {
+    if (!a.guard || a.alert || !a.ai || (a.row ?? row) !== row) continue;
+    const off = Math.hypot(a.x - a.guard.x, a.z - a.guard.z);
+    if (off > 0.6 && (!a.ai.route || a.ai.s >= a.ai.route.length - 0.05)) try { setRoute(state, a, routeFrom(town, { row, x: a.x, z: a.z }, { row, x: a.guard.x, z: a.guard.z })); } catch { a.ai.route = null; }
+    else if (off <= 0.6 && a.ai.route) { a.ai.route = null; a.face = 'down'; a.head = Math.PI / 2; }
+  }
+  const on = H && now >= (H.deploy ?? 0) && now < H.search, n = on ? (HUNTS[H.why].rows === CITY ? GUARDS.city : GUARDS.search) : GUARDS.calm;
+  let K = null;
+  for (let i = i0 - 2; i <= i0 + 2; i++) for (const d of sectionOf(town, row, i).doors) {
+    if (d.shop !== 'police' || d.z > Z.kerbN || Math.abs(d.x - me.x) > GUARD_M) continue;
+    for (let k = 0; k < n; k++) {
+      const id = `guard:${row}:${Math.round(d.x)}:${k}`;
+      if (state.actors.some(a => a.guard?.id === id)) continue;
+      const x = d.x + [1.4, -1.4, 2.8][k], z = d.z + 0.7, who = `${id}o`;   // (a step out from its door: on a square's or a crescent's front too)
+      K ??= policeOf(state.map);
+      if (!state.people[who]) officerSheet(state, who, K, stream('station-guard', id), true);
+      const a = makeAgent(state, { who, row, x, z, speed: 1.1, face: 'down' });
+      Object.assign(a, { cop: true, guard: { id, x, z }, squad: id });
+      a.ai.route = null; a.head = Math.PI / 2;
+      return;                                                       // (one a second, as you come)
+    }
+  }
+  // (fewer once the search is over: the extra ones back inside)
+  const extra = state.actors.filter(a => a.guard && !a.alert && Number(a.guard.id.split(':').at(-1)) >= n);
+  if (extra.length) state.actors = state.actors.filter(a => !extra.includes(a));
+}
+
 // (a pair on foot: from the far end of the stretch in play, past you, along your pavement mostly, a pace apart)
 function foot(state, id, r, me, K, armed = false) {
   const row = state.map.row ?? 0;

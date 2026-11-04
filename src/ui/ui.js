@@ -163,10 +163,10 @@ export function createUI({ input, cb }) {
     const k = (a) => `<kbd>${input.label(a)}</kbd>`;
     keys.classList.toggle('folded', !keysOpen);
     if (!keysOpen) { keys.innerHTML = '<kbd>?</kbd> keys'; return; }
-    keys.innerHTML = mode === 'shoot' ? `<kbd>1</kbd>–<kbd>9</kbd> a step (time stands still till you choose) · the mouse on someone, a click aims, a click again fires · ${k('left')}${k('right')} the next one, <kbd>Enter</kbd> aims · ${k('up')}${k('down')} head, body, legs · ${k('aim')} leave it · ${k('log')} log`
+    keys.innerHTML = mode === 'shoot' ? `<kbd>1</kbd>–<kbd>9</kbd> a step (time stands still till you choose) · the mouse on someone, a click aims, a click again fires · ${k('left')}${k('right')} the next one, <kbd>Enter</kbd> aims · ${k('up')}${k('down')} head, body, legs · ${k('aim')} time on again, the gun still up · ${k('log')} log`
       : mode === 'fight' ? `${k('hit')} hit · ${k('grapple')} grab · ${k('guard')} cover · ${k('run')} held: spend an edge · ${k('gun')} draw · ${k('interact')} your read · ${k('log')} log · ${k('pause')} pause`
       : mode === 'talk' ? `<kbd>1</kbd>–<kbd>4</kbd> say · ${k('menu')} leave it there`
-      : `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look (tap: glance) · ${k('instinct')} instinct · ${k('use')} use what's at hand · ${k('interact')} people · ${k('aid')} first aid · ${k('inventory')} carry · ${k('gun')} draw · ${k('sheet')} sheet · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
+      : `${k('up')}${k('left')}${k('down')}${k('right')} walk · ${k('slow')} stroll · ${k('run')} run · ${k('watch')} look (tap: glance) · ${k('instinct')} instinct · ${k('use')} use what's at hand · ${k('interact')} people · ${k('aid')} first aid · ${k('inventory')} carry · ${k('gun')} draw · ${k('aim')} aim (time stops; again, it runs, the gun up) · ${k('sheet')} sheet · ${k('log')} log · ${k('pause')} pause · ${k('menu')} menu`;
   };
   keyHints();
   setTimeout(() => keyHints(), 300);                               // once the keyboard's layout is known

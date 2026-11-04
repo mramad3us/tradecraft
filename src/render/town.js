@@ -40,6 +40,7 @@ import { treeCard, propCard } from '../art/townsprites.js';
 import { spritePerson, frame, card } from '../art/sprites.js';
 import { Z, laneRects } from '../sim/map/street.js';
 import { cityById, kioskOf } from '../sim/cities/index.js';
+import { policeOf } from '../sim/countries/index.js';
 import { stream, range, pick, chance } from '../sim/rng.js';
 
 const tiles = new Map();
@@ -402,7 +403,7 @@ export function* buildSection(S, { month = 11, night = () => false } = {}) {
       case 'car': {
         // Parked with the traffic: driving on the right, the street's north kerb faces west and the far
         // road's south kerb east; on the left (London), the other way round.
-        const m = car(p.color, { seed: p.seed, kind: p.look });
+        const m = car(p.color, { seed: p.seed, kind: p.look, livery: p.police ? policeOf({ city: C.id })?.ems?.policeCar : null });   // (a police station's, in the country's livery: sim/map/street.js stationCars())
         m.position.set(snap(p.x), 0, snap(p.z));
         if ((p.z < Z.fence) === (C.drive !== 'left')) m.rotation.y = Math.PI;
         g.add(m); cost += 1; break;

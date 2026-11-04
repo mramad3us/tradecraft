@@ -262,7 +262,42 @@ export function section(seed, i, row = 0) {
   P.furnish?.(S, { seed, row, r: stream('street-city', seed, row, i), block, lamp, inGap, inMouth: (x, m = 0) => inGap(mouths, x, m) || inGap(S.courts ?? [], x, m) || inGap(S.squares ?? [], x, m), near, zx, sx });
   dress(S, seed, row, zx, sx, P);
   amenities(S, stream('amenities', seed, row, i), busLinesAt(seed, row, i), P, zx, block, near, (x, m = 0) => inGap(mouths, x, m) || inGap(S.courts ?? [], x, m) || inGap(S.squares ?? [], x, m));
+  stationCars(S, stream('station-cars', seed, row, i), P, zx, block, near, (x, m = 0) => inGap(mouths, x, m) || inGap(S.courts ?? [], x, m) || inGap(S.squares ?? [], x, m));
   return S;
+}
+
+// Police cars parked in front of a police station, always (the user, 2026-11-04: "There should always be parked police cars
+// in front of police stations"): two at the kerb, either side of its door, in the country's livery (src/render/town.js),
+// where the street's own cars were; clear of the zebra, the lanes' mouths and a bus's bay. From a stream of their own.
+function stationCars(S, r, P, zx, block, near, inMouth) {
+  // (a bus's bay at a stop: its body pulled in there, the way the buses go along this kerb, as amenities() keeps it clear)
+  const len = P.bus?.len ?? 11, way = P.drive === 'left' ? 1 : -1;
+  const bays = S.props.filter(p => p.kind === 'stop').map(p => (way > 0 ? [p.x - (len - 1.4) - 1, p.x + 1.4 + 1] : [p.x - 1.4 - 1, p.x + (len - 1.4) + 1]));
+  // (each slid along the kerb from its place by the door to the nearest clear of all that, to 2.4 m either way; a section's
+  // end crossed by no more than its neighbour's own cars leave clear)
+  const fits = (x, put) => x >= S.x0 + 1.3 && x <= S.x0 + SECTION_M - 1.3 && !near(x, zx, 4) && !inMouth(x, 2.2) && !bays.some(([a, b]) => x + 2.1 > a && x - 2.1 < b) && !put.some(o => Math.abs(o - x) < 4.4);
+  // (a station set back round a square or a crescent: in its forecourt, by its door, clear of what stands there)
+  const clear = (ax, az, bx, bz) => !S.blockers.some(b => b.x1 > ax && b.x0 < bx && b.z1 > az && b.z0 < bz);
+  const forecourt = (d) => (x, put) => { const q = [...(S.squares ?? []), ...(S.courts ?? [])].find(g => d.x > g.x0 && d.x < g.x1) ?? { x0: S.x0, x1: S.x0 + SECTION_M }; return x >= q.x0 + 2.3 && x <= q.x1 - 2.3 && clear(x - 2.2, d.z + 1.3, x + 2.2, d.z + 3.3) && !put.some(o => Math.abs(o - x) < 4.4); };
+  for (const d of S.doors) {
+    if (d.shop !== 'police' || d.z > Z.kerbN) continue;
+    const back = d.z < Z.front - 0.5, ok = back ? forecourt(d) : fits, z = back ? d.z + 2.3 : 0.55;
+    const put = [];
+    for (const x0 of [d.x - 2.4, d.x + 2.4, d.x - 6.9, d.x + 6.9, d.x - 11.4, d.x + 11.4]) {
+      if (put.length >= 2) break;
+      let x = null;
+      for (let k = 0; k <= 16 && x === null; k++) for (const o of k ? [k * 0.15, -k * 0.15] : [0]) if (x === null && ok(x0 + o, put)) x = x0 + o;
+      if (x === null) continue;
+      put.push(x);
+      if (!back) {
+        S.props = S.props.filter(p => !(p.kind === 'car' && !p.police && p.z < 5 && Math.abs(p.x - x) < 4.3));
+        for (let j = S.blockers.length - 1; j >= 0; j--) { const b = S.blockers[j]; if (b.what === 'car' && !b.police && b.z1 < 5 && b.x1 > x - 2.2 && b.x0 < x + 2.2) S.blockers.splice(j, 1); }
+      }
+      S.props.push({ kind: 'car', x, z, look: 'police', police: true, color: 0xf6f4ee, seed: int(r, 1000) });
+      block(x - 2.1, z - 0.9, x + 2.1, z + 0.9, 'car');
+      S.blockers.at(-1).police = true;
+    }
+  }
 }
 
 // A bus shelter at the far kerb where the city's bus lines stop (sim/transit.js: the section has a stop;

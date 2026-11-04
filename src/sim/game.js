@@ -33,9 +33,9 @@ import { attach, refocus, rehash, move, near, exitAt } from './world.js';
 import { Z, placeName } from './map/street.js';
 import { CITIES, townOf } from './cities/index.js';
 import { say } from './log.js';
-import { populate, recycle, think, walk, facing, isPasserby, noticeAgent } from './crowd.js';
+import { populate, recycle, think, walk, facing, isPasserby, noticeAgent, lies } from './crowd.js';
 import { look, headOf, faceOf, GLASS_MAX_DEG } from './perception.js';
-import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } from './agents.js';
+import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY, rowOf } from './agents.js';
 import { drift, asOfficer, uniformed } from './people.js';
 import { heal, bleeding, bloodTick, bandOf, canStand, canRun, mobility, kill, exertion, adrenalTick, BLOOD, COME_ROUND_S } from './health.js';
 import { PRESSURE_K, treat } from './aid.js';
@@ -292,6 +292,10 @@ export function step(state, input = {}, bus) {
     }
     // A slip on snow or ice (step 6): a moment's stagger, skidding on, the feet nobody's.
     if (me.skid > 0) { me.skid--; me.vx *= 0.35; me.vz *= 0.35; me.gait = 'stagger'; }
+    // (down, or held face down: down now, before you look (step 3), not only after; the input above had you 'idle', and the
+    // look went by a standing man's cone while the picture drew a lying one's all round: everyone behind you frozen where
+    // last seen, the user, 2026-11-04, "half frozen scenes")
+    if (fallen || state.$takedown?.stage === 'pin') { me.vx = me.vz = 0; me.gait = 'down'; }
     // A glance back: the eyes over the shoulder, the feet going on; then the eyes come back.
     if (me.glance) {
       me.eyesOn ??= me.head;
@@ -424,13 +428,15 @@ export function skip(state, bus, ms) {
     if (!p || p.dead || !bleeding(p, state.time.ms)) continue;
     for (let t = 0; t < ms && !p.dead; t += 60000) { const at = state.time.ms; state.time.ms += Math.min(60000, ms - t); bloodBeat(state, bus, a, Math.min(60, (ms - t) / 1000)); state.time.ms = at; }
   }
-  const before = Math.floor(state.time.ms / AUTOSAVE_MS);
+  const before = Math.floor(state.time.ms / AUTOSAVE_MS), t0 = state.time.ms;
   state.time.ms += Math.round(ms / TICK_MS) * TICK_MS;
   for (const [who, p] of Object.entries(state.people)) {
     drift(p, state.time.ms);
-    const notes = heal(p, ms / DAY, state.time.ms, { tended: who !== state.player });   // (off the map, people see their own doctors)
+    // (off the map, people see their own doctors; you, the hours a hospital's just taken you in for: its care, sim/services.js care())
+    const notes = heal(p, ms / DAY, state.time.ms, { tended: who !== state.player || (p.hospital !== undefined && p.hospital >= t0 - 60000) });
     if (who === state.player) { wetDays(p, ms / DAY, state.time.ms); bodyNotes(state, bus, notes); const me = playerActor(state); if (me) bodyHeat(state, bus, me, ms / MIN, true); }
   }
+  emergency.caughtUp(state, bus);                                  // (a call the hours have seen to: its people taken, sim/emergency.js)
   const f = focusActor(state);
   if (f && !recycle(state, f.x, ms)) populate(state, f.x);         // (long enough, and the street's crowd is all new: sim/crowd.js recycle())
   rehash(state);
@@ -560,9 +566,15 @@ export function deathPaper(state) {
 export function newMap(state, bus, map, x, keep = []) {
   const me = playerActor(state);
   bus?.emit('map-', state.map);
+  // (who's lying in this town's streets, put by while you're elsewhere: back when you're on its streets again, as they lay;
+  // another town's, let go: sim/crowd.js lies())
+  const town = (m) => (m?.kind === 'street' ? `${m.city ?? ''}|${m.seed}` : null), was = town(state.map), next = town(map);
+  if (was) state.fallen = { town: was, actors: [...(state.fallen?.town === was ? state.fallen.actors : []), ...state.actors.filter(a => a !== me && !keep.includes(a.id) && lies(state, a)).map(a => ({ ...a, row: rowOf(state, a) }))] };
   state.map = { ...map, inPlay: [] };
   state.actors = state.actors.filter(a => a === me || keep.includes(a.id));
   for (const a of state.actors) a.row = map.row ?? 0;
+  if (next && state.fallen?.town === next) { state.actors.push(...state.fallen.actors.filter(a => !state.actors.some(o => o.id === a.id))); delete state.fallen; }
+  else if (next && state.fallen) delete state.fallen;
   state.mind = { ...state.mind, seen: {} };
   state.decals = [];
   attach(state, bus, x);
@@ -581,9 +593,10 @@ export function newMap(state, bus, map, x, keep = []) {
 export function loadRow(state, bus, row, x, { way = null, from = state.map.row, quiet = false } = {}) {
   const scenario = SCENARIOS[state.scenario.kind], me = playerActor(state);
   bus?.emit('map-', state.map);
+  for (const a of state.actors) if (lies(state, a)) a.row = rowOf(state, a);   // (who's lying in the street stays on theirs: sim/crowd.js lies())
   state.map.row = row;
   state.map.inPlay = [];
-  state.actors = state.actors.filter(a => a === me || isAgent(a) || (a.ai && a.ai.kind !== 'walker') || a.row === row);
+  state.actors = state.actors.filter(a => a === me || isAgent(a) || (a.ai && a.ai.kind !== 'walker') || a.row === row || lies(state, a));
   state.mind = { seen: {} };
   attach(state, bus, x);
   rehash(state);

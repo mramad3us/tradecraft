@@ -39,7 +39,7 @@ import { policeHeat, POLICE_HOSPITAL } from './police.js';
 import { stream, range, chance, pick, next } from './rng.js';
 import { say } from './log.js';
 import { seesActor } from './perception.js';
-import { isPasserby } from './crowd.js';
+import { isPasserby, lies } from './crowd.js';
 import { makeAgent, setRoute, rowOf } from './agents.js';
 import { routeFrom, LINE } from './city.js';
 import { streetName } from './map/street.js';
@@ -51,7 +51,7 @@ import { sendEms } from './traffic.js';
 import { armCop, arrest } from './armed.js';
 import { addHeat } from './heat.js';
 import { shortName } from './fight.js';
-import { care, needsOf, outside, hoursWords, VISIT_HEAT } from './services.js';
+import { care, needsOf, outside, hoursWords, VISIT_HEAT, bedHours, discharged } from './services.js';
 import { HOSPITAL_HEAT } from './aid.js';
 import { start as startHunt, know, fullMatch, faceP, wearP, onAlert } from './hunt.js';
 import { lightHere } from './perception.js';
@@ -96,6 +96,7 @@ export function second(state, bus, me) {
   const now = state.time.ms, row = state.map.row ?? 0;
   report(state, bus, me, now, row);
   heard(state, bus, me, now, row);
+  found(state, now, row);
   for (const c of state.calls ?? []) if (!c.done) (c.row === row ? play : offstage)(state, bus, me, c, now);
   state.calls = (state.calls ?? []).filter(c => !c.done || now - c.ms < DAY);
   state.cordons = (state.cordons ?? []).filter(k => k.until > now);
@@ -108,7 +109,8 @@ function report(state, bus, me, now, row) {
     const p = a.who && state.people[a.who];
     if (!p || a.hidden || p.reported || rowOf(state, a) !== row || a.ems) continue;
     const down = casualty(p, a);                                  // (down, or shot and sat against a wall after it: sim/health.js)
-    if (!down || (a === me && state.$takedown?.stage === 'pin' && canStand(p))) continue;   // (you face down under an officer's knee: the police have it in hand, nobody calls an ambulance: sim/armed.js)
+    if (!down || (a === me && state.$takedown?.stage === 'pin' && canStand(p))) continue;
+    a.fell ??= now;                                               // (when they were first seen lying there: found(), if you leave them to it)   // (you face down under an officer's knee: the police have it in hand, nobody calls an ambulance: sim/armed.js)
     const near = state.actors.filter(w => w !== a && w.ai && !w.hidden && isPasserby(w) && !(w.ai.fled > now - 20000 && Math.hypot(w.x - a.x, w.z - a.z) > 12) && Math.hypot(w.x - a.x, w.z - a.z) < SEE_DOWN_M && seesActor(state, w, a));
     if (!near.length || !chance(state.rng, 1 - (1 - CALL_P) ** near.length)) continue;
     p.reported = now;
@@ -126,7 +128,11 @@ function report(state, bus, me, now, row) {
       at: { police: now + Math.round(responseMin(state, row, now, E.police, r) * MIN), ambulance: now + Math.round(responseMin(state, row, now, E.ambulance, r) * MIN) },   // (before the hunt it may start: its window's)
       err: { police: gauss(r), ambulance: gauss(r) }, police: { stage: 'coming' }, ambulance: { stage: 'coming' } };
     (state.calls ??= []).push(c);
-    const knows = Math.hypot(caller.x - me.x, caller.z - me.z) < KNOW_M || seesActor(state, me, caller);
+    // (you know it's been called: you saw or heard the caller, or it's your doing on this street (someone you shot or fought,
+    // your shots, you seen at it): with people down in the street, someone always calls. The user, 2026-11-04, three shot and
+    // two knocked out, and neither the logos nor the icons: the caller had been out of sight)
+    const sawCaller = Math.hypot(caller.x - me.x, caller.z - me.z) < KNOW_M || seesActor(state, me, caller), mine = !!c.described || yours(state, c, now);
+    const knows = sawCaller || mine;
     // (described: the hunt for you, with what the caller had: your clothes nearly always, your face by how near and how lit; sim/hunt.js)
     if (c.described) {
       const w = stream('hunt-witness', state.map.seed, now);
@@ -136,8 +142,8 @@ function report(state, bus, me, now, row) {
     if (knows) {
       c.known = true;
       const eta = etaOf(state, c);
-      say(state, bus, { kind: 'instinct', text: `Someone's on the phone, looking at ${a === me ? 'you' : shortName(state, a.who)}: police, an ambulance.${c.described ? ' And they\'re describing you as they talk.' : ''} ${cap(eta.map(e => `${e.word}: ${e.text}`).join(', '))}.${state.actors.some(o => o.cop && !o.unit && !o.hidden && (o.row ?? row) === row) ? ' A patrol\'s already on the street, though: they won\'t wait for the call.' : ''}` });   // (the call's squad and the patrol here: not the same men)
-      if (c.described) know(state, bus);                          // (and what they'll have of you: your Tradecraft's read, sim/hunt.js)
+      say(state, bus, { kind: 'instinct', text: `${sawCaller ? `Someone's on the phone, looking at ${a === me ? 'you' : shortName(state, a.who)}: police, an ambulance.${c.described ? ' And they\'re describing you as they talk.' : ''}` : `${a === me ? 'You, down in the street' : 'People down in the street'}: someone will have called it in by now, somewhere out of sight.`} ${cap(eta.map(e => `${e.word}: ${e.text}`).join(', '))}.${state.actors.some(o => o.cop && !o.unit && !o.hidden && (o.row ?? row) === row) ? ' A patrol\'s already on the street, though: they won\'t wait for the call.' : ''}` });   // (the call's squad and the patrol here: not the same men)
+      if (mine) know(state, bus);                                 // (and what they'll have of you: your Tradecraft's read, sim/hunt.js)
     }
   }
 }
@@ -162,10 +168,12 @@ function heard(state, bus, me, now, row) {
   (state.calls ??= []).push(c);
   const w = stream('hunt-witness', state.map.seed, now);
   startHunt(state, bus, { why: 'shots', row, x, who: !!V && chance(w, faceP(V.d ?? 10, V.light ?? 1)), wearing: !!V && chance(w, wearP(V.light ?? 1)), first: at, aware: false });
-  if (Math.hypot(caller.x - me.x, caller.z - me.z) < KNOW_M || seesActor(state, me, caller)) {
+  // (your shots, heard: you know someone's calling them in, whether you see who or not)
+  {
+    const saw = Math.hypot(caller.x - me.x, caller.z - me.z) < KNOW_M || seesActor(state, me, caller);
     c.known = true;
     const eta = etaOf(state, c);
-    say(state, bus, { kind: 'instinct', text: `Someone's on the phone, looking back the way the shots came from: the police.${V ? ' And they\'re describing you as they talk.' : ''} ${cap(eta.map(e => `${e.word}: ${e.text}`).join(', '))}.` });
+    say(state, bus, { kind: 'instinct', text: `${saw ? `Someone's on the phone, looking back the way the shots came from: the police.${V ? ' And they\'re describing you as they talk.' : ''}` : 'Shots on a street like this: someone\'s calling it in, somewhere out of sight.'} ${cap(eta.map(e => `${e.word}: ${e.text}`).join(', '))}.` });
     know(state, bus);
   }
 }
@@ -255,6 +263,38 @@ function offstage(state, bus, me, c, now) {
   if (now < Math.max(c.at.police, c.at.ambulance) + 10 * MIN) return;
   cordon(state, c, now);
   c.done = true;
+  // (and who was lying there taken: the living to a hospital, the dead to the morgue; never you, who's here)
+  const gone = new Set(c.who.filter(id => id !== me?.id));
+  if (gone.size) state.actors = state.actors.filter(a => !gone.has(a.id));
+}
+
+// Who's lying on a street you've left, nobody having called it in (FOUND_MIN after you'd seen them there, or they fell): found
+// and called in, the emergency services' call there played out off it (offstage()), and taken; the user, 2026-11-04.
+export const FOUND_MIN = [8, 25];
+function found(state, now, row) {
+  for (const a of state.actors) {
+    const p = a.who && state.people[a.who];
+    if (!p || p.reported || a.ems || rowOf(state, a) === row || !lies(state, a)) continue;
+    a.fell ??= now;
+    if (now - a.fell < range(stream('found', a.id), ...FOUND_MIN) * MIN) continue;
+    p.reported = now;
+    const c = (state.calls ?? []).find(k => !k.done && k.row === a.row && Math.hypot(k.x - a.x, k.z - a.z) < MERGE_M);
+    if (c) { c.who.push(a.id); continue; }
+    const E = policeOf(state.map)?.ems ?? DEFAULT_EMS, r = stream('ems-found', a.id);
+    (state.calls ??= []).push({ id: `call${now}${a.id}`, city: state.map.city ?? null, row: rowOf(state, a), x: a.x, z: a.z, ms: now, who: [a.id], described: null, known: false,
+      at: { police: now + Math.round(range(r, ...E.police) * MIN), ambulance: now + Math.round(range(r, ...E.ambulance) * MIN) }, err: { police: 0, ambulance: 0 }, police: { stage: 'coming' }, ambulance: { stage: 'coming' } });
+  }
+}
+
+/**
+ * After a time skip (sim/game.js skip()): a call on your street long since dealt with (its times and OFFSTAGE_MIN past)
+ * played out as one off it is, its cordon up and its people taken; one still due, on its way as it was.
+ */
+export function caughtUp(state, bus) {
+  if (state.map?.kind !== 'street') return;
+  const now = state.time.ms, me = state.actors.find(a => a.who === state.player);
+  const idle = (S) => S.stage === 'coming' || S.stage === 'done';   // (not one of them on the street at it: that plays out as it is)
+  for (const c of state.calls ?? []) if (!c.done && idle(c.police) && idle(c.ambulance) && now >= Math.max(c.at.police, c.at.ambulance) + 30 * MIN) offstage(state, bus, me, c, now);
 }
 
 // The crew out of the car: two of the ambulance's in their jackets, or two officers armed as the country's are.
@@ -335,7 +375,7 @@ function hospital(state, bus, me, c) {
   care(p, ms);                                                     // (the blood put back too, under TRANSFUSE_BELOW)
   me.hidden = false; me.gait = 'idle';
   say(state, bus, { kind: 'note', text: 'The ambulance\'s ceiling, then a corridor\'s, then a ward\'s. Stitches, a drip, a doctor who asks how it happened and doesn\'t believe the answer.' });
-  state.$hospital = { ms: HOSPITAL_H * HOUR, arrest: described(state, p), from: { row: c.row, x: c.x }, out: 'hospital', charged: true, report: N.reported };   // (an official hospital: its costs as a walk-in's, the user, 2026-11-04)   // (the hours, skipped after the tick: sim/game.js)
+  state.$hospital = { ms: (HOSPITAL_H + bedHours(p, ms, HOSPITAL_H)) * HOUR, arrest: described(state, p), from: { row: c.row, x: c.x }, out: 'hospital', charged: true, report: N.reported };   // (an official hospital: its costs as a walk-in's, the user, 2026-11-04)   // (the hours, skipped after the tick: sim/game.js)
 }
 
 /**
@@ -351,6 +391,7 @@ export function afterHospital(state, bus, me, skip) {
   delete state.$hospital;
   skip(state, bus, H.ms);
   const p = me && state.people[me.who], official = H.official !== false;
+  if (p) discharged(p, state.time.ms);                               // (sent out on painkillers, a packet with you: sim/services.js)
   if ((H.walkin || H.charged) && official) {
     if (state.campaign && state.legend) addHeat(state, VISIT_HEAT + (H.report ? HOSPITAL_HEAT : 0));
     if (H.report) policeHeat(state, POLICE_HOSPITAL);                // (the police's own file: the hospital's report, sim/police.js)
