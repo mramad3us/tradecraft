@@ -17,6 +17,7 @@
 //
 // It shows the state and routes the player's choices to the callbacks it's given (src/main.js); it
 // never changes the state itself. Times are game time (sim/clock.js); rolls read through checkShort() at the top left, checkText() (the whole sum) in the log.
+import { ageOf, betweenWords } from '../sim/career.js';
 import { townOf, localize, cityById, CITIES, CITY_IDS, cityWords } from '../sim/cities/index.js';
 import { LANG_NAME } from '../sim/langs.js';
 import { shopWord } from '../sim/shops.js';
@@ -246,7 +247,7 @@ export function createUI({ input, cb }) {
     if (mode !== hintsFor) keyHints(mode);
     const fw = frame.clientWidth, watchL = watch.offsetLeft, watchB = watch.offsetTop + watch.offsetHeight;   // (read before anything's written: the watch's corner, for the way's plaque)
     put(watch.querySelector('.time'), clockText(state.time.ms));
-    put(watch.querySelector('.date'), stampText(state.time.ms).split(',')[0]);
+    put(watch.querySelector('.date'), `${stampText(state.time.ms).split(',')[0]}${calendarOf(state.time.ms).year !== 2026 ? ` ${calendarOf(state.time.ms).year}` : ''}`);   // (the year, once the years go by: sim/career.js)
     const me = state.actors.find(a => a.who === state.player);
     const held = weaponOf(state.people[state.player]?.hand);       // (what's in your hand, under the watch: sim/items.js)
     put(watch.querySelector('.hand'), held ? `in hand: ${bare(held)}` : '');
@@ -698,7 +699,7 @@ export function createUI({ input, cb }) {
     const sec = (...kids) => el('div', { className: 'cs-sec' }, ...kids), underLegend = ['legend', 'non-official'].includes(state.legend?.cover);   // (a false identity, not the embassy's cover)
     const file = [
       sec(el('h3', {}, 'The file'),
-        row(cv('age') ? 'Age' : 'Sex', cv('age') ? `${cv('age')}, ${sexWord}` : cap(sexWord)),
+        row(cv('age') ? 'Age' : 'Sex', cv('age') ? `${ageOf(c?.character?.born !== undefined ? c.character : p, now) ?? cv('age')}, ${sexWord}` : cap(sexWord)),   // (the years gone by: sim/career.js)
         langs ? row('Languages', langs) : null,
         cv('background') ? row('Background', cv('background')) : null,
         cv('anew') ? row('Back', cv('anew')) : null,                   // (a legend's reason for starting again)
@@ -720,7 +721,7 @@ export function createUI({ input, cb }) {
           row('Heat', rd.heat.text), row('Embassy', rd.cover.text),
           R.over ? row('Ended', `${OVER_WORDS[R.over.why] ?? R.over.why}${R.over.ms ? `, ${fileDate(R.over.ms, now)}` : ''}.`) : null),
         sec(el('h3', {}, 'The record'),
-          ...R.past.map(k => row('Before', `${k.rank}, Station ${cityById(k.city).name}${k.until ? `, to ${fileMonth(k.until)}` : ''}`)),
+          ...R.past.map(k => row('Before', `${k.rank}${k.city ? `, Station ${cityById(k.city).name}` : ''}${k.until ? `, to ${fileMonth(k.until)}` : ''}`)),
           row('Assignments', R.done.length ? `${R.done.filter(d => !d.missed).length} done${R.done.some(d => d.missed) ? `, ${R.done.filter(d => d.missed).length} missed` : ''}${R.done.length > 4 ? '; the last four:' : ':'}` : 'none yet'),
           R.done.length ? el('ul', { className: 'cs-ops' }, ...R.done.slice(-4).map(d => el('li', { className: d.missed ? 'missed' : '' }, el('time', {}, fileDate(d.ms, now)), el('span', {}, `${opWords(d)}: ${d.word}`)))) : null,
           R.reviews.length ? row('Reviews', `${R.reviews.slice(-6).join(', ')}${R.reviews.length > 6 ? ` (the last six of ${R.reviews.length})` : ''}`) : null),
@@ -1058,7 +1059,7 @@ export function createUI({ input, cb }) {
       // (promoted: a station of your own, chosen here: sim/campaign.js promote(); each its profile's line, sim/cities/)
       ...(stations ? [el('p', { className: 'note', textContent: 'A posting of your own: which station do you ask for?' }),
         ...CITY_IDS.map(c =>
-          el('button', { className: 'item', onclick: go(() => stations(c)) }, `Station ${CITIES[c].name}`, el('small', { textContent: CITIES[c].station.about })))] : []),
+          el('button', { className: 'item', onclick: go(() => stations(c)) }, `Station ${CITIES[c].name}`, el('small', { textContent: `${CITIES[c].station.about} ${betweenWords(state.campaign.character, c)}` })))] : []),   // (the time it takes to get there: sim/career.js)
       back && !stations && !state.people[state.player]?.dead ? el('button', { className: 'item', onclick: go(back) }, 'Back to the posting', el('small', { textContent: 'The debrief, and on with it.' })) : null,
       el('button', { className: 'item', onclick: go(title) }, home ? 'Back to the flat' : 'Back to the title')] : [
       el('hr'),

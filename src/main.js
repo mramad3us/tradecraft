@@ -27,6 +27,7 @@ import { newGun, newMag, isGun } from './sim/firearms.js';
 import { wear as wearArmour } from './sim/armour.js';
 import { candidates, legendFile, newCampaign, context, fold, heatWord, KINDS, LEVELS, levelOf, promote, goalOf, bookLessons, lessonsLeft, lessonBook } from './sim/campaign.js';
 import { missionPlace } from './sim/places.js';
+import { planPaper } from './sim/career.js';
 import { cityById, CITY_IDS, FIRST_TOUR_CITY } from './sim/cities/index.js';
 import { shopWord } from './sim/shops.js';
 import { price } from './sim/money.js';
@@ -244,7 +245,8 @@ function result() {
     // no way back to a posting that's over)
     const c = state.campaign, over = kind === 'campaign' && state.scenario.outcome;
     if (over) reached(levelOf(c.posting.level) + (over === 'promoted' || over === 'completed' ? 1 : 0));
-    const next = over === 'promoted' ? (city) => launch(newGame({ seed: randomSeed(), scenario: 'campaign', version: VERSION, campaign: promote(c, city), weather: WEATHER })) : null;
+    // (the station chosen: the orders first, the leave and the language school and how long they take, sim/career.js; then the posting, that much later)
+    const next = over === 'promoted' ? (city) => ui.showPaper(planPaper(c.character, city), () => launch(newGame({ seed: randomSeed(), scenario: 'campaign', version: VERSION, campaign: promote(c, city), weather: WEATHER }))) : null;
     return ui.showResult(state, { back: over ? null : () => backToPosting(state), title: async () => { await autosave(); stop(); showTitle(); }, photo: lastPhoto?.url, next }, settings);
   }
   // (a lesson of the tutorial: again with Hale, on your own, the next one, the directory: sim/tutorial/)

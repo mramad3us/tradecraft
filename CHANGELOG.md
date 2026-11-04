@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.25 (2026-11-04)
+
+- **The years go by between postings.** Asking for a station when you're promoted now costs time. First come three weeks' home leave. Then, if the station's language isn't yours to working level, the Foreign Service Institute, full time, for as long as it takes. By the State Department's categories that's 30 weeks for French, 36 for German, 44 for Russian and 88 for Arabic, less what you already have: a junior with basic Russian needs 33 weeks for Moscow, and one with no Arabic 1.7 years for Beirut. The posting starts that much later. Your officer is older by then (ages now follow a birth date), the language is on their file, and the school is in their record. The orders come as a paper listing each phase and how long it takes. The station picker says how long each station would take. Once it's no longer 2026, the year shows on the clock.
+- **An illegal's training is planned** (for 0.2's postings): the language to fluent, and every skill to the post's floors: master in the core four, 18 in CQC, Fitness and Weapon handling, 14 in the rest. Each phase is with the people who'd teach it: the Secret Service, the Farm's long course, Delta, Ground Branch, a trauma bay, the DS&T. A legend's takes 2.5 years for Beirut, a regular officer's 13.6, and the paper opens: "You're very good. At this level, over there, you'll be dead in a month."
+- Tests: `tests/career.test.mjs` (the weeks by language; promoted to Beirut and to Moscow; an illegal's plan).
+
 ## v0.1.24 (2026-11-04)
 
 - **Helmets.** The armed response wears ballistic helmets in Moscow, Beirut and Cairo; London's still wears caps. The helmet is drawn on the street and on the close figures: a matte dome to the brow, down over the ears. It takes 55% of hits to the head (the face is bare) and turns nearly every pistol round: of head hits at 10 m from a Makarov or a Glock, half are turned, and the deaths halve (61% to 28%). It turns a rifle's round 1% of the time. A turned round leaves no wound, only a daze for 2 to 6 seconds: an officer loses his aim for that long, and you stagger. The read shows "a ballistic helmet".

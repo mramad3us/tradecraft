@@ -65,6 +65,8 @@ import { outcomeWord } from './outcomes.js';
 import { CITIES, CITY_IDS, cityById, FIRST_TOUR_CITY } from './cities/index.js';
 import { missionXP, gain, level, progress } from './xp.js';
 import { fieldwork } from './rust.js';
+import { between, born } from './career.js';
+import { LANG_NAME } from './langs.js';
 import { POLICE_COOL_DAY } from './police.js';
 import { LESSON_BOOK, lessonBook, sceneOf } from './lessons.js';
 export { LESSON_BOOK, lessonBook, sceneOf };
@@ -325,6 +327,7 @@ export function newCampaign(seed, character, city = 'moscow', level = 'handler',
   const p = posting(seed, city, startMs, level);
   const c = { seed, character, posting: p, day: dayOf(p.startMs), assignments: [], done: [], plannedTo: dayOf(p.startMs) - 1, worked: {}, log: [], reviews: [], awake: p.startMs, next: { },
     calls: [{ id: 'hale', at: p.startMs + CALL_S * 1000 }], cabinet: { ...CABINET } };   // (day one: Hale on the telephone, the exercises or straight in: src/main.js; the bathroom cabinet's few things, sim/medicine.js)
+  born(character, p.startMs);                                      // (their birth, from the file's age: the years go by, sim/career.js)
   for (const t of p.targets) fileOf(c, t);                         // (the station's files on them: sim/dossier.js)
   for (const s of p.assets) assetFile(c, s);
   plan(c, p.startMs);
@@ -754,9 +757,16 @@ function foldTrip(c, a, sc, endMs, heatNow, lines) {
  * the Monday a fortnight on. Their sheet as the tour left it; a new seed for the posting.
  */
 export function promote(c, city) {
-  const from = dayOf(c.over?.ms ?? c.now ?? c.posting.startMs) + 14, monday = from + ((7 - calendar(from * DAY).weekday) % 7);
-  const next = newCampaign(hash(c.seed, 'promoted') % 1e9, { ...structuredClone(c.character), id: 'me' }, city, 'handler', monday * DAY + WAKE_H * HOUR);
-  next.career = [...(c.career ?? []), { level: c.posting.level, city: c.posting.city, until: c.over?.ms ?? c.now }];
+  // (home leave, and the language school for as long as the station's language takes to working: sim/career.js; the
+  // years go by, the officer ages, and the school's on the file)
+  const end = c.over?.ms ?? c.now ?? c.posting.startMs, ch = { ...structuredClone(c.character), id: 'me' };
+  born(ch, c.posting.startMs);
+  const B = between(ch, city, 'official');
+  if (B.langW) ch.langs = { ...(ch.langs ?? {}), [B.lang]: B.need };
+  const from = dayOf(end) + B.weeks * 7, monday = from + ((7 - calendar(from * DAY).weekday) % 7);
+  const next = newCampaign(hash(c.seed, 'promoted') % 1e9, ch, city, 'handler', monday * DAY + WAKE_H * HOUR);
+  next.career = [...(c.career ?? []), { level: c.posting.level, city: c.posting.city, until: end },
+    ...(B.langW ? [{ level: 'school', lang: B.lang, city: null, from: end + B.leaveW * 7 * DAY, until: monday * DAY }] : [])];
   next.posting.money.bank += c.posting.money.bank ?? 0;              // (the account goes with you: the new posting's first month on top)
   return next;
 }
@@ -774,7 +784,7 @@ export function record(c, ms) {
   return {
     rank: p.rank, agency: p.agency, level: p.level, city: p.city, job: p.job, since: p.startMs, day: Math.max(1, dayOf(ms) - dayOf(p.startMs) + 1),
     subject: p.subject, intel: p.intelligence, goal: goalOf(p), network: p.assets.map(s => s.codename), over: c.over ? { why: c.over.why, ms: c.over.ms ?? null } : null,
-    past: (c.career ?? []).map(k => ({ rank: LEVELS[levelOf(k.level)].rank, city: k.city, until: k.until ?? null })),
+    past: (c.career ?? []).map(k => ({ rank: k.level === 'school' ? `${LANG_NAME[k.lang] ?? 'A language'} at the Foreign Service Institute` : LEVELS[levelOf(k.level)].rank, city: k.city, until: k.until ?? null })),
     done: c.done.map(a => ({ ms: a.ended ?? a.to, kind: a.kind, who: nameOf(c, a), trip: a.trip ?? null, missed: a.status === 'missed', word: a.status === 'missed' ? 'missed' : outcomeWord(a.kind, a.known ?? a.outcome), intel: a.intel ?? 0 })),
     reviews: c.reviews.map(r => r.grade),
   };

@@ -272,7 +272,7 @@ export default [
         fold(c, b, { outcome: 'seen' }, g.people.me, b.to + 600000, 30);
         assert(c.over?.why === 'promoted', `${seed}: the goal met, promoted`);
         const n = promote(c, 'moscow');
-        assert(n.posting.level === 'handler' && n.posting.city === 'moscow' && n.character.name === c.character.name && n.posting.startMs > c.over.ms && calendar(n.posting.startMs).weekday === 0 && n.career.length === 1 && n.posting.assets.length >= 1, `${seed}: a posting of one's own in Moscow, the same officer, a Monday after`);
+        assert(n.posting.level === 'handler' && n.posting.city === 'moscow' && n.character.name === c.character.name && n.posting.startMs > c.over.ms && calendar(n.posting.startMs).weekday === 0 && n.career.filter(k => k.level !== 'school').length === 1 && n.posting.assets.length >= 1, `${seed}: a posting of one's own in Moscow, the same officer, a Monday after`);
         out.push(`${js[0].name}, ${js[0].age}: trips ${p.trips.map(t => `${t.city} (${t.kind}, day ${t.day - Math.floor(p.startMs / DAY)})`).join(', ')}; ${T.city}: "${paper.lines[0].slice(0, 70)}…"; promoted to Moscow from ${calendar(n.posting.startMs).day}/${calendar(n.posting.startMs).month}`);
       }
       for (const o of out) console.log(`      ${o}`);
@@ -298,7 +298,7 @@ export default [
       // (promoted: the first tour is a posting before)
       p.intelligence = 6; c.over = { ms: p.startMs + 12 * DAY, why: 'promoted' };
       const n = promote(c, 'beirut'), N = record(n, n.posting.startMs + 2 * HOUR);
-      assert(N.rank === 'Handler' && N.city === 'beirut' && N.day === 1 && N.past.length === 1 && N.past[0].rank === 'Junior officer' && N.past[0].city === 'london' && !N.done.length && N.network.length >= 1, `promoted: ${N.rank}, ${N.city}, day ${N.day}; before: ${N.past.map(k => `${k.rank}, ${k.city}`).join('; ')}`);
+      assert(N.rank === 'Handler' && N.city === 'beirut' && N.day === 1 && N.past.filter(k => k.city).length === 1 && N.past[0].rank === 'Junior officer' && N.past[0].city === 'london' && !N.done.length && N.network.length >= 1, `promoted: ${N.rank}, ${N.city}, day ${N.day}; before: ${N.past.map(k => `${k.rank}, ${k.city}`).join('; ')}`);
       console.log(`      ${R.rank}, ${R.city}, day ${R.day}: ${R.done.map(d => `${d.kind} on ${d.who ?? '?'}: ${d.word}`).join('; ')}; reviews ${R.reviews.join(', ')}`);
       console.log(`      promoted: ${N.rank}, ${N.city}, day ${N.day}, network ${N.network.join(', ')}; before: ${N.past.map(k => `${k.rank}, ${k.city}, to ${calendar(k.until).day}/${calendar(k.until).month}`).join('; ')}`);
     },
