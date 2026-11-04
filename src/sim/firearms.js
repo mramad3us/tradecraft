@@ -33,6 +33,8 @@
 //   - cond (0–1): worn by every round fired (WEAR); under COND_SERVICE it misfires and jams far more
 //     (misfire(), jamChance()); below BROKEN it won't fire until it's serviced (SERVICE_MIN, at a table);
 //   - known: its holder knows what's in it (their own; a gun picked up is a question until checked: 'check').
+//   - snap: the round in the chamber is a dummy (a drill's: a magazine's mag.dummy, the count at which it comes up,
+//     slipped in by a coach: sim/tutorial/range.js), which looks live to whoever holds it, and clicks: feed().
 // Loose rounds go by the calibre (p.rounds: { '9x19': 30 }), a box of BOX at a time taking room on you.
 //
 // **Every action on a gun takes its time and a roll** against Weapon handling (ACTIONS: base seconds and a
@@ -67,6 +69,7 @@ export const CALIBRES = {
   '10x28T': { dmg: 0.2, less: true, word: '10×28 mm T rubber' }, '4.6x30': { dmg: 1.05, word: '4.6×30 mm' }, '9x39': { dmg: 1.45, word: '9×39 mm subsonic' },
   '5.45x39': { dmg: 1.5, word: '5.45×39 mm' }, '5.56x45': { dmg: 1.5, word: '5.56×45 mm NATO' }, '7.62x39': { dmg: 1.7, word: '7.62×39 mm' },
   '7.62x51': { dmg: 2, word: '7.62×51 mm NATO' }, '7.62x54R': { dmg: 2.05, word: '7.62×54 mmR' }, '12ga': { dmg: 2.2, word: '12-gauge buckshot' },
+  '.22LR': { dmg: 0.35, word: '.22 Long Rifle' },                   // (a club's rimfire: a target round, sim/scenarios/range.js)
 };
 /** A calibre by its name ('9×19 mm Parabellum'). */
 export const calWord = (cal) => CALIBRES[cal]?.word ?? cal;
@@ -93,6 +96,7 @@ export const FAMILIES = {
   mp5: { word: 'an MP5 magazine', cap: 30, size: [22, 0.2] }, uzi: { word: 'an Uzi magazine', cap: 32, size: [25, 0.2] },
   saiga: { word: 'a Saiga-12 magazine', cap: 8, size: [24, 0.45] }, val: { word: 'an AS Val magazine', cap: 20, size: [18, 0.22] },
   bizon: { word: 'a Bizon\'s helical magazine', cap: 64, size: [30, 0.6] }, mp7: { word: 'an MP7 magazine', cap: 30, size: [18, 0.12] },
+  anschutz: { word: 'an Anschütz magazine', cap: 5, size: [8, 0.03] },
 };
 // The guns (my calls on their numbers; who carries which is their country's).
 const P = (o) => ({ kind: 'pistol', action: 'semi', feed: 'mag', safety: 'manual', holdOpen: true, acc: 1, dmg: 1, recoil: 1, loud: 1, ...o });
@@ -144,6 +148,9 @@ export const MODELS = {
   // Marksman's rifles, and a hunter's.
   svd: L({ kind: 'dmr', name: 'an SVD Dragunov', short: 'SVD', cal: '7.62x54R', cap: 10, mag: 'svd', modes: ['semi'], size: [122, 6], acc: 0.9, recoil: 1.1, loud: 1.6 }),
   hunting: L({ kind: 'dmr', name: 'a bolt-action hunting rifle', short: 'hunting rifle', cal: '7.62x51', cap: 4, action: 'bolt', feed: 'tube', safety: 'manual', modes: undefined, size: [110, 5], acc: 0.9, recoil: 1.2, loud: 1.6 }),
+  // A club's target rifle (London's rifle clubs: handguns banned since 1997, a member's guest shoots a .22): a bolt
+  // worked after every shot, a five-round box magazine of its own, light, quiet, and very accurate.
+  anschutz: L({ kind: 'rifle', name: 'an Anschütz 1416 .22 rifle', short: 'Anschütz', cal: '.22LR', cap: 5, mag: 'anschutz', action: 'bolt', safety: 'manual', modes: undefined, size: [101, 3], acc: 0.85, recoil: 0.25, loud: 0.5 }),
   // Shotguns.
   rem870: L({ kind: 'shotgun', name: 'a Remington 870', short: '870', cal: '12ga', cap: 4, action: 'pump', feed: 'tube', safety: 'manual', modes: undefined, size: [106, 5], recoil: 1.4, loud: 1.6 }),
   saiga12: L({ kind: 'shotgun', name: 'a Saiga-12', short: 'Saiga', cal: '12ga', cap: 8, mag: 'saiga', modes: ['semi'], size: [95, 5], acc: 1.05, recoil: 1.3, loud: 1.6 }),
@@ -344,17 +351,17 @@ export function act(rng, p, id, action, opts = {}) {
     case 'selector': { const ring = ['safe', ...M.modes]; g.mode = ring[(ring.indexOf(g.mode) + 1) % ring.length]; out.text = `The selector to ${g.mode === 'safe' ? 'safe' : g.mode}.`; break; }
     case 'rack': {
       if (g.jam === 'double') { out.text = 'It won\'t close: two rounds fighting for the chamber. It wants clearing.'; break; }
-      const was = g.chamber;
-      if (M.feed === 'tube') g.chamber = g.tube > 0 ? (g.tube--, 'live') : null;
-      else { g.chamber = mag && mag.n > 0 ? (mag.n--, 'live') : null; g.locked = !!mag && !g.chamber && M.holdOpen; }
+      const was = g.chamber, worked = M.action === 'pump' || M.action === 'bolt';
+      if (M.feed === 'tube') { g.chamber = g.tube > 0 ? (g.tube--, 'live') : null; delete g.snap; }
+      else { if (mag && mag.n > 0) feed(g, mag); else { g.chamber = null; delete g.snap; } g.locked = !!mag && !g.chamber && M.holdOpen; }
       out.ejected = was === 'live' || was === 'dud' ? 'round' : was === 'case' ? 'case' : null;   // (a live round or a dud flies out: on the ground)
       out.text = was === 'dud' ? (g.chamber ? 'The dud out, and there\'s one in.' : 'The dud out, and nothing comes up after it.')
-        : was === 'case' ? (M.feed === 'tube' ? (g.chamber ? `${M.action === 'pump' ? 'Pumped' : 'The bolt worked'}: the case out, one in.` : 'The case out, and nothing in the tube.') : g.chamber ? 'Tap, rack: it\'s clear, and there\'s one in.' : 'Tap, rack: clear, and nothing comes up after it.')
+        : was === 'case' ? (worked ? (g.chamber ? `${M.action === 'pump' ? 'Pumped' : 'The bolt worked'}: the case out, one in.` : `The case out, and nothing in the ${M.feed === 'tube' ? 'tube' : 'magazine'}.`) : g.chamber ? 'Tap, rack: it\'s clear, and there\'s one in.' : 'Tap, rack: clear, and nothing comes up after it.')
         : g.chamber ? (was === 'live' ? 'A round flies out; another goes in.' : 'One in the chamber.') : 'It closes on nothing.';
       g.known = true;
       break;
     }
-    case 'release': if (mag && mag.n > 0) { mag.n--; g.chamber = 'live'; g.locked = false; out.text = 'It slams home on a fresh round.'; } break;
+    case 'release': if (mag && mag.n > 0) { feed(g, mag); g.locked = false; out.text = 'It slams home on a fresh round.'; } break;
     case 'dropMag': case 'stowMag': out.mag = g.mag; if (action === 'dropMag' && mag) mag.cond = Math.max(0, (mag.cond ?? MAG_FRESH) - MAG_DROP_WEAR); g.mag = null; out.text = action === 'dropMag' ? 'The magazine drops.' : 'Magazine out, and into a pocket.'; break;
     case 'insertMag': {
       const m = opts.mag ?? sparesFor(p, g.model)[0];
@@ -364,10 +371,10 @@ export function act(rng, p, id, action, opts = {}) {
       break;
     }
     case 'clear':
-      if (g.jam === 'double') { g.jam = null; g.chamber = mag && mag.n > 0 ? (mag.n--, 'live') : null; out.text = 'Lock, strip, rack, rack, rack, in, rack: clear.'; out.ejected = 'round'; }
+      if (g.jam === 'double') { g.jam = null; if (mag && mag.n > 0) feed(g, mag); else { g.chamber = null; delete g.snap; } out.text = 'Lock, strip, rack, rack, rack, in, rack: clear.'; out.ejected = 'round'; }
       break;
     case 'chamber1':
-      if (loose > 0 && !g.chamber && !g.mag) { p.rounds[M.cal] = loose - 1; g.chamber = 'live'; g.locked = false; out.text = 'One round, by hand, and closed on it.'; }
+      if (loose > 0 && !g.chamber && !g.mag) { p.rounds[M.cal] = loose - 1; g.chamber = 'live'; delete g.snap; g.locked = false; out.text = 'One round, by hand, and closed on it.'; }
       break;
     case 'load1':
       if (loose > 0 && M.feed === 'cylinder' && g.open) { const i = g.cyl.indexOf(null); if (i >= 0) { g.cyl[i] = 'live'; p.rounds[M.cal] = loose - 1; out.text = `A round in: ${g.cyl.filter(c => c === 'live').length} of ${M.cap}.`; } }
@@ -390,7 +397,7 @@ export function said(h, id) {
   const safe = M.safety === 'manual' ? `, safety ${g.safety ? 'on' : 'off'}` : M.safety === 'selector' ? `, ${g.mode === 'safe' ? 'on safe' : `on ${g.mode}`}` : M.decocker ? `, the hammer ${g.cocked ? 'cocked' : 'down'} (no safety: a decocker)` : M.feed === 'cylinder' ? '' : ', no manual safety';
   const worn = g.cond < COND_SERVICE ? ', and it wants cleaning' : '';
   if (M.feed === 'cylinder') return `${M.short}: ${g.cyl.filter(c => c === 'live').length} of ${M.cap} loaded${g.open ? ', the cylinder open' : ''}${worn}.`;
-  const ch = { live: 'one in the chamber', dud: 'a dud in the chamber', case: M.feed === 'tube' ? 'a spent case in the chamber' : 'a case stuck in the port', null: 'nothing in the chamber' }[g.chamber];
+  const ch = { live: 'one in the chamber', dud: 'a dud in the chamber', case: M.action === 'pump' || M.action === 'bolt' ? 'a spent case in the chamber' : 'a case stuck in the port', null: 'nothing in the chamber' }[g.chamber];
   const feed = M.feed === 'tube' ? `${g.tube} in the tube` : mag ? `a magazine with ${mag.n} of ${famCap(mag.fam)}` : 'no magazine';
   return `${M.short}: ${ch}, ${feed}${g.jam === 'double' ? ', jammed: a double feed' : ''}${safe}${worn}.`;
 }
@@ -428,20 +435,34 @@ export function fire(rng, p, id) {
     return { fired: true, empty: !g.cyl.some(x => x === 'live') };
   }
   if (g.jam) return { fired: false, why: 'jammed' };
-  if (g.chamber !== 'live') return { fired: false, why: g.chamber === 'case' && M.feed === 'tube' ? 'case' : g.chamber ? 'jammed' : 'empty' };
+  if (g.chamber !== 'live') return { fired: false, why: g.chamber === 'case' && (M.action === 'pump' || M.action === 'bolt') ? 'case' : g.chamber ? 'jammed' : 'empty' };
+  if (g.snap) { delete g.snap; g.chamber = 'dud'; return { fired: false, why: 'dud', dummy: true }; }   // (a drill's dummy round: it clicks, as a dud does)
   if (chance(rng, misfire(g, M))) { g.chamber = 'dud'; return { fired: false, why: 'dud' }; }
   g.cond = Math.max(0, g.cond - WEAR);
-  if (M.action === 'pump' || M.action === 'bolt') { g.chamber = 'case'; return { fired: true, empty: g.tube === 0 }; }
   const mag = g.mag && armOf(p, g.mag);
+  if (M.action === 'pump' || M.action === 'bolt') { g.chamber = 'case'; return { fired: true, empty: M.feed === 'tube' ? g.tube === 0 : !mag || mag.n === 0 }; }
   if (chance(rng, jamChance(g, skill(p, 'weapons'), M) + (mag ? MAG_JAM * Math.max(0, 0.9 - (mag.cond ?? MAG_FRESH)) : 0))) {
     const double = chance(rng, DOUBLE_SHARE) && mag && mag.n > 0;
     g.chamber = double ? null : 'case'; g.jam = double ? 'double' : null;
     return { fired: true, stoppage: double ? 'double' : 'case' };
   }
   if (M.decocker) g.cocked = true;                                  // (the slide's run back: the hammer cocked for the next)
-  if (mag && mag.n > 0) { mag.n--; g.chamber = 'live'; return { fired: true }; }
+  if (mag && mag.n > 0) { feed(g, mag); return { fired: true }; }
   g.chamber = null; g.locked = !!mag && M.holdOpen;
   return { fired: true, empty: true };
+}
+
+/**
+ * The top round off magazine `mag` into gun g's chamber: live, or the dummy a coach slipped in (mag.dummy, the count
+ * at which it comes up: then g.snap, a round that looks live and clicks, fire()). Every way a round's chambered from a
+ * magazine goes through here (the trigger's cycle, a rack, the slide release, a jam cleared, sim/gunwork.js load).
+ */
+export function feed(g, mag) {
+  const dummy = mag.dummy !== undefined && mag.dummy === mag.n;
+  mag.n--;
+  if (mag.dummy !== undefined && (dummy || mag.dummy > mag.n)) delete mag.dummy;
+  g.chamber = 'live';
+  if (dummy) g.snap = true; else delete g.snap;
 }
 
 /** Stripped and cleaned (SERVICE_MIN, at a table): its condition back, and any jam out. */
@@ -450,6 +471,7 @@ export function service(p, id) {
   if (!g) return;
   g.cond = Math.max(g.cond, 0.95); g.jam = null;
   if (g.chamber === 'dud' || g.chamber === 'case') g.chamber = null;
+  delete g.snap;
 }
 
 /** The calibre a magazine family takes (any model it's made for). */

@@ -47,7 +47,7 @@ import { Z, streetName } from '../map/street.js';
 import { townOf, cityById, FIRST_TOUR_CITY } from '../cities/index.js';
 import { skip, newMap } from '../game.js';
 import { eat, soothe } from '../needs.js';
-import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, watched, KINDS, WORK, TRAVEL, EXCUSES, EXCUSE_LINES } from '../campaign.js';
+import { agenda, pass, work, rest, lieLow, expected, heatWord, places, trip, fatigue, watched, KINDS, WORK, TRAVEL, EXCUSES, EXCUSE_LINES } from '../campaign.js';
 import { lessonBook, sceneOf } from '../lessons.js';
 import { order, lapse, dropHere, atDrop } from '../market.js';
 import { chiefWays, chiefDo } from '../armoury.js';
@@ -175,7 +175,8 @@ export const campaignHub = {
     else if (what === 'low') {
       const house = safeHere(state), safe = !!house;
       if (house && seenGoing(state)) house.seen = now;               // (its door, with them watching: sim/campaign.js pass(), the cable)
-      until(lieLow(c, now, safe), safe ? 'A day in the safe house: the curtains drawn, the kettle, nobody.' : 'A day of being nobody.'); eat(state.people.me, state.time.ms, 40);
+      const sick = expected(c, now);
+      until(lieLow(c, now, safe), `${sick ? 'You ring the section: a temperature, the flu going round. ' : ''}${safe ? 'A day in the safe house: the curtains drawn, the kettle, nobody.' : 'A day of being nobody.'}`); eat(state.people.me, state.time.ms, 40);
     }
     else if (what === 'rest' && state.map.place === 'home') {      // (the bed, by day: a nap, or lying down a while: sim/needs.js, campaign.js fatigue())
       const p = state.people.me;
@@ -548,9 +549,9 @@ function passTo(state, bus, to, text) {
 
 /** When an assignment's place takes T: a tail from a little before he's out till just after; a meeting till near the bench's end; a photograph a while into his window. */
 export const SPARE_MIN = 10;                                        // (out of the embassy this much before you'd need to leave for an assignment: sim/campaign.js work())
-export const windowOf = (a) => { const k = sceneOf(a); return [a.from - BEGIN_EARLY_MIN * MIN, k === 'sdr' ? a.to - 3 * MIN : a.from + (k === 'tail' ? 2 : 5) * MIN]; };   // (a lesson's as its scene's: sim/lessons.js)
-export const BEGIN_EARLY_MIN = 15, LEAD_H = 3;
-export const MISSION_AT_M = { tail: 30, sdr: 40, watch: 40 };
+export const windowOf = (a) => { const k = sceneOf(a); return [a.from - BEGIN_EARLY_MIN * MIN, k === 'sdr' ? a.to - 3 * MIN : a.from + (k === 'tail' ? 2 : k === 'range' ? RANGE_LATE_MIN : 5) * MIN]; };   // (a lesson's as its scene's: sim/lessons.js; a range's booking keeps a little)
+export const BEGIN_EARLY_MIN = 15, LEAD_H = 3, RANGE_LATE_MIN = 10;
+export const MISSION_AT_M = { tail: 30, sdr: 40, watch: 40, range: 12 };
 /** Whether you're at an assignment's place (on its street, within MISSION_AT_M of it). */
 function atMission(state, me, a, at) {
   return !!at && !!me && state.map.kind === 'street' && !state.scenario.window && state.map.seed === state.campaign.posting.mapSeed && (state.map.row ?? 0) === at.row && Math.abs(me.x - at.x) <= MISSION_AT_M[sceneOf(a)];
@@ -572,7 +573,8 @@ function begin(state, bus, id) {
   const c = state.campaign, a = c.assignments.find(x => x.id === id && x.status === 'open');
   if (!a || state.scenario.outcome) return;
   c.posting.heat = heatNow(state);
-  if (a.kind === 'lesson' && state.time.ms < a.from) passTo(state, bus, a.from, `You wait where Hale said, the earpiece in. ${clockText(a.from)}: "Hale. You hear me? Here we go."`);
+  const LB = a.kind === 'lesson' ? lessonBook(a.lesson) : null;   // (a lesson off the street has its own words for the wait: sim/lessons.js)
+  if (a.kind === 'lesson' && state.time.ms < a.from) passTo(state, bus, a.from, LB?.wait ? `${LB.wait} ${clockText(a.from)}: ${LB.go}` : `You wait where Hale said, the earpiece in. ${clockText(a.from)}: "Hale. You hear me? Here we go."`);
   else if (a.kind === 'tail' && state.time.ms < a.from) passTo(state, bus, a.from, `You wait across from his door. ${clockText(a.from)}: it opens.`);
   const me = state.actors.find(x => x.who === state.player);
   if (state.scenario.outcome || state.people.me.dead || a.status !== 'open' || !me) return;
@@ -759,7 +761,7 @@ function instinct(state, c, now) {
   return next ? L(`later-${next.a.id}`, 'calm', `Next: ${KINDS[next.a.kind].name.toLowerCase()}, ${dayWord(next.a.from, now)} at ${clockText(next.a.from)}.`) : null;   // (how hot you are is the officer's guess, the mind's: sim/belief.js)
 }
 const BEGIN_LINE = {
-  lesson: (name, a) => `${lessonBook(a.lesson)?.title ?? 'The exercise'}: Hale's place, at ${clockText(a.from)}. {instinct}: the earpiece in, and begin.`,
+  lesson: (name, a) => `${lessonBook(a.lesson)?.title ?? 'The exercise'}: Hale's place, at ${clockText(a.from)}. {instinct}: ${lessonBook(a.lesson)?.begin ?? 'the earpiece in'}, and begin.`,
   tail: (name) => `Across the street from ${name}'s door. {instinct}: wait for him to come out, and follow.`,
   sdr: (name, a) => `${name}'s bench, from ${clockText(a.from)}. Only if you're clean. {instinct}: the meeting.`,
   watch: (name, a) => `The café: ${name}, due between ${clockText(a.from)} and ${clockText(a.to)}. {instinct}: somewhere to watch it from.`,

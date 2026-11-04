@@ -27,7 +27,8 @@ import { newGun, newMag, isGun } from './sim/firearms.js';
 import { wear as wearArmour } from './sim/armour.js';
 import { candidates, legendFile, newCampaign, context, fold, heatWord, KINDS, LEVELS, levelOf, promote, goalOf, bookLessons, lessonsLeft, lessonBook } from './sim/campaign.js';
 import { missionPlace } from './sim/places.js';
-import { planPaper } from './sim/career.js';
+import { planPaper, retires, successorStart, ageOf } from './sim/career.js';
+import { newsBetween } from './sim/geopolitics.js';
 import { cityById, CITY_IDS, FIRST_TOUR_CITY } from './sim/cities/index.js';
 import { shopWord } from './sim/shops.js';
 import { price } from './sim/money.js';
@@ -58,6 +59,7 @@ const ui = createUI({ input, cb: {
   newLesson: (id) => launch(newGame({ seed: randomSeed(), lesson: id, version: VERSION, weather: WEATHER, character: home?.character, city: home?.city, job: home?.job })),   // (from the flat: the officer, their city, their cover)   // (the tutorial: sim/tutorial/)
   // (the campaign, the game's way in: three officers, one picked, and day one in their flat: sim/campaign.js)
   newCampaign: (city = CITY_IDS[0]) => pickOfficer(city),
+  successor: () => { const w = keptWorld(); if (w) pickOfficer(CITY_IDS[0], null, w); },   // (the title's: the next officer of the world kept)
   backHome: () => resumeHome(),                                     // (the tutorial, left for the flat)
   beginPosting: () => resumeHome(true),                             // (the tutorial done with: the posting's brief, and on)
   continue: async () => { home = null; const s = await getSave('auto'); if (s) launch(fromJSON(s.json)); },
@@ -82,19 +84,24 @@ const ui = createUI({ input, cb: {
  * always; a posting of your own once you've reached the rung above it in some game (CAREER_KEY, the
  * user: "reaching a level unlocks starting at the one below it"), or in debug mode.
  */
-function pickOfficer(city = CITY_IDS[0], level = null) {
+// (the campaign's world, its seed and the date its last officer's career ended, kept so the next can be picked: sim/geopolitics.js, sim/career.js)
+const WORLD_KEY = 'tradecraft.world';
+function keptWorld() { try { return JSON.parse(localStorage.getItem(WORLD_KEY) ?? 'null'); } catch { return null; } }
+function keepWorld(w) { try { if (w) localStorage.setItem(WORLD_KEY, JSON.stringify(w)); else localStorage.removeItem(WORLD_KEY); } catch {} }
+
+function pickOfficer(city = CITY_IDS[0], level = null, world = null) {
   const best = careerBest(), open = (k) => k === 0 || k <= best - 1 || settings.debug;
   level ??= open(1) ? 'handler' : 'junior';
   if (level === 'junior') city = FIRST_TOUR_CITY;                  // (a first tour is at its station: sim/cities/)
-  const seed = randomSeed(), list = candidates(seed, city, level);
+  const seed = randomSeed(), list = candidates(seed, city, level), start = world ? successorStart(world.ms) : undefined;   // (the next officer of a world: its date, its business)
   home = null;
   ui.hideTitle();
   // (the legends: a fourth file, Tradecraft 95, a different one each time, debug mode or not: sim/campaign.js LEGENDS; the user, 2026-11-03)
   let n = 0;
   const show = () => {
     list[3] = legendFile(seed, city, level, n);
-    ui.showCandidates(list, (i) => launch(newGame({ seed, scenario: 'campaign', version: VERSION, campaign: newCampaign(seed, list[i], city, level), weather: WEATHER })),
-      city, { cities: level === 'junior' ? null : (c) => pickOfficer(c, level), back: () => showTitle(), level, another: () => { n++; show(); },
+    ui.showCandidates(list, (i) => { if (!world) keepWorld(null); launch(newGame({ seed, scenario: 'campaign', version: VERSION, campaign: newCampaign(seed, list[i], city, level, start, world?.seed ?? seed), weather: WEATHER })); },
+      city, { cities: level === 'junior' ? null : (c) => pickOfficer(c, level, world), back: () => showTitle(), level, another: () => { n++; show(); }, world: world ? `The same world, from ${stampText(start).split(',')[0]} ${calendar(start).year}` : null,
         levels: LEVELS.map((L, k) => ({ id: L.id, name: L.name, open: open(k), why: k ? `Opens when a game of yours reaches the rung above it${settings.debug ? ' (open: debug mode)' : ''}.` : null })), levelTo: (id) => pickOfficer(id === 'junior' ? FIRST_TOUR_CITY : CITY_IDS[0], id) });
   };
   show();
@@ -192,6 +199,7 @@ function launch(s, { hour = null } = {}) {
   bus.on('chief', (list) => setTimeout(() => ui.openChoices('CHIEF', 'THE CHIEF\'S OFFICE', list, (key) => acts.push(`desk:chief:${key}`)), 0));   // (what's on, a sidearm, a vest: sim/armoury.js)   // (the chief's office at the embassy: what's on, the mind's first leaf)
   bus.on('door', (list) => setTimeout(() => ui.openChoices('DOOR', 'OUT: THE COAT, THE UMBRELLA', list, (key) => acts.push(`desk:door:${key}`)), 0));   // (the flat's door: what to wear out: sim/clothes.js doorWays())
   bus.on('table', (list) => setTimeout(() => ui.openChoices('TABLE', 'THE KITCHEN TABLE', list, (key) => acts.push(`desk:table:${key}`)), 0));   // (the flat's kitchen table: a meal, or a gun's work: sim/gunwork.js)
+  bus.on('bench', (list) => setTimeout(() => ui.openChoices('BENCH', 'THE BENCH AT THE LINE', list, (key) => acts.push(`desk:table:${key}`)), 0));   // (a range's bench: the gun's work, sim/scenarios/range.js)
   bus.on('wardrobe', (list) => setTimeout(() => list.length ? ui.openChoices('WARDROBE', 'WHAT TO WEAR, WHAT TO KEEP', list, (key) => acts.push(`desk:dress:${key}`)) : ui.closeOverlays(), 0));   // (the flat's wardrobe: sim/clothes.js)
   bus.on('basin', (list) => setTimeout(() => ui.openChoices('BASIN', 'WASH, OR THE CABINET', list, (key) => acts.push(`desk:basin:${key}`)), 0));   // (the flat's basin, and the cabinet over it: sim/clothes.js)
   bus.on('reading', (c) => setTimeout(() => { if (state === s) ui.openBooks(c, (key) => acts.push(`read:${key}`)); }, 0));   // (the shelf: one row a book, src/ui/ui.js openBooks())   // (a book, ten minutes at a time: sim/reading.js)
@@ -246,8 +254,13 @@ function result() {
     const c = state.campaign, over = kind === 'campaign' && state.scenario.outcome;
     if (over) reached(levelOf(c.posting.level) + (over === 'promoted' || over === 'completed' ? 1 : 0));
     // (the station chosen: the orders first, the leave and the language school and how long they take, sim/career.js; then the posting, that much later)
-    const next = over === 'promoted' ? (city) => ui.showPaper(planPaper(c.character, city), () => launch(newGame({ seed: randomSeed(), scenario: 'campaign', version: VERSION, campaign: promote(c, city), weather: WEATHER }))) : null;
-    return ui.showResult(state, { back: over ? null : () => backToPosting(state), title: async () => { await autosave(); stop(); showTitle(); }, photo: lastPhoto?.url, next }, settings);
+    // (a posting done or promoted from: the next station, unless they're past RETIRE_AGE; lost or retired: the next officer, the world going on)
+    const end = c.over?.ms ?? state.time.ms, lost = state.people[state.player]?.dead || over === 'expelled', retiring = (over === 'promoted' || over === 'completed') && retires(c.character, end);
+    const next = (over === 'promoted' || over === 'completed') && !retiring ? (city) => ui.showPaper(planPaper(c.character, city), () => launch(newGame({ seed: randomSeed(), scenario: 'campaign', version: VERSION, campaign: promote(c, city), weather: WEATHER }))) : null;
+    const W = { seed: c.world ?? c.seed, ms: end, last: c.character.name, why: retiring ? 'retired' : lost ? 'lost' : null };
+    if (lost || retiring) keepWorld(W);
+    const successor = lost || retiring ? { words: `${retiring ? `${c.character.name} retires, ${ageOf(c.character, end)}` : `${c.character.name}'s career is over`}: the next officer, the world going on`, go: async () => { await autosave(); stop(); pickOfficer(CITY_IDS[0], null, W); } } : null;
+    return ui.showResult(state, { back: over ? null : () => backToPosting(state), title: async () => { await autosave(); stop(); showTitle(); }, photo: lastPhoto?.url, next, successor }, settings);
   }
   // (a lesson of the tutorial: again with Hale, on your own, the next one, the directory: sim/tutorial/)
   // (from the flat's telephone, `home`: the campaign's officer plays on, and the way out is back to the flat)
@@ -293,8 +306,9 @@ function backToPosting(s) {
   const c = s.campaign, a = c.assignments.find(x => x.id === s.assignment);
   const me = s.actors.find(x => x.who === s.player);
   const paper = a ? fold(c, a, s.scenario, s.people[s.player], s.time.ms, Object.values(s.heat)[0]) : { title: 'BACK', lines: [] };
-  // (from a trip abroad: the flight home, the flat at home next morning: sim/campaign.js foldTrip())
-  c.where = me && !a?.trip ? { row: me.row ?? s.map.row, x: me.x, z: me.z } : null;
+  // (from a trip abroad: the flight home, the flat at home next morning: sim/campaign.js foldTrip(); from a room off the
+  // street, a range's, out of its door: the scene's own out, sim/scenarios/range.js)
+  c.where = s.scenario.out ? { ...s.scenario.out } : me && !a?.trip ? { row: me.row ?? s.map.row, x: me.x, z: me.z } : null;
   c.now = a?.home ?? s.time.ms;
   ui.showPaper({ stamp: 'DEBRIEF', title: paper.title, lines: paper.lines, note: `Heat: ${heatWord(c.posting.heat)}. Intelligence: ${c.posting.intelligence}.` },
     () => launch(newGame({ seed: randomSeed(), scenario: 'campaign', version: VERSION, campaign: c, weather: WEATHER })));
@@ -307,6 +321,15 @@ function showPapers(list) {
 }
 
 /** The posting's brief, the paper before day one. */
+// (a posting after another: what's risen and what's been settled at this station while you were away, three at most: sim/geopolitics.js)
+function awayNews(c) {
+  const last = (c.career ?? []).filter(k => k.level !== 'school').at(-1);
+  if (!last?.until) return [];
+  const month = (ms) => { const k = calendar(ms); return `${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][k.month - 1]} ${k.year}`; };
+  const news = newsBetween(c.world ?? c.seed, c.posting.city, last.until, c.posting.startMs, month).slice(-3);
+  return news.length ? [`While you were away: ${news.join(' ')}`] : [];
+}
+
 function postingPaper(c) {
   const p = c.posting, me = c.character, K = cityById(p.city);
   // (a first tour's: its station's words, sim/cities/ firstTour)
@@ -320,6 +343,7 @@ function postingPaper(c) {
   return { stamp: 'POSTING', title: `STATION ${K.name.toUpperCase()}`, go: 'Begin the posting', lines: [
     `${me.name}: ${p.job}. Diplomatic immunity: caught, you'd be expelled. The people you run wouldn't be so lucky.`,
     `The station wants ${p.goal}. Every meeting, every tail, is a step toward it.`,
+    ...awayNews(c),
     `Your network: ${p.assets.map(s => `${s.codename}, ${s.role}, in it for ${s.motive}`).join('; ')}.`,
     `Watched: ${p.targets.map(t => `${t.name}, ${t.what}`).join('; ')}.`,
     'The embassy expects you nine to six on weekdays: the work is in the evenings, where it happens. Tab is your mind: what\'s ahead and where, the city as you know it. You get there yourself. Heat cools if you let it.',
@@ -331,7 +355,7 @@ async function showTitle() {
   try { auto = await getSave('auto'); } catch {}
   let farm = false;
   try { farm = localStorage.getItem(FARM_KEY) === 'done'; } catch {}
-  ui.showTitle({ version: VERSION, auto, farm });
+  ui.showTitle({ version: VERSION, auto, farm, world: keptWorld() });
 }
 
 // Keys: the actions the UI owns. Movement is polled each tick.

@@ -18,5 +18,7 @@ export const RU = {
   // (no live-ammunition handguns for civilians; a smoothbore first, a rifle after five years, on Rosgvardia's licence; only a traumatic pistol carried)
   law: { handgun: 'banned', long: 'licensed', carry: 'traumatic', ranges: 'open', diplomats: 'unclear' },
   black: { ease: 0.5, models: ['makarov', 'tokarev', 'traumatic', 'aks74u', 'pya'] },
+  // (its business over the years, sim/geopolitics.js: the kinds it has, and the names they need)
+  geo: { traits: ['sanctions', 'weapons', 'succession', 'proxies'], the: 'Russia', leader: 'the man in the Kremlin', leaderShort: 'man in the Kremlin' },
   range: { name: 'a DOSAAF shooting club', what: ['makarov', 'pya', 'ak74m', 'saiga12'] },
 };

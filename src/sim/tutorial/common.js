@@ -32,4 +32,4 @@ export function opening(state) {
 }
 
 /** Hale's aside in a lesson (sim/hale.js ASIDES): once, after afterS seconds, when he's said nothing for twenty. */
-export const aside = (id, afterS) => ({ id: 'aside', when: (s) => secs(s) >= afterS && !s.tutor?.queue.length && s.time.ms - (s.tutor?.busyUntil ?? 0) > 20000, say: ASIDES[id] });
+export const aside = (id, afterS) => ({ id: 'aside', when: (s) => secs(s) >= afterS && !s.tutor?.queue.length && s.time.ms + (s.tutor?.waitMs ?? 0) - (s.tutor?.busyUntil ?? 0) > 20000, say: ASIDES[id] });   // (his lines' clock: sim/tutorial/earpiece.js clockOf())

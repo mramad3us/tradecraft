@@ -15,5 +15,7 @@ export const US = {
   },
   law: { handgun: 'licensed', long: 'licensed', carry: 'permit', ranges: 'open', diplomats: 'permit' },
   black: { ease: 0.6, models: ['glock19', 'colt1911', 'model10'] },
+  // (its business over the years, sim/geopolitics.js: the foreign services at work on American soil)
+  geo: { traits: ['residency', 'money'], the: 'the United States', rival: 'Moscow' },
   range: { name: 'the Farm\'s range', what: ['glock17', 'p229', 'm4', 'rem870'] },
 };

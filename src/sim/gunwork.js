@@ -18,7 +18,10 @@
 //   - **recondition** a magazine (its spring and its lips: cond back to MAG_FRESH): fumbled, the spring's
 //     across the room and it takes twice as long; badly, a lip's bent (BENT_COND: it feeds badly, sim/
 //     firearms.js fire()'s MAG_JAM).
-import { isGun, isMag, armOf, modelOf, famCap, famCal, armName, calWord, pace, service, MAG_FRESH } from './firearms.js';
+// A coach's dummy round (sim/firearms.js feed(): a range's drill, sim/tutorial/range.js), met at the table, is no round
+// for the box: unloaded out of the chamber, or emptied out of its magazine, it's set aside. A range's bench does this
+// work too (sim/scenarios/range.js), all of it but the cleaning and the springs, which are the club's.
+import { isGun, isMag, armOf, modelOf, famCap, famCal, armName, calWord, pace, service, feed, MAG_FRESH } from './firearms.js';
 import { check } from './checks.js';
 import { skill } from './skills.js';
 import { int } from './rng.js';
@@ -82,7 +85,7 @@ export function work(state, bus, p, key, { bang = null } = {}) {
     if (!m) return 0;
     p.items = p.items.filter(x => x !== m); g.mag = m;
     const mag = armOf(p, m);
-    if (mag.n > 0 && !g.chamber) { mag.n--; g.chamber = 'live'; g.locked = false; if (M.decocker) g.cocked = false; }   // (chambered, and the hammer let down: carried as it should be)
+    if (mag.n > 0 && !g.chamber) { feed(g, mag); g.locked = false; if (M.decocker) g.cocked = false; }   // (chambered, and the hammer let down: carried as it should be)
     if (M.safety === 'manual') g.safety = true;
     if (M.safety === 'selector') g.mode = 'safe';
     text = `${M.short} loaded: ${mag.n} in the magazine, one in the chamber${M.safety === 'manual' ? ', the safety on' : M.decocker ? ', decocked' : ''}.`;
@@ -97,11 +100,13 @@ export function work(state, bus, p, key, { bang = null } = {}) {
     const m = armOf(p, id), cal = famCal(m.fam), before = m.n;
     const n = job === 'fill' ? Math.min(famCap(m.fam) - m.n, p.rounds?.[cal] ?? 0) : m.n;
     if (n <= 0) return 0;
+    const dummy = job === 'empty' && m.dummy !== undefined && m.dummy <= m.n ? 1 : 0;   // (a coach's dummy round among them: not a round for the box, sim/firearms.js feed())
+    if (job === 'empty') delete m.dummy;
     s = J.s * n * k * (roll.ok ? 1 : 1.5);
     const lost = roll.ok || (roll.nat === 1 && roll.value >= NAT1_BAD_BELOW) ? 0 : Math.min(n, int(state.rng, LOST[1] - LOST[0] + 1) + LOST[0]);   // (a skilled hand's slip is caught)
     p.rounds ??= {};
     if (job === 'fill') { p.rounds[cal] -= n; m.n += n - lost; }
-    else { m.n = 0; p.rounds[cal] = (p.rounds[cal] ?? 0) + n - lost; }
+    else { m.n = 0; p.rounds[cal] = (p.rounds[cal] ?? 0) + Math.max(0, n - lost - dummy); }
     if (p.rounds[cal] <= 0) delete p.rounds[cal];
     text = `${cap(armName(id))}: ${job === 'fill' ? `${before} → ${m.n}` : `${n - lost} round${n - lost === 1 ? '' : 's'} into the box`}.${lost ? ` ${lost} went skittering under the furniture, and stay there.` : ''}`;
   } else if (job === 'spring') {
@@ -121,7 +126,8 @@ function unload(p, id) {
   if (M.feed === 'cylinder') { back(g.cyl.filter(c => c === 'live').length); g.cyl = g.cyl.map(() => null); g.open = false; return out; }
   if (M.feed === 'tube') { back(g.tube); g.tube = 0; }
   if (g.mag) { (p.items ??= []).push(g.mag); g.mag = null; out.mag = true; }
-  if (g.chamber === 'live') { out.chambered = true; back(1); }
-  g.chamber = null; g.jam = null; g.locked = false;
+  if (g.chamber === 'live' && g.snap) out.dummy = true;            // (a dummy's no round for the box, and can't go off)
+  else if (g.chamber === 'live') { out.chambered = true; back(1); }
+  g.chamber = null; g.jam = null; g.locked = false; delete g.snap;
   return out;
 }

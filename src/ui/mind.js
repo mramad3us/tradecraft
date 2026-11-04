@@ -22,7 +22,7 @@ import { knownPlaces, knownStreets, setWaypoint, KINDS } from '../sim/knowledge.
 import { missionPlace } from '../sim/places.js';
 import { briefOf } from '../sim/dossier.js';
 import { readOf } from '../sim/belief.js';
-import { agenda, KINDS as AKINDS, goalOf } from '../sim/campaign.js';
+import { agenda, KINDS as AKINDS, goalOf, expected } from '../sim/campaign.js';
 import { clockText, dateText, DAY } from '../sim/clock.js';
 import { needsWords } from '../sim/needs.js';
 import { fatigue } from '../sim/campaign.js';
@@ -83,7 +83,7 @@ function aheadLeaf(state, { el, act }, show) {
     items[0] ? el('div', { className: 'mind-brief' }, el('p', { className: 'mind-brief-title' }, briefOf(c, items[0].a).title), ...briefOf(c, items[0].a).body.map(t => el('p', {}, t))) : null,
     el('h3', {}, 'The day'),
     el('div', { className: 'mind-acts' },
-      el('button', { onclick: () => act('low') }, 'Lie low for a day'),
+      el('button', { onclick: () => act('low') }, expected(c, now) ? 'Call in sick, and lie low for a day' : 'Lie low for a day'),   // (a working day you're expected: a sick day, sim/campaign.js lieLow())
       el('button', { onclick: () => act(null) }, 'Walk on')),
   ];
 }

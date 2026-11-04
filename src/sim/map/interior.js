@@ -3,14 +3,16 @@
 // and the view take it as they take the Farm's hall (sim/map/dojo.js): blockers, lamps, the plan itself
 // for the view, and its ways out (S.exits: step into one and you leave by it: sim/interiors/use.js).
 // The walls block the eyes as a building does; the furniture only the feet (a rug, a chair, not even
-// those). Which plan: the map's `plan` ('flat', 'embassy') and `seed`.
+// those). Which plan: the map's `plan` ('flat', 'embassy', 'range': a range's lanes, sim/interiors/range.js) and `seed`.
+// A plan's lights may say how strong their pool is (core, ring: a range's strip lights); a flat's take a lamp's.
 import { SECTION_M } from './layout.js';
 import { walls, wallRect, STEP_M } from '../interiors/plan.js';
 import { flatPlan } from '../interiors/flat.js';
 import { embassyPlan } from '../interiors/embassy.js';
+import { rangePlan } from '../interiors/range.js';
 import { FURNITURE, footprint } from '../interiors/furniture.js';
 
-const PLANS = { flat: flatPlan, embassy: embassyPlan };
+const PLANS = { flat: flatPlan, embassy: embassyPlan, range: rangePlan };
 
 /** The plan a map shows, set in place (x offset so it sits in the middle of the section). */
 export function planOf(map) {
@@ -23,7 +25,7 @@ export function planOf(map) {
     windows: p.windows.map(o => (o.axis === 'x' ? { ...o, a: o.a + ox, b: o.b + ox } : { ...o, at: o.at + ox })),
     windowsS: (p.windowsS ?? []).map(o => ({ ...o, a: o.a + ox, b: o.b + ox })),
     items: p.items.map(it => ({ ...it, x: it.x + ox })), spots: p.spots.map(s => ({ ...s, x: s.x + ox, ...(s.seat ? { seat: { ...s.seat, x: s.seat.x + ox } } : {}) })), lights: p.lights.map(l => ({ ...l, x: l.x + ox })),
-    decor: (p.decor ?? []).map(d => ({ ...d, x: d.x + ox })),
+    decor: (p.decor ?? []).map(d => ({ ...d, x: d.x + ox })), marks: (p.marks ?? []).map(sx),
     // (an embassy's people's places: sim/interiors/staffing.js)
     staff: (p.staff ?? []).map(s => ({ ...s, x: s.x + ox, ...(s.approach ? { approach: { ...s.approach, x: s.approach.x + ox } } : {}) })),
     seats: (p.seats ?? []).map(s => ({ ...s, x: s.x + ox, approach: { ...s.approach, x: s.approach.x + ox } })), window: p.window && { ...p.window, x: p.window.x + ox },
@@ -42,6 +44,6 @@ export function interior(map) {
   for (const e of plan.exits) block(e.side === 's' ? { x0: e.x0 - 0.3, z0: e.z1 + STEP_M, x1: e.x1 + 0.3, z1: e.z1 + 1.2 } : { x0: e.x0 - 0.3, z0: e.z0 - 1.2, x1: e.x1 + 0.3, z1: e.z0 - STEP_M }, 'building');   // (STEP_M: sim/interiors/use.js exitHere() counts it as out)
   for (const it of plan.items) if (FURNITURE[it.kind]?.block !== false) block(footprint(it), 'furniture');
   // The lights: one a room, over its middle (sim/light.js reads them as the street's lamps).
-  for (const l of plan.lights) S.lamps.push({ r: l.r, color: l.color ?? 0xf8e8c0, core: 0.3, ring: 0.1, x: l.x, z: l.z });
+  for (const l of plan.lights) S.lamps.push({ r: l.r, color: l.color ?? 0xf8e8c0, core: l.core ?? 0.3, ring: l.ring ?? 0.1, x: l.x, z: l.z });
   return S;
 }

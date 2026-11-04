@@ -4,19 +4,22 @@
 // each lesson a mechanic test's scene with Hale on the earpiece (sim/tutorial/earpiece.js) and a script
 // of its own (sim/tutorial/*.js): { id, title, about, scenario, chapter, options (what the scene's
 // setup reads, as `lesson`: an evening, the teams, the weather), intro(state) (the brief's first
-// paragraphs), steps, beats, tick, debrief(state) }. The plain test is there for each, "on your own".
+// paragraphs), steps, beats, tick, debrief(state), via (where he says it from, when it isn't the
+// earpiece: the range's 'beside you') }. The plain test is there for each, "on your own". The last
+// is off the street: at the range, Hale at your shoulder (sim/tutorial/range.js).
 import { tailing } from './tailing.js';
 import { tailed } from './tailed.js';
 import { watching } from './watching.js';
 import { brushPass, deadDrop } from './handover.js';
 import { blown } from './blown.js';
 import { umbrella } from './umbrella.js';
+import { rangeLesson } from './range.js';
 import { HEARSAY } from '../hale.js';
 import { cityWords } from '../cities/index.js';
 
 export const FARM = { id: 'farm', title: 'Hand to hand, at the Farm', scenario: 'dojo', chapter: 'lesson', farm: true,
   about: 'Camp Peary, week six: Hale teaches you to hit, grab and cover, then puts you in the ring with your class, and with himself.' };
-export const LESSONS = [FARM, tailing, tailed, watching, brushPass, deadDrop, blown, umbrella];
+export const LESSONS = [FARM, tailing, tailed, watching, brushPass, deadDrop, blown, umbrella, rangeLesson];
 
 export const lessonOf = (id) => LESSONS.find(l => l.id === id) ?? null;
 /** The lesson after this one, or null. */

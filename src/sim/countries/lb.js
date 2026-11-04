@@ -19,5 +19,7 @@ export const LB = {
   // (a pistol held and carried on a Ministry of Defence permit, a year at a time, mostly the connected; diplomats' permits exempt from the freezes)
   law: { handgun: 'permit', long: 'licensed', carry: 'permit', ranges: 'club', diplomats: 'permit' },
   black: { ease: 0.95, models: ['canik', 'glock17', 'browning', 'tokarev', 'akm', 'ak74m', 'm16a4', 'uzi'] },
+  // (its business over the years, sim/geopolitics.js)
+  geo: { traits: ['routes', 'hostages', 'vaults', 'border'], the: 'Lebanon', patron: 'Iran', border: 'border war in the south' },
   range: { name: 'the ISF Shooting Club', what: ['glock17', 'browning', 'm16a4', 'akm'] },
 };

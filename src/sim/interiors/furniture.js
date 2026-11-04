@@ -13,7 +13,7 @@
 //   wall: it stands with its back to a wall, its back on the footprint's back edge (−z facing 'down');
 //   y0: hung on the wall that high (a shelf, the mailboxes), nothing under it but the wall;
 //   use: what it's for, which the sim offers there: 'sleep', 'sit', 'eat', 'cook', 'wash', 'toilet',
-//     'phone', 'work', 'read', 'watch', 'store' (doors and drawers: a place to hide a thing), 'buy',
+//     'phone', 'work' (a desk; a range's bench), 'read', 'watch', 'store' (doors and drawers: a place to hide a thing), 'buy',
 //     'pay', 'drink', 'bake', 'change' (a fitting room), 'post', 'lift', 'stairs', 'screen' (a
 //     checkpoint's), 'exchange', 'door', 'coat', 'basket';
 //   seats: where people sit or lie on it, { dx, dz, face }: from its centre as it faces 'down', face
@@ -22,7 +22,7 @@
 //   staff: where who works it stands or sits (behind a counter, at a checkout's till).
 // Pieces with chairs of their own (a dining table, a desk, a restaurant's table) count the chairs in
 // their footprint, and seat people on them; a chair alone is `chair` (or `officeChair`, `barStool`).
-// The art is src/art/furniture.js: it draws every kind here to these sizes, within a pixel.
+// The art is src/art/furniture.js: it draws every kind here to these sizes, within a pixel. A range's pieces are at the end.
 
 const S = (dx, dz, face = 'down') => ({ dx, dz, face });
 
@@ -107,6 +107,14 @@ export const FURNITURE = {
                    seats: [S(-0.75, 0.05), S(-0.25, 0.05), S(0.25, 0.05), S(0.75, 0.05)] },
   vaultDoor:    { w: 1.6, d: 0.45, h: 2.3, block: true, wall: true, use: 'door', spot: S(0, 0.6, 'up') },
   waterCooler:  { w: 0.35, d: 0.35, h: 1.3, block: true, wall: false, use: 'drink', spot: S(0, 0.45, 'up') },
+
+  // ---------- a range (sim/interiors/range.js) ----------
+  // A booth's divider, along the lane's edge (cut low, as the cutaway's walls are, so the shooter beyond shows over it);
+  // the bench at the firing line, turned to face the shooter (its front uprange), where a gun's work is done; the steel
+  // trap against the far wall, a lane wide, stepped up toward the wall.
+  boothDivider: { w: 1.6, d: 0.08, h: 1.0, block: true, wall: false },
+  rangeBench:   { w: 1.7, d: 0.45, h: 0.95, block: true, wall: false, use: 'work', spot: S(0, 0.6, 'up') },
+  bulletTrap:   { w: 1.8, d: 1.4, h: 2.2, block: true, wall: true },
 };
 
 /** An offset (dx, dz) from a piece's centre as it faces 'down', turned to its face. */

@@ -47,7 +47,7 @@ import * as metro from './metro.js';
 import * as police from './police.js';
 import { stationNear, destinations as metroWays } from './metro.js';
 import { lessonOf } from './tutorial/index.js';
-import { startTutor, tutorTick } from './tutorial/earpiece.js';
+import { startTutor, tutorTick, tutorWait } from './tutorial/earpiece.js';
 import * as traffic from './traffic.js';
 import { notice } from './notice.js';
 import { senseTick } from './sense.js';
@@ -238,7 +238,8 @@ export function step(state, input = {}, bus) {
     scenario.act?.(state, bus, act);
   }
   // A fight waiting for a choice, a conversation, a shot being readied: time stands still (sim/fight.js, sim/talk.js, sim/shooting.js).
-  if (state.fight?.phase === 'choose' || state.talk || state.shoot?.phase === 'choose' || state.$reflex) return;
+  // (a lesson's lines go on being read while a shot's readied: sim/tutorial/earpiece.js tutorWait())
+  if (state.fight?.phase === 'choose' || state.talk || state.shoot?.phase === 'choose' || state.$reflex) { if (state.tutor && state.shoot?.phase === 'choose') tutorWait(state, bus); return; }
   if (me?.inside && LIVED.has(me.inside.way) && (input.mx || input.mz)) Object.assign(me.inside, { until: state.time.ms, cut: true });   // (the window's coffee: moving, you've had enough of it: sim/shops.js)
   if (state.fight || state.shoot || scenario.holds?.(state) || me?.inside || me?.cab) input = { act: me?.cab ? [] : input.act };   // (a fight, a shot, the scenario, a shop or a taxi has the player's feet)
   if (me?.inside?.long && !me.inside.skipped) { me.inside.skipped = true; skip(state, bus, me.inside.until - state.time.ms); }   // (what's done in a shop, however it was chosen: an action that takes time, the clock skipped)

@@ -8,19 +8,21 @@
 // from the landing; the side walls to the ceiling too, seen edge on; every other wall cut to a metre,
 // its cut dark on top and its face the paint of the room in front of it, so the room behind shows.
 // A threshold where a doorway is. Round it all, the dark: nothing else is there.
-// The furniture, each piece by its kind (src/art/furniture.js).
+// The furniture, each piece by its kind (src/art/furniture.js). What's painted on the floor (the plan's marks: a range's
+// firing line, its distance lines), flat on it.
 import * as THREE from 'three';
 import { ground, mat, box, paint, tone, part, PX_PER_M } from '../art/pixelart.js';
 import { facade } from '../art/pixeltown.js';
 import { WALL_H, CUT_H, OUTER_T, WALL_T, wallRect } from '../sim/interiors/plan.js';
-import { furniture } from '../art/furniture.js';
+import { furniture, digit } from '../art/furniture.js';
 import { CEMENT } from '../sim/interiors/flat.js';
 
 const CUT = 0x3a3f4b, DARK = 0x14151c, OUTSIDE = 0x9a8f80;
 
 // The floors, as repeating textures a metre square: straight parquet in staggered boards, herringbone
 // (a basket weave of short boards, as a pixel can lay one), long planks, carpet, lino, chequered lino,
-// small white tiles with their grout, terrazzo's chips, patterned cement tiles (a two-colour motif each).
+// small white tiles with their grout, terrazzo's chips, patterned cement tiles (a two-colour motif each),
+// a range's sealed concrete (its colour, softly mottled).
 const floors = new Map();
 const LINO = [0xc9b99a, 0xa8b0a0, 0xb8a090, 0x9fa8b4];
 function floorMat(kind, c = 0xa8784f) {
@@ -32,6 +34,10 @@ function floorMat(kind, c = 0xa8784f) {
     if (kind === 'checker') { for (let y = 0; y < n; y += 8) for (let x = 0; x < n; x += 8) px(x, y, 8, 8, ((x + y) / 8) % 2 ? 0x6a7182 : 0xe2dac6); return; }
     if (kind === 'lino') { const b = LINO[c % LINO.length]; px(0, 0, n, n, b); speck(px, b, 22); return; }
     if (kind === 'carpet') { px(0, 0, n, n, c); speck(px, c, 40, tone(c, -0.05), tone(c, 0.04)); return; }
+    if (kind === 'concrete') {                                     // (sealed concrete: a soft mottle, no seam, so its square doesn't show as it repeats)
+      for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const h = ((x * 73856093) ^ (y * 19349663) ^ 0x5bd1e995) >>> 0, v = (h % 97) / 97; px(x, y, 1, 1, v < 0.12 ? tone(c, -0.025) : c); }
+      return;
+    }
     if (kind === 'terrazzo') { px(0, 0, n, n, 0xd6ccb8); speck(px, 0xd6ccb8, 46, 0x8f8a80, 0xb48459, 0x6a7182, 0xf4efe6); px(0, n - 1, n, 1, 0xc4bba9); px(n - 1, 0, 1, n, 0xc4bba9); return; }
     if (kind === 'cement') {
       // (8-px tiles, a quatrefoil in each: the motif's colour, the ground's, a grout line)
@@ -92,6 +98,17 @@ function hang(px, d, x, y, w, h) {
     for (let i = x; i < x + w; i += 2) { px(i, y + h, 1, 1, 0xe2dac6); }   // (the fringe)
     return;
   }
+  if (d.kind === 'board') {                                       // (a club's notice board: cork, papers pinned on it)
+    px(x, y, w, h, 0x6b4636); px(x + 1, y + 1, w - 2, h - 2, 0xb48459);
+    for (let k = 0, i = x + 2; i < x + w - 4; k++, i += 4 + (k % 2)) { const ph = 4 + ((s + k) % 3), py = y + 2 + ((s + k * 3) % Math.max(1, h - ph - 3)); px(i, py, 3, ph, k % 3 ? 0xf4efe6 : 0xe8d888); px(i + 1, py, 1, 1, 0x9e3c36); px(i, py + 2, 3, 1, 0x8f96a6); }
+    return;
+  }
+  if (d.kind === 'rules') {                                       // (the range's rules: a white board, a red band, lines of them)
+    px(x, y, w, h, 0x23252f); px(x + 1, y + 1, w - 2, h - 2, 0xf4efe6); px(x + 1, y + 1, w - 2, 3, 0x9e3c36); px(x + 3, y + 2, w - 6, 1, 0xf4efe6);
+    for (let j = y + 6, k = 0; j < y + h - 2; j += 2, k++) px(x + 3, j, Math.max(2, w - 6 - ((s + k * 5) % 7)), 1, 0x6a7182);
+    return;
+  }
+  if (d.kind === 'number') { px(x, y, w, h, 0xf4efe6); px(x, y + h - 1, w, 1, 0xc4bba9); digit(px, x + 1, y + 1, d.n, 0x23252f); return; }   // (a lane's number)
   if (d.kind === 'clock') { px(x, y, w, h, 0x23252f); px(x + 1, y + 1, w - 2, h - 2, 0xf4efe6); const cx = x + Math.floor(w / 2), cy = y + Math.floor(h / 2); px(cx, y + 2, 1, cy - y - 1, 0x23252f); px(cx, cy, Math.max(1, Math.floor(w / 3)), 1, 0x23252f); return; }
   if (d.kind === 'calendar') { px(x, y, w, h, 0xf4efe6); px(x, y, w, 2, 0x9e3c36); for (let j = y + 3; j < y + h - 1; j += 2) for (let i = x + 1; i < x + w - 1; i += 2) px(i, j, 1, 1, 0x8f96a6); return; }
   px(x, y, w, h, fr); px(x, y + h - 1, w, 1, tone(fr, -0.2));
@@ -148,10 +165,11 @@ export function drawPlan(g, plan, runs, { seed = 1, inset = false, outside = OUT
     g.add(part(glass));
     g.add(ground(w.a, plan.z1 - (inset ? 0.3 : 0.12), w.b, plan.z1 - (inset ? WALL_T : 0), mat(0xe2dac6), 0.012));
   }
-  // A threshold in each doorway.
-  for (const o of plan.openings.filter(o => o.kind !== 'front' && o.kind !== 'back')) {
+  // A threshold in each doorway (a range's firing line is a mark, not a door's).
+  for (const o of plan.openings.filter(o => o.kind !== 'front' && o.kind !== 'back' && o.kind !== 'line')) {
     g.add(o.axis === 'x' ? ground(o.a, o.at - 0.08, o.b, o.at + 0.08, mat(0x8f6345), 0.01) : ground(o.at - 0.08, o.a, o.at + 0.08, o.b, mat(0x8f6345), 0.01));
   }
+  for (const m of plan.marks ?? []) g.add(ground(m.x0, m.z0, m.x1, m.z1, mat(m.color), 0.011));
   for (const it of plan.items) g.add(furniture({ ...it, seed: (seed + Math.round(it.x * 10) + Math.round(it.z * 10)) % 100000 }));
   return g;
 }

@@ -16,7 +16,8 @@
 // picture should lean toward while they're in sight (the tail: him). `campaign`: the campaign's hub
 // (sim/scenarios/campaign.js), listed apart on the title. setup(state, { chapter, campaign }): campaign
 // is an assignment's context when it's run from a campaign (sim/campaign.js context()): the character,
-// the city, the time, its people; state.campaign is the campaign itself, riding along.
+// the city, the time, its people; state.campaign is the campaign itself, riding along. A scene played in a room of its
+// own off the street (a range: sim/scenarios/range.js) says where on the street you're let out after (state.scenario.out).
 import { walk } from './walk.js';
 import { tail, umbrellaTest } from './tail.js';
 import { sdr, brushTest, dropTest } from './sdr.js';
@@ -24,5 +25,6 @@ import { dojoScenario } from './dojo.js';
 import { campaignHub } from './campaign.js';
 import { hunted } from './hunted.js';
 import { watchTest } from './watch.js';
+import { rangeScenario } from './range.js';
 
-export const SCENARIOS = { walk, dojo: dojoScenario, tail, sdr, watch: watchTest, hunted, brush: brushTest, drop: dropTest, umbrella: umbrellaTest, campaign: campaignHub };
+export const SCENARIOS = { walk, dojo: dojoScenario, tail, sdr, watch: watchTest, hunted, brush: brushTest, drop: dropTest, umbrella: umbrellaTest, range: rangeScenario, campaign: campaignHub };

@@ -13,11 +13,19 @@
 //     now: true }): each second, those whose `when` holds and that haven't been said (or not for `every`
 //     seconds) are queued, in the script's order; one marked `now` goes to the front (he's watching
 //     what you're doing, and some things can't wait). A beat whose line is queued too long goes stale
-//     (STALE_S) and isn't said.
+//     (STALE_S) and isn't said; one with `keep(state, mem)` is said only if that still holds when its
+//     turn comes (an instruction for a moment that's passed: the seven-metre paper, once it's shot).
 //   - **Steps** ({ id, text, done(state, mem) → truthy, said }): the lesson's checklist, shown on screen
-//     and ticked as each is done (it stays done), with his line for it.
+//     and ticked as each is done (it stays done), with his line for it: ahead of the beats, behind
+//     the steps done before it (in the order they were done) and anything `now`.
 //   - mem: the lesson's own memory (state.tutor.mem), for beats and steps that count (seconds kept at
 //     the right distance, the first window). A lesson's tick(state, mem) keeps it, once a second.
+// **In stop motion** (a gun being readied, sim/shooting.js: time stands still while you choose, and runs for a step's
+// half second once chosen), the game's seconds hardly pass, and a lesson at the lanes (sim/tutorial/range.js) would
+// have its lines pile up behind them. So his lines are read on a clock of their own (clockOf(): the game's, and the
+// moments time stood still, t.waitMs, each a tick's worth: tutorWait()), and each step chosen is a moment the
+// checklist and the beats are looked at (not just once a game second, which a shot can fall between).
+// A lesson Hale gives in person (a range: L.via, 'beside you') says so on his box (src/ui/ui.js), not 'earpiece'.
 // Plain data, so a lesson saves and loads like the rest.
 import { cityWords } from '../cities/index.js';
 import { TICK_MS } from '../clock.js';
@@ -33,11 +41,22 @@ export function startTutor(state, lesson) {
     steps: (lesson.steps ?? []).map(s => ({ id: s.id, text: s.text, done: false })) };
 }
 
+/** The clock his lines are read by: the game's, and the moments it stood still for a shot (tutorWait()). */
+export const clockOf = (state) => state.time.ms + (state.tutor?.waitMs ?? 0);
+
 /** Something said on the earpiece now (beats queue; this is for the scene's own moments). */
 export function radio(state, bus, text) {
+  const t = state.tutor, via = t && lessonOf(t.lesson)?.via;
+  say(state, bus, { kind: 'radio', who: t?.who ?? 'Hale', text: cityWords(text, state.map?.city, state.time.ms), ...(via ? { via } : {}) });   // (in the city's own words: sim/cities/ cityWords())
+  if (t) t.busyUntil = clockOf(state) + readMs(text);
+}
+
+/** Time standing still for a shot being readied (sim/game.js): a tick's worth of reading, and the next line if it's due. */
+export function tutorWait(state, bus) {
   const t = state.tutor;
-  say(state, bus, { kind: 'radio', who: t?.who ?? 'Hale', text: cityWords(text, state.map?.city, state.time.ms) });   // (in the city's own words: sim/cities/ cityWords())
-  if (t) t.busyUntil = state.time.ms + readMs(text);
+  if (!t || (state.scenario.outcome && t.closed)) return;
+  t.waitMs = (t.waitMs ?? 0) + TICK_MS;
+  next(state, bus, t);
 }
 
 const readMs = (text) => (READ_S + String(text).split(/\s+/).length * WORD_S) * 1000;
@@ -47,8 +66,9 @@ const lineOf = (b, state, mem) => { const s = typeof b.say === 'function' ? b.sa
 export function tutorTick(state, bus) {
   const t = state.tutor, L = t && lessonOf(t.lesson);
   if (!L || state.scenario.outcome && t.closed) return;
-  const now = state.time.ms;
-  if (state.tick % TPS === 0) {
+  const now = clockOf(state), poke = !!state.shoot?.doing && t.poked !== state.shoot.doing.start;   // (a gun's step chosen: a moment to look)
+  if (poke) t.poked = state.shoot.doing.start;
+  if (state.tick % TPS === 0 || poke) {
     const fails = (id, e) => { (t.errors ??= []).push(`${id}: ${e.message}`); if (t.errors.length > 20) t.errors.shift(); };   // (a script's slip: kept for the tests, never the game's end)
     try { L.tick?.(state, t.mem); } catch (e) { fails('tick', e); }
     for (const s of L.steps ?? []) {
@@ -57,7 +77,12 @@ export function tutorTick(state, bus) {
       try { done = !!s.done(state, t.mem); } catch (e) { fails(`step ${s.id}`, e); }
       if (mine && !mine.done && done) {
         mine.done = true;
-        if (s.said) t.queue.unshift({ id: `step:${s.id}`, text: typeof s.said === 'function' ? s.said(state, t.mem) : s.said, ms: now });
+        if (s.said) {                                                // (ahead of the beats, behind the steps done before it and anything urgent)
+          const last = t.queue.map(q => q.id.startsWith('step:')).lastIndexOf(true);
+          let at = last + 1;
+          if (last < 0) while (at < t.queue.length && t.queue[at].now) at++;
+          t.queue.splice(at, 0, { id: `step:${s.id}`, text: typeof s.said === 'function' ? s.said(state, t.mem) : s.said, ms: now });
+        }
       }
     }
     const greeted = !L.beats?.length || t.said[L.beats[0].id] !== undefined;   // (his first line, the greeting, before anything else)
@@ -70,13 +95,25 @@ export function tutorTick(state, bus) {
       const text = lineOf(b, state, t.mem);
       t.said[b.id] = now;
       if (!text) continue;
-      const q = { id: b.id, text, ms: now };
+      const q = { id: b.id, text, ms: now, ...(b.now ? { now: true } : {}) };
       if (b.now) t.queue.unshift(q); else t.queue.push(q);
     }
   }
+  next(state, bus, t);
+}
+
+/** The next line, when the last's been read: the stale gone (the moment's passed), and a beat whose moment it no longer is (keep). */
+function next(state, bus, t) {
+  const now = clockOf(state), L = lessonOf(t.lesson);
   if (now < t.busyUntil || !t.queue.length) return;
-  while (t.queue.length && now - t.queue[0].ms > STALE_S * 1000 && !t.queue[0].id.startsWith('step:')) t.queue.shift();   // (gone stale: the moment's passed)
-  const q = t.queue.shift();
+  t.queue = t.queue.filter(q => q.id.startsWith('step:') || now - q.ms <= STALE_S * 1000);
+  let q;
+  while ((q = t.queue.shift())) {
+    const b = L?.beats?.find(x => x.id === q.id);
+    let keep = true;
+    try { keep = !b?.keep || !!b.keep(state, t.mem); } catch (e) { keep = false; }
+    if (keep) break;
+  }
   if (q) radio(state, bus, q.text);
   if (state.scenario.outcome) t.closed = !t.queue.length;
 }

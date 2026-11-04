@@ -170,7 +170,7 @@ export function createUI({ input, cb }) {
 
   // ---------- the title ----------
   let titleWas = null;
-  function showTitle({ version, auto, farm = false }) {
+  function showTitle({ version, auto, farm = false, world = null }) {
     titleWas = { version, auto, farm };
     // The Farm: the lesson, or, the lesson had, a memory first (sim/scenarios/dojo.js, chapter 'remembered').
     // (the free walk in any of the cities, one entry: sim/cities/, each its profile's line; the line under it says where the pointer is)
@@ -194,6 +194,7 @@ export function createUI({ input, cb }) {
       el('p', { className: 'sub', textContent: `v${version} · ${/-rc/.test(version) ? 'release candidate: the first playable' : 'in development'}` }),
       el('hr'),
       auto ? el('button', { className: 'item', onclick: () => cb.continue() }, 'Continue', el('small', { textContent: auto.about })) : null,
+      world ? el('button', { className: 'item campaign', onclick: () => cb.successor?.() }, 'The next officer', el('small', { textContent: `The world goes on: ${world.last ?? 'your last officer'} ${world.why === 'retired' ? 'retired' : 'is gone'}; the next picks up where it was.` })) : null,   // (sim/career.js)
       campaignEntry(),
       el('hr'),
       ...Object.entries(SCENARIOS).filter(([key, s]) => !s.test && !s.campaign && key !== 'dojo').flatMap(([key, s]) => entry(key, s)),
@@ -496,7 +497,7 @@ export function createUI({ input, cb }) {
     // (the move panel sits above the instinct, however many lines it runs to)
     if (!moves.hidden) moves.style.bottom = `${p ? 58 + prompt.offsetHeight + 8 : 96}px`;
     if (!gunPanel.hidden) gunPanel.style.bottom = `${p ? 58 + prompt.offsetHeight + 8 : 58}px`;   // (shooting's steps over the instinct's line)
-    if (!earpiece.hidden) earpiece.style.bottom = `${(p ? 58 + prompt.offsetHeight + 8 : 58) + (moves.hidden ? 0 : moves.offsetHeight + 8)}px`;   // (Hale over the instinct's line, which he supplements)
+    if (!earpiece.hidden) earpiece.style.bottom = `${(p ? 58 + prompt.offsetHeight + 8 : 58) + (moves.hidden ? 0 : moves.offsetHeight + 8) + (gunPanel.hidden ? 0 : gunPanel.offsetHeight + 8)}px`;   // (Hale over the instinct's line, which he supplements, and over shooting's steps)
     // (a log line's 16 s run while the game does: not under a brief, a sheet, a paper or the pause)
     const real = performance.now(), cover = overlay();
     if (!paused && !cover && lastReal) hudMs += real - lastReal;
@@ -553,9 +554,9 @@ export function createUI({ input, cb }) {
     toasts.append(t);
     while (toasts.children.length > 3) toasts.firstChild.remove();
   }
-  /** Hale on the earpiece: his line in its box, for as long as it takes to read and a little (sim/tutorial/earpiece.js). */
+  /** Hale on the earpiece (or beside you: e.via): his line in its box, for as long as it takes to read and a little (sim/tutorial/earpiece.js). */
   function radioLine(e) {
-    put(earpiece.querySelector('.who'), `${(e.who ?? 'Hale').toUpperCase()} · EARPIECE`);
+    put(earpiece.querySelector('.who'), `${(e.who ?? 'Hale').toUpperCase()} · ${(e.via ?? 'earpiece').toUpperCase()}`);   // (in person, at the range: sim/tutorial/range.js via)
     earpiece.querySelector('.line').replaceChildren(...keyed(e.text ?? ''));
     earpiece.born = hudMs;
     earpiece.life = (READ_S + String(e.text ?? '').split(/\s+/).length * WORD_S + 5) * 1000;
@@ -949,7 +950,7 @@ export function createUI({ input, cb }) {
 
   // ---------- a test's papers: the brief, the result ----------
   /** The campaign's three candidates (sim/campaign.js candidates()): pick one. */
-  function showCandidates(list, onPick, city = CITY_IDS[0], { cities = null, back = null, level = 'handler', levels = null, levelTo = null, another = null } = {}) {
+  function showCandidates(list, onPick, city = CITY_IDS[0], { cities = null, back = null, level = 'handler', levels = null, levelTo = null, another = null, world = null } = {}) {
     const C = cityById(city), lang = C.lang ?? 'ru', junior = level === 'junior';
     // (the career's rung to start at: a first tour, or a posting of your own once it's open: src/main.js)
     const rungs = levels && levels.length > 1 && el('div', { className: 'cities' }, el('span', { className: 'note', textContent: 'Start as: ' }),
@@ -962,7 +963,7 @@ export function createUI({ input, cb }) {
     paper.replaceChildren(el('div', { className: 'sheet brief candidates' },
       el('span', { className: 'stamp', textContent: 'PERSONNEL' }),
       el('h2', { textContent: 'WHO GOES' }),
-      el('p', { className: 'note', textContent: junior ? C.station.firstTour?.wanted : `Station ${C.name} needs a Handler under official cover. Three files on the desk.` }), rungs, tabs, el('hr'),
+      el('p', { className: 'note', textContent: junior ? C.station.firstTour?.wanted : `Station ${C.name} needs a Handler under official cover. Three files on the desk.` }), world ? el('p', { className: 'note', textContent: `${world}: the officer before is gone, and the world's business goes on.` }) : null, rungs, tabs, el('hr'),   // (the next officer of a world: sim/career.js)
       ...list.flatMap((p, i) => [p.legend ? el('h3', { className: 'legends', textContent: 'LEGENDS', title: 'Someone of Tradecraft 95, and the reason for it: what no ordinary career makes.' }) : null, el('button', { className: `item cand${p.legend ? ' legend' : ''}`, onclick: () => { paper.hidden = true; paper.dataset.kind = ''; onPick(i); } },
         `${p.name}, ${p.age}`, el('small', { textContent: `${p.background}${p.anew ? ` ${p.anew}` : ''} ${p.bg ? `From it: ${Object.entries(p.bg.points).map(([k, v]) => `${SKILLS[k]?.name ?? k} +${v}`).join(', ')}. ` : ''}Best at: ${top(p)}. ${LANG_NAME[lang] ?? lang}: ${p.langs[lang] ?? 'none'}. Tradecraft ${p.os}.` }))].filter(Boolean)),
       another ? el('button', { className: 'item', onclick: another }, 'Another legend') : null));
@@ -1037,7 +1038,7 @@ export function createUI({ input, cb }) {
   // (his sightings of you that you saw happen; the rest you can only suspect)
   const seenText = (sc) => { const n = sc.sightings.filter(x => x.seen !== false).length; return `you saw him spot you ${n} time${n === 1 ? '' : 's'}`; };
   const stampOf = (sc) => outcomeWord('tail', sc.outcome === 'made' && sc.madeSeen === false ? 'spooked' : sc.outcome).toUpperCase();   // (sim/outcomes.js)
-  function showResult(state, { again, same, title, back = null, photo = null, lesson = null, home = false, next: stations = null }, { debug = false } = {}) {
+  function showResult(state, { again, same, title, back = null, photo = null, lesson = null, home = false, next: stations = null, successor = null }, { debug = false } = {}) {
     const sc = state.scenario, secs = Math.round((sc.ended - sc.began) / 1000);
     const go = (fn) => () => { paper.hidden = true; paper.dataset.kind = ''; fn(); };
     // (the scene's own words for going again: an evening, a lesson, a walk; the score asked for only in a mechanic test)
@@ -1060,6 +1061,7 @@ export function createUI({ input, cb }) {
       ...(stations ? [el('p', { className: 'note', textContent: 'A posting of your own: which station do you ask for?' }),
         ...CITY_IDS.map(c =>
           el('button', { className: 'item', onclick: go(() => stations(c)) }, `Station ${CITIES[c].name}`, el('small', { textContent: `${CITIES[c].station.about} ${betweenWords(state.campaign.character, c)}` })))] : []),   // (the time it takes to get there: sim/career.js)
+      successor ? el('button', { className: 'item', onclick: go(successor.go) }, 'The next officer', el('small', { textContent: `${successor.words}: the same date, the same world's business.` })) : null,   // (the world goes on: sim/career.js)
       back && !stations && !state.people[state.player]?.dead ? el('button', { className: 'item', onclick: go(back) }, 'Back to the posting', el('small', { textContent: 'The debrief, and on with it.' })) : null,
       el('button', { className: 'item', onclick: go(title) }, home ? 'Back to the flat' : 'Back to the title')] : [
       el('hr'),

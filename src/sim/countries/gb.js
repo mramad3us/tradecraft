@@ -18,5 +18,7 @@ export const GB = {
   // (handguns prohibited since 1997; rifles and shotguns on a certificate with a good reason; no civilian carry)
   law: { handgun: 'banned', long: 'licensed', carry: 'banned', ranges: 'club', diplomats: 'permit' },
   black: { ease: 0.15, models: ['converted', 'glock17'] },
+  // (its business over the years, sim/geopolitics.js: another country's, played out in London)
+  geo: { traits: ['money', 'residency', 'hit'], the: 'Britain', rival: 'the Kremlin' },
   range: { name: 'a smallbore rifle club', what: ['hunting'] },
 };

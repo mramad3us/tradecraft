@@ -32,7 +32,11 @@
 // on body armour (sim/armour.js) may be stopped (stopped(): no wound, a bruise behind it, perhaps a cracked rib,
 // a moment's knock), or go through it, slowed.
 // **A gunshot is heard** (heard()): passers-by within HEAR_M run from it, the way away from it; in the
-// campaign, a shooting in the street is heat (SHOT_HEAT, once a minute).
+// campaign, a shooting in the street is heat (SHOT_HEAT, once a minute). On a range (sim/paper.js onRange()) it's
+// what the place is for: nobody runs, nobody calls it in, nothing's written down.
+// **A paper target** (sim/paper.js) is aimed at as anyone is; a round at it, hit or miss, is its paper's (shotAt():
+// a hole by the roll's margin, or into the trap), its part's DC the paper's (a club's bull is precise work), and
+// a stray that finds one is a hole, not a wound.
 import { CALIBRES, KINDS, armOf, modelOf, kindOf, isGun, act as gunAct, fire, canDo, labelOf, baseOf, pace, ready, stepMs, AUTO_ROUNDS } from './firearms.js';
 import { placed, drop, lyingAbout, thingName } from './items.js';
 import { shortName } from './fight.js';
@@ -56,6 +60,7 @@ import { person } from './interact.js';
 import { addHeat } from './heat.js';
 import { markViolent } from './emergency.js';
 import { TICK_MS } from './clock.js';
+import { isPaper, paperDC, shotAt, onRange } from './paper.js';
 
 export const AIM = { sight: 0.6, turn: { base: 90, per: 6 }, arc: { base: 30, per: 2, max: 100 }, feet: 0.4 };
 export const HELD = 3, HELD_MAX = 4;                              // (DC off a second the aim's held, at most)
@@ -160,7 +165,8 @@ function shotOf(state, M, K, d, T, part, mods = []) {
   const band = lightBand(lightHere(state, T.x, T.z));
   if (band === 'dark') out.push({ why: 'the dark', v: -4 }); else if (band === 'dim') out.push({ why: 'poor light', v: -2 });
   if (K.close && d <= K.closeM) out.push({ why: 'the spread of the shot', v: -K.close });
-  return { dc: Math.round(SHOT.dc + (d * K.perM + d * d * K.perM2) * M.acc + (T.item ? 4 : PART_DC[part] ?? 0)), mods: out.filter(m => m.v) };
+  const partDC = T.item ? 4 : T.a && isPaper(state, T.a) ? paperDC(state, T.a, part, PART_DC[part] ?? 0) : PART_DC[part] ?? 0;   // (a paper's own: a club's bull is precise work, sim/paper.js)
+  return { dc: Math.round(SHOT.dc + (d * K.perM + d * d * K.perM2) * M.acc + partDC), mods: out.filter(m => m.v) };
 }
 
 /**
@@ -222,7 +228,7 @@ export function nameOf(state, T) {
   if (sh) sh.$names[k] = word;
   return word;
 }
-const notReady = (g, M) => (M.safety === 'manual' && g.safety ? 'the safety\'s on' : M.safety === 'selector' && g.mode === 'safe' ? 'on safe' : M.feed === 'cylinder' ? (g.open ? 'the cylinder\'s open' : 'empty') : g.jam ? 'jammed' : g.chamber === 'dud' ? 'a dud in it' : g.chamber === 'case' ? (M.feed === 'tube' ? 'it wants working' : 'a stoppage') : !g.chamber ? 'nothing in the chamber' : g.cond < 0.25 ? 'it wants servicing' : null);
+const notReady = (g, M) => (M.safety === 'manual' && g.safety ? 'the safety\'s on' : M.safety === 'selector' && g.mode === 'safe' ? 'on safe' : M.feed === 'cylinder' ? (g.open ? 'the cylinder\'s open' : 'empty') : g.jam ? 'jammed' : g.chamber === 'dud' ? 'a dud in it' : g.chamber === 'case' ? (M.action === 'pump' || M.action === 'bolt' ? 'it wants working' : 'a stoppage') : !g.chamber ? 'nothing in the chamber' : g.cond < 0.25 ? 'it wants servicing' : null);
 /** How many rounds a pull sends, by the selector (a burst's, a short burst on auto). */
 export const roundsOf = (g, M) => (M.safety === 'selector' ? (g.mode === 'auto' ? AUTO_ROUNDS : g.mode === 'burst' ? M.burst ?? 3 : 1) : 1);
 const nextMode = (g, M) => { const ring = ['safe', ...M.modes]; return ring[(ring.indexOf(g.mode) + 1) % ring.length]; };
@@ -375,7 +381,8 @@ export function shot(state, bus, me, p, id) {
     if (aimedAt && o && !(aimedAt.a && state.people[aimedAt.a.who]?.dead)) {
       const roll = check(state.rng, { skill: 'weapons', value: skill(p, 'weapons'), dc: o.dc, mods: k ? [...o.mods, { why: 'the muzzle climbing', v: -Math.round(BURST_K * k * M.recoil) }] : o.mods, body: p });
       first ??= roll;
-      if (roll.ok) { hits++; last = aimedAt.item ? hitThing(state, aimedAt.item) : bullet(state, bus, aimedAt.a, sh.part, M, me); }   // (a burst's hits on them: the last one's words say how they are)
+      if (aimedAt.a && isPaper(state, aimedAt.a)) { const hole = shotAt(state, aimedAt.a, sh.part, roll); if (roll.ok) hits++; words.push(hole.words); }   // (a paper's: a hole by the roll, or the trap; sim/paper.js)
+      else if (roll.ok) { hits++; last = aimedAt.item ? hitThing(state, aimedAt.item) : bullet(state, bus, aimedAt.a, sh.part, M, me); }   // (a burst's hits on them: the last one's words say how they are)
       else { const w = stray(state, bus, me, aimedAt, M); if (w) words.push(w); }
     }
     if (f.stoppage || f.empty) break;
@@ -426,7 +433,7 @@ function hitThing(state, it) {
 /** A miss: the first one behind them on the line of the shot, within STRAY's width, may take it. */
 function stray(state, bus, me, T, M) {
   const dx = T.x - me.x, dz = T.z - me.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d, row = state.map.row ?? 0;
-  const behind = state.actors.filter(a => a !== me && a !== T.a && !a.hidden && rowOf(state, a) === row).map(a => {
+  const behind = state.actors.filter(a => a !== me && a !== T.a && !a.hidden && rowOf(state, a) === row && !isPaper(state, a)).map(a => {   // (a paper behind is another lane's: the trap has it)
     const along = (a.x - me.x) * ux + (a.z - me.z) * uz, off = Math.abs((a.x - me.x) * uz - (a.z - me.z) * ux);
     return { a, along, off };
   }).filter(o => o.along > d && o.along < STRAY.rangeM && o.off < STRAY.widthM).sort((p, q) => p.along - q.along)[0];
@@ -441,6 +448,7 @@ const WORD = { head: 'head', torso: 'chest', armL: 'left arm', armR: 'right arm'
  * sheet as they're hit (sim/interact.js person()). Returns the words.
  */
 export function bullet(state, bus, a, part, M, from) {
+  if (isPaper(state, a)) { shotAt(state, a, part, null, { stray: true }); return `A hole in ${state.people[a.who].name}.`; }   // (paper: a stray hole, no wound, no blood: sim/paper.js)
   const p = person(state, a), r = state.rng, ms = state.time.ms;
   const at = part === 'legs' ? pick(r, ['legL', 'legR']) : part === 'torso' && chance(r, 0.12) ? pick(r, ['armL', 'armR']) : part;
   const raw = BULLET * (CALIBRES[M.cal]?.dmg ?? 1) * M.dmg * range(r, 0.8, 1.25);
@@ -522,6 +530,7 @@ function stopped(state, bus, a, p, A, M, from) {
 
 /** A shot heard: passers-by within HEAR_M run, away from it; in the campaign, heat (once a minute). */
 export function heard(state, bus, shooter, x, z, loud = 1) {
+  if (onRange(state)) return;                                       // (a range: what it's for, sim/paper.js)
   const row = state.map.row ?? 0, R = HEAR_M * loud;            // (a suppressed gun is heard a fraction as far: its loud)
   if (shooter?.who === state.player) markViolent(state, shooter);   // (seen at it: whoever calls it in describes you, sim/emergency.js)
   if (shooter?.who === state.player && loud >= 0.5) state.$shotBy = { ms: state.time.ms, x, z };   // (yours, heard: the police come for it, sim/armed.js; a suppressed one isn't)

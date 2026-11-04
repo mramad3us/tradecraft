@@ -44,6 +44,7 @@
 //              displayCase's cabinet, filingCabinet; metal: mailboxes, stanchions; rope: stanchions
 //   curtain    fittingRoom; cloth ('white' | 'checks') restaurantTable; sign (its word) bankCounter;
 //   water      bathtub (true: filled)
+//   n          boothDivider: the lane number on its plate (a range's: the lane beyond it)
 //
 // What lights up: a lamp's shade, a TV's screen, a monitor, a drinks fridge, a till's display are
 // painted in glow() (shown as painted, day or night) when on; signs' letters, a lift's floor, ovens'
@@ -1592,6 +1593,50 @@ function waterCooler(k, o) {
   k.comp().round(5, 6, 5, 0.8, { sides: tex('jug', 5, 6, (px, w, h) => { px(0, 0, w, h, 0x5d8fc2); px(0, 0, w, 1, 0x3b6296); px(1, 1, 1, h - 2, 0x95c1e3); px(w - 1, 0, 1, h, 0x3b6296); px(0, 2, w, 1, 0x95c1e3); }), top: tex('jugtop', 5, 5, (px, w, h) => { px(0, 0, w, h, 0x5d8fc2); px(1, 1, 3, 3, 0x95c1e3); px(2, 2, 1, 1, 0x3b6296); }) }, 0, 15, 0);
 }
 
+// ---------- a range (src/sim/interiors/range.js) ----------
+
+// A pixel font's digits, 3 × 5 (a lane's number on its plate).
+const DIGITS = { 1: ['.#.', '##.', '.#.', '.#.', '###'], 2: ['##.', '..#', '.#.', '#..', '###'], 3: ['##.', '..#', '.#.', '..#', '##.'], 4: ['#.#', '#.#', '###', '..#', '..#'],
+  5: ['###', '#..', '##.', '..#', '##.'], 6: ['.##', '#..', '###', '#.#', '###'], 7: ['###', '..#', '.#.', '.#.', '.#.'], 8: ['###', '#.#', '###', '#.#', '###'], 9: ['###', '#.#', '###', '..#', '##.'] };
+export function digit(px, x, y, n, c) { (DIGITS[n] ?? []).forEach((row, j) => [...row].forEach((ch, i) => { if (ch === '#') px(x + i, y + j, 1, 1, c); })); }
+/** A booth's divider: a felt panel in a steel frame, cut low, the lane's number on a plate at its uprange end. */
+function boothDivider(k, o) {
+  const { W, D, look } = o, felt = 0x4c5262, frame = 0x8f96a6;
+  const face = tex(`divider-${look.n ?? 0}`, W, 16, (px, w, h) => {
+    px(0, 0, w, h, frame); px(1, 1, w - 2, h - 3, felt);
+    for (let y = 2; y < h - 3; y += 2) for (let x = 2 + ((y / 2) % 2); x < w - 2; x += 3) px(x, y, 1, 1, tone(felt, 0.06));   // (the felt's weave)
+    px(0, 0, w, 1, tone(frame, 0.1)); px(0, h - 2, w, 2, 0x353947);
+    if (look.n) { px(2, 3, 5, 7, PAPER); px(2, 9, 5, 1, 0xc4bba9); digit(px, 3, 4, look.n, BLACK); }
+  });
+  k.comp().box(W, 16, D, { sides: frame, top: tex('dividertop', W, D, (px, w, h) => px(0, 0, w, h, tone(frame, 0.08))), front: face, back: face }, 0, 0, 0);
+}
+/** A booth's bench at the firing line (turned to face the shooter): a steel frame, a rubber mat on its top, a shelf under it. */
+function rangeBench(k, o) {
+  const { W, D } = o, steel = 0x6a7182, c = k.comp();
+  for (const x of [-W / 2 + 1, W / 2 - 1]) for (const z of [-D / 2 + 1, D / 2 - 1]) c.box(1, 14, 1, steel, x, 0, z);
+  c.box(W - 2, 1, D - 2, steel, 0, 5, 0);
+  const mat_ = 0x24503a, rim = 0x353947;
+  k.comp().box(W, 1, D, { sides: rim, front: rim, top: tex('benchtop', W, D, (px, w, h) => {
+    px(0, 0, w, h, rim); px(1, 1, w - 2, h - 2, mat_); px(1, 1, w - 2, 1, tone(mat_, 0.1));
+    for (let x = 3; x < w - 2; x += 4) px(x, Math.floor(h / 2), 1, 1, tone(mat_, -0.08));   // (the mat's ribs)
+    px(0, h - 1, w, 1, tone(rim, 0.12));
+  }) }, 0, 14, 0);
+}
+/** The steel trap against the far wall: plates stepped up toward the wall, a lane wide, a rubber curtain's edge on each step. */
+function bulletTrap(k, o) {
+  const { W, D } = o, plate = 0x4c5262, dark = 0x23252f;
+  const top = (n) => tex(`traptop-${n}`, W, n, (px, w, h) => {
+    px(0, 0, w, h, plate);
+    for (let y = 0; y < h; y += 2) px(0, y, w, 1, tone(plate, -0.07));
+    for (let x = 2; x < w; x += 6) px(x, 0, 1, 1, 0x8f96a6);           // (the bolts along its back edge)
+    px(0, h - 1, w, 1, tone(plate, 0.1));
+  });
+  const side = (h, d) => tex(`trapside-${h}-${d}`, d, h, (px, w, hh) => { px(0, 0, w, hh, dark); px(0, 0, w, 1, tone(plate, 0.06)); px(w - 1, 0, 1, hh, tone(dark, -0.2)); for (let y = 3; y < hh; y += 5) px(1, y, w - 2, 1, tone(dark, 0.08)); });
+  const front = (h) => tex(`trapfront-${h}`, W, h, (px, w, hh) => { px(0, 0, w, hh, dark); px(0, 0, w, 1, 0xc9a23a); for (let x = 0; x < w; x += 4) px(x, 1, 2, 1, 0x23252f); });
+  // (three steps, front to back, their depths in pixels meeting on the grid: 7, 8, 7 of the trap's 22)
+  [[13, 7, D / 2 - 3.5], [24, 8, 0], [35, 7, -D / 2 + 3.5]].forEach(([h, d, z]) => k.comp().box(W, h, d, { sides: side(h, d), top: top(d), front: front(h) }, 0, 0, z));
+}
+
 function trayFront(px, w, h, goods, r) {
   const tray = { bread: 0x6b4636, pastries: PAPER, cakes: 0xdfe2e8, cheese: 0xdfe2e8, meat: PAPER }[goods] ?? PAPER;
   px(0, 0, w, h, tone(tray, -0.12));
@@ -1616,6 +1661,7 @@ const MAKERS = {
   mirror: mirrorKind, displayCase, breadRack, deckOven, workTable, cafeCounter, bar, barShelf, barStool, windowBar, restaurantTable, range,
   steelSink, flowerBuckets, bankCounter,
   officeDesk, officeChair, filingCabinet, securityDesk, metalDetector, xray, stanchions, flag, waitingChairs, vaultDoor, waterCooler,
+  boothDivider, rangeBench, bulletTrap,
 };
 
 /**

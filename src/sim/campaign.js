@@ -64,8 +64,10 @@ import { fileOf, assetFile, targetName, briefOf, CRAFT, assetRolesOf } from './d
 import { outcomeWord } from './outcomes.js';
 import { CITIES, CITY_IDS, cityById, FIRST_TOUR_CITY } from './cities/index.js';
 import { missionXP, gain, level, progress } from './xp.js';
-import { fieldwork } from './rust.js';
+import { fieldwork, practise } from './rust.js';
+import { SKILLS } from './skills.js';
 import { between, born } from './career.js';
+import { taskingAt } from './geopolitics.js';
 import { LANG_NAME } from './langs.js';
 import { POLICE_COOL_DAY } from './police.js';
 import { LESSON_BOOK, lessonBook, sceneOf } from './lessons.js';
@@ -266,10 +268,11 @@ export function candidates(seed, city = 'moscow', level = 'handler') {
  * The posting: city, cover, goal, the network and the targets, the flat, the embassy, safe houses, gauges.
  * startMs: day one, morning. level: a Handler's (this), or a first tour's (juniorPosting(): at FIRST_TOUR_CITY, London).
  */
-export function posting(seed, city = 'moscow', startMs = at(2026, 11, 2, WAKE_H), level = 'handler') {
+export function posting(seed, city = 'moscow', startMs = at(2026, 11, 2, WAKE_H), level = 'handler', world = seed) {
   if (level === 'junior') return juniorPosting(seed, startMs);
   const r = stream('posting', seed, city), K = cityById(city), C = K.station;
-  const [subject, goal] = pick(r, C.subjects);
+  const drawn = pick(r, C.subjects);                                // (drawn still, so the posting's other dice run as they did)
+  const [subject, goal] = taskingAt(world, city, startMs) ?? drawn;  // (the station's business at the time: the career's world, sim/geopolitics.js)
   const mapSeed = Math.floor(range(r, 0, 4294967296));
   const names = CODENAMES.slice();
   const assets = [0, 1].slice(0, 1 + (chance(r, 0.5) ? 1 : 0)).map(i => {
@@ -323,9 +326,9 @@ export const SALARY_JUNIOR = 5400;                                 // ($ a month
 export const goalOf = (p) => (p.level === 'junior' ? GOAL_JUNIOR : GOAL_INTEL);
 
 /** A new campaign: the chosen character, the posting (at a level: LEVELS), day one. */
-export function newCampaign(seed, character, city = 'moscow', level = 'handler', startMs = undefined) {
-  const p = posting(seed, city, startMs, level);
-  const c = { seed, character, posting: p, day: dayOf(p.startMs), assignments: [], done: [], plannedTo: dayOf(p.startMs) - 1, worked: {}, log: [], reviews: [], awake: p.startMs, next: { },
+export function newCampaign(seed, character, city = 'moscow', level = 'handler', startMs = undefined, world = seed) {
+  const p = posting(seed, city, startMs, level, world);
+  const c = { seed, world, character, posting: p, day: dayOf(p.startMs), assignments: [], done: [], plannedTo: dayOf(p.startMs) - 1, worked: {}, log: [], reviews: [], awake: p.startMs, next: { },
     calls: [{ id: 'hale', at: p.startMs + CALL_S * 1000 }], cabinet: { ...CABINET } };   // (day one: Hale on the telephone, the exercises or straight in: src/main.js; the bathroom cabinet's few things, sim/medicine.js)
   born(character, p.startMs);                                      // (their birth, from the file's age: the years go by, sim/career.js)
   for (const t of p.targets) fileOf(c, t);                         // (the station's files on them: sim/dossier.js)
@@ -434,7 +437,7 @@ export function bookLessons(c, ids, ms, settling = false) {
     const L = lessonBook(id);
     if (!L || !lessonsLeft(c).some(x => x.id === id)) continue;
     for (let k = 0; k < 60; k++, d++) {
-      const dayMs = d * DAY, hours = settling ? [L.h] : isWorkday(dayMs) ? [Math.max(L.h, WORK.to + 0.75), WORK.to + 1.5, WORK.to + 2.5] : [L.h, 10.5, 14, 17];
+      const dayMs = d * DAY, hours = settling ? [L.h] : isWorkday(dayMs) ? [Math.max(L.h, WORK.to + 0.75), WORK.to + 1.5, WORK.to + 2.5] : L.weekend ?? [L.h, 10.5, 14, 17];   // (a range's day off is its afternoons: sim/lessons.js)
       const a = hours.map(h => lessonAt(c, L, dayMs + Math.round(h * 60) * MIN)).find(x => x.start > ms && roomFor(c, x));
       if (a) { c.assignments.push(a); out.push(a); d++; break; }
     }
@@ -549,9 +552,19 @@ export function rest(c, ms) {
   return until;
 }
 
-/** Lie low for a day: heat down. Returns the time after (the next morning). */
+/** Whether ms is a working day you're expected at the embassy, not yet worked: lying low then is calling in sick. */
+export const expected = (c, ms) => isWorkday(ms) && !c.worked[dayOf(ms)] && calendar(ms).hour < WORK.to && dayOf(ms) >= Math.max(dayOf(c.posting.startMs), c.posting.deskFrom ?? 0);
+// (sick days: the first in a month nobody minds; after it, the section counts them: SICK_COVER off your standing each)
+export const SICK_COVER = 2, SICK_FREE_DAYS = 30;
+/** Lie low for a day: heat down; on a working day, the section rung first (a sick day). Returns the time after (the next morning). */
 export function lieLow(c, ms, safe = false) {
   c.posting.heat = Math.max(20, c.posting.heat - Math.round(HEAT_LOW_PER_DAY * (safe ? SAFE_LOW_K : 1)));
+  if (expected(c, ms)) {
+    const counted = c.sick !== undefined && ms - c.sick < SICK_FREE_DAYS * DAY;
+    if (counted) c.posting.cover = Math.max(0, c.posting.cover - SICK_COVER);
+    c.sick = ms; c.worked[dayOf(ms)] = 'sick';
+    c.log.push({ ms, text: counted ? 'Another sick day: the section\'s secretary says she hopes you feel better, and writes it down.' : 'You ring the section: a temperature, the flu that\'s going round. "Stay in bed," says the secretary.' });
+  }
   c.log.push({ ms, text: 'A day of nothing: the flat, the embassy canteen, a walk that goes nowhere. Let them get bored.' });
   return rest(c, ms + 12 * HOUR);
 }
@@ -598,7 +611,7 @@ export function context(c, a) {
   const p = c.posting, r = stream('ctx', c.seed, a.id), T = a.trip ? p.trips.find(t => t.id === a.who) : null;
   // (a trip's in its own city, on its own streets; the opposition there knows you only as a visitor: TRIP_HEAT)
   const city = T?.city ?? p.city, heat = T ? TRIP_HEAT : p.heat;
-  const ctx = { campaign: true, player: structuredClone(c.character), mapSeed: T?.mapSeed ?? p.mapSeed, startMs: a.start, assignment: a.id, city, country: cityById(city).country ?? p.country };
+  const ctx = { campaign: true, player: flown(structuredClone(c.character), T, a.start), mapSeed: T?.mapSeed ?? p.mapSeed, startMs: a.start, assignment: a.id, city, country: cityById(city).country ?? p.country };
   // (walked to: its place on the posting's streets, and where you stood when you began: sim/places.js, sim/scenarios/campaign.js begin())
   if (!T && a.at) Object.assign(ctx, { at: a.at, me: a.me ?? null, startMs: a.began ?? a.start });
   ctx.brief = briefOf(c, a);                                       // (its words: sim/dossier.js)
@@ -624,15 +637,21 @@ export function context(c, a) {
   return ctx;
 }
 export const TRIP_HEAT = 35;
+// (a trip's officer as they land: fed and slept on the plane, the morning's flight; the user, 2026-11-04, "flying in and out of places should land you fed and rested")
+function flown(player, T, ms) { if (T && player) { player.strain = 0; (player.needs ??= {}).ate = ms - HOUR; } return player; }
 // (the core four back to what they were, in a debrief's words)
 const keptLine = (names) => (!names.length ? null : `${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]}: a day of it for real, and ${names.length > 1 ? 'they\'re' : 'it\'s'} back to what ${names.length > 1 ? 'they were' : 'it was'}.`);
 
-/** A lesson over: a little Tradecraft (LESSON_XP_K of its scene's), the core kept, nothing on the record; Hale's words are the result's (src/ui/ui.js). */
+/**
+ * A lesson over: a little Tradecraft (LESSON_XP_K of its scene's), the core kept, a session of the skill it practises
+ * (L.practise: the range's, Weapon handling, sim/rust.js), nothing on the record; Hale's words are the result's (src/ui/ui.js).
+ */
 function foldLesson(c, a, sc, endMs, lines) {
   const L = lessonBook(a.lesson), xp = Math.round(missionXP({ kind: L?.scene ?? 'tail', outcome: a.known }) * LESSON_XP_K * 10) / 10;
   gain(c.character, xp);
   const ups = level(c.character), pr = progress(c.character);
-  lines.push(`An exercise with Hale, ${(L?.title ?? 'the street').toLowerCase()}: the station's own people playing the parts, nothing on the record but what you learnt.`);
+  lines.push(L?.scene === 'range' ? `An evening at the range with Hale: the club's gun, its paper, its rules, nothing on the record but what your hands learnt.` : `An exercise with Hale, ${(L?.title ?? 'the street').toLowerCase()}: the station's own people playing the parts, nothing on the record but what you learnt.`);
+  if (L?.practise && sc.outcome !== 'left') { practise({ player: null, time: { ms: endMs } }, null, c.character, L.practise, 1, endMs); lines.push(`${SKILLS[L.practise]?.name ?? L.practise}: a session of it, kept up.`); }
   lines.push(ups ? `Tradecraft ${pr.os}: you do this a little better now. (${xp} XP; ${pr.have} of ${pr.need} toward ${pr.os + 1}.)` : `${xp} XP from it: ${pr.words}.`);
   const kept = keptLine(fieldwork(c.character, endMs));
   if (kept) lines.push(kept);
@@ -746,7 +765,9 @@ function foldTrip(c, a, sc, endMs, heatNow, lines) {
   const home = (dayOf(endMs) + 1) * DAY + WAKE_H * HOUR;
   for (let d = dayOf(a.start); d < dayOf(home); d++) if (isWorkday(d * DAY)) c.worked[d] = true;
   a.home = home;
-  lines.push(`The night flight back, and the flat in ${cityById(p.city).name} by ${WAKE_H} in the morning.`);
+  // (fed and slept on the plane: in the flat in the morning, rested, the meal behind you; the user, 2026-11-04, "flying in and out of places should land you fed and rested")
+  c.awake = home; c.character.strain = 0; (c.character.needs ??= {}).ate = home - HOUR;
+  lines.push(`The night flight back, a meal on a tray and four hours' sleep against the window, and the flat in ${cityById(p.city).name} by ${WAKE_H} in the morning.`);
   goalMet(c, endMs, lines);
   plan(c, home);
   return { title: `${place.toUpperCase()}: ${outcomeWord(a.kind, o).toUpperCase()}`, lines };
@@ -764,7 +785,7 @@ export function promote(c, city) {
   const B = between(ch, city, 'official');
   if (B.langW) ch.langs = { ...(ch.langs ?? {}), [B.lang]: B.need };
   const from = dayOf(end) + B.weeks * 7, monday = from + ((7 - calendar(from * DAY).weekday) % 7);
-  const next = newCampaign(hash(c.seed, 'promoted') % 1e9, ch, city, 'handler', monday * DAY + WAKE_H * HOUR);
+  const next = newCampaign(hash(c.seed, 'promoted') % 1e9, ch, city, 'handler', monday * DAY + WAKE_H * HOUR, c.world ?? c.seed);   // (the same world, years on: sim/geopolitics.js)
   next.career = [...(c.career ?? []), { level: c.posting.level, city: c.posting.city, until: end },
     ...(B.langW ? [{ level: 'school', lang: B.lang, city: null, from: end + B.leaveW * 7 * DAY, until: monday * DAY }] : [])];
   next.posting.money.bank += c.posting.money.bank ?? 0;              // (the account goes with you: the new posting's first month on top)

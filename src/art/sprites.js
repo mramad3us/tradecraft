@@ -56,8 +56,14 @@
 //     they go, a burst forward side on, a star at you or over the head behind): src/render/crowd.js draws it.
 // Side on, every part of a rig is a shape turned about its pivot (turned(): each pixel looks up where it
 // came from, so a turned line steps cleanly); from the front and behind, small clusters placed by hand.
+//
+// **A paper target** (spec.target, a range's: sim/paper.js) isn't a person: paperFrame() draws it, the same in every
+// frame, its face to the camera (the stand's legs and feet in wood, the cardboard backer, the sheet: a chest silhouette
+// in black with its rings in grey, or a club's bull's-eye card), and its holes (spec.holes, cm from the rings' middle,
+// PAPER_PX a ring: pale through the black, dark through the white), outlined in ink as a figure is.
 import * as THREE from 'three';
 import { PX_PER_M } from './pixelart.js';
+import { KINDS as PAPERS } from '../sim/paper.js';
 
 export const PAD = 2;
 export const CELL = [24 + 2 * PAD, 34];
@@ -1407,9 +1413,55 @@ export function shade(cells, col, { outline = INK } = {}) {
 
 /** One frame as rows of colours (null transparent): for tests and close looks. */
 export function frame(spec, dir, name) {
+  if (spec.target) return paperFrame(spec);
   const px = shade(compose(spec, dir, name), colours(spec));
   return dir === 'left' ? px.map(row => row.slice().reverse()) : px;
 }
+
+// A paper target on its stand (see the header): the sheet's rows and columns in the cell, its rings' middle, a ring's width.
+export const PAPER_PX = 1.2;
+const PAPER_AT = { x0: 8, x1: 19, y0: 9, y1: 25 };
+const PAPER_MID = { chest: [13.5, 20.5], bull: [13.5, 17] };
+/** A paper target, as rows of colours (null transparent), its holes in it: every frame of one is this. */
+export function paperFrame(spec) {
+  const [W, H] = CELL, out = Array.from({ length: H }, () => Array(W).fill(null));
+  const px = (x, y, w, h, c) => { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) if (i >= 0 && j >= 0 && i < W && j < H) out[j][i] = c; };
+  const WOOD = 0x8f6345, WOOD_D = 0x6b4636, CARD = 0xb48459, SHEET = 0xf4efe6, SHEET_D = 0xe2dac6, BLACKK = 0x23252f, RING = 0x6a7182;
+  // (the stand: two posts, a bar under the sheet, a foot under each post)
+  for (const x of [7, 20]) { px(x, 8, 1, 24, WOOD); px(x, 8, 1, 1, tone2(WOOD)); }
+  px(7, 27, 14, 1, WOOD); px(7, 28, 14, 1, WOOD_D);
+  px(5, 32, 5, 1, WOOD); px(18, 32, 5, 1, WOOD); px(5, 33, 5, 1, WOOD_D); px(18, 33, 5, 1, WOOD_D);
+  const { x0, x1, y0, y1 } = PAPER_AT;
+  px(x0, y0 - 1, x1 - x0 + 1, y1 - y0 + 3, CARD);
+  px(x0, y0, x1 - x0 + 1, y1 - y0 + 1, SHEET); px(x1, y0, 1, y1 - y0 + 1, SHEET_D);
+  const kind = PAPERS[spec.target] ? spec.target : 'chest', [cx, cy] = PAPER_MID[kind];
+  const ring = (R, c, fill = false) => { for (let j = y0; j <= y1; j++) for (let i = x0; i <= x1; i++) { const d = Math.hypot(i + 0.5 - cx, j + 0.5 - cy); if (fill ? d <= R : Math.abs(d - R) < 0.5) out[j][i] = c; } };
+  if (kind === 'bull') {
+    ring(5 * PAPER_PX - 0.6, BLACKK); ring(3 * PAPER_PX, BLACKK, true);   // (the six's printed ring; the black bull, the eight in)
+    ring(1.5 * PAPER_PX, RING);
+  } else {
+    // (a chest silhouette: the head, the shoulders, the chest down to the sheet's foot; its rings grey on the black)
+    px(13, 10, 2, 1, BLACKK); px(12, 11, 4, 3, BLACKK); px(13, 14, 2, 1, BLACKK); px(12, 15, 4, 1, BLACKK);
+    px(10, 16, 8, 1, BLACKK); px(9, 17, 10, y1 - 16, BLACKK);
+    // (the nine's edge and the seven's)
+    for (let j = 17; j <= y1; j++) for (let i = 9; i <= 18; i++) { const d = Math.hypot(i + 0.5 - cx, j + 0.5 - cy); if (Math.abs(d - 2 * PAPER_PX) < 0.45 || Math.abs(d - 4 * PAPER_PX) < 0.45) out[j][i] = RING; }
+  }
+  // (the holes: through the black, the paper's pale fibres; through the white, the dark behind)
+  const k = PAPER_PX / (PAPERS[kind]?.ringCm ?? 5);
+  for (const [hx, hy] of spec.holes ?? []) {
+    const i = Math.round(cx - 0.5 + hx * k), j = Math.round(cy - 0.5 + hy * k);
+    if (i < x0 || i > x1 || j < y0 || j > y1) continue;
+    const under = out[j][i];
+    out[j][i] = under === BLACKK || under === RING ? 0xdfe2e8 : 0x23252f;
+  }
+  // (the outline, as a figure's: ink round the whole)
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (out[y][x] !== null && out[y][x] !== INK) continue;
+    if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => { const c = out[y + dy]?.[x + dx]; return c !== null && c !== undefined && c !== INK; })) out[y][x] = INK;
+  }
+  return out;
+}
+const tone2 = (c) => (((Math.min(255, ((c >> 16) & 255) + 24)) << 16) | ((Math.min(255, ((c >> 8) & 255) + 18)) << 8) | Math.min(255, (c & 255) + 12));
 
 /**
  * Every frame of a person (or those named), FRAMES across, DIRS down, as rows of colours (null

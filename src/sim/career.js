@@ -89,6 +89,19 @@ export function planPaper(character, city, cover = 'official') {
 }
 const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 
+// **Retirement and the next officer** (the user, 2026-11-04: "Officers retire when they cross 60 years old and reach the end of
+// a posting (they don't retire mid-post)"; the world goes on, its date and its business, when an officer's lost or retires
+// and the next is picked): RETIRE_AGE at a posting's end; the next officer's first day SUCCESSOR_WEEKS after the last's
+// career ended, a Monday, in the same world (c.world).
+export const RETIRE_AGE = 60, SUCCESSOR_WEEKS = 8;
+/** Whether p retires at a posting's end at ms. */
+export const retires = (p, ms) => (ageOf(p, ms) ?? 0) >= RETIRE_AGE;
+/** The next officer's first morning (wakeH local) after a career ended at ms. */
+export function successorStart(ms, wakeH = 7) {
+  const d = Math.floor(ms / DAY) + SUCCESSOR_WEEKS * 7, k = new Date(Date.UTC(2026, 0, 1) + d * DAY).getUTCDay(), monday = d + ((8 - k) % 7);
+  return monday * DAY + wakeH * 3600000;
+}
+
 /** p's birth, set once from the file's age at ms (a day of the year by their name, so it's always the same). */
 export function born(p, ms) {
   if (p && p.born === undefined && Number.isFinite(p.age)) p.born = ms - (p.age + (hash(p.name ?? '', 'born') % 1000) / 1000) * YEAR;

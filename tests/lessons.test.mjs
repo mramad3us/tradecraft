@@ -19,7 +19,7 @@ export default [
       const before = c.assignments.filter(a => a.status === 'open').length;
       const got = bookLessons(c, LESSON_BOOK.map(L => L.id), now, true);
       const days = got.map(a => dayOf(a.from) - today), early = c.assignments.filter(a => a.kind !== 'lesson' && a.status === 'open');
-      assert(got.length === LESSON_BOOK.length && days.join() === '1,2,3,4,5,6,7' && p.deskFrom === today + 8 && !early.length, `booked ${got.length}, days ${days.join()}, the desk from day ${p.deskFrom - today}; work in the settling week: ${early.length} (${before} before)`);
+      assert(got.length === LESSON_BOOK.length && days.join() === LESSON_BOOK.map((L, i) => i + 1).join() && p.deskFrom === today + LESSON_BOOK.length + 1 && !early.length, `booked ${got.length}, days ${days.join()}, the desk from day ${p.deskFrom - today}; work in the settling week: ${early.length} (${before} before)`);
       const cover = p.cover;
       pass(c, now, p.deskFrom * DAY);                                    // (the week of lessons gone by, as if each were done: the plan a week on from there)
       const real = c.assignments.filter(a => a.kind !== 'lesson' && a.status === 'open');
@@ -60,7 +60,7 @@ export default [
           assert(/^HALE'S EXERCISE/.test(paper.title) && c.posting.heat === heat && a.status === 'done', `${city} ${a.lesson}: folded "${paper.title}", heat ${heat} → ${c.posting.heat}`);
           out.push(`${city} ${a.lesson}: "${said[0].slice(0, 48)}…"`);
         }
-        assert(lessonsLeft(c).length === 0, `${city}: all seven done`);
+        assert(lessonsLeft(c).length === 0, `${city}: all ${LESSON_BOOK.length} done`);
       }
       console.log(`      ${out.join('; ')}`);
     },

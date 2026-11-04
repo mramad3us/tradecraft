@@ -18,5 +18,7 @@ export const EG = {
   // (pistols and shotguns on an Interior Ministry licence, at the minister's discretion)
   law: { handgun: 'licensed', long: 'licensed', carry: 'permit', ranges: 'club', diplomats: 'unclear' },
   black: { ease: 0.6, models: ['helwan', 'tokarev', 'browning', 'akm', 'model10'] },
+  // (its business over the years, sim/geopolitics.js)
+  geo: { traits: ['arms', 'insurgency', 'water', 'smuggling'], the: 'Egypt', region: 'Sinai', neighbour: 'Libyan' },
   range: { name: 'the Egyptian Shooting Club', what: ['helwan', 'cz75', 'rem870'] },
 };

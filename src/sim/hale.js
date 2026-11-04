@@ -40,6 +40,7 @@ export const ASIDES = {
   drop: '"A dead drop in snow is the worst kind: footprints. I learnt that the hard way. Write it down."',
   blown: '"I\'ve had this night. Once. The car was a timber lorry, and it was a long way to Finland. Move."',
   umbrella: '"Rain\'s a friend. Nobody looks up in it, nobody looks at anyone. Leningrad was all rain. Never mind."',
+  range: '"I learnt on a Makarov, if you want to know. Not from the Army. Somebody\'s cellar, a long way east of here. Front sight."',
 };
 
 // Hale on the flat's telephone (src/main.js openCall(): day one, and called back). To an officer out of

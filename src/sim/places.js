@@ -12,6 +12,8 @@
 // asset meeting at a bench (in a park, where the street has one), a photograph at the café he meets at.
 // A street within MISSION_ROWS of the flat, never the flat's own or the embassy's. You get there
 // yourself; at it in its hour, T begins it (sim/scenarios/campaign.js), and the scene is played there.
+// Hale's evening at the range (sim/lessons.js place 'range') is at a range's door (a shop of that kind, sim/shops.js):
+// the nearest the flat (rangeOf(): RANGE_ROWS either way, RANGE_SECTIONS along), the same club every time.
 import { sectionOf, forgetSections } from './city.js';
 import { townOf } from './cities/index.js';
 import { setMarks } from './map/marks.js';
@@ -20,6 +22,7 @@ import { placeName, streetName } from './map/street.js';
 import { stream, int, pick } from './rng.js';
 import { DAY } from './clock.js';
 import { lessonBook } from './lessons.js';
+import { RANGE_NAMES } from './interiors/range.js';
 
 export const SAFE_APART_M = 25;
 const placesOf = (p) => [p.embassy, p.home, ...p.safehouses];
@@ -84,6 +87,7 @@ export function missionPlace(c, a) {
     const d = L.place === 'entrance0' ? doors.find(o => o.kind === 'entrance' && o.z === Z.front) ?? { x: 14 } : doors.find(o => o.x > 14 && o.x < 26 && o.kind !== 'arch' && o.z === Z.front) ?? { x: 20 };
     return (a.at = { row: 0, x: d.x, z: Z.front + 0.8, kind: 'door', label: `${L.place === 'entrance0' ? 'A block\'s door' : 'A door'} on ${streetName(town, 0)}` });
   }
+  if (L?.place === 'range') { const d = rangeDoor(c); return (a.at = d ? { ...d } : null); }   // (the posting's club, the same every time: its own copy)
   const kind = L ? (L.place === 'bench' ? 'sdr' : 'door') : a.kind;
   // (never a place another assignment has had, two weeks either side: the same bench twice, or the same
   // park, is how a network's found; with none fresh to be had, any)
@@ -107,6 +111,30 @@ export function missionPlace(c, a) {
   }
   return (a.at = null);
 }
+
+// (ranges are few on the streets, a shop in a few hundred: where none's within reach, the club's range is down in the
+// basement of a sports club's building, a gym's or a fight club's, its door the club's: RANGE_UNDER)
+export const RANGE_ROWS = 6, RANGE_SECTIONS = 8, RANGE_UNDER = ['gym', 'club'], RANGE_PREFER_M = 240;   // (a range of its own, if it's no more than this further than a club's)
+/**
+ * The range nearest the flat (a shop door of its kind, sim/shops.js; or, none within RANGE_ROWS, the range under the
+ * nearest gym or club), kept (posting.range): { row, x, z, shop, kind: 'range', label }, or null.
+ */
+export function rangeDoor(c) {
+  const p = c.posting;
+  if (p.range !== undefined) return p.range;
+  const town = townOf({ seed: p.mapSeed, city: p.city }), hx = p.home.x ?? 0, found = { range: null, under: null };
+  for (let k = 0; k <= RANGE_ROWS; k++) for (const row of k ? [p.home.row - k, p.home.row + k] : [p.home.row]) for (let i = -RANGE_SECTIONS; i <= RANGE_SECTIONS; i++) {
+    for (const d of sectionOf(town, row, i).doors) {
+      const which = d.kind !== 'shop' || d.z !== Z.front ? null : d.shop === 'range' ? 'range' : RANGE_UNDER.includes(d.shop) ? 'under' : null;
+      if (!which) continue;
+      const far = Math.abs(row - p.home.row) * 80 + Math.abs(d.x - hx);   // (a street over is about a block's walk)
+      if (!found[which] || far < found[which].far) found[which] = { far, row, x: d.x, shop: d.shop };
+    }
+  }
+  const R = found.range, U = found.under, o = R && (!U || R.far <= U.far + RANGE_PREFER_M) ? R : U ?? R, name = cap(RANGE_NAMES[p.city] ?? 'the range');
+  return (p.range = o && { row: o.row, x: o.x, z: Z.front + 0.8, shop: o.shop, kind: 'range', label: o.shop === 'range' ? `${name} on ${streetName(town, o.row)}` : `${name}, down under the ${o.shop === 'gym' ? 'gym' : 'club'} on ${streetName(town, o.row)}` });
+}
+const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
 
 /** A target's office: a block's front door on a street of the posting's city, the same every time (t.office). */
 export function officeOf(c, t) {
