@@ -27,6 +27,9 @@
 //     without you (sim/scenarios/campaign.js extracted()), the ambassador's view of you EXTRACT_COVER the less.
 // Spook-related calls cost OWN_HEAT on a watched line of your own; a burner, nothing. What's rung for and still to come is
 // the campaign's (c.rung), heard each second (second()).
+// Under a legend (0.2's, docs/POSTINGS.md): no extraction; the way out, your own (exfilWays(): the posting's point far from the
+// centre, open EXFIL_WAIT_H, an illegal's only once the Center answers, EXFIL_SIGNAL_H); the station's word, its week's review,
+// left at a bench (signals()); and, from a handler's posting on, the agency's disguise officer (sim/disguise.js LOOKS).
 import { stream, chance, range, int, pick } from './rng.js';
 import { MIN, HOUR, DAY, clockText } from './clock.js';
 import { say } from './log.js';
@@ -47,7 +50,7 @@ import { sectionOf, LINE } from './city.js';
 import { placeName, streetName } from './map/street.js';
 import { newGun, newMag, MODELS } from './firearms.js';
 import { huntOf } from './hunt.js';
-import { EQUIPMENT } from './disguise.js';
+import { EQUIPMENT, ADV_AS, ADV_H, madeFor, LOOKS } from './disguise.js';
 import { isDeep } from './legends.js';
 
 export const PHONES = { burner: 'From a burner', own: 'From your own phone', home: 'From the flat\'s phone' };
@@ -97,6 +100,8 @@ export function services(state) {
     { key: 'taxi', label: 'A taxi, to where you are', ok: street && !R.taxi, why: !street ? 'on the street' : R.taxi ? 'one\'s on its way' : `at your kerb in a few minutes${watched && !FRIENDLY.has(country) ? '; on your own phone, they\'ll know where it took you' : ''}`, phones: phones(!FRIENDLY.has(country)) },
     { key: 'gun', label: 'A clean gun, from the agency', ok: S.now >= COST.gun && !R.drops.some(d => d.what === 'gun'), why: R.drops.some(d => d.what === 'gun') ? 'one\'s waiting already' : `${support(COST.gun)}: a dead drop, ready in a few hours`, phones: phones(true) },
     ...Object.entries(EQUIPMENT).map(([k, E]) => ({ key: `kit:${k}`, label: `${cap(E.name)}, from the agency`, ok: S.now >= E.as && !R.drops.some(d => d.what === k), why: R.drops.some(d => d.what === k) ? 'one\'s waiting already' : `${support(E.as)}: ${E.uses} uses, at a dead drop`, phones: phones(true) })),
+    // (a change of face, the agency's disguise officer at a safe house: from a handler's posting on, one with a network to run; sim/disguise.js)
+    ...(S.kind !== 'firstTour' ? [{ key: 'adv', label: 'A change of face, at a safe house', ok: !!c.posting.assets.length && S.now >= ADV_AS && !!houseFor(c) && !R.adv, why: R.adv ? `the disguise officer's on the way to ${low(c.posting.safehouses.find(h => h.id === R.adv.house)?.label ?? 'the safe house')}` : !c.posting.assets.length ? 'a network to run first' : !houseFor(c) ? 'no safe house to keep them at' : `${support(ADV_AS)}: the agency's disguise officer, ${Object.keys(LOOKS).length} faces made for you and kept at a safe house`, phones: phones(true) }] : []),
     { key: 'clinic', label: 'A clandestine clinic, in a safe house', ok: S.now >= COST.clinic && !!houseFor(c) && !(R.clinic && R.clinic.until > now), why: R.clinic && R.clinic.until > now ? `set up in ${c.posting.safehouses.find(h => h.id === R.clinic.house)?.label ?? 'a safe house'}` : !houseFor(c) ? 'no safe house left to make one of' : `${support(COST.clinic)}: a doctor of the agency's there from a few hours on, for ${CLINIC_DAYS} days`, phones: phones(true) },
     ...(CLEANUP_KINDS.includes(S.kind) ? [{ key: 'cleanup', label: 'A clean-up crew, here', ok: S.now >= COST.cleanup && bodies.length > 0 && !R.cleanup, why: R.cleanup ? 'on its way' : !bodies.length ? 'nothing here for one: nobody dead that hasn\'t been called in' : `${support(COST.cleanup)}: ${bodies.length === 1 ? 'the body' : `${bodies.length} bodies`} gone in a few minutes`, phones: phones(true) }] : []),
     // (under a legend, no car of the agency's: the way out is your own, far from the centre; an illegal's only once the Center answers: exfilWays())
@@ -146,6 +151,11 @@ export function ring(state, bus, key, phone) {
     const h = houseFor(c);
     R.clinic = { house: h.id, from: now + CLINIC_H * HOUR, until: now + CLINIC_H * HOUR + CLINIC_DAYS * DAY };
     lines.push(`"The plumber can come to ${low(h.label)} ${when(R.clinic.from, now)}." A doctor of the agency's, and what he needs, for ${CLINIC_DAYS} days. (Support ${COST.clinic}: ${supportOf(c).now} left.)`);
+  } else if (key === 'adv') {
+    spend(c, ADV_AS);
+    const h = houseFor(c);
+    R.adv = { house: h.id, at: now + Math.round(range(r, ...ADV_H) * 60) * MIN };
+    lines.push(`"The decorator can see to ${low(h.label)} ${when(R.adv.at, now)}." A woman with a make-up case and a photographer's eye: ${Object.keys(LOOKS).length} faces, kept there for you. (Support ${ADV_AS}: ${supportOf(c).now} left.)`);
   } else if (key === 'cleanup') {
     spend(c, COST.cleanup);
     R.cleanup = { at: now + Math.round(range(r, ...CLEANUP_MIN)) * MIN, row: state.map.row ?? 0, x: me.x, z: me.z };
@@ -268,6 +278,11 @@ export function second(state, bus, me, { extracted = null } = {}) {
     }
   }
   signals(state, bus, c, now);                                      // (under a legend, the station's word: a drop)
+  if (R.adv && now >= R.adv.at) {                                   // (the disguise officer's been: the faces kept at the safe house, sim/disguise.js)
+    const h = c.posting.safehouses.find(x => x.id === R.adv.house);
+    if (h && !h.burned) { h.disguises = [...(h.disguises ?? []), ...madeFor(state.people[state.player], now)]; say(state, bus, { kind: 'note', text: `${cap(h.label)}: the disguise officer's been and gone, and left you ${Object.keys(LOOKS).length} faces in a suitcase under the bed.` }); }
+    delete R.adv;
+  }
   exfilSecond(state, bus, me, c, now);                              // (and the way out, if you're making for it)
   R.drops = (R.drops ?? []).filter(d => now < d.until || (say(state, bus, { kind: 'note', text: d.what === 'signal' ? `The station's word behind ${low(d.at.label)}: cleared, unread. They'll wonder why.` : `The sports bag behind ${low(d.at.label)}: gone back where it came from. Nobody came for it.` }), false));
   if (R.clinic && now >= R.clinic.until) { delete R.clinic; say(state, bus, { kind: 'note', text: 'The safe house is a safe house again: the doctor\'s packed up and gone.' }); }

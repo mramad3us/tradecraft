@@ -7,7 +7,7 @@
 // exactly an extraction's; back 10 a day); an undercover officer under an unofficial cover (Beirut, Cairo, Moscow; London
 // has none such), thin (40, a clandestine clinic's, never an extraction: that would take more than a clandestine
 // operation has); an illegal, next to nothing (20, a clean gun's; back 2 a day). The last two are the 0.2 postings'
-// (DESIGN.md, Toward 0.2): the numbers are here for when they come. It starts full.
+// (docs/POSTINGS.md: sim/legends.js, the way out instead of an extraction, sim/dial.js). It starts full.
 // **Its price on the black market**, where it has none of its own: AS_USD dollars a point (the user: "1AS = 1000£"), for
 // what the black market does instead (sim/dial.js: Queued).
 // The posting keeps what's left (c.posting.support: { now }, filled in on first asking, so a save from before it has it).

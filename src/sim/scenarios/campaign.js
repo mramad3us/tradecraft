@@ -50,6 +50,8 @@ import { eat, soothe } from '../needs.js';
 import { agenda, pass, work, rest, lieLow, expected, heatWord, places, trip, fatigue, watched, heatFloor, goalOf, KINDS, WORK, TRAVEL, EXCUSES, EXCUSES_DEEP, EXCUSE_LINES } from '../campaign.js';
 import { isDeep } from '../legends.js';
 import { takenAtHome } from '../prison.js';
+import { wearAdvanced, remove, LOOKS, ADV_ON_MIN, ADV_OFF_MIN } from '../disguise.js';
+const qualityWord = (q) => (q >= 0.85 ? 'a stranger' : q >= 0.7 ? 'good, unless they look hard' : 'from across a street');
 import { huntOf, start as startHunt } from '../hunt.js';
 import { lessonBook, sceneOf } from '../lessons.js';
 import { order, lapse, dropHere, atDrop } from '../market.js';
@@ -204,6 +206,22 @@ export const campaignHub = {
       if (id === 'desk') return bus?.emit('desk-open');
       const line = chiefDo(state, id);
       if (line) say(state, bus, { kind: 'note', text: line });
+    }
+    else if (what === 'safe') {                                     // (a change of face at its safe house, on or off: sim/disguise.js; desk:safe:wear:<id> | desk:safe:off)
+      const h = safeHere(state), p = state.people.me, key = action.split(':').slice(2).join(':');
+      if (!h) return;
+      if (key === 'off' && p.disguise?.adv?.house === h.id) {
+        const A = p.disguise.adv;
+        remove(p); (h.disguises ??= []).push({ id: A.id, look: A.look, q: A.q });
+        say(state, bus, { kind: 'note', text: 'The face off, slowly, at the basin, and back into the suitcase under the bed: you again, as they described you.' });
+        return skip(state, bus, ADV_OFF_MIN * MIN);
+      }
+      const d = key.startsWith('wear:') && h.disguises?.find(x => x.id === key.slice(5));
+      const line = d && wearAdvanced(p, d, h.id);
+      if (!line) return;
+      h.disguises = h.disguises.filter(x => x !== d);
+      say(state, bus, { kind: 'note', text: line });
+      skip(state, bus, ADV_ON_MIN * MIN);
     }
     else if (what === 'dial') {                                     // (a service rung for, from the mind's Phone leaf: sim/dial.js; desk:dial:<service…>:<phone>)
       const parts = action.split(':'), phone = parts.at(-1), key = parts.slice(2, -1).join(':'), r = ring(state, bus, key, phone);
@@ -471,6 +489,8 @@ function use(state, bus, act, here = false) {
   if (act === 'unwindow') return backFromWindow(state, bus);
   if (act === 'embassy') return c.posting.embassy.door ? campaignHub.act(state, bus, 'desk:work') : enterEmbassy(state, bus);   // (a legend's workplace: no rooms of its own, the day's work at its door)
   if (String(act).startsWith('dial:collect:')) { const d = dropAt(state, me); if (d && `dial:collect:${d.id}` === act) say(state, bus, { kind: 'note', text: collect(state, bus, d) }); return; }   // (the agency's bench: sim/dial.js)
+  if (act === 'safe:face') { const h = safeHere(state); if (h?.disguises?.length) bus?.emit('safehouse', h.disguises.map(d => ({ key: `wear:${d.id}`, label: `${LOOKS[d.look].name}: ${qualityWord(d.q)}` }))); return; }   // (the suitcase under the bed: sim/disguise.js)
+  if (act === 'safe:off') return campaignHub.act(state, bus, 'desk:safe:off');
   if (act === 'clinic') {                                          // (the clandestine clinic's door: seen to, no names, nothing reported; out where you went in)
     const h = safeHere(state);
     if (!h || !clinicAt(c, h.id, state.time.ms)) return;
@@ -795,6 +815,10 @@ function instinct(state, c, now) {
   // (the clandestine clinic at this safe house, its doctor in; the agency's bench, what's behind it: sim/dial.js)
   const house = safeHere(state);
   if (house && clinicAt(c, house.id, now)) return L('clinic', 'warn', `${cap(house.label)}: the agency's doctor is in. {instinct}: in, to be seen to.`, 'clinic');
+  // (a change of face kept here, or the one you have on put back: sim/disguise.js)
+  const adv = state.people.me.disguise?.adv;
+  if (house && adv?.house === house.id) return L('safe-off', 'note', `${cap(house.label)}. {instinct}: the face off, and kept here for next time.`, 'safe:off');
+  if (house && house.disguises?.length && !state.people.me.disguise) return L('safe-face', 'note', `${cap(house.label)}: ${house.disguises.length} face${house.disguises.length > 1 ? 's' : ''} kept here. {instinct}: a change of face (half an hour).`, 'safe:face');
   const ad = dropAt(state, me);
   if (ad) return L('agency-drop', 'warn', now >= ad.from ? 'The bench. {instinct}: what the agency left behind it.' : `The bench. Nothing yet: from ${clockText(ad.from)}.`, now >= ad.from ? `dial:collect:${ad.id}` : null);
   // (at one of the black market's benches: the envelope, or what's behind it; sim/market.js)

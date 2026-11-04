@@ -206,7 +206,8 @@ function launch(s, { hour = null } = {}) {
   bus.on('wardrobe', (list) => setTimeout(() => list.length ? ui.openChoices('WARDROBE', 'WHAT TO WEAR, WHAT TO KEEP', list, (key) => acts.push(`desk:dress:${key}`)) : ui.closeOverlays(), 0));   // (the flat's wardrobe: sim/clothes.js)
   bus.on('basin', (list) => setTimeout(() => ui.openChoices('BASIN', 'WASH, OR THE CABINET', list, (key) => acts.push(`desk:basin:${key}`)), 0));   // (the flat's basin, and the cabinet over it: sim/clothes.js)
   bus.on('reading', (c) => setTimeout(() => { if (state === s) ui.openBooks(c, (key) => acts.push(`read:${key}`)); }, 0));   // (the shelf: one row a book, src/ui/ui.js openBooks())   // (a book, ten minutes at a time: sim/reading.js)
-  bus.on('bed', (list) => ui.openChoices('BED', 'HOW LONG?', list, (key) => acts.push(`desk:${key}`)));   // (the flat's bed by day: sim/scenarios/campaign.js)
+  bus.on('bed', (list) => ui.openChoices('BED', 'HOW LONG?', list, (key) => acts.push(`desk:${key}`)));
+  bus.on('safehouse', (list) => setTimeout(() => ui.openChoices('SAFE HOUSE', 'A CHANGE OF FACE', list, (key) => acts.push(`desk:safe:${key}`)), 0));   // (the faces kept at a safe house: sim/disguise.js)   // (the flat's bed by day: sim/scenarios/campaign.js)
   bus.on('photo', (w) => { snapWanted = w; });                    // (sim/scenarios/watch.js: the frame, at the next draw)
   bus.on('shop', ({ shop, ways }) => ui.openChoices('SHOP', shopWord(shop).replace(/^the /, '').toUpperCase(), ways.map(w => ({ key: w.id, label: w.label, off: w.off ?? undefined })), (key) => acts.push(`shop:${key}`)));   // (sim/shops.js)
   // (sim/buses.js; stood by the doors, off as they close: the same stops, a second card)

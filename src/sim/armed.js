@@ -22,7 +22,8 @@
 //     your rounds, someone dead), its hours at the station (the clock skipped), heat, the police's file, the
 //     ambassador's view of you; the paper that says it all (ARRESTED); and you're let out on the station's steps.
 //     Resisting (a shove, a fight, a run, a gun) is on the file too (RESIST_POLICE). Afterwards the street's alarm
-//     is over: their description of you closed, nobody still shouting (the user's, the same day).
+//     is over: their description of you closed, nobody still shouting (the user's, the same day). Under a legend (0.2's: no
+//     diplomatic passport) the arrest is sim/prison.js's once what they had you for is settled: the legend looked into.
 //   - Keep it in your hand past COMPLY_S, or fire, and an armed officer engages (a gunner, below); an unarmed
 //     one backs off and calls it in.
 //   - Passers-by who see it run (sim/shooting.js flee()); now and then one calls the police (CALL_P a second).

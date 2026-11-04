@@ -56,6 +56,10 @@
 // next step; an asset trusted enough (TRUSTED) brings more (yield 2).
 // **The file** (record()): the career as the character sheet (C) shows it: the posting now, the postings before
 // it (c.career: promote()), every assignment done or missed and how it went as the officer knows it, the reviews.
+// **The deep postings** (0.2's: docs/POSTINGS.md): the rungs under a legend and an illegal's (LEVELS), a posting made deep from a
+// handler's (posting(): sim/legends.js deepPosting()), its heat's floor nothing (heatFloor()), blown not expelled (blow()), the job
+// lost the posting lost (pass()), the week's review left at a drop, an illegal's taskings one after another (nextTasking()); the
+// career's offers and the next posting are sim/postings.js's.
 import { kindOf, regen } from './support.js';
 import { stream, int, pick, chance, range, weighted, hash } from './rng.js';
 import { sheet, streetLook } from './people.js';

@@ -43,8 +43,12 @@
 // station, its costs, a paper), and out on its steps. Either way the hunt's over: they've had you.
 // **Into a shop after you** (routeInto()): an officer coming to cuff you, or to stop a suspect, follows you in at the door and
 // across the floor; with you in a shop out of their sight, one of them goes in to look.
-// Queued (docs/DESIGN.md): disguises (the who marker changed by how good one is: disguise()); the investigation behind a hard
-// crime (the scene's evidence, CCTV where a city has it, detectives with the witnesses, a knock at the door).
+// **Disguises**: a kit's changes the hair, the glasses, a moustache, so the who marker with them, and its quality is on your side
+// (MOD.disguise); an advanced one (0.2's, sim/disguise.js LOOKS) changes the age, the build and the face (whoOf()), ADV_MOD of its
+// quality on your side, unless the officer's eye reads through it first (checked(): sim/disguise.js readThrough()). The blown hunt
+// (0.2's, HUNTS.blown): a foreign spy under a legend, the whole city, for days (sim/campaign.js blow()).
+// Queued (docs/DESIGN.md): the investigation behind a hard crime (the scene's evidence, CCTV where a city has it, detectives with
+// the witnesses, a knock at the door).
 import { stream, range, chance, pick } from './rng.js';
 import { say } from './log.js';
 import { HOUR, DAY, MIN } from './clock.js';
@@ -69,7 +73,7 @@ import { Z, streetName, SECTION_M, mouthOf } from './map/street.js';
 import { heardFrom } from './sense.js';
 import { isGun } from './firearms.js';
 import { thingName } from './items.js';
-import { disguiseOf } from './disguise.js';
+import { disguiseOf, advancedOf, readThrough, ADV_MOD, ADV_SEEN } from './disguise.js';
 import { SCREEN_HALF_M } from './crowd.js';
 import { noImmunity, questionedDeep } from './prison.js';
 
@@ -110,7 +114,8 @@ const low = (t) => t.charAt(0).toLowerCase() + t.slice(1);
 const TPS = 20;
 const ageBand = (age) => (age == null ? '' : age < 30 ? '20s' : age < 40 ? '30s' : age < 50 ? '40s' : age < 60 ? '50s' : '60+');
 /** Who someone is, as a witness says it: sex, skin, age, hair, a beard. One description (a disguise's to change: Queued). */
-export const whoOf = (p) => { const L = p?.look ?? {}; return [p?.sex, L.skin, ageBand(p?.age), L.hair?.style, L.hair?.color, L.beard ?? '', L.moustache ? 'm' : ''].join('|'); };
+// (an advanced disguise's age, build and face are what's described, unless an eye's read through it: sim/disguise.js; through, the face under it)
+export const whoOf = (p, through = false) => { const A = !through && advancedOf(p), W = through && advancedOf(p) ? p.disguise.was : null, L = W ? { ...(p.look ?? {}), hair: W.hair ?? p.look?.hair, beard: W.beard ?? undefined, moustache: W.moustache } : p?.look ?? {}; return [p?.sex, L.skin, ageBand(A ? (p?.age ?? 40) + A.age : p?.age), L.hair?.style, L.hair?.color, L.beard ?? '', L.moustache ? 'm' : '', ...(A ? [A.build ?? '', A.face] : [])].join('|'); };
 /** What someone wears, as a witness says it: the top and its colour, a hat, glasses. Another of any, other clothes. */
 export const wearOf = (p) => { const L = p?.look ?? {}; return [L.top?.kind, L.top?.color, L.hat?.kind ?? 'bare', L.hat?.color ?? '', L.glasses ?? ''].join('|'); };
 /** How good a disguise someone has on, 0 … 1 (sim/disguise.js: a kit's). */
@@ -216,12 +221,14 @@ export function badges(state) {
   return [{ key: 'face', state: mark('who', disguise(p) ? `${whoOf(p)}|d` : whoOf(p)) }, { key: 'clothes', state: mark('wearing', wearOf(p)) }, { key: 'place', state: where }];
 }
 
-/** The mods on your side of an officer's look (the check: your Deception against their Awareness). */
-export function mods(state, H, p, me) {
-  const out = [], now = state.time.ms, S = HUNTS[H.why];
-  if (H.who.known) out.push(H.who.look === whoOf(p) && !disguise(p) ? { why: 'they have your face', v: MOD.face } : { why: 'not the face they have', v: MOD.faceOther });
+/** The mods on your side of an officer's look (the check: your Deception against their Awareness); through: an advanced disguise read through (sim/disguise.js). */
+export function mods(state, H, p, me, through = false) {
+  const out = [], now = state.time.ms, S = HUNTS[H.why], A = advancedOf(p), on = disguise(p) && !(A && through);
+  if (H.who.known) out.push(H.who.look === whoOf(p, through) && !on ? { why: 'they have your face', v: MOD.face } : { why: 'not the face they have', v: MOD.faceOther });
   else out.push({ why: 'nobody had a good look at your face', v: MOD.faceNone });
-  if (disguise(p)) out.push({ why: 'a disguise', v: Math.round(disguise(p) * MOD.disguise) });   // (how good it is: sim/disguise.js)
+  if (A && through) out.push({ why: 'a disguise, read through', v: ADV_SEEN });
+  else if (A) out.push({ why: 'a change of face', v: Math.round(A.q * ADV_MOD) });   // (an advanced one's: sim/disguise.js)
+  else if (disguise(p)) out.push({ why: 'a disguise', v: Math.round(disguise(p) * MOD.disguise) });   // (how good it is: sim/disguise.js)
   if (H.wearing.known) out.push(H.wearing.look === wearOf(p) ? { why: 'dressed as they described you', v: MOD.wear } : { why: 'not dressed as they described you', v: MOD.wearOther });
   else out.push({ why: 'they don\'t know what you wore', v: MOD.wearNone });
   if (now < H.search) {
@@ -526,7 +533,10 @@ function looked(state, bus, me, H, now) {
 // The check: your Deception against their Awareness, with the hunt's mods; a natural 1 fails whatever the sum. True if you pass.
 function checked(state, bus, me, H, c, p, seen) {
   const them = state.people[c.who];
-  const r = opposed(state.rng, { skill: 'deception', value: skill(p, 'deception'), body: p, mods: mods(state, H, p, me) }, { skill: 'awareness', value: skill(them, 'awareness'), body: them });
+  // (a change of face first: a good eye reads through it, sim/disguise.js)
+  const rt = readThrough(state.rng, them, p);
+  if (rt && seen) say(state, bus, { kind: 'roll', roll: rt.roll, text: rt.through ? 'The look lingers on the jaw, the hairline, the hands: older than the face, or younger. Read through.' : 'The look takes in the face you have on, and believes it.' });
+  const r = opposed(state.rng, { skill: 'deception', value: skill(p, 'deception'), body: p, mods: mods(state, H, p, me, !!rt?.through) }, { skill: 'awareness', value: skill(them, 'awareness'), body: them });
   const ok = r.ok && r.ours.nat !== 1, who = c.car ? 'the car\'s crew' : 'the officer', he = them?.sex === 'f' ? 'she' : 'he';
   if (seen) say(state, bus, { kind: 'roll', roll: r, text: ok ? `${cap(who)}'s eyes go over you, and on.` : r.ours.nat === 1 ? `You look at ${c.car ? 'the car' : who} a moment too long, and ${c.car ? 'they look' : `${he} looks`} back.` : `${cap(who)}'s eyes find you, and stay.` });
   return ok;
