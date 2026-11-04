@@ -34,7 +34,7 @@
 // their side of the road runs (the city's `drive`).
 // Textures are shared by make and kept (pixeltown.js keep()); a section frees only its own.
 import * as THREE from 'three';
-import { ground, tile, mat, glow, box, roundedBox, paint, part, tone, PX_PER_M } from '../art/pixelart.js';
+import { ground, tile, mat, glow, box, roundedBox, paint, part, tone, PX_PER_M, GLOWS, COOL } from '../art/pixelart.js';
 import { street, streetSteps, building, facade, facadeSteps, lamp, bench, bin, car, railing, awning, hangingSign, blueLamp, hedgeLeaves, keep, phonebox, shelter, noticeBoard, beacon, pubSign, cart, stall, soukStall, minaret, generator, cablesMesh, cell } from '../art/pixeltown.js';
 import { treeCard, propCard } from '../art/townsprites.js';
 import { spritePerson, frame, card } from '../art/sprites.js';
@@ -60,23 +60,35 @@ function seeThrough(mesh) {
 }
 
 // A facade's paint operations, run on the art's painter. Shops are lit at night only: by day their
-// glass is glass, not the yellow that glows.
-const run = (ops, night) => (f) => {
-  for (const [op, ...args] of ops) {
-    if (op === 'shopfront') f.shopfront(args[0], args[1], args[2], { ...args[3], lit: night });
-    else f[op](...args);
-  }
+// glass is glass, not the yellow that glows. A police station's window or a hospital's (inside: the
+// op's kind, from its door: officialOf()) is theirs, not a shop's with goods on its shelves.
+const paintOp = (f, o, night, inside) => {
+  const [op, ...args] = o;
+  if (op === 'shopfront') f.shopfront(args[0], args[1], args[2], { ...args[3], lit: night, inside: inside?.get(o) ?? null });
+  else f[op](...args);
 };
+const run = (ops, night, inside) => (f) => { for (const o of ops) paintOp(f, o, night, inside); };
 // (the same, a few ops a step: a night face painted over frames, src/render/view.js)
 const OPS_PER_STEP = 6;
-const runSteps = (ops, night) => function* (f) {
+const runSteps = (ops, night, inside) => function* (f) {
   let n = 0;
-  for (const [op, ...args] of ops) {
-    if (op === 'shopfront') f.shopfront(args[0], args[1], args[2], { ...args[3], lit: night });
-    else f[op](...args);
+  for (const o of ops) {
+    paintOp(f, o, night, inside);
     if (++n % OPS_PER_STEP === 0) yield;
   }
 };
+// (which of a building's shopfronts are a police station's or a hospital's: the door whose window it is (its pane, from
+// the shopfront's own x: sim/cities/), its kind; the dress drew them as it draws any shop's, sim/services.js)
+function officialOf(B, S) {
+  const out = new Map();
+  for (const d of S.doors) if ((d.shop === 'police' || d.shop === 'hospital') && d.pane && d.z === B.z && d.x > B.x0 && d.x < B.x1) {
+    const o = B.ops.find(op => op[0] === 'shopfront' && Math.abs(B.x0 + op[1] - d.pane.x0) < 0.01);
+    if (o) out.set(o, d.shop);
+  }
+  return out.size ? out : null;
+}
+// (what glows on a front at night: a lit window's yellow; with a station's window or a hospital's, its strip light's white too)
+const glowsOf = (inside) => (inside ? [...GLOWS, ...COOL] : GLOWS);
 
 // The ground's tiles by make: a pavement kind (the street's, sim LOOKS.pave) as a repeating tile, and
 // the lanes' and alleys' surfaces.
@@ -326,8 +338,9 @@ export function* buildSection(S, { month = 11, night = () => false } = {}) {
   const r = stream('dusk', S.seed), byBuilding = [];               // (each building's own meshes, for the cutaway: src/render/cutaway.js)
   for (const B of S.buildings) {
     const before = g.children.length;
-    const spec = { x0: B.x0, x1: B.x1, z: B.z, h: B.h, d: B.d, wall: B.wall, wallColor: B.wallColor, roof: B.roof, roofColor: B.roofColor, kit: B.look?.roofKit, draw: run(B.ops, false), seed: B.seed, split: true, stacks: B.look?.party ? [0.4, ...B.look.party, B.x1 - B.x0 - 0.4] : null };
-    const painted = yield* facadeSteps({ w: spec.x1 - spec.x0, h: spec.h, wall: spec.wall, wallColor: spec.wallColor, draw: runSteps(B.ops, false), seed: spec.seed, night: false, split: spec.split ?? false });
+    const inside = officialOf(B, S);
+    const spec = { x0: B.x0, x1: B.x1, z: B.z, h: B.h, d: B.d, wall: B.wall, wallColor: B.wallColor, roof: B.roof, roofColor: B.roofColor, kit: B.look?.roofKit, draw: run(B.ops, false, inside), seed: B.seed, split: true, stacks: B.look?.party ? [0.4, ...B.look.party, B.x1 - B.x0 - 0.4] : null };
+    const painted = yield* facadeSteps({ w: spec.x1 - spec.x0, h: spec.h, wall: spec.wall, wallColor: spec.wallColor, draw: runSteps(B.ops, false, inside), seed: spec.seed, night: false, split: spec.split ?? false, glows: glowsOf(inside) });
     yield;
     const b = building({ ...spec, painted });
     g.add(b);
@@ -359,7 +372,7 @@ export function* buildSection(S, { month = 11, night = () => false } = {}) {
     fronts.push({ body, day: body.material[4], night: null, spec, dusk: range(r, 0.08, 0.7),
       paintNight() { const g = this.nightSteps(); while (!g.next().done); },
       // (its night face a step at a time: the view's, within its frame's budget; the section's build, when it's built after dark)
-      *nightSteps() { this.night = mat(0, yield* facadeSteps({ w: B.x1 - B.x0, h: B.h, wall: B.wall, wallColor: B.wallColor, draw: runSteps(B.ops, true), seed: B.seed, night: true, split: true })); } });
+      *nightSteps() { this.night = mat(0, yield* facadeSteps({ w: B.x1 - B.x0, h: B.h, wall: B.wall, wallColor: B.wallColor, draw: runSteps(B.ops, true, inside), seed: B.seed, night: true, split: true, glows: glowsOf(inside) })); } });
     if (night()) { yield* fronts[fronts.length - 1].nightSteps(); yield; }   // (built after dark, and not wanted on screen this frame: its night face too)
     yield;
   }

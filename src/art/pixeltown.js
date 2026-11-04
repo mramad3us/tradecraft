@@ -36,7 +36,7 @@
 // the joints). The plain finish is untouched: sample 006 draws as it did.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { PX_PER_M, GLOWS, mat, glow, paint, paintSteps, tile, box, roundedBox, ground, part, pool, rng, text, textWidth, finish, tone, noise, tnoise, fineBricks, emissiveOf } from './pixelart.js';
+import { PX_PER_M, GLOWS, COOL, mat, glow, paint, paintSteps, tile, box, roundedBox, ground, part, pool, rng, text, textWidth, finish, tone, noise, tnoise, fineBricks, emissiveOf } from './pixelart.js';
 
 const M = PX_PER_M;
 const INK = 0x14151c;
@@ -64,6 +64,36 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
   const streaks = (x0, y0, ww) => {
     if (!wall) return;
     for (let i = 0; i < ww; i++) if (r() < 0.35) px(x0 + i, y0, 1, 2 + Math.floor(r() * 7), tone(wall, -0.05 - r() * 0.03));
+  };
+  // A police station's glass or a hospital's, in pixels (no goods: the user, 2026-11-04), lit cool white all night, not a
+  // shop's warm yellow. A station's: grey blinds down over the top two thirds, two notices on the glass under them (an
+  // appeal, its band the station's navy), frosted film below; a hospital's: frosted film to over head height, a green
+  // band along its top, and over it the clear glass and the ceiling's light panels inside. Its own pattern, no dice:
+  // whatever's painted after it on the wall comes out as it did.
+  const official = (x0, y0, ww, hh, kind, lit) => {
+    const frost = lit ? COOL[0] : 0xdfe2e8, film = Math.floor(hh * 0.62);
+    if (kind === 'police') {
+      const blind = Math.floor(hh * 0.62);
+      for (let j = 0; j < blind; j++) px(x0, y0 + j, ww, 1, j % 2 ? (lit ? COOL[1] : 0x8f96a6) : lit ? COOL[0] : 0xb8bdc8);
+      px(x0, y0 + blind, ww, 1, 0x6a7182);                       // (the blind's bar)
+      px(x0, y0 + blind + 1, ww, hh - blind - 1, frost);
+      px(x0, y0 + blind + 1, ww, 1, tone(frost, -0.08));
+      for (const [nx, band] of [[Math.floor(ww * 0.22), true], [Math.floor(ww * 0.22) + 7, false]]) {
+        if (nx + 5 > ww - 1) continue;
+        const ny = y0 + blind + 2;
+        px(x0 + nx, ny, 5, 7, 0xf6f4ee); px(x0 + nx, ny + 7, 5, 1, 0xa0a6b4); px(x0 + nx + 5, ny + 1, 1, 7, 0xa0a6b4);   // (its shadow on the film)
+        if (band) px(x0 + nx, ny, 5, 2, 0x283f6b);
+        for (let k = band ? 3 : 1; k < 7; k += 2) px(x0 + nx + 1, ny + k, 3, 1, 0x6a7182);
+      }
+      return;
+    }
+    const top = hh - film;
+    px(x0, y0, ww, top, lit ? COOL[1] : 0x283f6b);               // (the clear glass: the corridor's light through it)
+    px(x0, y0, ww, 1, lit ? COOL[1] : 0x3b6296);
+    for (let i = 3; i < ww - 6; i += 12) px(x0 + i, y0 + 2, 6, 1, lit ? COOL[0] : 0xb8c4d2);   // (the ceiling's panels)
+    px(x0, y0 + top, ww, film, frost);
+    px(x0, y0 + top, ww, 2, 0x356f42); px(x0, y0 + top + 2, ww, 1, tone(frost, -0.06));
+    if (!lit) for (let i = 2; i < ww - 2; i += 4) px(x0 + i, y0 + top + Math.floor(film / 2), 2, 1, tone(frost, -0.04));   // (the film's dots by day)
   };
   const f = {
     W, H, r,
@@ -496,8 +526,9 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
         for (const bx of [x0 - 3, x0 + ww + 1]) { px(bx, cy + 2, 2, 2, tone(c, -0.04)); px(bx, cy + 4, 1, 1, tone(c, -0.06)); }
       }
     },
-    /** A shopfront: a dark frame, lit glass with things on shelves, a stall riser. */
-    shopfront(x, w, h, { frame = 0x23252f, lit = true, goods = [0x9e3c36, 0xf6f4ee, 0x5d8fc2, 0xe7b84a], etched = false, arched = false, roller = 0 } = {}) {
+    /** A shopfront: a dark frame, lit glass with things on shelves, a stall riser; a police station's or a hospital's (inside), their own glass: official(). */
+    shopfront(x, w, h, { frame = 0x23252f, lit = true, goods = [0x9e3c36, 0xf6f4ee, 0x5d8fc2, 0xe7b84a], etched = false, arched = false, roller = 0, inside = null } = {}) {
+      if (inside === 'police' || inside === 'hospital') roller = 0;        // (open all night: never shuttered)
       const x0 = X(x), y0 = Y(h), ww = Math.round(w * M), hh = Math.round(h * M);
       if (arched) {                                              // a round head over it, a grille fanning in it (downtown Cairo's ground floors)
         const R = ww / 2, base = wall ?? 0xd6b98a;
@@ -524,11 +555,14 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
         return;
       }
       px(x0, y0, ww, hh, frame);
-      px(x0 + 1, y0 + 1, ww - 2, hh - 6, lit ? 0xe7b84a : 0x283f6b);
-      px(x0 + 1, y0 + 1, ww - 2, 3, lit ? 0xf8e08a : 0x3b6296);
-      for (const sy of [Math.floor(hh * 0.45), hh - 7]) {        // shelves with goods
-        px(x0 + 1, y0 + sy, ww - 2, 1, 0x6b4636);
-        for (let i = 2; i < ww - 3; i += 3) if (r() < 0.75) px(x0 + i, y0 + sy - 2, 2, 2, goods[Math.floor(r() * goods.length)]);
+      if (inside === 'police' || inside === 'hospital') official(x0 + 1, y0 + 1, ww - 2, hh - 6, inside, lit);
+      else {
+        px(x0 + 1, y0 + 1, ww - 2, hh - 6, lit ? 0xe7b84a : 0x283f6b);
+        px(x0 + 1, y0 + 1, ww - 2, 3, lit ? 0xf8e08a : 0x3b6296);
+        for (const sy of [Math.floor(hh * 0.45), hh - 7]) {      // shelves with goods
+          px(x0 + 1, y0 + sy, ww - 2, 1, 0x6b4636);
+          for (let i = 2; i < ww - 3; i += 3) if (r() < 0.75) px(x0 + i, y0 + sy - 2, 2, 2, goods[Math.floor(r() * goods.length)]);
+        }
       }
       for (let i = 0; i < ww; i += 16) px(x0 + i, y0, 1, hh, frame);
       px(x0, y0 + hh - 5, ww, 5, frame);
@@ -539,7 +573,7 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
         px(x0, y0 + rh, ww, 1, 0x4c5262); px(x0 + Math.floor(ww / 2) - 1, y0 + rh - 2, 3, 2, 0x353947);
         if (fine) for (let k = 0; k < ww / 10; k++) px(x0 + Math.floor(r() * ww), y0 + Math.floor(r() * rh), 2, 1, tone(c, -0.18));   // rust, a sticker, graffiti's tag
       }
-      if (fine) { bevel(x0, y0, ww, hh, frame); for (let i = 3; i < ww - 6; i += 16) for (let k = 0; k < 5; k++) px(x0 + i + k + 2, y0 + 4 + k, 1, 1, tone(lit ? 0xe7b84a : 0x283f6b, 0.08)); }
+      if (fine) { bevel(x0, y0, ww, hh, frame); if (!(inside && lit)) for (let i = 3; i < ww - 6; i += 16) for (let k = 0; k < 5; k++) px(x0 + i + k + 2, y0 + 4 + k, 1, 1, tone(lit ? 0xe7b84a : 0x283f6b, 0.08)); }   // (the glass's glint; none on a station's lit blinds)
     },
     /** A sign: a board with a border and centred text; or (`style`) 'letters' on the wall itself, or a 'lightbox'. */
     sign(x, y, w, h, str, { bg = 0x1b2541, fg = 0xf8e08a, border = 0xb9862e, style = 'board', band = null } = {}) {
@@ -1244,13 +1278,13 @@ function* fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox 
 /** A building's painted front, w × h metres: the wall ('brick', 'plaster' or 'concrete'), then draw(f) with painter() (see building()). */
 export function facade(o) { const g = facadeSteps(o); for (;;) { const r = g.next(); if (r.done) return r.value; } }
 /** facade(), a step at a time: the wall, then what's on it (a draw that's a generator yields between its parts: src/render/town.js runSteps()). */
-export function* facadeSteps({ w, h, wall = 'brick', wallColor, draw, seed = 1, night = false, split = false }) {
+export function* facadeSteps({ w, h, wall = 'brick', wallColor, draw, seed = 1, night = false, split = false, glows = GLOWS }) {
   return yield* paintSteps(Math.round(w * M), Math.round(h * M), function* (px) {
     const f = wallOf(px, w, h, wall, wallColor, seed, night, split);
     yield;
     const it = draw?.(f);
     if (it && typeof it.next === 'function') yield* it;
-  }, { glows: GLOWS });
+  }, { glows });
 }
 
 /** A facade's painter, its wall painted (by its kind: brick, concrete, stucco, stone, plaster), before what's on it. */

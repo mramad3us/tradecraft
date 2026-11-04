@@ -38,6 +38,7 @@ import { arabic, arabicWidth } from './arabic.js';
 
 export const RES = [480, 270];
 export const GLOWS = [0xe7b84a, 0xf8e08a];                    // lit windows and shops: these glow at night
+export const COOL = [0xeaf2f6, 0xc8d8e2];                     // a police station's strip lights, a hospital's: these too, on the fronts that have one (src/render/town.js)
 export const PX_PER_M = 16;
 
 // The palette: ramps of hue-shifted colours (shadows cooler, lights warmer), sRGB.

@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.31 (2026-11-04)
+
+- **Police stations and hospitals look like themselves.** Their windows no longer show a shop's goods on shelves. A station's has its blinds down and two notices on the frosted glass under them; a hospital's has frosted glass to over head height with a green band along its top, and the corridor's lights above. Both are lit a cool white all night, not a shop's yellow, and never shuttered. In all four cities.
+- **London's street-name plates keep off the shop signs.** A lane's plate went at the same spot on its corner whatever was there, and on one corner in five it covered a shop's board (a police station's, in the case you saw). It now goes where the wall is clear: at the corner under the band, on the building across the lane, or on the wall just above a shop's board. About 1 lane in 50 has none, where both corners are a pub or a full parade of shops (the lane's name still shows by the clock when you're in it).
+- **Mansion blocks' names fit between their shops.** The name over a mansion block's door ran under the boards of the shops either side on a third to a half of them. It now takes the wall between them, shortened to its first word where the whole name doesn't fit (ALBANY for ALBANY MANSIONS), or is left off (about 1 in 20).
+
 ## v0.1.30 (2026-11-04)
 
 - **The police take you in, and you see it happen.** An arrest is no longer instant. With your hands empty, the nearest officer comes in to cuff you, after you if you walk off, while the others shout at you to stand still (not to drop a gun you no longer hold). When he's at your side, time stops and it's your choice: down on your knees; shove him off and run (your CQC against his, harder the second time); fight him; your gun; or nothing. Then he takes you down: you face down on the pavement, him kneeling on your back, for six seconds. A paper follows (ARREST): what they had you for, how you went, what they took, the hours at the station and what it cost.

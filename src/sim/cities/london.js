@@ -16,12 +16,14 @@
 //     between them, a door to the flats above;
 //   - a pub: its ground floor painted dark, its name in gold across the fascia, etched glass, hanging
 //     baskets, the sign with its picture hung over the pavement;
-//   - an Edwardian mansion block in red brick banded with white stone, its name over the door;
+//   - an Edwardian mansion block in red brick banded with white stone, its name over the door (as much of
+//     it as fits between its shops' fascias);
 //   - a post-war council block of brown brick, its walkways stacked on its front.
 // Signs in English. On the street: red pillar boxes and telephone boxes at the kerb, Belisha beacons
 // at the zebras (white stripes, zigzags along the kerbs, LOOK RIGHT), black cabs among the parked
 // cars, plane trees, York stone flags, rain-dark. Mews (cobbled lanes of old stables), passages and
-// side streets lead north; the street's name plate on the corner. Cars drive on the left.
+// side streets lead north; the street's name plate on the corner, clear of the fascias (over one, where
+// both corners are shops'). Cars drive on the left.
 import { stream, int, range, pick, chance, weighted, hash } from '../rng.js';
 import { SECTION_M, GAP_M, STRETCH, Z, GROUND_H, FLOOR_H, at, toneOf } from '../map/layout.js';
 import { londonName, londonLook } from './folk.js';
@@ -229,7 +231,7 @@ function building(r, x0, x1, z, S) {
         door(x + 0.3, 1.6, 'entrance');
         if (mansion) {                                             // (carved over the door, as wide as it needs)
           const name = pick(r, ['ALBANY MANSIONS', 'PEMBRIDGE MANSIONS', 'CLARENDON COURT', 'ELGIN MANSIONS', 'HEREFORD MANSIONS', 'YORK MANSIONS', 'ST JOHNS COURT']), nw = Math.min(w - 0.4, wordM(name) + 0.4);
-          ops.push(['sign', Math.max(0.2, Math.min(w - 0.2 - nw, x + 1.1 - nw / 2)), 3.35, nw, 0.55, name, { bg: B.wallColor, fg: 0xf4efe6, border: B.wallColor, style: 'letters' }]);
+          ops.push(['sign', Math.max(0.2, Math.min(w - 0.2 - nw, x + 1.1 - nw / 2)), 3.35, nw, 0.55, name, { bg: B.wallColor, fg: 0xf4efe6, border: B.wallColor, style: 'letters', over: x + 1.1 }]);
         }
         x += 2.4 + range(r, 0, 0.5); continue;
       }
@@ -237,6 +239,7 @@ function building(r, x0, x1, z, S) {
       if (room > 1.4) ops.push(['window', x, 1.0, 1.2, 1.7, { frame: mansion ? WHITE : 0xdfe2e8, lintel: mansion ? 0xe2dac6 : null, sash: mansion, head: mansion ? null : 'none', bars: !mansion && chance(r, 0.3) }]);
       x += 1.2 + 0.8 + range(r, 0, 0.5);
     }
+    fitName(ops, w);
     ops.push(['band', GROUND_H, mansion ? WHITE : 0xa0978a]);
     const bays = Math.max(2, Math.round(w / (mansion ? 2.4 : 2.2))), bay = w / bays;
     for (let f = 1; f < floors; f++) {
@@ -299,7 +302,9 @@ function dress(B, L) {
   for (const x of [0.18, w - 0.38]) if (B.style !== 'council' && chance(L, 0.35)) v.pipes.push(x);
   for (const x of v.pipes) extra.push(['pipe', x, B.h - 0.75, pick(L, [0x23252f, 0x353947])]);
   if (B.h > GROUND_H + FLOOR_H && chance(L, 0.08)) extra.push(['scaffold', GROUND_H + 0.3, B.h - 0.6, pick(L, [0x6a7182, 0x4c5262, 0x283f6b]), FLOOR_H]);
-  B.ops.push(...extra);
+  // (a lane's name plate over the downpipe and the ivy at its corner: painted last)
+  const plates = B.ops.filter(op => op[0] === 'plate');
+  B.ops.splice(0, B.ops.length, ...B.ops.filter(op => op[0] !== 'plate'), ...extra, ...plates);
 }
 
 // ---------- the street's furniture ----------
@@ -336,17 +341,69 @@ function furnish(S, { r, block, lamp, inMouth, near, zx, sx }) {
       break;
     }
   }
-  // The lane's name on the corner, on the building beside its mouth (paint: the dress keeps it).
+  // The lane's name on the corner, on a building beside its mouth, where its wall is clear (paint: the dress keeps it): under
+  // the ground floor's band, at the corner; where a shop's fascia runs to that corner (or it's a pub's, its baskets and its
+  // sign there), the building across the mouth; where both are, on the wall over the fascia, the name on one line (the user,
+  // 2026-11-04: a mews's plate over a police station's sign); where neither is clear, none (its name is by the watch to
+  // whoever's in it: src/ui/ui.js).
   for (const g0 of S.gapsN) {
     const g = { ...g0, ...(g0.jog ? { x0: g0.jog.x0, x1: g0.jog.x1 } : {}) };          // (at the lane's mouth)
-    const B = S.buildings.find(b => !b.back && Math.abs(b.x1 - g.x0) < 0.01) ?? S.buildings.find(b => !b.back && Math.abs(b.x0 - g.x1) < 0.01);
-    if (!B || g.name.startsWith('a ')) continue;
-    // (a long name in two lines, the street's word under it)
+    if (g.name.startsWith('a ')) continue;
+    const sides = [S.buildings.find(b => !b.back && Math.abs(b.x1 - g.x0) < 0.01), S.buildings.find(b => !b.back && Math.abs(b.x0 - g.x1) < 0.01)].filter(B => B && !B.pub);
+    // (a long name in two lines under the band, the street's word under it; over a fascia, one)
     const words = g.name.toUpperCase().replace(/'/g, ''), sp = words.lastIndexOf(' '), two = wordM(words) > 2.4 && sp > 0;
     const lines = two ? [words.slice(0, sp), words.slice(sp + 1)] : [words], wM = Math.max(...lines.map(wordM)) + 0.4, hM = two ? 0.82 : 0.5;
-    if (wM > B.x1 - B.x0 - 0.4) continue;
-    B.ops.push(['plate', Math.abs(B.x1 - g.x0) < 0.01 ? B.x1 - B.x0 - wM - 0.2 : 0.2, GROUND_H - 0.12 - hM, wM, hM, lines.join('\n')]);
+    const spots = [...sides.map(B => [B, wM, hM, GROUND_H - 0.12 - hM, lines]), ...sides.map(B => [B, wordM(words) + 0.4, 9 / 16, OVER_FASCIA_M, [words]])];
+    const at = (B, w, h, y) => {                                   // (at the corner, or a little in from it: past a console)
+      const right = Math.abs(B.x1 - g.x0) < 0.01, over = y === OVER_FASCIA_M;
+      for (let k = 0; k <= PLATE_SLIDE_M * 16; k++) {                // (a pixel at a time)
+        const x = right ? B.x1 - B.x0 - w - 0.2 - k / 16 : 0.2 + k / 16;
+        if (x < 0.1 || x + w > B.x1 - B.x0 - 0.1 || B.ops.some(op => (!over || op[0] !== 'consoles') && covers(op, x, y + h - plateH(h), w, plateH(h)))) continue;   // (over a fascia, its consoles' caps under its foot)
+        if (over && !B.ops.some(op => op[0] === 'sign' && op[6]?.style === 'fascia' && op[1] < x + w && x < op[1] + op[3])) continue;
+        return x;
+      }
+      return null;
+    };
+    for (const [B, w, h, y, ls] of spots) {
+      const x = at(B, w, h, y);
+      if (x === null) continue;
+      B.ops.push(['plate', x, y, w, h, ls.join('\n')]);
+      break;
+    }
   }
+}
+// (a mansion block's name over its door, between its shops' fascias, laid after them (the user, 2026-11-04: lettering under
+// a station's board): the whole name where it fits that wall, else its first words ('ALBANY' of 'ALBANY MANSIONS'), else
+// none; centred over the door as far as the wall lets it. Its paint only: no door moves.)
+function fitName(ops, w) {
+  const k = ops.findIndex(op => op[0] === 'sign' && op[6]?.over !== undefined);
+  if (k < 0) return;
+  const N = ops[k], mid = N[6].over, fascias = ops.filter(op => op[0] === 'sign' && op[6]?.style === 'fascia');
+  const a = Math.max(0.2, ...fascias.filter(f => f[1] + f[3] / 2 < mid).map(f => f[1] + f[3] + 0.15));
+  const b = Math.min(w - 0.2, ...fascias.filter(f => f[1] + f[3] / 2 >= mid).map(f => f[1] - 0.15));
+  const words = N[5].split(' ');
+  for (let n = words.length; n > 0; n--) {
+    const name = words.slice(0, n).join(' '), nw = wordM(name) + 0.4;
+    if (n < words.length && n === 1 && name.length < 5) break;     // (not 'ST' of 'ST JOHNS COURT', nor 'YORK' alone)
+    if (nw > b - a) continue;
+    ops[k] = ['sign', Math.max(a, Math.min(b - nw, mid - nw / 2)), N[2], nw, N[4], name, (({ over, ...o }) => o)(N[6])];
+    return;
+  }
+  ops.splice(k, 1);
+}
+// (a plate over a fascia: a pixel over it, under the first floor's sills, across the band; a plate's height as painted, from its
+// top down, nine pixels at least; at most this far in from the corner)
+const OVER_FASCIA_M = 3.86, PLATE_SLIDE_M = 1.0, plateH = (h) => Math.max(9, Math.round(h * 16)) / 16;
+// (what a plate mustn't cover, m clear of it: a sign, a window and its sill, a door and its fanlight or canopy, a shopfront, a
+// console, another plate)
+function covers(op, x, y, w, h, m = 0.04) {
+  const [k, a, b, c, d] = op, hit = (x0, y0, x1, y1) => x < x1 + m && x0 - m < x + w && y < y1 + m && y0 - m < y + h;
+  if (k === 'sign' || k === 'plate') return hit(a, b, a + c, b + d);
+  if (k === 'window') return hit(a - 0.07, b - 0.13, a + c + 0.07, b + d + 0.07);
+  if (k === 'door') return hit(a, 0, a + b, c + (d?.canopy ? 0.7 : d?.fan ? 0.45 : 0.1));
+  if (k === 'shopfront') return hit(a, 0, a + b, c);
+  if (k === 'consoles') return a.some(cx => hit(cx - 0.15, b, cx + 0.2, b + c + 0.13));
+  return false;
 }
 
 // ---------- the looks ----------

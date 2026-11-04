@@ -262,4 +262,29 @@ export default [
       assert(!failed && lostMid <= 1, `${failed} chases failed, ${lostMid} lost mid-chase`);
     },
   },
+  {
+    name: 'cities: London\'s lane plates and mansion blocks\' names over nothing else painted (a fascia, a window, a door, a console), and most lanes with their plate',
+    fn() {
+      // (the user, 2026-11-04: a mews's plate over a police station's board; before, one plate in five covered something,
+      // and a third of the mansions' names ran under their shops' fascias)
+      const rect = (o) => (o[0] === 'door' || o[0] === 'shopfront' ? [o[1], 0, o[2], o[3]] : ['sign', 'window', 'plate'].includes(o[0]) ? [o[1], o[2], o[3], o[4]] : null);
+      const hit = (p, q) => p[0] < q[0] + q[2] && q[0] < p[0] + p[2] && p[1] < q[1] + q[3] && q[1] < p[1] + p[3];
+      let lanes = 0, plates = 0, names = 0;
+      const bad = [];
+      for (let row = -3; row <= 3; row++) for (let i = -8; i <= 8; i++) {
+        const S = section('london:77', i, row);
+        lanes += S.gapsN.filter(g => !g.name.startsWith('a ')).length;
+        for (const B of S.buildings) for (const op of B.ops) {
+          if (!(op[0] === 'plate' || (op[0] === 'sign' && op[6]?.style === 'letters'))) continue;
+          op[0] === 'plate' ? plates++ : names++;
+          const p = rect(op);
+          const under = B.ops.filter(o => o !== op && rect(o) && hit(p, rect(o))).map(o => o[0])
+            .concat(B.ops.filter(o => o[0] === 'consoles' && op[0] !== 'plate').flatMap(o => o[1].filter(x => x + 0.19 > p[0] && x - 0.13 < p[0] + p[2] && o[2] + o[3] > p[1] && o[2] < p[1] + p[3])).map(() => 'console'));
+          if (under.length) bad.push(`${op[5].replace('\n', ' ')} (row ${row}) over ${under.join(', ')}`);
+        }
+      }
+      assert(!bad.length && plates >= lanes * 0.95, `${bad.length} over something: ${bad.slice(0, 3).join('; ')}; ${plates} plates for ${lanes} lanes`);
+      console.log(`      ${plates} plates for ${lanes} named lanes (${((1 - plates / lanes) * 100).toFixed(1)}% without), ${names} mansion names, none over anything`);
+    },
+  },
 ];
