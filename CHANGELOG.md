@@ -4,6 +4,8 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.2.0-rc1 (2026-11-05)
+
 - **Undercover and illegal postings.** A posting done well now offers three branches, listed on the result paper with how long each takes and why any is closed:
   - **A station under official cover**, as before.
   - **Undercover** in Moscow, Beirut or Cairo (never London), after a handler's posting carried out. A year's school (three where Arabic is to be learnt) ends with the language fluent and every skill at the post's floors; then 3–20 months living the legend before day one. Never longer to train for than the illegal's.
@@ -19,6 +21,7 @@ One entry per release, newest first: what changed for the player, and the number
 - **Advanced disguises.** From a handler's posting on (with a network to run), the agency's disguise officer (15 support) leaves three faces at a safe house: fifteen years older, a heavier build, another face. Put one on at its door (half an hour); a witness then describes another age, build and face. Off at its door it's kept, off anywhere else it's gone. A good eye reads through it: a patrolman seldom, an expert half the time, and then it counts against you.
 - **The long rivalries.** A deep post's purpose is a thread of a decades-long rivalry (the long war with Moscow since 1947, with Tehran by way of the party since 1983, Moscow's courtship of Cairo since 1955), not the station's business of the season. Its brief says what the long war did while you were away.
 - **New starts.** "Under a legend" opens once a game of yours has gone illegal or carried out an undercover post; "An illegal" is debug's. Legends now stop at last after two postings past their first, with a reason.
+- **A tail picked up at your door after dark no longer just stands there.** A covert team that picked you up 20 m back on a dark street never once saw you, stood where you'd been, and lost you within a minute and a half; a master felt them in 4 walks of 6. They watched you out of the door, so for the first 20 s they have you while they close in, nearer in the dark. A master feels them in 6 of 6 again.
 
 ## v0.1.42 (2026-11-04)
 

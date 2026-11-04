@@ -29,7 +29,9 @@
 //     (after they'd had you a while), the team rolls (lostSight(): your Pathfinding against the best of
 //     their Tracking, the dark, a crowd and the distance on your side): theirs, and they saw where you
 //     went (READ_S: round the corner, up the lane, in at the door); yours, and all they have is where you
-//     were.
+//     were. Picking you up at your door (pickUp()), they watched you out of it: for PICKUP_S they have you
+//     while they close to their distance (at night, a dark street's: closer), or a team that started 20 m
+//     back in the dark would never once see you, and stand where you'd been.
 //   - **What they write down.** Seen by a watcher, the conspicuous things are noted (flag()), and the
 //     character doesn't know it unless they catch the watcher at it (their Awareness against the
 //     watcher's Deception, with the watcher in view): a hedged line, and a face counted. Running,
@@ -75,7 +77,7 @@ const TPS = 1000 / TICK_MS;
 export const MEET_AFTER_MIN = [5, 6.5];
 export const MEET_FOR_MIN = 8;
 export const MEET_S = 20;
-export const LOSE_S = { overt: 40, covert: 30 };
+export const LOSE_S = { overt: 40, covert: 30 }, PICKUP_S = 20;
 export const KEEP_M = { overt: [8, 13], covert: [17, 26] };
 export const GUESS_S = 4;                                          // out of sight, they reckon you on this long the way you were going
 export const READ_S = 6;                                           // their roll won as they lose sight of you: this long, they saw where you went
@@ -573,6 +575,7 @@ export function pickUp(state, r = state.rng) {
   const sc = teamOf(state);
   for (const c of sc.crew) if (c.role !== 'spare') join(state, c, -range(r, 21, 25));
   sc.teamSeenMs = state.time.ms + 60000;                          // (they know the door you came out of)
+  sc.pickupMs = state.time.ms + PICKUP_S * 1000;                  // (and watched you out of it: they have you while they close in)
   fix(state);
 }
 
@@ -619,7 +622,7 @@ function thinkWatcher(state, a) {
   }
   const now = state.time.ms, sees = seesActor(state, a, me);
   if (sees) a.ai.seenMs = now;
-  if (sees || sc.read > now || !sc.known) fix(state);              // (seen, or read as they lost you: lostSight(); a team from before this knew, as it was)
+  if (sees || sc.read > now || !sc.known || now < (sc.pickupMs ?? 0)) fix(state);   // (seen, or read as they lost you: lostSight(); a team from before this knew, as it was; picking you up at your door)
   // (where the team reckons you are, by radio: not where you are)
   const K = guess(state, sc), dir = K.dir, zone = zoneOf(state, K.x, K.z);
   // (they have to see you to follow you: closer in the dark, and closer still out of sight a while)
