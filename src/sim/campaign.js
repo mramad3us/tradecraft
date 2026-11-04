@@ -65,6 +65,7 @@ import { outcomeWord } from './outcomes.js';
 import { CITIES, CITY_IDS, cityById, FIRST_TOUR_CITY } from './cities/index.js';
 import { missionXP, gain, level, progress } from './xp.js';
 import { fieldwork } from './rust.js';
+import { POLICE_COOL_DAY } from './police.js';
 import { LESSON_BOOK, lessonBook, sceneOf } from './lessons.js';
 export { LESSON_BOOK, lessonBook, sceneOf };
 export const LESSON_GAP_H = 2, LESSON_XP_K = 0.4;
@@ -483,6 +484,7 @@ export function pass(c, from, to) {
     if (next.day === 1 && next.month !== p.money.paid) { p.money.paid = next.month; p.money.bank = (p.money.bank ?? 0) + p.money.salary; p.money.fundLeft = p.money.fund; papers.push({ kind: 'pay', title: 'PAY', lines: [`Salary in: $${p.money.salary}.`, `The operational fund topped up to $${p.money.fund}.`] }); }
     if (weekday(dayMs) === 6) papers.push(review(c, dayMs));
     p.heat = Math.max(20, p.heat - 1);                              // (a day goes by: the opposition's interest cools a little)
+    if (p.police) p.police = Math.max(0, p.police - POLICE_COOL_DAY);   // (and the police's: sim/police.js)
     // (a safe house they saw you go into: the station hears by morning)
     for (const s of p.safehouses.filter(x => x.seen && !x.burned && x.seen < dayMs + DAY)) {
       s.burned = dayMs + DAY;

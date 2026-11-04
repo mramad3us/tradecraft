@@ -658,6 +658,33 @@ export function createUI({ input, cb }) {
     const what = d.who ? ({ sdr: `a meeting with ${d.who}`, tail: `a tail on ${d.who}`, watch: `a photograph of ${d.who}` })[d.kind] : ({ sdr: 'an asset meeting', tail: 'a tail', watch: 'a photograph' })[d.kind] ?? 'an assignment';
     return `${cap(what)}${d.trip ? `, in ${cityById(d.trip).name}` : ''}`;
   };
+  /**
+   * Fitness as a picture: the number, seven cells round the base (−3 … +3: how far your keeping-fit has you above or below
+   * it, sim/fitness.js), and this week's training as a bar, with where it keeps you as you are and where it makes you fitter.
+   * The words are on the hover.
+   */
+  // (an infocard: what a line means, on the hover, kept off the page: the user, 2026-11-04, "too wordy, this needs to be
+  // a on-hover infocard")
+  function info(el, trigger, title, lines) {
+    return el('div', { className: 'info', tabIndex: 0 }, trigger,
+      el('div', { className: 'infocard' }, title ? el('b', { textContent: title }) : null, ...lines.filter(Boolean).map(t => el('p', { textContent: t }))));
+  }
+  function fitnessGraph(el, fit, W) {
+    const words = `Fitness ${fit}: the body takes ${fit ? `${Math.round(100 * fit / FITNESS_K)}% more` : 'only what it takes'} before it gives.${W ? ` Your base is ${W.base}${W.off ? `, and you're ${W.off > 0 ? `${W.off} above it` : `${-W.off} below it`}` : ''}. This week's training: ${W.load}; ${W.hold} keeps you as you are${W.up ? `, ${W.up} makes you fitter` : W.cap === 0 ? '; at the top, nothing takes you above it' : ''}.` : ''}`;
+    if (!W) return info(el, el('div', { className: 'fit' }, el('div', { className: 'fit-top' }, el('b', { textContent: String(fit) }), el('small', { textContent: `+${fit ? Math.round(100 * fit / FITNESS_K) : 0}% before you give` }))), 'Fitness', [words]);
+    const cells = [-3, -2, -1, 0, 1, 2, 3].map(k => el('i', { className: `fit-cell${k === 0 ? ' base' : ''}${(W.off > 0 && k > 0 && k <= W.off) ? ' up' : (W.off < 0 && k < 0 && k >= W.off) ? ' down' : ''}${k > W.cap ? ' shut' : ''}` }));
+    const top = Math.max(W.up ?? W.hold * 1.3, W.load, 1), at = (v) => `${Math.round(100 * Math.min(1, v / top))}%`;
+    return info(el, el('div', { className: 'fit' },
+      el('div', { className: 'fit-top' }, el('b', { textContent: String(fit) }), el('span', { className: 'fit-cells' }, ...cells),
+        el('small', { textContent: `base ${W.base}${W.off ? ` ${W.off > 0 ? '+' : '−'}${Math.abs(W.off)}` : ''}` })),
+      el('div', { className: 'fit-week' },
+        el('small', { className: 'fit-label', textContent: 'this week' }),
+        el('span', { className: 'fit-bar' }, el('i', { className: `fit-fill${W.load >= (W.up ?? Infinity) ? ' up' : W.load >= W.hold ? ' hold' : ''}`, style: `width:${at(W.load)}` }),
+          el('i', { className: 'fit-tick', style: `left:${at(W.hold)}`, title: `${W.hold}: keeps you as you are` }),
+          W.up ? el('i', { className: 'fit-tick up', style: `left:${at(W.up)}`, title: `${W.up}: makes you fitter` }) : null),
+        el('small', { className: 'fit-n', textContent: `${W.load} / ${W.up ?? W.hold}` }))), 'Fitness', [words, 'The cells: your fitness against your base, three either way. The bar: this week\'s training, Monday to Sunday; the white tick keeps you as you are, the green one makes you fitter.']);
+  }
+
   function openSheet(state) {
     const p = state.people[state.player], cls = CLASSES[p.cls], os = p.os ?? 0, now = state.time.ms, c = state.campaign;
     // (who they are: the sheet's own, or, in an assignment's scene (whose officer is the scene's copy), the campaign's)
@@ -668,19 +695,26 @@ export function createUI({ input, cb }) {
     const R = c ? record(c, now) : null, rd = c ? readOf(c, p, now) : null;
     const langs = Object.entries(cv('langs') ?? {}).map(([k, l]) => `${LANG_NAME[k] ?? k} (${l})`).join(', ');
     const sexWord = cv('sex') === 'f' ? 'female' : 'male';
-    const sec = (...kids) => el('div', { className: 'cs-sec' }, ...kids);
+    const sec = (...kids) => el('div', { className: 'cs-sec' }, ...kids), underLegend = ['legend', 'non-official'].includes(state.legend?.cover);   // (a false identity, not the embassy's cover)
     const file = [
       sec(el('h3', {}, 'The file'),
         row(cv('age') ? 'Age' : 'Sex', cv('age') ? `${cv('age')}, ${sexWord}` : cap(sexWord)),
         langs ? row('Languages', langs) : null,
         cv('background') ? row('Background', cv('background')) : null,
         cv('anew') ? row('Back', cv('anew')) : null,                   // (a legend's reason for starting again)
-        !R && state.legend?.name ? row('Cover', state.legend.name) : null),
+        !R && state.legend?.name && !underLegend ? row('Cover', state.legend.name) : null),
+      // (the legend you're under, if it's not your own name: what you are on paper, the papers, what happens if it breaks; the user, 2026-11-04,
+      // "the C charsheet should talk about the legend we're under (false identity) if any")
+      underLegend ? sec(el('h3', {}, 'Your legend'),
+        row('Name', state.legend.alias ?? 'a name not your own'),
+        row('As', cap(state.legend.name.replace(/ \(your legend\)$/, ''))),
+        row('Papers', state.legend.papers ?? 'a passport in that name'),
+        row('If it breaks', 'No diplomatic passport, no immunity: their prison, and nobody will say you were ours.')) : null,
       ...(R ? [
         sec(el('h3', {}, 'The posting'),
           row('Post', `${R.rank}, ${R.agency}, Station ${cityById(R.city).name}`),
           row('Since', `${fileDate(R.since)}: day ${R.day}`),
-          row('Cover', R.job),
+          row('Cover', underLegend ? `${R.job} (tonight, a legend: below)` : `${R.job}: your own name, a diplomatic passport; caught, expelled, not jailed`),
           row('Tasking', `${cap(R.subject)}. Delivered: ${R.intel} of ${R.goal}`),
           row('Network', R.network.length ? R.network.join(', ') : R.level === 'junior' ? 'none of your own on a first tour' : 'nobody left'),
           row('Heat', rd.heat.text), row('Embassy', rd.cover.text),
@@ -707,10 +741,18 @@ export function createUI({ input, cb }) {
     const pr = progress(p), feel = cls?.overskill ? feelWords(p) : null;
     const what = [
       el('h3', {}, 'What you are'),
-      cls?.overskill ? el('div', { className: 'cs-os' }, el('span', {}, cls.overskill), el('span', { className: 'read-bar' }, el('i', { style: `left: 0; width: ${os}%` })), el('b', {}, `${os} / 100`)) : null,
-      cls?.overskill ? el('p', { className: 'mind-note' }, `${os >= 100 ? '' : `${pr.have} of ${pr.need} XP toward ${os + 1}. `}It multiplies the skills that matter to a ${cls.name.toLowerCase()} (×). And it's a feel: eyes on you to ${feel.eyesM} m (an overt pair ${feel.overt}, a good team ${feel.covert}); whoever you're after, out of sight, to ${feel.quarryM} m (at 60 m, ${feel.quarry}).${sharpM(os) >= 0.5 ? ` The edge of your eye reaches ${Math.round(sharpM(os))} m further.` : ''}`) : null,
-      el('table', { className: 'cs-skills' }, el('tbody', {}, Object.entries(SKILLS).map(skillRow))),
-      el('p', { className: 'mind-note' }, `The level's your training; • a point of practice since${p.bg ? ', ◆ one your background brought' : ''}.`),
+      cls?.overskill ? info(el, el('div', { className: 'cs-osbox' },
+        el('div', { className: 'cs-os' }, el('span', {}, cls.overskill), el('span', { className: 'read-bar' }, el('i', { style: `left: 0; width: ${os}%` })), el('b', {}, `${os} / 100`)),
+        os < 100 ? el('div', { className: 'cs-xp' }, el('span', { className: 'cs-xpbar' }, el('i', { style: `width: ${Math.round(100 * Math.min(1, pr.have / Math.max(1, pr.need)))}%` })), el('small', { textContent: `${pr.have} / ${pr.need} XP → ${os + 1}` })) : null),
+        cls.overskill, [
+          `It multiplies the skills that matter to a ${cls.name.toLowerCase()}: the × column.`,
+          `Eyes on you: felt out to ${feel.eyesM} m (an overt pair ${feel.overt}, a good team ${feel.covert}).`,
+          `Whoever you're after, out of sight: felt out to ${feel.quarryM} m (at 60 m, ${feel.quarry}).`,
+          sharpM(os) >= 0.5 ? `The edge of your eye reaches ${Math.round(sharpM(os))} m further.` : null,
+          os < 100 ? `${pr.have} of ${pr.need} XP toward ${os + 1}: it comes of doing the work, slower as it climbs.` : null]) : null,
+      info(el, el('table', { className: 'cs-skills' }, el('tbody', {}, Object.entries(SKILLS).map(skillRow))), 'Skills', [
+        'The level is your training: a course, advanced, master. Each • is a point of practice since' + (p.bg ? '; each ◆ one your background brought.' : '.'),
+        'Rusty: a skill over 15 left alone a month or more costs you, till you practise it again. Kept up: fitness above its base.']),
     ];
     // (on you: the body as you know it, then what else it's going through: the pain, the cold, the hours awake, the stomach; how fit; what's on you)
     const fit = skill(p, 'fitness'), nw = needsWords(p, now), W = c ? weekWords(p, now) : null;
@@ -723,9 +765,7 @@ export function createUI({ input, cb }) {
     const body = [
       el('h3', {}, 'On you'), words(el, f, { self: true, more }),
       el('h3', {}, 'Fitness'),
-      el('p', { className: 'cs-line' }, `Fitness ${fit}: the body takes ${fit ? `${Math.round(100 * fit / FITNESS_K)}% more` : 'only what it takes'} before it gives.`),
-      // (how fit you're keeping: this week's training against what your base asks: sim/fitness.js)
-      W ? el('p', { className: 'cs-line' }, `Your base is ${W.base}${W.off ? `, and you're ${W.off > 0 ? `${W.off} above it` : `${-W.off} below it`}` : ''}. This week's training: ${W.load}; ${W.hold} keeps you as you are${W.up ? `, ${W.up} makes you fitter` : W.cap === 0 ? '; at the top, nothing takes you above it' : ''}.`) : null,
+      fitnessGraph(el, fit, W),                                     // (the number, the band round the base, the week's training against what it asks: sim/fitness.js; the user, 2026-11-04, "too many words, this should be graphics")
       el('h3', {}, 'Carrying'),
       el('p', { className: 'cs-line' }, `${price(state, cashOf(p))}; ${[p.hand && `${thingName(p.hand)}, in hand`, ...(p.items ?? []).map(k => thingName(k))].filter(Boolean).join('; ') || 'nothing to fight with'}. (${input.label('inventory')})`),
     ];

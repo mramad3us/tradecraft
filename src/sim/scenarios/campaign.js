@@ -49,6 +49,8 @@ import { skip, newMap } from '../game.js';
 import { eat, soothe } from '../needs.js';
 import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, watched, KINDS, WORK, TRAVEL, EXCUSES, EXCUSE_LINES } from '../campaign.js';
 import { lessonBook, sceneOf } from '../lessons.js';
+import { order, lapse, dropHere, atDrop } from '../market.js';
+import { price } from '../money.js';
 import { screen } from '../screening.js';
 import { ways as tableWays, work as gunWork } from '../gunwork.js';
 import { discharge } from '../shooting.js';
@@ -179,6 +181,10 @@ export const campaignHub = {
       if (id === 'nap') { until(now + NAP_MIN * MIN, 'An hour on top of the covers, shoes off. You wake thick-headed, and better for it.'); c.awake = Math.min(state.time.ms, (c.awake ?? now) + NAP_EASES_H * HOUR); }
       else { until(now + REST_MIN * MIN, 'Half an hour on the bed with the ceiling for company. Your breathing slows.'); eat(p, p.needs?.ate ?? state.time.ms, REST_CALM); }
     }
+    else if (what === 'market') {                                   // (a call to the seller, from the mind: sim/market.js; desk:market:<model>:<burner|own>)
+      const r = order(state, bus, id, action.split(':')[3]);
+      say(state, bus, { kind: r.ok ? 'note' : 'instinct', text: r.text });
+    }
     else if (what === 'phone') {                                    // (a call to an asset, from the mind: sim/phone.js; desk:phone:<asset>:<burner|own>:<why>)
       const [, , , phone, why] = action.split(':'), r = call(state, bus, id, phone, why);
       if (!r.ok && r.text) say(state, bus, { kind: 'instinct', text: r.text });
@@ -238,6 +244,7 @@ export const campaignHub = {
     if (state.map.place === 'embassy' && me && !me.busy && exitHere(state, me)) return leaveEmbassy(state, bus);   // (out by the street door)
     // (past the arch, into the corridor: through the metal detector, once a visit: sim/screening.js)
     if (state.map.place === 'embassy' && me && !state.scenario.screened && me.z < N_M + HALL_M) { state.scenario.screened = true; screen(state, bus, state.people[me.who], c); }
+    lapse(state, bus);                                               // (an envelope never left, goods never collected: sim/market.js)
     // (a spot walked to: what you went there for)
     if (state.scenario.using && me && !me.busy) { const u = state.scenario.using; state.scenario.using = null; if (spotNear(state, me)?.kind === u.spot) use(state, bus, u.act, true); }
     // (a call: the telephone rings in the flat, when it's due and you're there)
@@ -428,6 +435,7 @@ function use(state, bus, act, here = false) {
   if (act === 'home') return enterHome(state, bus, 'door');
   if (act === 'unwindow') return backFromWindow(state, bus);
   if (act === 'embassy') return enterEmbassy(state, bus);
+  if (act === 'drop:pay' || act === 'drop:get') { const w = dropHere(state, me); if (w && `drop:${w}` === act) say(state, bus, { kind: 'note', text: atDrop(state, bus, state.people.me, w) }); return; }   // (the black market's benches: sim/market.js)
   if (String(act).startsWith('begin:')) return begin(state, bus, act.slice(6));
   const kind = { phone: 'phone', call: 'phone', sleep: 'sleep', wash: 'wash', eat: 'eat', table: 'eat', window: 'window', read: 'read', work: 'desk', chief: 'chief', dress: 'dress' }[act], s = kind && spotOf(state, kind);
   if (!s) return;
@@ -700,6 +708,10 @@ function instinct(state, c, now) {
     if (k0.weekday < 5 && !c.worked[Math.floor(now / DAY)] && k0.hour < WORK.to) return L('work-door', 'note', `The embassy. {instinct}: in, to your desk${k0.hour < WORK.from ? ' (early: the coffee\'s on)' : ''}.`, 'embassy');
     return L('work-shut', 'calm', `The embassy${k0.weekday >= 5 ? ': the weekend, the Marine and the flag' : ': your day\'s done here'}. {instinct}: in all the same.`, 'embassy');
   }
+  // (at one of the black market's benches: the envelope, or what's behind it; sim/market.js)
+  const drop = dropHere(state, me), O = c.order;
+  if (drop === 'pay') return L('drop-pay', 'warn', `The bench. {instinct}: the envelope behind its leg, ${price(state, O.usd)}. Nobody watching, you hope.`, 'drop:pay');
+  if (drop === 'get') return L('drop-get', 'warn', now >= O.get.from ? 'The bench. {instinct}: what\'s been left behind its leg.' : `The bench. Nothing yet: from ${clockText(O.get.from)}.`, now >= O.get.from ? 'drop:get' : null);
   // (in the flat, at the embassy: what's at hand first, a reminder after it, so T still does it; the user, 2026-11-04,
   // "window 't' prompt doesn't show up" under an assignment's "be off by")
   const s = (state.map.place === 'home' || state.map.place === 'embassy') && me && !me.busy && spotNear(state, me), line = s && SPOT_LINE[s.kind]?.(state);

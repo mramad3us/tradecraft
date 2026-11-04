@@ -417,8 +417,38 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .cs-grid > div > h3:first-child, .cs-file > .cs-sec:first-child > h3 { margin-top: 0; }
 .cs-body .bp-status { margin-bottom: 4px; }
 .cs-line { color: #b8bdc8; font-size: calc(12px * var(--ui, 1)); margin: 2px 0 4px; }
+/* Fitness as a picture (src/ui/ui.js fitnessGraph()): the number, the band round the base, the week's training. */
+.fit { margin: 2px 0 6px; cursor: help; }
+.fit-top { display: flex; align-items: center; gap: 8px; }
+.fit-top b { color: #dfe2e8; font-size: calc(18px * var(--ui, 1)); min-width: 1.6em; }
+.fit-top small, .fit-week small { color: #8f96a6; font-size: calc(11px * var(--ui, 1)); }
+.fit-cells { display: inline-flex; gap: 2px; }
+.fit-cell { display: inline-block; width: calc(9px * var(--ui, 1)); height: calc(9px * var(--ui, 1)); background: #23252f; border: 1px solid #353947; }
+.fit-cell.base { background: #4c5262; border-color: #8f96a6; }
+.fit-cell.up { background: #76ad4c; border-color: #9fcf6e; }
+.fit-cell.down { background: #c95c45; border-color: #e8896a; }
+.fit-cell.shut { opacity: 0.25; }
+.fit-week { display: grid; grid-template-columns: 4.6em 1fr 4.4em; gap: 8px; align-items: center; margin-top: 5px; }
+.fit-bar { position: relative; height: calc(7px * var(--ui, 1)); background: #14151c; border: 1px solid #353947; }
+.fit-fill { position: absolute; left: 0; top: 0; bottom: 0; background: #8f96a6; }
+.fit-fill.hold { background: #8fc0e0; }
+.fit-fill.up { background: #76ad4c; }
+.fit-tick { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #dfe2e8; }
+.fit-tick.up { background: #9fcf6e; }
+.fit-n { text-align: right; }
 .cs-os { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; color: #f6f4ee; margin: 0 0 4px; }
 .cs-os .read-bar { height: 8px; }
+.cs-xp { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; margin: 0 0 6px; }
+.cs-xpbar { height: 3px; background: #14151c; border: 1px solid #353947; }
+.cs-xpbar i { display: block; height: 100%; background: #e7b84a; }
+.cs-xp small { color: #8f96a6; font-size: calc(11px * var(--ui, 1)); }
+/* An infocard (src/ui/ui.js info()): what a line means, on the hover or the focus, floating over the sheet. */
+.info { position: relative; outline: none; }
+.info > .infocard { display: none; position: absolute; z-index: 20; left: 0; top: calc(100% + 4px); width: min(28em, 100%); min-width: 18em; background: #14151c; border: 1px solid #4c5262; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); padding: 8px 10px; pointer-events: none; }
+.info:hover > .infocard, .info:focus-visible > .infocard { display: block; }
+.infocard b { display: block; color: #e7b84a; font-weight: normal; letter-spacing: 0.06em; text-transform: uppercase; font-size: calc(11px * var(--ui, 1)); margin-bottom: 4px; }
+.infocard p { color: #b8bdc8; font-size: calc(12px * var(--ui, 1)); margin: 2px 0; }
+.info:hover > .cs-osbox, .info:hover > .fit, .info:hover > .cs-skills { cursor: help; }
 .cs-os b { font-weight: normal; }
 .cs-what .mind-note { margin: 2px 0 4px; line-height: 1.4; }
 .cs-skills { border-collapse: collapse; font-size: calc(13px * var(--ui, 1)); margin: 4px 0 2px; width: 100%; }

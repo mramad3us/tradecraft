@@ -25,6 +25,7 @@
 // by their Weapon handling, its roll), one after another in real time: the draw, the safety or the selector, a
 // round chambered, a stoppage cleared, the aim (sim/shooting.js aimMs()), the shot (sim/shooting.js npcShot(),
 // the same odds as yours), the recovery. They stand while they do it (sim/agents.js: ai.gunner).
+import { policeHeat, POLICE_ARREST } from './police.js';
 import { isGun, armOf, modelOf, newGun, act as gunAct, ready, canDo, MODELS, KINDS } from './firearms.js';
 import { policeOf } from './countries/index.js';
 import { aimMs, npcShot, flee } from './shooting.js';
@@ -164,7 +165,7 @@ export function arrest(state, bus, me) {
   for (const k of taken) delete p.arms?.[k];
   const near = (state.items?.dropped ?? []).filter(it => isGun(it.kind) && Math.hypot(it.x - me.x, it.z - me.z) < 4);
   state.items && (state.items.dropped = state.items.dropped.filter(it => !near.includes(it)));
-  addHeat(state, ARREST_HEAT);
+  addHeat(state, ARREST_HEAT); policeHeat(state, POLICE_ARREST);   // (the police's own file on you: sim/police.js)
   const P = state.campaign?.posting;
   if (P) P.cover = Math.max(0, (P.cover ?? 70) - ARREST_COVER);
   for (const c of cops(state)) { c.alert = null; if (c.ai) c.ai.gunner = null; }

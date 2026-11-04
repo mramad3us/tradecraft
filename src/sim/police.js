@@ -41,6 +41,23 @@ import { policeOf } from './countries/index.js';
 import { armCop } from './armed.js';
 
 export const EYE_M = 14, STOP_M = 6, STOP_PER_POINT = 0.07, HEAT_FROM = 30, HEAT_PER = 400, SPAWN_M = 70, GONE_M = 110;
+// The police's own interest in you (the campaign's, c.posting.police, 0 … POLICE_MAX; the user, 2026-11-03: "police
+// heat"): not the opposition's (sim/heat.js), the city's police, who stop people and write names down. Up for a name in a
+// notebook (POLICE_PAPERS), a search (POLICE_SEARCH, POLICE_FOUND when they find something), a stop walked away from
+// (POLICE_WALK), being taken in (POLICE_ARREST: sim/armed.js), your description out after violence (POLICE_WANTED:
+// sim/emergency.js), a gun dealer's phone (sim/market.js); down POLICE_COOL_DAY a day (sim/campaign.js pass()). It makes
+// a patrol likelier to stop you (× 1 + police / POLICE_STOP_K: at 40 twice as likely, at 100 three and a half times).
+export const POLICE_MAX = 100, POLICE_COOL_DAY = 2, POLICE_STOP_K = 40;
+export const POLICE_PAPERS = 2, POLICE_SEARCH = 4, POLICE_FOUND = 15, POLICE_WALK = 6, POLICE_ARREST = 30, POLICE_WANTED = 20;
+/** The police's interest, now (0 outside a campaign). */
+export const policeHeatOf = (state) => state.campaign?.posting?.police ?? 0;
+/** The police's interest up (or down) by n: the new value. */
+export function policeHeat(state, n) {
+  const P = state.campaign?.posting;
+  if (!P) return 0;
+  P.police = Math.max(0, Math.min(POLICE_MAX, (P.police ?? 0) + n));
+  return P.police;
+}
 export const PAPERS_HEAT = 2, WALK_HEAT = 4, WALK_COVER = 3, FOUND_HEAT = 10, FOUND_COVER = 12, POCKET_MOD = 2, BLOOD_MOD = -4, HELD_MOD = -3;
 const P = (state) => policeOf(state.map);                         // (the country's police, the city's where it has its own: sim/countries/)
 const cops = (state) => state.actors.filter(a => a.cop);
@@ -76,7 +93,7 @@ export function patrolTick(state) {
 /** The chance an officer stops you, now: what shows, the city's habit, your heat. */
 export function stopChance(state) {
   const p = state.people[state.player], pts = shows(p).reduce((s, m) => s + m.v, 0);
-  return Math.min(0.95, P(state).stopBase + pts * STOP_PER_POINT + Math.max(0, heat(state) - HEAT_FROM) / HEAT_PER);
+  return Math.min(0.95, (P(state).stopBase + pts * STOP_PER_POINT + Math.max(0, heat(state) - HEAT_FROM) / HEAT_PER) * (1 + policeHeatOf(state) / POLICE_STOP_K));   // (the police's own interest: policeHeat())
 }
 
 /** Once a second: officers who see you weigh you; a stop begun walks up to you and asks; walked off from, you've walked away. */
@@ -126,6 +143,7 @@ export function answer(state, bus, key) {
     delete state.$stop;
     for (const a of cops(state)) { a.done = true; a.stopping = false; try { setRoute(state, a, routeFrom(townOf(state.map), { row: state.map.row ?? 0, x: a.x, z: a.z }, { row: state.map.row ?? 0, x: a.x + (a.face === 'left' ? -GONE_M : GONE_M), z: a.z })); } catch {} }
   };
+  if (key === 'walk') policeHeat(state, POLICE_WALK);
   if (key === 'walk') return end('You don\'t stop: a diplomat needn\'t. One of them talks into his radio as you go. The embassy will hear of it by tonight.', WALK_HEAT, WALK_COVER);
   if (key === 'talk') {
     const r = opposed(state.rng, { skill: 'deception', value: skill(p, 'deception'), body: p, mods: [blood && { why: 'blood on you', v: BLOOD_MOD }, held && { why: 'something in your hand', v: HELD_MOD }].filter(Boolean) },
@@ -137,6 +155,7 @@ export function answer(state, bus, key) {
   // (papers: a diplomat's, handed back; what shows gets a search anyway)
   say(state, bus, { kind: 'note', text: state.legend?.cover === 'official' ? 'He turns the diplomatic passport over, reads it twice, writes your name in his notebook, and hands it back.' : 'He reads your papers slowly, and looks at you over them.' });
   if (blood || held) return search(state, bus, them, end, `${blood && held ? 'The blood on you, the thing in your hand' : blood ? 'The blood on you' : 'The thing in your hand'}: "And your pockets, please."`);   // (what showed, and only that)
+  policeHeat(state, POLICE_PAPERS);
   return end('"Thank you." They walk on.', PAPERS_HEAT);
 }
 
@@ -151,7 +170,8 @@ function search(state, bus, them, end, why = null) {
     const r = opposed(state.rng, { skill: 'awareness', value: skill(them, 'awareness'), body: them }, { skill: 'deception', value: skill(p, 'deception'), body: p, mods: [{ why: 'in a pocket', v: POCKET_MOD }] }, { them: true });
     if (r.ok) found.push(o.kind);
   }
-  if (!found.length) return end('Hands down your coat, your pockets turned out: keys, a phone, coins. Nothing. "On your way." Your name\'s in the notebook.', PAPERS_HEAT);
+  if (!found.length) { policeHeat(state, POLICE_SEARCH); return end('Hands down your coat, your pockets turned out: keys, a phone, coins. Nothing. "On your way." Your name\'s in the notebook.', PAPERS_HEAT); }
+  policeHeat(state, POLICE_FOUND);
   // (taken; a diplomat isn't arrested: driven to the embassy's gate)
   for (const k of found) { if (p.hand === k) delete p.hand; else { const i = (p.items ?? []).indexOf(k); if (i >= 0) p.items.splice(i, 1); } }
   const words = found.map(k => thingName(k));

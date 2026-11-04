@@ -14,6 +14,7 @@
 //   - **People:** your network, the men you watch, your colleagues: as you know them.
 //   - **Where you stand:** your read of your heat and your cover (sim/belief.js: words, and how sure),
 //     the station's tally, your money, your body.
+import { sellerOf, stock } from '../sim/market.js';
 import { lessonBook } from '../sim/lessons.js';
 import { plaque } from './plaque.js';
 import { text as glyphs, textWidth } from '../art/pixelart.js';
@@ -100,6 +101,33 @@ function standLeaf(state, { el }) {
 }
 
 // ---------- People ----------
+// (the black market's man, once a barman's given you his number: what he has, at his price, and which phone to ring him
+// from; and how the order stands: sim/market.js)
+function sellerLeaf(state, deps, show) {
+  const { el, act } = deps, c = state.campaign, s = sellerOf(c), me = state.people.me, o = c.order && !c.order.done ? c.order : null, now = state.time.ms;
+  if (!s && !o) return [];
+  const name = s ? s.name.charAt(0).toUpperCase() + s.name.slice(1) : 'The seller';
+  const status = o ? (!o.paid ? `Owed: ${price(state, o.usd)} for ${o.name}, behind a bench by ${clockText(o.pay.by)} ${dateText(o.pay.by).split(' ').slice(0, 3).join(' ')}: ${o.pay.label.toLowerCase()}.`
+    : `Paid. ${o.name.charAt(0).toUpperCase() + o.name.slice(1)} behind another bench from ${clockText(o.get.from)} ${dateText(o.get.from).split(' ').slice(0, 3).join(' ')}: ${o.get.label.toLowerCase()}.`) : null;
+  const panel = () => {
+    const list = stock(c), pick = list.find(x => x.model === deps.on.model) ?? null;
+    return el('div', { className: 'mind-call' },
+      el('div', { className: 'mind-acts' }, ...list.map(x => el('button', { className: `mind-why${x === pick ? ' on' : ''}`, onclick: () => { deps.on.model = x.model; show('people'); } }, `${x.name} (${price(state, x.usd)})`))),
+      pick ? el('p', { className: 'mind-note' }, `${pick.name.charAt(0).toUpperCase() + pick.name.slice(1)}, used, a spare magazine and a box of twenty: ${price(state, pick.usd)}, cash, by dead drop.`) : el('p', { className: 'mind-note' }, 'What do you want from him?'),
+      el('div', { className: 'mind-acts' },
+        el('button', { disabled: !pick || !(burnersOf(me) > 0), title: 'used once, and dumped', onclick: () => act(`market:${pick.model}:burner`) }, `From a burner (${burnersOf(me)} on you)`),
+        el('button', { disabled: !pick, title: 'a diplomat\'s number on a gun dealer\'s bill', onclick: () => act(`market:${pick.model}:own`) }, 'From your own phone: traceable'),
+        el('button', { onclick: () => { deps.on.call = null; show('people'); } }, 'Not now')));
+  };
+  return [
+    el('h3', {}, 'Off the books'),
+    el('div', { className: 'mind-asset' },
+      el('div', { className: 'mind-acts' }, el('span', { className: 'what' }, `${name}: a number off a beer mat. Guns, for cash, by dead drop.${status ? ` ${status}` : ''}`),
+        s && !o && deps.on.call !== 'seller' ? el('button', { className: 'mind-go', onclick: () => { deps.on.call = 'seller'; deps.on.model = null; show('people'); } }, 'Call…') : null),
+      s && !o && deps.on.call === 'seller' ? panel() : null),
+  ];
+}
+
 function peopleLeaf(state, deps, show) {
   const { el, act } = deps, c = state.campaign, p = c.posting, me = state.people.me, now = state.time.ms;
   const trust = (t) => (t >= 4 ? 'trusts you' : t >= 2 ? 'warming to you' : t >= 0 ? 'wary of you' : 'not sure of you at all');
@@ -122,6 +150,7 @@ function peopleLeaf(state, deps, show) {
         deps.on.call === s.id ? null : el('button', { className: 'mind-go', onclick: () => { deps.on.call = s.id; deps.on.why = null; show('people'); } }, 'Call…')),
       deps.on.call === s.id ? panel(s) : null)),
     p.assets.length ? el('p', { className: 'mind-note' }, `A call to bring a meeting forward or put it off, or a word to keep them warm. ${burnersOf(me) ? `${burnersOf(me)} burner${burnersOf(me) === 1 ? '' : 's'} on you.` : 'No burners on you: a phone shop sells them.'}`) : null,
+    ...sellerLeaf(state, deps, show),
     el('h3', {}, 'Watched'),
     ...p.targets.map(t => el('p', {}, `${t.name}, ${t.what}.${t.wary ? ' Careful now: he knows someone was there.' : ''}${t.contact ? ' Seen meeting someone.' : ''}`)),
     el('h3', {}, 'The station'),

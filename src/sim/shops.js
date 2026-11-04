@@ -41,6 +41,8 @@ import { train, learn, shelf, bookOf, bookLine } from './training.js';
 import { exercise, weekWords, SESSION_PTS, CLASS_PTS } from './fitness.js';
 import { practise } from './rust.js';
 import { addHeat } from './heat.js';
+import { askable, ask, ASK_USD } from './market.js';
+export const ASK_S = 25 * 60;
 import { clubWays, clubOf, sessionS, meetsIn, attend } from './clubs.js';
 import { onYou, cardOf, PASTIME } from './reading.js';
 import { fits } from './items.js';
@@ -164,6 +166,7 @@ export function ways(state, d, spot = 'counter') {
     for (const usd of [100, 500, 1000]) if ((acct.bank ?? 0) >= usd) out.push({ id: `withdraw:${usd}`, label: `Draw ${price(state, usd)} from your account (${price(state, acct.bank ?? 0)} in it)` });
     if (cashOf(p) > KEEP_USD) out.push({ id: `deposit:${Math.floor(cashOf(p) - KEEP_USD)}`, label: `Pay in what's on you but ${price(state, KEEP_USD)}: ${price(state, Math.floor(cashOf(p) - KEEP_USD))}` });
   }
+  if (askable(state, d.shop)) out.push({ id: 'ask', label: `A quiet word at the counter: something you can't buy in a shop (a round, ${price(state, ASK_USD)}; Social)` });   // (the black market's first step: sim/market.js)
   if (d.shop === 'range') for (const R of rangeOf(state)) out.push({ id: `range:${R.id}`, label: `${R.label} (an hour and a quarter, ${price(state, R.usd)})` });   // (what a visitor may shoot here: RANGES)
   if (d.shop === 'culture') out.push(...clubWays(state.time.ms, (usd) => price(state, usd)));   // (its week's clubs: the one meeting now, the rest saying when: sim/clubs.js)
   if (d.shop === 'school') for (const l of schoolLangs(state.map.city)) out.push({ id: `lesson:${l}`, label: `A lesson, ninety minutes of ${LANG_NAME[l] ?? 'the language'} (${price(state, LESSON_USD)})` });
@@ -210,14 +213,14 @@ export function doWay(state, bus, me, way, scenario) {
   if (good && !pay(state, bus, good[2], good[1])) return false;
   const member = memberOf(state, d);
   const club = way.startsWith('club:') ? clubOf(way.slice(5)) : null, lane = way.startsWith('range:') ? rangeOf(state).find(R => `range:${R.id}` === way) : null;
-  const cost = club ? [club.usd, club.name] : lane ? [lane.usd, 'the range'] : { eat: [BITE_USD, 'a bite'], sit: [BITE_USD, 'a coffee'], read: [BITE_USD, 'a coffee'], train: member ? null : [GYM_USD, 'a day at the gym'], class: member ? null : [CLASS_USD, 'the class'], lesson: [LESSON_USD, 'the lesson'], join: [CLUB_MONTH_USD[d.shop], 'the membership'] }[way.startsWith('lesson:') ? 'lesson' : way];
+  const cost = way === 'ask' ? [ASK_USD, 'a round'] : club ? [club.usd, club.name] : lane ? [lane.usd, 'the range'] : { eat: [BITE_USD, 'a bite'], sit: [BITE_USD, 'a coffee'], read: [BITE_USD, 'a coffee'], train: member ? null : [GYM_USD, 'a day at the gym'], class: member ? null : [CLASS_USD, 'the class'], lesson: [LESSON_USD, 'the lesson'], join: [CLUB_MONTH_USD[d.shop], 'the membership'] }[way.startsWith('lesson:') ? 'lesson' : way];
   const [bankWay, bankUsd] = way.split(':'), acct = state.campaign?.posting?.money;
   if (bankWay === 'withdraw' && !((acct?.bank ?? 0) >= Number(bankUsd))) return false;
   if (bankWay === 'deposit' && !(cashOf(p) >= Number(bankUsd))) return false;
   const book = way.startsWith('book:') ? shelf(state.map.seed, state.map.row ?? 0, d.x, schoolLangs(state.map.city)).find(b => `book:${b.id}` === way) : null;
   if (cost && !pay(state, bus, ...cost)) return false;
   if (book && !pay(state, bus, book.usd, 'the book')) return false;
-  const secs = club ? sessionS(club, state.time.ms) ?? BROWSE_S : lane ? RANGE_S : { back: YARD_S, wash: WASH_S, eat: EAT_S, sit: SIT_S, train: GYM_S, class: CLASS_S, lesson: LESSON_S, read: READ_S, join: BUY_S, withdraw: BANK_S, deposit: BANK_S }[bankWay === 'withdraw' || bankWay === 'deposit' ? bankWay : way.startsWith('lesson:') ? 'lesson' : way] ?? (piece ? COAT_S : book || good ? BUY_S : BROWSE_S);
+  const secs = way === 'ask' ? ASK_S : club ? sessionS(club, state.time.ms) ?? BROWSE_S : lane ? RANGE_S : { back: YARD_S, wash: WASH_S, eat: EAT_S, sit: SIT_S, train: GYM_S, class: CLASS_S, lesson: LESSON_S, read: READ_S, join: BUY_S, withdraw: BANK_S, deposit: BANK_S }[bankWay === 'withdraw' || bankWay === 'deposit' ? bankWay : way.startsWith('lesson:') ? 'lesson' : way] ?? (piece ? COAT_S : book || good ? BUY_S : BROWSE_S);
   me.inside = { x: d.x, shop: d.shop, way, book: book?.id, ...(bankWay === 'withdraw' || bankWay === 'deposit' ? { bank: bankWay, usd: Number(bankUsd) } : {}), ...(piece ? { piece: { id: piece.id, slot: piece.slot, name: piece.name, look: piece.look } } : {}), ...(good ? { good: good[0], what: good[1] } : {}), until: state.time.ms + secs * 1000, row: state.map.row ?? 0, long: !LIVED.has(way) };
   Object.assign(me, { x: sp.x, z: sp.z, vx: 0, vz: 0, busy: null, glass: false, gait: 'idle', face: sp.face ?? 'up' });
   me.head = { up: -Math.PI / 2, down: Math.PI / 2, left: Math.PI, right: 0 }[me.face] ?? -Math.PI / 2;
@@ -229,7 +232,7 @@ export function doWay(state, bus, me, way, scenario) {
     sit: 'A coffee, stood at the ledge in the window: the street goes by on the other side of the glass.',
     read: 'A coffee at the ledge in the window, the book open on it.',
     train: 'The changing room, and the gym floor.', class: 'Into a gi, and on to the mat.', lesson: 'A classroom upstairs, a table, a teacher.',
-  }[way.startsWith('lesson:') ? 'lesson' : way] ?? (lane ? 'Ear defenders, eye protection, a form signed at the desk, and down to the lanes.' : club ? `Upstairs, ${club.name}${(meetsIn(club, state.time.ms) ?? 0) > 0 ? ', a chair, and a wait for the start' : ', late, a chair at the back'}.` : piece ? `Along the rail: ${piece.name}, the tags off at the till.` : good ? `${good[1].charAt(0).toUpperCase() + good[1].slice(1)}, paid for at the counter.` : book ? 'The book from the shelf, paid for at the counter.' : 'A look along the shelves, and a question at the counter.') });
+  }[way.startsWith('lesson:') ? 'lesson' : way] ?? (way === 'ask' ? 'A stool at the end of the counter, a drink, and the patience to wait till it\'s quiet.' : lane ? 'Ear defenders, eye protection, a form signed at the desk, and down to the lanes.' : club ? `Upstairs, ${club.name}${(meetsIn(club, state.time.ms) ?? 0) > 0 ? ', a chair, and a wait for the start' : ', late, a chair at the back'}.` : piece ? `Along the rail: ${piece.name}, the tags off at the till.` : good ? `${good[1].charAt(0).toUpperCase() + good[1].slice(1)}, paid for at the counter.` : book ? 'The book from the shelf, paid for at the counter.' : 'A look along the shelves, and a question at the counter.') });
   if (way === 'read') bus?.emit('reading', cardOf(state, me));      // (ten minutes at a time: sim/reading.js)
   return true;
 }
@@ -282,6 +285,8 @@ export function insideTick(state, bus, me, scenario) {
     const W = weekWords(p, state.time.ms);
     if (!g) say(state, bus, { kind: 'note', text: `The weights, the bag, the bike to nowhere: an hour and a half, and a shower. This week's training: ${W.load}${W.up ? ` of the ${W.up} that would make you fitter` : ''}; ${W.hold} keeps you as you are.` });
     else say(state, bus, { kind: 'note', text: `${ins.way === 'train' ? 'The weights, the bag, the bike to nowhere: an hour and a half, and a shower.' : 'Two hours of throws and falls, and holds you can\'t get out of until you can.'} ${g.gained ? `${what} up a point: ${g.base}.` : g.toNext === null ? `${ins.way === 'train' ? 'The gym' : 'The club'} has taught you all it can.` : `${Math.ceil(g.toNext)} hours more to the next point.`}` });
+  } else if (ins.way === 'ask') {
+    say(state, bus, { kind: 'note', text: ask(state, bus, p) });   // (a seller, or not: sim/market.js)
   } else if (ins.way?.startsWith('range:')) {
     // (on the lanes: Weapon handling practised and trained, sim/rust.js, sim/training.js; noticed, where they watch embassy staff)
     const R = rangeOf(state).find(x => `range:${x.id}` === ins.way) ?? rangeOf(state)[0], g = train(p, 'weapons', (RANGE_S / 3600) * (R.k ?? 1), R.upTo ?? RANGE_UP_TO);

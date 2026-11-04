@@ -27,6 +27,7 @@
 // **Your description.** An officer who sees you (EYE_M) dressed as you were described knows you: the alarm (sim/armed.js
 // call(): the order, the cuffs, the armed response if you're armed), and in the campaign your cover standing takes
 // DESCRIBED_COVER, once. Change what you wear (and the hat, the hair) and you're someone else.
+import { policeHeat, POLICE_WANTED } from './police.js';
 import { stream, range, chance, pick, next } from './rng.js';
 import { say } from './log.js';
 import { seesActor } from './perception.js';
@@ -94,6 +95,7 @@ function report(state, bus, me, now, row) {
     if (c.described) {
       state.wanted = { look: c.described, ms: now, until: now + WANTED_DAYS * DAY, city: state.map.city ?? null, hit: false };
       if (state.legend) addHeat(state, 10);
+      policeHeat(state, POLICE_WANTED);                         // (your description out to every officer: the police's own file, sim/police.js)
     }
     // (in your sight or your hearing: you know it's been called, and your instinct guesses how long)
     if (Math.hypot(caller.x - me.x, caller.z - me.z) < KNOW_M || seesActor(state, me, caller)) {

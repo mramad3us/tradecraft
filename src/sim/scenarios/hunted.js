@@ -37,6 +37,9 @@ import { lightBand } from '../light.js';
 import { begin as beginFight } from '../fight.js';
 import { reach, missed, REACH_M } from '../reflex.js';
 import { canStand } from '../health.js';
+// (a legend's name: a Canadian's, on its passport)
+const ALIAS_FIRST = { m: ['Daniel', 'Michael', 'Paul', 'Andrew', 'Mark', 'Stephen'], f: ['Claire', 'Anne', 'Julie', 'Karen', 'Sarah', 'Nicole'] };
+const ALIAS_LAST = ['Tremblay', 'Gagnon', 'Roy', 'MacDonald', 'Wilson', 'Morin', 'Bouchard', 'Leblanc'];
 
 const TPS = 1000 / TICK_MS;
 export const HUNTERS = [3, 5];
@@ -79,7 +82,9 @@ export const hunted = {
   setup(state, { campaign: C = null, city = null, character = null } = {}) {
     const r = state.rng;
     state.time.ms = C?.startMs ?? at(2026, 11, 6, 18, 40);
-    state.legend = { id: 'legend', name: 'A translator at a news agency (your legend)', cover: 'legend', floor: 40 };
+    // (the legend's name and papers, from a stream of its own so the scene's dice run as they did: the sheet's, src/ui/ui.js)
+    const ar = stream('alias', state.seed ?? 0, C?.startMs ?? 0), alias = `${pick(ar, ALIAS_FIRST[(C?.player?.sex ?? character?.sex) === 'f' ? 'f' : 'm'])} ${pick(ar, ALIAS_LAST)}`;
+    state.legend = { id: 'legend', name: 'A translator at a news agency (your legend)', cover: 'legend', floor: 40, alias, papers: 'a Canadian passport in that name, three years of stamps in it' };
     state.country = C?.country ?? 'ru';
     state.heat[heatKey('legend', state.country)] = C?.heat ?? 90;
     const me = C ? { ...structuredClone(C.player), id: 'me' } : asOfficer(handler(r), character);

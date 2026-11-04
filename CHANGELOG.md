@@ -4,6 +4,24 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.22 (2026-11-04)
+
+- **The black market.** A gun is a whole thing to come by now:
+  - **Finding a seller.** A quiet word at a bar's counter (a London pub; a Cairo ahwa) asks for what you can't buy in a shop. It takes 25 minutes and a round. It's a Social roll, harder where guns are rare: DC 9 in Beirut, 13 in Cairo, 14 in Moscow, 18 in London. Got, the barman writes a number on a beer mat. Missed, he watches you to the door, and in Moscow or Beirut the opposition hears of the question.
+  - **The order.** The seller is in the mind's People, under Off the books, with what he has and his price. Beirut is cheap and well stocked: a Canik for $100, an AKM for $300. London is dear and thin: a converted blank-firer, or a Glock. Ring him from a burner. From your own phone, a diplomat's number is on a gun dealer's bill, which costs you heat and the police's interest.
+  - **The drops.** He names two dead drops on the posting's streets, park benches: the envelope behind one's leg by the next night, and the goods behind the other from the day after, for two days. At each bench, T. The goods are used, with a spare magazine and a box of twenty, in a carrier bag that you put away in the flat.
+  - **What can go wrong** is settled when you ring. A scam (9% in Beirut, 18% in Cairo, 21% in Moscow, 29% in London): nothing behind the bench, and the money's gone. A sting (2% in Beirut, 12% in Cairo, 15% in Moscow, 25% in London): plain-clothes police waiting at the second bench, the station, the ambassador told, cover −30, heat +30. Leave the envelope too late, and the deal's off.
+- **The police keep their own file on you.** It's separate from the opposition's heat:
+  - **What adds to it:** your name taken at a stop (+2), a search (+4, or +15 when it finds something), walking off as a diplomat (+6), being taken in (+30), your description going out after violence (+20), a gun dealer rung from your own phone (+10), a sting (+50).
+  - **What it costs:** a patrol is likelier to stop you, twice as likely at 40 and three and a half times at 100.
+  - It cools by 2 a day.
+- **The character sheet, less wordy.**
+  - **Fitness** is a picture now: the number, seven cells round your base showing how far above or below it you're keeping, and this week's training as a bar, with a tick where it keeps you as you are and one where it makes you fitter.
+  - **Tradecraft** is its bar and a thin bar of XP toward the next point.
+  - What these mean is on an infocard when you hover: what Tradecraft multiplies and what it lets you feel; what the skills' marks and rust mean; how the fitness picture reads.
+- **The sheet shows the legend you're under.** When you're under a false identity (Blown's translator), the sheet's Your legend says the name, what you are on paper, the passport, and what happens if it breaks: no immunity, and nobody will say you were ours. Under the embassy's cover, the posting says your own name, a diplomatic passport, and expelled rather than jailed.
+- Tests: `tests/market.test.mjs` (each city's odds and prices; the whole buy in Beirut; a sting in London; an envelope never left; the police's heat doubling a stop's odds at 40).
+
 ## v0.1.21 (2026-11-04)
 
 - **Shooting ranges.** Some of the martial-arts clubs are ranges now; nothing else on the streets moved. What a visitor may shoot follows each country's law:
