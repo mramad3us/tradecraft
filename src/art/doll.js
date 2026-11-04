@@ -534,6 +534,12 @@ function hat(g, look) {
     g.on(top, scan(rt([[3, 1], [5, 9], [11, 9], [11, 1]])), T.shade);
     const fold = add(scan(both([[9.6, 8], [9.6, 12]])), B.base);
     for (let y = 8; y < 12; y++) for (let x = 0; x < W; x++) if (g.part[y][x] === fold) g.col[y][x] = x % 3 === 0 ? (x > MID + 3 ? B.deep : B.shade) : x > MID + 3 ? B.shade : B.base;
+  } else if (h.kind === 'helmet') {
+    // (a ballistic helmet, the armed response's: a wide matte dome to the brow, its sides down over the ears, the rim darker; sim/armour.js)
+    const shell = add(smooth([[MID - 10.6, 13.6], [MID - 11.2, 8], [MID - 9.2, 3.2], [MID - 4, 1.2], [MID + 4, 1.2], [MID + 9.2, 3.2], [MID + 11.2, 8], [MID + 10.6, 13.6], [MID + 8.2, 13.6], [MID + 8.4, 9.6], [MID - 8.4, 9.6], [MID - 8.2, 13.6]], 4), T.base);
+    g.on(shell, scan(smooth([[MID - 8.6, 6.4], [MID - 5, 3], [MID + 1, 2.6], [MID - 4, 5.4]], 3)), T.light);
+    g.on(shell, scan(rt([[3, 1], [5, 14], [11, 14], [11, 1]])), T.shade);
+    g.on(shell, [[8, 0, W], [9, 0, W]], T.deep);
   } else if (h.kind === 'skullcap') {
     const top = add(smooth([[MID - 7.8, 8], [MID - 6, 4.4], [MID, 3.2], [MID + 6, 4.4], [MID + 7.8, 8], [MID, 8.8]], 4), T.base);
     g.on(top, scan(rt([[3, 2], [4, 9], [10, 9], [10, 2]])), T.shade); g.on(top, [[5, MID - 5, MID - 1]], T.light);

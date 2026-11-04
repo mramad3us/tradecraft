@@ -277,4 +277,35 @@ export default [
       console.log(`      sprite pixels changed by the carrier: ${Object.entries(counts).map(([k, v]) => `${k} ${v}`).join(', ')}; the close figure ${dd}`);
     },
   },
+  {
+    name: 'armour: a helmet on the head: of head hits from a Makarov, a Glock, an AK-74M and an SVD at 10 m, what\'s turned (no wound, no death), against no helmet; Moscow\'s response in helmets',
+    fn() {
+      const out = [];
+      for (const model of ['makarov', 'glock17', 'ak74m', 'svd']) {
+        const row = [];
+        for (const helmet of [false, true]) {
+          const { g, a, p } = range0(), M = MODELS[model];
+          g.rng = seedRng(23);
+          let turned = 0, dead = 0;
+          const n = 400;
+          for (let k = 0; k < n; k++) {
+            Object.assign(p, { body: {}, injuries: [] }); delete p.dead; delete p.blood; delete p.helmet;
+            if (helmet) AR.wearHelmet(p);
+            a.gait = 'idle'; if (a.ai) a.ai.downUntil = 0;
+            g.time.ms += 1000;
+            bullet(g, null, a, 'head', M, { x: a.x - 10, z: a.z, who: 'nobody' });
+            if (p.dead) dead++; else if (!(p.injuries ?? []).some(i => i.gunshot)) turned++;
+          }
+          row.push({ turned: turned / n, dead: dead / n });
+        }
+        out.push(`${model}: turned ${pct(row[1].turned)} (dead ${pct(row[0].dead)} → ${pct(row[1].dead)})`);
+        const handgun = model === 'makarov' || model === 'glock17';
+        assert(row[0].turned === 0 && (handgun ? row[1].turned > 0.45 && row[1].dead < row[0].dead * 0.6 : row[1].turned < 0.12), `${model}: ${JSON.stringify(row)}`);
+      }
+      const { g } = range0(), cop = sheet({ id: 'u1', name: 'an armed officer', look: { top: { kind: 'uniform', color: 0x23252f } } });
+      armCop(g, cop, 'response');
+      assert(cop.helmet && cop.look.hat?.kind === 'helmet' && cop.armour?.kind === 'heavy', `Moscow's response: helmet ${!!cop.helmet}, hat ${cop.look.hat?.kind}, ${cop.armour?.kind}`);
+      console.log(`      head hits at 10 m: ${out.join('; ')}; Moscow's response in a helmet and a carrier`);
+    },
+  },
 ];

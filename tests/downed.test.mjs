@@ -5,6 +5,7 @@ import { newGame, start, step, playerActor } from '../src/sim/game.js';
 import { options, act, downed, TIE_S, STRANGLE_S } from '../src/sim/interact.js';
 import { newGun } from '../src/sim/firearms.js';
 import { person } from '../src/sim/interact.js';
+import { wear, wearHelmet } from '../src/sim/armour.js';
 import { assert, fmt } from './helpers.mjs';
 
 // (a street at noon, and a passer-by out cold at your feet)
@@ -55,6 +56,25 @@ export default [
       for (let t = 0; t < 20 * STRANGLE_S * 2; t++) step(v.g, {}, null);
       assert(!v.them.dead, 'let go: alive');
       console.log(`      tied in ${TIE_S} s, down two minutes past their clock; a strangling let go of after 10 s: ${v.them.dead ? 'dead' : 'alive'}`);
+    },
+  },
+  {
+    name: 'downed: out cold in a plate carrier and a helmet: "Take their plate carrier and helmet", a minute and a quarter, and they\'re yours; a soft vest only once you know it\'s there',
+    fn() {
+      const w = scene();
+      wear(w.them, 'heavy'); wearHelmet(w.them);
+      const o = sub(w.g, w.a).find(x => x.id === 'strip'), t0 = w.g.time.ms;
+      act(w.g, null, 'strip', w.a);
+      until(w.g, w.me);
+      const s = (w.g.time.ms - t0) / 1000;
+      assert(o && w.p.armour?.kind === 'heavy' && w.p.helmet && !w.them.armour && !w.them.helmet && w.p.look.hat?.kind === 'helmet', `"${o?.label}": yours ${w.p.armour?.kind}, helmet ${!!w.p.helmet}`);
+      const v = scene();
+      wear(v.them, 'light');
+      const hidden = sub(v.g, v.a).some(x => x.id === 'strip');
+      act(v.g, null, 'search', v.a); until(v.g, v.me);
+      const found = sub(v.g, v.a).find(x => x.id === 'strip');
+      assert(!hidden && found, `a soft vest: offered before the search ${hidden}, after ${!!found}`);
+      console.log(`      "${o.label}": ${fmt(s, 0)} s, now yours; a soft vest: after the search, "${found.label}"`);
     },
   },
 ];

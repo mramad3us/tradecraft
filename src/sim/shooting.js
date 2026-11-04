@@ -45,7 +45,7 @@ import { say } from './log.js';
 import { inView, eyes, sees, wrap, faceOf, lightHere } from './perception.js';
 import { lightBand } from './light.js';
 import { hurt, injure, takes, kill, canStand, stateOf, addInjury } from './health.js';
-import { armourOf, bullet as armourBullet, dice as armourDice, stoppedInjury } from './armour.js';
+import { armourOf, bullet as armourBullet, dice as armourDice, stoppedInjury, helmetBullet } from './armour.js';
 import { noteArmour } from './know.js';
 import { spatter } from './blood.js';
 import { isPasserby } from './crowd.js';
@@ -447,6 +447,9 @@ export function bullet(state, bus, a, part, M, from) {
   // (a torso hit on armour: stopped, and the blow behind it; or through, slowed. sim/armour.js, on dice of its own)
   const A = at === 'torso' && armourOf(p) ? armourBullet(p, M.cal, CALIBRES[M.cal]?.dmg ?? 1, raw, Math.hypot(a.x - from.x, a.z - from.z), armourDice(p, ms, 'bullet')) : null;
   if (A?.stopped) return stopped(state, bus, a, p, A, M, from);
+  // (a head hit on a helmet's dome: turned, a daze and no wound; or through it. sim/armour.js, on dice of its own)
+  const H = at === 'head' && p.helmet ? helmetBullet(p, M.cal, Math.hypot(a.x - from.x, a.z - from.z), armourDice(p, ms, 'helmet')) : null;
+  if (H?.stopped) return helmetStopped(state, bus, a, p, H);
   const dmg = raw * (A?.k ?? 1);
   const less = CALIBRES[M.cal]?.less;                               // (a traumatic pistol's rubber: a bruise, a broken rib at worst)
   hurt(p, at, dmg);
@@ -490,6 +493,17 @@ export function bullet(state, bus, a, part, M, from) {
  * bruise, maybe a cracked rib: sim/health.js), a moment's knock (winded: an officer's aim lost, and now and then
  * off their feet; you, a stagger, your aim lost). Whoever fired it now knows there's armour (sim/know.js). The words.
  */
+/** A round the helmet turned: no wound, a daze (the officer's aim lost, a moment on a knee; you, a stagger). The words. */
+function helmetStopped(state, bus, a, p, H) {
+  const ms = state.time.ms, you = a.who === state.player;
+  hurt(p, 'head', 0.5);
+  if (a.ai?.gunner) { a.ai.gunner.aimed = null; a.ai.gunner.until = Math.max(a.ai.gunner.until ?? 0, ms + H.dazeS * 1000); delete a.$aim; }
+  if (a.ai && !you) a.ai.downUntil = Math.max(a.ai.downUntil ?? 0, ms + H.dazeS * 1000);
+  if (you) { a.skid = Math.max(a.skid ?? 0, Math.round(H.dazeS * 1000 / TICK_MS)); if (state.shoot?.aim) state.shoot.aim = null; return 'It rings off your helmet: the world goes white, and comes back.'; }
+  const who = cap(p.known === false ? p.seen ?? 'someone' : p.name ?? 'someone'), their = p.sex === 'f' ? 'her' : 'his';
+  return `${who}: hit in the head, and it glances off ${their} helmet. A stagger, a hand to it, ${p.sex === 'f' ? 'she\'s' : 'he\'s'} still standing.`;
+}
+
 function stopped(state, bus, a, p, A, M, from) {
   const ms = state.time.ms, w = CALIBRES[M.cal]?.dmg ?? 1, you = a.who === state.player;
   hurt(p, 'torso', A.blunt);

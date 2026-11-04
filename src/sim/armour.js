@@ -15,7 +15,9 @@
 // **Where it covers** (COVER): the torso only, and not all of it. A torso hit lands on the protected area by its
 // share: a soft vest wraps the chest, the back and the belly to the navel (0.75 of hits); a carrier's plates are the
 // box over the heart and the lungs (0.5), its soft panels a quarter more round them, the shoulders, the flanks, the
-// lower belly bare. A limb, the head, the neck: nothing (no helmets yet).
+// lower belly bare. A limb, the neck: nothing. **The head**: a helmet (p.helmet, the armed response's where its country
+// issues them: police.armour.helmet), its dome HELMET_COVER of hits to the head (the face bare): a handgun's round turned
+// nearly always, a rifle's seldom (STOP.helmet), the blow behind it a daze (HELMET_DAZE_S) and no wound.
 // **What stops what** (STOP, of the rounds that land on it, by the calibre: sim/firearms.js CALIBRES): soft armour
 // every common handgun round (a .380, a Makarov, a 9 mm, a .38, a .45 all but always; a .357 nearly), buckshot mostly;
 // a Tokarev's fast steel-cored 7.62×25 half the time up close (CLOSE_M), most of the time further off (FAR_M); the
@@ -63,9 +65,13 @@ export const STOP = {
     '5.45x39': 0, '5.56x45': 0, '7.62x39': 0, '7.62x51': 0, '7.62x54R': 0 },
   plate: { '9x17': 1, '9x18': 1, '9x19': 1, '.38': 1, '.45': 1, '.357': 1, '7.62x25': 1, '10x28T': 1, '4.6x30': 0.99, '9x39': 0.85, '12ga': 1,
     '5.45x39': 0.95, '5.56x45': 0.92, '7.62x39': 0.96, '7.62x51': 0.9, '7.62x54R': 0.85 },
+  // (a ballistic helmet, a NIJ IIIA shell: the handgun's rounds, buckshot; the rifle's only now and then, at range)
+  helmet: { '9x17': 0.98, '9x18': 0.97, '9x19': 0.95, '.38': 0.97, '.45': 0.97, '.357': 0.85, '7.62x25': [0.35, 0.7], '10x28T': 1, '4.6x30': [0.05, 0.2], '9x39': 0.05, '12ga': 0.9,
+    '5.45x39': [0.02, 0.12], '5.56x45': [0.02, 0.1], '7.62x39': [0.03, 0.15], '7.62x51': 0.02, '7.62x54R': 0.02 },
 };
+export const HELMET_COVER = 0.55, HELMET_DAZE_S = [2, 6];
 export const CLOSE_M = 10, FAR_M = 40;
-export const WEAR = { soft: 0.02, plate: 0.03 }, WEAR_MAX = 0.3;          // (stop chance off a round already stopped by that layer)
+export const WEAR = { soft: 0.02, plate: 0.03, helmet: 0.05 }, WEAR_MAX = 0.3;          // (stop chance off a round already stopped by that layer)
 export const PEN_K = { soft: 0.85, plate: 0.6 };                          // (a round through: that share of its damage left)
 // A stopped round: k of the bullet's points on the torso; a cracked rib crack × the calibre's weight squared; knocked
 // off their feet (someone else) knock × the calibre; winded KNOCK_S seconds × the calibre.
@@ -97,6 +103,15 @@ export function wear(p, kind, { color = null, patch = false } = {}) {
   if (!KINDS[kind]) return;
   p.armour = { kind, hits: {}, ...(color !== null && color !== undefined ? { color } : {}), ...(patch ? { patch: true } : {}) };
 }
+/** A bullet of calibre cal into p's head, from d metres: null where it missed the helmet (none, or the face); else { stopped, dazeS }. */
+export function helmetBullet(p, cal, d, r) {
+  if (!p?.helmet || !chance(r, HELMET_COVER)) return null;
+  const hits = p.helmet.hits ?? 0, stopped = chance(r, stopChance('helmet', cal, d, hits));
+  if (stopped) p.helmet.hits = hits + 1;
+  return { stopped, dazeS: stopped ? Math.round(range(r, ...HELMET_DAZE_S) * 10) / 10 : 0 };
+}
+/** A helmet on p, its colour the hat's (the sprite draws it: src/art/sprites.js 'helmet'). */
+export function wearHelmet(p, color = 0x3d4530) { p.helmet = { hits: 0 }; if (p.look) p.look = { ...p.look, hat: { kind: 'helmet', color } }; }
 /** Off: what was worn ({ kind, hits, color }), or null. */
 export function takeOffArmour(p) { const a = p.armour ?? null; delete p.armour; return a; }
 /** The warmth it adds to the top (sim/thermal.js: against the heat; cold, against the cold), the legs' factor (sim/health.js), the training's (sim/fitness.js). */
@@ -189,12 +204,12 @@ export function vestCheck(p, d, light = 'lit') {
 
 /** What's seen of someone's armour, in a line (findings: sim/diagnosis.js); self: your own. */
 export function armourLine(p, self = false) {
-  const A = armourOf(p);
-  if (!A) return null;
+  const A = armourOf(p), Hm = p?.helmet ? (self ? ' And a helmet: a pistol round turned off it, a rifle\'s seldom.' : ' A ballistic helmet.') : '';
+  if (!A) return p?.helmet ? (self ? 'A ballistic helmet: a pistol round turned off it, a rifle\'s seldom.' : 'A ballistic helmet.') : null;
   const top = p.look?.top?.kind, under = top === 'coat' ? 'the coat' : top === 'tee' ? 'the T-shirt' : top === 'uniform' ? 'the uniform shirt' : top === 'sweater' ? 'the jumper' : top === 'suit' ? 'the shirt' : 'the top';
   const hits = (p.armour.hits?.soft ?? 0) + (p.armour.hits?.plate ?? 0), struck = hits ? ` ${hits === 1 ? 'A round' : `${hits} rounds`} stopped in it.` : '';
-  if (self) return A.over ? `You're in a plate carrier: steel plates front and back, 11 kg of it.${struck}` : `A soft vest under ${under.replace(/^the /, 'your ')}: it stops a pistol round, not a rifle's.${struck}`;
-  return A.over ? `In a plate carrier: plates front and back, pouches on the front.${struck}` : `Under ${under}: the stiff, square line of a vest, the straps at the shoulders.${struck}`;
+  if (self) return (A.over ? `You're in a plate carrier: steel plates front and back, 11 kg of it.${struck}` : `A soft vest under ${under.replace(/^the /, 'your ')}: it stops a pistol round, not a rifle's.${struck}`) + Hm;
+  return (A.over ? `In a plate carrier: plates front and back, pouches on the front.${struck}` : `Under ${under}: the stiff, square line of a vest, the straps at the shoulders.${struck}`) + Hm;
 }
 
 /** The words for a blow the armour took (cqc.js; out.armour), ours (us: we landed it) or theirs. salt: the exchange's. */
@@ -216,7 +231,7 @@ export function blowWords(A, us, salt = 0) {
  */
 export function issue(p, role, K = null, salt = p?.id ?? '') {
   const r = stream('armour-issue', salt, role);
-  if (role === 'response') return wear(p, 'heavy', { color: K?.armour?.color ?? KINDS.heavy.color, patch: !!K?.armour?.patch });
+  if (role === 'response') { if (K?.armour?.helmet) wearHelmet(p, K.armour.helmet); return wear(p, 'heavy', { color: K?.armour?.color ?? KINDS.heavy.color, patch: !!K?.armour?.patch }); }   // (and a helmet, where the country's response wears one)
   const share = role === 'patrol' ? K?.armour?.patrol ?? 0 : role === 'bodyguard' ? BODYGUARD_P : 0;
   if (share > 0 && chance(r, share)) wear(p, 'light');
 }

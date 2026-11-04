@@ -42,7 +42,7 @@ import { seesActor } from './perception.js';
 import { stateOf, canStand, bleeding } from './health.js';
 import { addHeat } from './heat.js';
 import { begin as beginFight, exchange, owners, shortName } from './fight.js';
-import { read, fought, noteArmour } from './know.js';
+import { read, fought, noteArmour, armourKnown } from './know.js';
 import { armourOf } from './armour.js';
 import { diagnose } from './diagnosis.js';
 import { begin as beginTalk } from './talk.js';
@@ -60,6 +60,8 @@ export const WITNESS_M = 25;
 export const WITNESS_HEAT = 1;
 export const WITNESS_MAX = 6;
 export const KILL_HEAT_K = 4;
+// (their armour off them and onto you: a carrier's buckles a minute, a soft vest from under their top two, a helmet's strap a little more; the user's armour, sim/armour.js)
+export const STRIP_S = { heavy: 60, light: 120, helmet: 15 };
 export const TIE_S = 60, SEARCH_S = 20, THROAT_S = 4, BLUDGEON_S = 8, STRANGLE_S = 150, STRANGLE_DC = 8, STRANGLE_FAIL_K = 1.6;
 export const OPENINGS = ['hit', 'sucker', 'push', 'grab', 'stab'];
 const OPENING_WORDS = { hit: 'Hit', sucker: 'Sucker punch', push: 'Push', grab: 'Grab', stab: 'Stab' };
@@ -112,12 +114,23 @@ function onGround(state, them, me, w, dead) {
     : w?.edge ? { id: 'kill', label: `${cap(w.name.replace(/^(a|an) /, 'the '))} across the throat`, ok: true }
     : w ? { id: 'kill', label: `Beat their head in with ${w.name.replace(/^(a|an|half a) /, 'the ')}`, ok: true }
     : { id: 'kill', label: 'Strangle them (minutes, and a CQC roll)', ok: true };
-  if (dead) return [{ id: 'search', label: 'Search the body', ok: true }];
+  const strip = stripOf(state, them, p, me);
+  if (dead) return [{ id: 'search', label: 'Search the body', ok: true }, ...strip];
   return [
     { id: 'tie', label: 'Tie them up: their belt, their laces', ok: !them.ai?.tied, why: them.ai?.tied ? 'tied already' : null },
     { id: 'search', label: 'Search them', ok: true },
+    ...strip,
     how,
   ];
+}
+
+/** Their armour, to take: what you know they wear (a carrier, a helmet in sight; a soft vest once found) and you don't. [{ id: 'strip', label, ok, why }]. */
+function stripOf(state, them, p, me) {
+  if (!p) return [];
+  const A = armourOf(p), seen = A && (A.over || armourKnown(state, them.who)), wants = [seen && !me.armour ? A : null, p.helmet && !me.helmet ? 'helmet' : null].filter(Boolean);
+  if (!wants.length) return [];
+  const s = wants.reduce((t, w) => t + (w === 'helmet' ? STRIP_S.helmet : STRIP_S[w.id]), 0);
+  return [{ id: 'strip', label: `Take their ${wants.map(w => (w === 'helmet' ? 'helmet' : w.over ? 'plate carrier' : 'vest, from under their top')).join(' and ')} (${s >= 90 ? `${Math.round(s / 60)} minutes` : `${s} s`})`, ok: true, s }];
 }
 
 /** Whether there's something for first aid to do for them: bleeding, a break, down. */
@@ -153,17 +166,17 @@ export function act(state, bus, id, them) {
   }
   const mine = state.people[state.player];
   // (someone on the ground: tied, searched or killed, crouched over them a while: done when the time's up, sim/game.js)
-  if (['tie', 'search', 'kill'].includes(id)) {
+  if (['tie', 'search', 'kill', 'strip'].includes(id)) {
     if (!downed(state, them) || (id !== 'search' && p.dead)) return null;
     const o = onGround(state, them, mine, wielded(mine), !!p.dead).find(x => x.id === id);
     if (!o?.ok) return null;
     const w = wielded(mine), gun = isGun(mine.hand);
     const strangle = id === 'kill' && !gun && !w;
     const r = strangle ? check(state.rng, { skill: 'cqc', value: skill(mine, 'cqc'), dc: STRANGLE_DC, body: mine }) : null;
-    const s = id === 'tie' ? TIE_S : id === 'search' ? SEARCH_S : gun ? 1 : w?.edge ? THROAT_S : w ? BLUDGEON_S : STRANGLE_S * (r.ok ? 1 : STRANGLE_FAIL_K);
+    const s = id === 'strip' ? o.s : id === 'tie' ? TIE_S : id === 'search' ? SEARCH_S : gun ? 1 : w?.edge ? THROAT_S : w ? BLUDGEON_S : STRANGLE_S * (r.ok ? 1 : STRANGLE_FAIL_K);
     me.busy = { what: `downed:${id}`, steps: [['wait', Math.round(s * 1000 / TICK_MS), me.face, 'crouch']], wait: 0, done: `downed:${id}:${them.id}`, since: state.time.ms };
     me.vx = me.vz = 0;
-    const words = { tie: `You kneel by ${name}, and pull their belt free.`, search: `You go through ${name}'s pockets.`, kill: gun ? `The muzzle to ${name}'s head.` : w?.edge ? `You kneel by ${name}.` : w ? `You stand over ${name}.` : `Your hands round ${name}'s throat.` }[id];
+    const words = { strip: `You kneel by ${name}, and start on the buckles.`, tie: `You kneel by ${name}, and pull their belt free.`, search: `You go through ${name}'s pockets.`, kill: gun ? `The muzzle to ${name}'s head.` : w?.edge ? `You kneel by ${name}.` : w ? `You stand over ${name}.` : `Your hands round ${name}'s throat.` }[id];
     say(state, bus, r ? { kind: 'roll', roll: r, text: r.ok ? `${words} It'll take a couple of minutes.` : `${words} You can't get your grip right: it's taking too long.` } : { kind: 'note', text: words });
     return { show: null };
   }
@@ -224,7 +237,13 @@ export function finishDowned(state, bus, me, key) {
   const [, what, id] = key.split(':'), them = state.actors.find(a => a.id === id), p = them && state.people[them.who], mine = state.people[me.who];
   if (!them || !p || !mine) return;
   const name = shortName(state, them.who), ms = state.time.ms;
-  if (what === 'tie') {
+  if (what === 'strip') {
+    // (theirs, now yours: worn, the carrier over your top, the vest under it; sim/armour.js)
+    const A = armourOf(p), seen = A && (A.over || armourKnown(state, them.who)), got = [];
+    if (seen && !mine.armour) { mine.armour = { ...p.armour, hits: { ...(p.armour.hits ?? {}) } }; delete p.armour; got.push(A.over ? 'the plate carrier' : 'the vest'); }
+    if (p.helmet && !mine.helmet) { mine.helmet = { ...p.helmet }; delete p.helmet; if (mine.look) mine.look = { ...mine.look, hat: { kind: 'helmet', color: p.look?.hat?.color ?? 0x3d4530 } }; if (p.look?.hat?.kind === 'helmet') p.look = { ...p.look, hat: null }; got.push('the helmet'); }
+    say(state, bus, { kind: 'note', text: got.length ? `Off ${name}, and onto you: ${got.join(' and ')}. ${mine.armour?.hits && Object.values(mine.armour.hits).some(Boolean) ? 'Its last owner\'s rounds still in it. ' : ''}Whoever sees you in it will wonder where you got it.` : 'Nothing left on them to take.' });
+  } else if (what === 'tie') {
     them.ai && (them.ai.tied = ms);
     p.tied = ms;
     say(state, bus, { kind: 'note', text: `${cap(name)}: wrists behind, the belt round them, the laces round the ankles. Nobody's going anywhere for a while.` });

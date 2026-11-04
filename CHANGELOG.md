@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.24 (2026-11-04)
+
+- **Helmets.** The armed response wears ballistic helmets in Moscow, Beirut and Cairo; London's still wears caps. The helmet is drawn on the street and on the close figures: a matte dome to the brow, down over the ears. It takes 55% of hits to the head (the face is bare) and turns nearly every pistol round: of head hits at 10 m from a Makarov or a Glock, half are turned, and the deaths halve (61% to 28%). It turns a rifle's round 1% of the time. A turned round leaves no wound, only a daze for 2 to 6 seconds: an officer loses his aim for that long, and you stagger. The read shows "a ballistic helmet".
+- **Their armour, off them.** On someone who's down: "Take their plate carrier" (a minute), their helmet (15 s more), or the soft vest from under their top (two minutes, and only once you know it's there, by a search or a read). It's yours then: worn, with its last owner's stopped rounds still in it.
+- Tests: armour (the helmet against four guns; Moscow's response); downed (a carrier and a helmet taken; a soft vest only after the search).
+
 ## v0.1.23 (2026-11-04)
 
 - **The chief's office has an armoury.** T at the chief's office now opens a card:
