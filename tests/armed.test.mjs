@@ -3,7 +3,8 @@
 // heard, and the armed response comes in its minutes, long guns up.
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
 import { armCop, call } from '../src/sim/armed.js';
-import { newGun, isGun, modelOf, isLong, MODELS } from '../src/sim/firearms.js';
+import { newGun, isGun, modelOf, isLong, MODELS, armOf, isMag } from '../src/sim/firearms.js';
+import { itemNear } from '../src/sim/items.js';
 import { bullet } from '../src/sim/shooting.js';
 import { makeAgent } from '../src/sim/agents.js';
 import { sheet } from '../src/sim/people.js';
@@ -88,6 +89,33 @@ export default [
       w.g.fight = null;
       console.log(`      400 bad exchanges for him: ran from it ${fled}; after it, on his feet: alert ${!!w.c.alert}, the alarm's resisting "${w.g.$alarm.resisted}", running ${!!w.c.ai.fled}`);
       assert(fled === 0 && w.c.alert && w.g.$alarm.resisted === 'fought' && !w.c.ai.fled, JSON.stringify({ fled }));
+    },
+  },
+  {
+    name: 'armed: an officer\'s rounds: his magazine and his spares on his belt, reloaded as each runs dry, till there are none and he\'s out of it; a response officer taken down lets go of his rifle, there to be picked up (the user, 2026-11-04)',
+    fn() {
+      const w = scene('moscow'), q = w.cop, spare0 = (q.items ?? []).filter(isMag).length, cap = MODELS[modelOf(w.gun).name ? w.gun.split('#')[0] : 'makarov'].cap;
+      w.p.hand = newGun(w.p, 'makarov');
+      const rounds = () => { const g = armOf(q, q.hand ?? w.gun); return (g?.chamber === 'live' ? 1 : 0) + (g?.mag ? armOf(q, g.mag)?.n ?? 0 : 0) + (q.items ?? []).filter(isMag).reduce((t, k) => t + (armOf(q, k)?.n ?? 0), 0); };
+      const r0 = rounds();
+      let fired = 0, reloads = 0, last = null;
+      for (let s = 0; s < 150; s++) {
+        for (let t = 0; t < 20; t++) step(w.g, {}, w.bus);
+        Object.assign(w.p, { injuries: [], body: {}, blood: 100 }); delete w.p.dead; w.me.gait = 'idle';   // (you, kept on your feet for it)
+        if (!w.c.ai.gunner && s > 20) break;
+      }
+      fired = r0 - rounds();
+      const out = rounds() === 0 && !w.c.ai.gunner;
+      // (a response officer with his carbine, knocked down: it on the ground by him, and yours to pick up)
+      const v = scene('london'), resp = sheet({ id: 'resp', name: 'an armed officer', cls: 'cop' }); v.g.people.resp = resp; armCop(v.g, resp, 'response', stream('t', 3));
+      const ra = makeAgent(v.g, { who: 'resp', row: v.g.map.row ?? 0, x: v.me.x + 1.2, z: v.me.z, speed: 1.1, face: 'left' }); Object.assign(ra, { cop: true, unit: true }); ra.ai.route = null;
+      const rifle = resp.hand; ra.gait = 'down'; ra.ai.downUntil = v.g.time.ms + 60000;
+      for (let t = 0; t < 40; t++) step(v.g, {}, v.bus);
+      const lying = (v.g.items?.dropped ?? []).find(it => it.kind === rifle);
+      if (lying) Object.assign(v.me, { x: lying.x + 0.3, z: lying.z });
+      const within = itemNear(v.g, v.me)?.kind === rifle;
+      console.log(`      a patrol's Makarov: ${r0} rounds (${spare0} spares on his belt); ${fired} fired, ${out ? 'and he\'s out' : 'and still going'}; a response officer down: his ${modelOf(rifle)?.short} on the ground ${!!lying}, in your reach ${within}`);
+      assert(spare0 >= 2 && r0 >= cap * 3 && fired >= r0 - 1 && out && lying && within, JSON.stringify({ spare0, r0, fired, out, lying: !!lying, within }));
     },
   },
   {

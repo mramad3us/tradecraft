@@ -333,6 +333,29 @@ export default [
     },
   },
   {
+    name: 'police: strangling an officer on the ground in front of a station: the patrol walking by raises the alarm (no look at your face to fool), the station\'s officers out of its door in seconds, the passers-by running or on their phones (the user, 2026-11-04)',
+    fn() {
+      const w = scene('london'), st = nearestDoor(w.g, 'police');
+      if (st.row !== (w.g.map.row ?? 0)) loadRow(w.g, w.bus, st.row, st.x, { quiet: true });
+      w.me = playerActor(w.g); Object.assign(w.me, { x: st.x + 3, z: LINE.F });
+      for (let t = 0; t < 20 * 6; t++) step(w.g, {}, w.bus);            // (the guard at the door: there, and off to one side)
+      w.g.actors = w.g.actors.filter(a => !a.guard);
+      const down = officer(w, 1, 'copDown'); down.gait = 'down'; down.ai.downUntil = Infinity; hurt(w.g.people.copDown, 'head', takes(w.g.people.copDown, 'head'));
+      w.me.busy = { what: 'downed:kill', steps: [['wait', 20 * 30, 'right', 'crouch']], wait: 0, done: `downed:kill:${down.id}`, since: w.g.time.ms };
+      const pa = officer(w, 18, 'copPatrol'); pa.ai.wait = 0; pa.stopping = false;
+      let alarm = null, why = null, out = null, outN = 0, deceived = false;
+      for (let t = 0; t < 20 * 25; t++) {
+        step(w.g, {}, w.bus);
+        if (!alarm && w.g.$alarm) { alarm = t / 20; why = w.g.$alarm.why; }
+        if (!out && w.g.actors.some(a => a.unit === 'station')) { out = t / 20; outN = w.g.actors.filter(a => a.unit === 'station').length; }
+        if (w.log.some(l => /eyes go over you|Can I see some identification/.test(l))) deceived = true;
+      }
+      const saw = w.g.actors.filter(a => a.ai?.assault), ran = saw.filter(a => a.ai.fled).length, phones = saw.length - ran;
+      console.log(`      the alarm after ${alarm} s (${why}); the station's officers out after ${out} s (${outN} of them); a look to fool them ${deceived}; ${saw.length} passers-by saw it: ${ran} ran, ${phones} stopped on the phone; arrested ${w.papers.some(x => x.kind === 'arrest')}`);
+      assert(alarm !== null && alarm < 6 && why === 'the assault' && out !== null && out < 20 && outN >= 2 && !deceived && saw.length >= 1, JSON.stringify({ alarm, why, out, deceived, saw: saw.length }));
+    },
+  },
+  {
     name: 'police: a station has its police cars at the kerb in front, always, and an armed officer at its door; three with a killing\'s search out (the user, 2026-11-04)',
     fn() {
       const out = [];

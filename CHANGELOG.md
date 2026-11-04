@@ -4,6 +4,14 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.41 (2026-11-04)
+
+- **Police react to violence they see.** An officer who sees you fighting, or with your hands on someone on the ground, or standing by a downed colleague, raises the alarm at once ("Police! Get off him!"). There's no papers check and no Deception roll to talk your way past. An officer who sees someone down radios it in and goes to them.
+- **Stations turn out.** When the alarm goes up within 150 m of a police station on your street, two of its officers come out of the door within seconds; four at the headquarters. From a station a street or two away, they arrive at a run within a minute or so, long before the armed response.
+- **Passers-by react to an assault.** Seeing a fight or an attack, about half run and the rest stop and phone it in. Nobody walks past any more.
+- **Officers carry and use ammunition.** Patrols carry two spare magazines, the armed response four for the long gun and one for the pistol. They reload when a magazine runs dry and stop firing once they're out.
+- **Dropped guns.** Anyone taken down with a gun in hand drops it, and you can pick it up, rifles included.
+
 ## v0.1.40 (2026-11-04)
 
 - **Clinics.** The small shopfront medical places are now clinics (CLINIC, ПОЛИКЛИНИКА, عيادة, CLINIQUE). They treat cuts, breaks and bruises. A gunshot, a cut artery, internal bleeding or heavy blood loss gets you an ambulance to the hospital, and you come out at its doors.

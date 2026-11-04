@@ -48,7 +48,8 @@ import { sheet } from './people.js';
 import { policeOf } from './countries/index.js';
 import { canStand, casualty } from './health.js';
 import { sendEms, depotCar } from './traffic.js';
-import { armCop, arrest } from './armed.js';
+import { armCop, arrest, able } from './armed.js';
+import { flee } from './shooting.js';
 import { addHeat } from './heat.js';
 import { shortName } from './fight.js';
 import { care, needsOf, outside, hoursWords, VISIT_HEAT, bedHours, discharged } from './services.js';
@@ -98,6 +99,7 @@ export function second(state, bus, me) {
   heard(state, bus, me, now, row);
   found(state, now, row);
   depot(state, me, now, row);
+  witnessed(state, me, now, row);
   for (const c of state.calls ?? []) if (!c.done) (c.row === row ? play : offstage)(state, bus, me, c, now);
   state.calls = (state.calls ?? []).filter(c => !c.done || now - c.ms < DAY);
   state.cordons = (state.cordons ?? []).filter(k => k.until > now);
@@ -112,11 +114,15 @@ function report(state, bus, me, now, row) {
     const down = casualty(p, a);                                  // (down, or shot and sat against a wall after it: sim/health.js)
     if (!down || (a === me && state.$takedown?.stage === 'pin' && canStand(p))) continue;
     a.fell ??= now;                                               // (when they were first seen lying there: found(), if you leave them to it)   // (you face down under an officer's knee: the police have it in hand, nobody calls an ambulance: sim/armed.js)
-    const near = state.actors.filter(w => w !== a && w.ai && !w.hidden && isPasserby(w) && !(w.ai.fled > now - 20000 && Math.hypot(w.x - a.x, w.z - a.z) > 12) && Math.hypot(w.x - a.x, w.z - a.z) < SEE_DOWN_M && seesActor(state, w, a));
-    if (!near.length || !chance(state.rng, 1 - (1 - CALL_P) ** near.length)) continue;
+    // (and an officer who sees someone down, a colleague above all, radios it in at once: the user, 2026-11-04, "cop I laid down
+    // and cops that interrogated me all ignore me now ?")
+    const near = state.actors.filter(w => w !== a && w.ai && !w.hidden && (isPasserby(w) || (w.cop && able(state, w))) && !(w.ai.fled > now - 20000 && Math.hypot(w.x - a.x, w.z - a.z) > 12) && Math.hypot(w.x - a.x, w.z - a.z) < SEE_DOWN_M && seesActor(state, w, a));
+    const radio = near.find(w => w.cop);
+    if (!near.length || (!radio && !chance(state.rng, 1 - (1 - CALL_P) ** near.length))) continue;
     p.reported = now;
-    const caller = pick(state.rng, near);
-    Object.assign(caller, { gait: 'phone', vx: 0, vz: 0 }); caller.ai.wait = ON_PHONE_S * 20;
+    const caller = radio ?? pick(state.rng, near);
+    if (radio) { caller.ai.wait = 0; try { setRoute(state, caller, routeFrom(townOf(state.map), { row, x: caller.x, z: caller.z }, { row, x: a.x + (caller.x > a.x ? 0.9 : -0.9), z: a.z })); } catch {} }   // (to the one down, the radio at the shoulder)
+    else { Object.assign(caller, { gait: 'phone', vx: 0, vz: 0 }); caller.ai.wait = ON_PHONE_S * 20; }
     let c = (state.calls ?? []).find(k => !k.done && k.row === row && Math.hypot(k.x - a.x, k.z - a.z) < MERGE_M);
     if (c) {
       c.who.push(a.id);
@@ -284,6 +290,22 @@ function found(state, now, row) {
     const E = policeOf(state.map)?.ems ?? DEFAULT_EMS, r = stream('ems-found', a.id);
     (state.calls ??= []).push({ id: `call${now}${a.id}`, city: state.map.city ?? null, row: rowOf(state, a), x: a.x, z: a.z, ms: now, who: [a.id], described: null, known: false,
       at: { police: now + Math.round(range(r, ...E.police) * MIN), ambulance: now + Math.round(range(r, ...E.ambulance) * MIN) }, err: { police: 0, ambulance: 0 }, police: { stage: 'coming' }, ambulance: { stage: 'coming' } });
+  }
+}
+
+// An assault seen (the user, 2026-11-04: "the pedestrians should either run away or stop and be on their phone, but not be
+// indifferent"): you in a fight, your hands on someone on the ground; a passer-by who sees it within ASSAULT_SEE_M, once,
+// runs (RUN_P of them), or stops where they are and gets on the phone (the call's sim/emergency.js report()'s: who's down).
+export const ASSAULT_SEE_M = 22, RUN_P = 0.55;
+function witnessed(state, me, now, row) {
+  const at = (state.fight && state.fight.a === state.player) || String(me.busy?.what ?? '').startsWith('downed:');
+  if (!at) return;
+  for (const a of state.actors) {
+    if (!isPasserby(a) || a.hidden || a.ai?.hurt || a.ai?.assault || rowOf(state, a) !== row || a.gait === 'down') continue;
+    if (Math.hypot(a.x - me.x, a.z - me.z) > ASSAULT_SEE_M || !seesActor(state, a, me)) continue;
+    a.ai.assault = now; a.ai.saw = true; a.ai.look = null;           // (not one of the onlookers' ring: sim/onlookers.js)
+    if (chance(stream('assault-saw', a.id, Math.floor(now / 60000)), RUN_P)) flee(state, a, me.x);
+    else { Object.assign(a, { gait: 'phone', vx: 0, vz: 0 }); a.ai.wait = ON_PHONE_S * 20; a.head = Math.atan2(me.z - a.z, me.x - a.x); }
   }
 }
 

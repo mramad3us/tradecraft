@@ -36,17 +36,19 @@
 import { whereFrom, heardFrom } from './sense.js';
 import { coverOf, postureOf } from './cover.js';
 const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
-import { policeHeat, POLICE_ARREST } from './police.js';
-import { isGun, armOf, modelOf, newGun, act as gunAct, ready, canDo, MODELS, KINDS } from './firearms.js';
+import { policeHeat, POLICE_ARREST, SPAWN_M } from './police.js';
+import { isGun, armOf, modelOf, newGun, newMag, sparesFor, isLong, act as gunAct, ready, canDo, MODELS, KINDS } from './firearms.js';
 import { policeOf } from './countries/index.js';
 import { aimMs, npcShot, flee } from './shooting.js';
 import { seesActor, inView } from './perception.js';
+import { drop } from './items.js';
 import { offer, isArmed, RUN_S } from './reflex.js';
 import { check, opposed } from './checks.js';
 import { skill } from './skills.js';
 import { isPasserby } from './crowd.js';
 import { makeAgent, setRoute } from './agents.js';
-import { routeFrom, LINE } from './city.js';
+import { routeFrom, LINE, sectionOf } from './city.js';
+import { SECTION_M } from './map/street.js';
 import { townOf } from './cities/index.js';
 import { sheet } from './people.js';
 import { addHeat } from './heat.js';
@@ -64,7 +66,7 @@ export const COMPLY_S = 3, ORDER_EVERY_S = 6, LOST_S = 60;
 export const CALL_P = 0.12, RESPONDERS = 3;
 export const GUN_SEEN_DC = 8, HELD_H = 3, ARREST_HEAT = 25, ARREST_COVER = 30;
 // (the takedown: how close he has to be, how long he holds you down, a shove's odds against him, a second shove's, a shove's stagger)
-export const CHASE_MS = 4.2, FLEE_MS = 2.4;                        // (an officer running you down, m/s: a sprint, past your run; you fleeing, at more than a walk)
+export const CHASE_MS = 4.2, FLEE_MS = 2.4, SEE_ASSAULT_M = 25, OFFICER_DOWN_M = 6;   // (and violence seen: an assault of yours, a colleague down by you)                        // (an officer running you down, m/s: a sprint, past your run; you fleeing, at more than a walk)
 export const GRAB_M = 1.3, PIN_S = 6, PIN_BODY_M = 0.9, PIN_AT_M = 0.35, SHOVE_DC = 4, SHOVE_AGAIN_DC = 6, SHOVED_S = 2.5, CLOSE_PACE = 1.8, RESIST_POLICE = 20;
 // (what they had you for: the hours held, heat, the ambassador's view of you lost; the worst of what's true)
 export const TIERS = {
@@ -108,6 +110,13 @@ export function closeIn(state, c, x, z, route = null) {
   return c.ai.route;
 }
 
+// (spare magazines on the belt, full: a patrol's two, the response's long gun's four, its pistol's one)
+export const SPARES = { patrol: 2, response: 4, side: 1 };
+function spares(p, id, n) {
+  const M = modelOf(id);
+  if (M?.feed !== 'mag') return;
+  for (let k = 0; k < n; k++) (p.items ??= []).push(newMag(p, id.split('#')[0], M.cap));
+}
 /** An officer's gun, by their role and their country (patrol: holstered, or none; response: a long gun, in the hand, ready). Returns its id or null. */
 export function armCop(state, p, role = 'patrol', r = state.rng) {
   const K = policeOf(state.map), list = K.arms?.[role] ?? [];
@@ -120,18 +129,49 @@ export function armCop(state, p, role = 'patrol', r = state.rng) {
   if (role === 'response') {
     p.hand = id; const g = armOf(p, id), M = modelOf(id);
     if (g.mode) g.mode = M.modes.includes('semi') ? 'semi' : M.modes[0]; g.safety = false;
-    if (side.length && long.length) (p.items ??= []).push(newGun(p, pick(r, side)));
+    if (side.length && long.length) { const sid = newGun(p, pick(r, side)); (p.items ??= []).push(sid); spares(p, sid, SPARES.side); }
   } else (p.items ??= []).push(id);
+  spares(p, id, SPARES[role] ?? 2);                                // (and what to reload it with: tick())
   return id;
 }
 
 /** The alarm's raised (a gun seen, a shot heard, a call): the armed response is on its way, if it isn't. */
 export function call(state, bus, x, why = 'a call') {
   const now = state.time.ms, K = policeOf(state.map);
-  state.$alarm ??= { ms: now, x, ordered: 0, why };
+  if (!state.$alarm) { state.$alarm = { ms: now, x, ordered: 0, why }; turnOut(state, x, now); }
   if (state.$response || !K.arms?.response?.length) return;
   const [lo, hi] = K.response?.minutes ?? [5, 12], r = stream('response', state.map.seed, Math.floor(now / 60000));
   state.$response = { at: now + Math.round(range(r, lo, hi) * 60000), x, row: state.map.row ?? 0, why };
+}
+
+// A police station near the alarm (the user, 2026-11-04: "there should be reinforcements coming out of it ... some officers
+// should be kept in each station and respond faster than the main force"): its officers out of its door, STATION_OUT of
+// them (the headquarters' more), in a few seconds where it's on the street within STATION_M; from a station a street or
+// two off, running in from the end of the street, a minute or so; long before the armed response's minutes.
+export const STATION_M = 150, STATION_OUT = { station: 2, big: 4 }, STATION_S = [6, 14], STATION_FAR_S = [40, 80];
+function turnOut(state, x, now) {
+  if (state.map.kind !== 'street' || !state.$world) return;
+  const row = state.map.row ?? 0, town = townOf(state.map), r = stream('turn-out', state.map.seed, Math.floor(now / 1000));
+  let here = null;
+  for (let i = Math.floor((x - STATION_M) / SECTION_M); i <= Math.floor((x + STATION_M) / SECTION_M); i++) for (const d of sectionOf(town, row, i).doors) if (d.kind === 'shop' && d.shop === 'police' && (!here || Math.abs(d.x - x) < Math.abs(here.x - x))) here = d;
+  if (here) { state.$alarm.station = { at: now + range(r, ...STATION_S) * 1000, x: here.x, z: here.z + 0.7, n: here.big ? STATION_OUT.big : STATION_OUT.station }; return; }
+  const far = nearestDoor(state, 'police', { row, x });
+  if (far && Math.abs(far.row - row) <= 2) state.$alarm.station = { at: now + range(r, ...STATION_FAR_S) * 1000, edge: true, n: STATION_OUT.station };
+}
+function stationOut(state, bus, me, S) {
+  const K = policeOf(state.map), r = stream('station-out', state.map.seed, S.at), town = townOf(state.map), row = state.map.row ?? 0, dir = chance(r, 0.5) ? 1 : -1;
+  S.came = state.time.ms;
+  for (let k = 0; k < S.n; k++) {
+    const who = `stn${S.at % 100000}${k}`;
+    state.people[who] = sheet({ id: who, name: 'a police officer', sex: chance(r, 0.3) ? 'f' : 'm', cls: 'cop', skills: { awareness: [K.awareness ?? 8, 0], cqc: [8, 1], tracking: [6, 0] },
+      look: { skin: pick(r, K.skin ?? ['light']), hair: { style: pick(r, ['crew', 'short', 'bun']), color: pick(r, [0x23252f, 0x47302a]) }, shoes: 0x14151c, ...structuredClone(K.look ?? {}) } });
+    armCop(state, state.people[who], 'patrol', r);
+    const x = S.edge ? me.x + dir * (SPAWN_M + k * 1.4) : S.x + (k - (S.n - 1) / 2) * 0.9, z = S.edge ? LINE.F + (k % 2) * 0.5 : S.z;
+    const a = makeAgent(state, { who, row, x, z, speed: 2.2, face: x > me.x ? 'left' : 'right' });
+    Object.assign(a, { cop: true, unit: 'station', alert: state.time.ms });
+    try { setRoute(state, a, routeFrom(town, { row, x: a.x, z: a.z }, { row, x: me.x, z: me.z })); } catch { a.ai.route = null; }
+  }
+  say(state, bus, { kind: 'note', text: S.edge ? 'Running feet, and radios: officers from the station a street over, coming down the street at a run.' : 'The station\'s door bangs open: officers out of it at a run, coming your way.' });
 }
 
 /** Once a second (sim/game.js): who's seen the gun, the order, compliance, the call, the response. */
@@ -148,6 +188,31 @@ export function second(state, bus, me) {
     if (chance(state.rng, CALL_P)) call(state, bus, me.x, 'a passer-by');
   }
   if (shot) call(state, bus, shot.x, 'the shots');
+  // (whoever's taken down with a gun in the hand lets go of it: on the ground by them, to be picked up; the user, 2026-11-04,
+  // "when an npc gets taken down and was carrying a rifle, they should drop it and the rifle should be made available to pick
+  // up to us")
+  for (const a of state.actors) {
+    const q = a !== me && a.who && state.people[a.who];
+    if (!q || !isGun(q.hand) || !(a.gait === 'down' || q.dead || staysDown(q) || !canStand(q) || (a.ai?.downUntil ?? 0) > now)) continue;
+    const name = modelOf(q.hand)?.short ?? 'the gun', long = isLong(q.hand);
+    drop(state, q, a, q.hand);
+    if (a.ai?.gunner) { a.ai.gunner = null; delete a.$aim; }
+    if (inView(state, a.id)) say(state, bus, { kind: 'note', text: `${long ? 'The' : 'A'} ${name} clatters to the pavement by ${q.sex === 'f' ? 'her' : 'him'}.` });
+  }
+  // (violence in front of them (the user, 2026-11-04, strangling an officer on the ground before a station, a patrol walking
+  // by and a Deception check to see them past): a fight of yours, someone on the ground under your hands, an officer down
+  // at your feet: the alarm, at once, no question of what you look like)
+  {
+    const row0 = state.map.row ?? 0;
+    const assault = (state.fight && state.fight.a === state.player) || String(me.busy?.what ?? '').startsWith('downed:');
+    const down = state.actors.find(a => a.cop && a !== me && (a.row ?? row0) === row0 && (a.gait === 'down' || !!state.people[a.who]?.dead || (state.people[a.who] && !canStand(state.people[a.who]))) && Math.hypot(a.x - me.x, a.z - me.z) < OFFICER_DOWN_M);
+    if (assault || down) for (const c of copsHere(state)) {
+      if (c.alert || c === down || !able(state, c) || Math.hypot(c.x - me.x, c.z - me.z) > SEE_ASSAULT_M || !seesActor(state, c, me)) continue;
+      c.alert = now; if (c.ai) { c.ai.wait = 0; c.stopping = false; }
+      if (!state.$alarm) say(state, bus, { kind: 'note', text: assault ? '"Police! Get off him! Get off him now!"' : '"Officer down! Stay where you are!"' });
+      call(state, bus, me.x, assault ? 'the assault' : 'an officer down');
+    }
+  }
   // (an officer on another street: out of it; you're not his to shout at)
   const row = state.map.row ?? 0;
   for (const c of cops(state)) if ((c.row ?? row) !== row && c.alert) { c.alert = null; if (c.ai) { c.ai.gunner = null; c.ai.closing = null; c.ai.pace = undefined; } }
@@ -213,6 +278,9 @@ export function second(state, bus, me) {
     if (fire && !A2.fled) { A2.fled = now; say(state, bus, { kind: 'note', text: K.stopOrShoot ?? '"Stop or I shoot!"' }); }
     if (!flees) delete A2.fled;
   }
+  // (the station's officers out: sim/armed.js turnOut())
+  const St = state.$alarm?.station;
+  if (St && !St.came && now >= St.at) stationOut(state, bus, me, St);
   // (the armed response, come; and gone again, when they've lost you)
   const R = state.$response;
   if (R && !R.came && now >= R.at && (state.map.row ?? 0) === R.row) respond(state, bus, me, R);
@@ -375,7 +443,7 @@ export function pin(state, bus, me, c, how) {
   // DOWN); he kneels at your back, a little behind you up the picture, facing you, so you're seen under his hands)
   // (the stop motion over: nothing of it you can do face down; the user, 2026-11-04, arrested mid-draw, "world is still frozen")
   if (state.shoot) { state.shoot = null; delete me.$aim; }
-  if (me.busy?.what === 'draw') me.busy = null;
+  if (me.busy) me.busy = null;                                     // (whatever you were at, a draw, your hands on someone on the ground: stopped)
   const T = state.$takedown, side = Math.sign(c.x - me.x) || 1, mid = me.x - side * PIN_BODY_M;
   Object.assign(T, { stage: 'pin', how, until: state.time.ms + PIN_S * 1000, x: mid + side * PIN_AT_M, z: me.z - 0.3, face: side > 0 ? 'left' : 'right', cface: side > 0 ? 'left' : 'right' });
   if (c.ai) c.ai.pace = undefined;
@@ -454,7 +522,16 @@ function gunner(state, bus, a, me) {
   if (p.hand !== id) { p.items = (p.items ?? []).filter(k => k !== id); p.hand = id; return step('draw', { from: 'belt' }); }
   if (M.safety === 'manual' && g.safety) return step('safety');
   if (M.safety === 'selector' && g.mode === 'safe') return step('selector');
-  if (!ready(g, M)) { const fix = canDo(p, id).find(k => ['clear', 'rack', 'release', 'insertMag', 'closeCyl'].includes(k)); if (fix) return step(fix); a.ai.gunner = null; return; }
+  // (not ready: the jam cleared, the slide racked; the empty magazine out for a full one, while there's one left; none, and
+  // they're out of the fight with it: the user, 2026-11-04, "Armed npcs should also always carry ammunition (and use it, in
+  // such ways that they can run out)")
+  if (!ready(g, M)) {
+    const empty = g.mag && (armOf(p, g.mag)?.n ?? 0) === 0 && sparesFor(p, g.model).some(k => armOf(p, k).n > 0);
+    const fix = empty ? 'dropMag' : canDo(p, id).find(k => ['clear', 'rack', 'release', 'insertMag', 'closeCyl'].includes(k) && (k !== 'insertMag' || sparesFor(p, g.model).some(m => armOf(p, m).n > 0)));
+    if (fix === 'dropMag') { const mag = g.mag; step('dropMag'); if (!g.mag && mag) delete p.arms[mag]; return; }   // (dropped where they stand, not kept: a spent one)
+    if (fix) return step(fix);
+    a.ai.gunner = null; return;
+  }
   const face = () => { a.head = to; a.face = Math.abs(Math.cos(to)) > Math.abs(Math.sin(to)) ? (Math.cos(to) > 0 ? 'right' : 'left') : (Math.sin(to) > 0 ? 'down' : 'up'); };   // (turned to you, body and all: the user, 2026-11-04, "not even looking our way")
   if (!seesActor(state, a, me)) { face(); G.aimed = null; G.until = now + 250; delete a.$aim; return; }
   if (G.hold) { face(); a.$aim = { x: me.x, z: me.z, ms: now }; G.aimed = null; G.until = now + 250; return; }   // (covering you: aimed, the finger off the trigger)
