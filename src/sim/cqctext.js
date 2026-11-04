@@ -9,6 +9,7 @@
 // hand of whoever's doing it (sim/weapons.js: 'the penknife').
 import { weaponOf, bare } from './weapons.js';
 import { hash } from './rng.js';
+import { blowWords } from './armour.js';
 
 export const SEVERITY = [[0.15, 'light'], [0.3, 'solid'], [0.5, 'heavy'], [Infinity, 'brutal']];
 const sev = (force) => SEVERITY.find(([t]) => force < t)[1];
@@ -198,7 +199,9 @@ export function exchangeText(out, name, p, salt = 0, place = 'hall') {
     case 'absorbed': text = us ? pick(ABSORBED[1], 7) : pick(ABSORBED[0], 7); break;
     default: text = `${does('b')}; ${does('a')}.`;
   }
+  if (out.armour) text += blowWords(out.armour, us, `${salt}|${out.round}`);   // (a vest or a plate under it: sim/armour.js)
   for (const i of out.injuries ?? []) text += INJURED[i.kind] ? pick(INJURED[i.kind][us ? 0 : 1], 10).replace('{injury}', i.name) : ` ${i.name.charAt(0).toUpperCase()}${i.name.slice(1)}.`;
+  if (out.through?.armour) text += blowWords(out.through.armour, !us, `${salt}|${out.round}|t`);
   // (a blade or a weapon through the guard; a block clean of it; a weapon knocked away; a bottle broken)
   if (out.through) text += out.through.injuries.length ? out.through.injuries.map(i => pick(THROUGH[us ? 0 : 1], 13).replace('{injury}', i.name)).join('') : pick(BRUISED[us ? 0 : 1], 13);
   else if (out.clean === 'block') text += pick(CLEAN[us ? 0 : 1], 13);

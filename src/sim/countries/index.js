@@ -10,7 +10,10 @@
 // chance with nothing showing, awareness: their Awareness, look: the uniform, skin: their skins, ask: the
 // papers line, arms: { patrol: their handguns (empty: unarmed), patrolLong: the long guns some patrols carry,
 // response: the armed response's guns, visible: who carries rifles in the open }, response: the armed unit
-// and its minutes to come), law ({ handgun, long, carry, ranges, diplomats }: what's legal, in words the game
+// and its minutes to come (soldiers: it's the army, a soldier each, in look: their uniform), armour: { patrol:
+// the share of patrol officers in a soft vest under the shirt, color: the response's plate carriers, patch: POLICE
+// across them: sim/armour.js }),
+// law ({ handgun, long, carry, ranges, diplomats }: what's legal, in words the game
 // reads: 'banned', 'licensed', 'permit', 'traumatic', 'open', 'club'), black ({ ease 0–1: how easy a gun is
 // to come by, models: what's on offer }), range (a shooting club or range in its station, where there is one:
 // { name, what: the guns it lets you shoot }) }. The research behind them is DESIGN.md's (Firearms: the law

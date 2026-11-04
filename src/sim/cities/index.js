@@ -55,7 +55,7 @@ export const SHOP_EN = {
   pharmacy: ['PHARMACY'], grocery: ['GROCERY', 'FOOD'], cafe: ['CAFE'], flowers: ['FLOWERS'], bakery: ['BAKERY', 'BREAD'], books: ['BOOKS'],
   optician: ['OPTICIAN', 'GLASSES'], bank: ['BANK'], tobacco: ['TOBACCO', 'KIOSK'], exchange: ['EXCHANGE'], bar: ['BAR'], clothes: ['CLOTHES'],
   shoes: ['SHOES'], watches: ['WATCHES'], phones: ['PHONES'], shawarma: ['SHAWARMA'], beer: ['BEER'], deli: ['DELI'], restaurant: ['RESTAURANT', 'FOOD'],
-  gym: ['GYM'], club: ['KARATE CLUB', 'KARATE'], school: ['LANGUAGES'], culture: ['COMMUNITY CENTRE', 'CENTRE'], manakish: ['FLATBREADS', 'BREAD'], sweets: ['SWEETS'], vegetables: ['VEGETABLES', 'GREENGROCER'],
+  gym: ['GYM'], club: ['KARATE CLUB', 'KARATE'], school: ['LANGUAGES'], culture: ['COMMUNITY CENTRE', 'CENTRE'], range: ['SHOOTING RANGE', 'RANGE'], manakish: ['FLATBREADS', 'BREAD'], sweets: ['SWEETS'], vegetables: ['VEGETABLES', 'GREENGROCER'],
   butcher: ['BUTCHER'], barber: ['BARBER'], laundry: ['LAUNDRY'], juice: ['JUICE BAR', 'JUICE'], koshary: ['KOSHARY'], foul: ['BEANS & FALAFEL', 'FALAFEL'], spices: ['SPICES'],
 };
 /**
@@ -70,7 +70,7 @@ export function kioskOf(city, f) {
   const [sign, colour, sells = 'cafe'] = sold[(f?.seed ?? 0) % sold.length];
   return [sign, colour, sells];
 }
-export const SHOP_EN_CITY = { moscow: { club: ['SAMBO CLUB', 'SAMBO'], culture: ['HOUSE OF CULTURE', 'CULTURE'] }, beirut: { culture: ['CULTURAL CENTRE', 'CULTURE'] }, cairo: { culture: ['PALACE OF CULTURE', 'CULTURE'] } };
+export const SHOP_EN_CITY = { moscow: { club: ['SAMBO CLUB', 'SAMBO'], culture: ['HOUSE OF CULTURE', 'CULTURE'] }, beirut: { culture: ['CULTURAL CENTRE', 'CULTURE'], range: ['SHOOTING RANGE', 'TARGETS'] }, cairo: { culture: ['PALACE OF CULTURE', 'CULTURE'], range: ['SHOOTING CLUB', 'SHOOTING'] } };
 /** The language a sign's part is in, by its script and the city: Cyrillic Russian, Arabic Arabic, Latin French in Beirut, else English. */
 export const scriptLang = (part, city) => (/[\u0400-\u04FF]/.test(part) ? 'ru' : /[\u0600-\u06FF]/.test(part) ? 'ar' : city === 'beirut' ? 'fr' : 'en');
 

@@ -40,8 +40,9 @@ export default [
       // shops: sim/cities/*.js. In 0.1.0-rc24, the shops' ground floors set into their buildings, their
       // walls, furniture and lights: sim/interiors/shop.js. In 0.1.19, a community centre where a language school stood
       // (the school's weight split with it, so nothing else moved: seed 1234 has one, 7 and 77 none): sim/clubs.js; and a
-      // street's bus stops at least STOP_GAP_I sections apart, so its parked cars where the bays were and are: sim/transit.js)
-      const want = { 7: 4187767504, 77: 3704648367, 1234: 1106449569, people: 2649027127 };
+      // street's bus stops at least STOP_GAP_I sections apart, so its parked cars where the bays were and are: sim/transit.js.
+      // In 0.1.21, a shooting range where a martial-arts club stood, the club's weight split with it: seed 77 has one)
+      const want = { 7: 4187767504, 77: 3333578826, 1234: 1106449569, people: 2649027127 };
       for (const seed of [7, 77, 1234]) {
         const parts = [];
         // (the bus shelters and notice boards of 0.1.0-rc16, from a stream of their own, left out)

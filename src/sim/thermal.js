@@ -8,7 +8,9 @@
 // climate), one of BANDS, freezing to hot. Passers-by dress for it (sim/people.js passerby(): a stream of its
 // own, so who they are doesn't change), and what's expected of a top is its range (EXPECT: warmth from, to).
 // **What a top's worth** (warmthOf()): WARMTH by its kind (a T-shirt 0, a dress 0, a robe 1, a jumper, a
-// jacket, a suit 2, a coat 3, a parka 4); a hat the head's (HAT_WARM). Out of the day's range, you're dressed
+// jacket, a suit 2, a coat 3, a parka 4); a hat the head's (HAT_WARM); body armour adds to the core's (a soft
+// vest half a point, a plate carrier a point against the heat, WARM_COLD of that against the cold: sim/armour.js
+// WARM), not to how you look. Out of the day's range, you're dressed
 // for another season, and anyone looking for you has it easier (sim/notice.js: SEASON_MOD a step, at most
 // SEASON_MAX); an umbrella in the hand under a clear sky, the same (UMBRELLA_MOD).
 // **The core** (p.core, °C, 37 when nothing's happened): out of doors it drifts by how far the air (felt:
@@ -23,6 +25,7 @@
 // (My calls, to be tuned in play: tests/thermal.test.mjs prints them.)
 
 import { weather as weatherOf } from './weather.js';
+import { warmthOf as armourWarmth } from './armour.js';
 import { townOf } from './cities/index.js';
 import { DAY, HOUR } from './clock.js';
 
@@ -79,9 +82,9 @@ export function feltC(w, p, hour = 12) {
 /** Where the core would settle in this air (w, the weather; indoors: null), dressed so, running or not: { target °C, tau minutes }. */
 export function settleTo(p, w, { hour = 12, running = false } = {}) {
   if (!w) return { target: CORE, tau: TAU_IN };
-  const warm = Math.min(4, Math.max(0, topWarmth(p.look))), i = Math.floor(warm), f = warm - i;   // (the top's warmth: the hat's is COMFORT_HAT)
-  const lo = COMFORT[i][0] + (COMFORT[Math.min(4, i + 1)][0] - COMFORT[i][0]) * f - (p.look?.hat ? COMFORT_HAT : 0);
-  const hi = COMFORT[i][1] + (COMFORT[Math.min(4, i + 1)][1] - COMFORT[i][1]) * f;
+  // (the top's warmth, and a vest's or a carrier's with it: all of it against the heat, a share against the cold, sim/armour.js; the hat's is COMFORT_HAT)
+  const at = (w, end) => { const v = Math.min(4, Math.max(0, w)), i = Math.floor(v), f = v - i; return COMFORT[i][end] + (COMFORT[Math.min(4, i + 1)][end] - COMFORT[i][end]) * f; };
+  const top = topWarmth(p.look), lo = at(top + armourWarmth(p, true), 0) - (p.look?.hat ? COMFORT_HAT : 0), hi = at(top + armourWarmth(p), 1);
   const t = feltC(w, p, hour), run = running ? RUN_C : 0;
   if (t < lo) return { target: CORE - COLD_K * (lo - t) + run, tau: TAU_COLD };
   if (t > hi) return { target: CORE + HEAT_K * (t - hi) + run, tau: TAU_HEAT };

@@ -4,6 +4,33 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.21 (2026-11-04)
+
+- **Shooting ranges.** Some of the martial-arts clubs are ranges now; nothing else on the streets moved. What a visitor may shoot follows each country's law:
+  - Moscow's ТИР: a pistol under an instructor ($30), or the AK ($45).
+  - London's rifle clubs: a club .22 as a member's guest ($15). Handguns have been banned since 1997.
+  - Beirut: a club Glock ($35), or the M4 ($50).
+  - Cairo's shooting club: a day pass with a CZ ($25), or trap with a shotgun ($30).
+
+  A session takes an hour and a quarter. It keeps Weapon handling from rusting and trains it up to 14 (12 with London's .22). In Moscow, where the FSB watches embassy staff, the man at the desk takes your passport details slowly: heat +3 (+1 in Beirut).
+- **An umbrella is an umbrella.** In your hand, it no longer counts as "something in your hand" to anyone looking: not to a patrol deciding whether to stop you, and not to a search, which no longer takes it. The same goes for a bottle, a walking stick and a bike lock. A knife in your hand still multiplies a patrol's odds of stopping you by 4.5, and they take it. When they search you, they now say only what showed: the blood, or the thing in your hand, not both.
+- **In the flat, what's at hand comes first.** At the window, the armchair, the basin or the table, the instinct offers that spot, and T does it. Before, an assignment's "be off by" or tiredness took its place, so the window had no T. The reminder now follows on the same line.
+- **The books card, redone.** One row per book: its title, its subject, where it is (on you, in the bag, on the shelf), and a bar of how far you've read. Its number, or a click, reads it for ten minutes. At the armchair a small button takes it with you or leaves it on the shelf. Books still to finish come first, finished ones at the bottom, and a long shelf scrolls.
+- Tests: clubs (a range in four cities), police (the umbrella and the knife), and `tests/armour.test.mjs`.
+
+- **Body armour.** Two kinds, covering the torso only.
+  - **A soft vest** goes under your top and isn't drawn. Three torso hits in four land on it. It stops nearly every handgun round: a Makarov, a 9 mm, a .38 or a .45 98–100% of the time, a .357 95%, buckshot 95%. A Tokarev's round gets through more than half the time up close (45% stopped within 10 m, 80% from 40 m). The MP7's and the Val's rounds, made for this, go through nine times in ten, and no rifle round is stopped at all. So of torso hits from a Makarov, a Glock or a 1911, about three in four are stopped; from any rifle, none.
+  - **A plate carrier** goes over your top and is drawn there, on the street and on the close figures: plates front and back, straps, three pouches, POLICE across the chest on police ones. The plates take half the torso hits and its soft panels a quarter more. They stop every pistol round, and rifle rounds 85–96% of the time (5.45 95%, 7.62×39 96%, 5.56 92%, 7.62×51 90%, the SVD's 7.62×54R 85%). So of torso hits from an AK-74M, an AKM or an M4, nearly half are stopped; from an SVD, 43%. A round that goes through either kind is slowed (85% of its damage through a vest, 60% through a plate), and each round stopped wears that layer a little.
+  - **A stopped round still hurts.** No bleeding, but a bruise behind it: about 1.6 points on the torso for a 9 mm into a vest, 3.2 for an AK round on a plate, 4.4 for the SVD's (hurt ribs). A cracked rib one time in twenty for a 9 mm, one in eight for an AK round, one in four for the SVD's. And a moment's knock: an officer loses his aim for a few seconds, and is knocked off his feet one time in five by an AK round on his plate. You stagger, and your aim's gone.
+  - **First aid and your read say what happened.** Anyone sees a hole in the clothes with no blood under it. A look (Medicine) finds "a bruise the size of a fist, where the vest stopped a round", or "a black bruise the size of a hand, where a plate stopped a rifle round". The close figure marks it as a hole with no blood, the lead grey in it.
+  - **Blades**: a plate stops what lands on it. A soft vest turns 70% of slashes (the rest cut shallow), a quarter of knife thrusts and one point in ten (a screwdriver goes through the weave). A carrier spreads a blunt blow (0.7 of it); a vest takes a tenth off. In knife fights to the end, deep torso wounds fall from 0.40 a fight to 0.22 in a vest and 0.17 in plates. The knife still wins about as often: the head and the arms are bare.
+  - **What it costs**: a carrier slows the walk and the run (×0.92) and makes a kilometre on foot 1.5× the training. It's warm: in a jacket in 30 °C sun, the core settles 0.5 °C hotter in a vest and 1 °C in a carrier (too hot); in the cold it helps a little. And it's seen: +4 to anyone looking for you, and to a patrol's odds of stopping you.
+  - **Who wears it**: every armed response, in carriers over the uniform. Beirut's response is the army now: soldiers in olive with coyote carriers. Patrol officers wear a soft vest under the shirt by their country (London 95%, the US 85%, Beirut 30%, Moscow 20%, Cairo 10%). The umbrella's minder wears one about one time in three.
+  - **Noticing a vest**: a carrier anyone sees. A soft vest only up close, by your Awareness, the distance, what's over it and the light. At arm's length, Awareness 10 catches it under a jumper 80% of the time and under a coat 44%; Awareness 3, 45% and 9%. A round of yours stopped by it, a grip on them in a fight, or a search tells you too. Your read and first aid show it ("Under the jumper: the stiff, square line of a vest…"), and your sheet and your pockets (I) say what you wear.
+  - **The embassy's arch** rings for a carrier's steel plates (off, through the X-ray, back to you; no cover lost), not for a soft vest.
+  - **Where to get one**: the free walk puts a soft vest on you (`&armour=heavy` a plate carrier, `&armour=none` nothing). In the flat, the wardrobe puts either on or takes it off (4 minutes), and a carrier comes off at the door.
+- Tests: `tests/armour.test.mjs` (torso hits from ten guns on no armour, a vest and a carrier; blades and knife fights; the costs; noticing a vest; who wears it; the read and first aid's words; you shot in a vest; the wardrobe and a save; the carrier drawn).
+
 ## v0.1.20 (2026-11-04)
 
 - **Hale's exercises are booked, not jumped into.** On the phone, Hale offers to book them: all seven, or one at a time until you've enough. He doesn't send you into the lessons there and then any more.

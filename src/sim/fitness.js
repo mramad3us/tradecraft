@@ -8,7 +8,8 @@
 // **Base and effective.** The Fitness skill is the base (its base and practice: baseOf()); effective fitness is the base
 // and an offset (p.fit.off, −BAND … capOf()), and it's the effective one the body uses: skills.js skill('fitness').
 // **The week's load** (p.fit.load: Monday to Sunday, the calendar's): a session at the gym SESSION_PTS, a class on the mat
-// CLASS_PTS (sim/shops.js), each kilometre walked WALK_PTS_KM and run RUN_PTS_KM (sim/game.js, once a second).
+// CLASS_PTS (sim/shops.js), each kilometre walked WALK_PTS_KM and run RUN_PTS_KM (sim/game.js, once a second; in a
+// plate carrier, a load carried, half as much again: sim/armour.js LOAD).
 // **The week's end** (rollWeeks(): once a second, and after time skipped): its load against what the base asks:
 // upNeed() or more, the offset up a point (to capOf()); under holdNeed(), down a point (to −BAND); between, held. Base 10
 // asks 45 to go up (four sessions and some walking) and 22 to hold. At the top of the band two weeks running, the base
@@ -18,6 +19,7 @@
 // is never above the base, and holding it takes a session nearly every day.
 import { DAY } from './clock.js';
 import { say } from './log.js';
+import { loadOf } from './armour.js';
 
 export const SESSION_PTS = 10, CLASS_PTS = 7, WALK_PTS_KM = 0.6, RUN_PTS_KM = 2.5;
 export const BAND = 3, FIT_MAX = 24;
@@ -39,8 +41,8 @@ export function exercise(state, bus, p, pts, ms = state.time.ms) {
   rollWeeks(state, bus, p, ms);
   fitOf(p, ms).load += pts;
 }
-/** So many metres on foot, walked or run. */
-export const onFoot = (state, bus, p, walkM, runM) => exercise(state, bus, p, (walkM * WALK_PTS_KM + runM * RUN_PTS_KM) / 1000);
+/** So many metres on foot, walked or run (in a plate carrier, a load carried: more, sim/armour.js LOAD). */
+export const onFoot = (state, bus, p, walkM, runM) => exercise(state, bus, p, (walkM * WALK_PTS_KM + runM * RUN_PTS_KM) / 1000 * loadOf(p));
 
 /** Every week ended since p's was last: its load weighed, the offset moved, the base too at a band's edge held two weeks. */
 export function rollWeeks(state, bus, p, ms = state.time.ms) {

@@ -61,7 +61,7 @@ export const CLOSING_DAYS = 4;
 export const INFECTION = { start: 12, grow: { artery: 20, deep: 20, cut: 5, split: 4 }, drugs: 30, clean: 8, sepsis: 100 };
 export const IMMUNE = { base: 12, fitness: 0.5 };                     // (a day's fight back: base + Fitness × this)
 export const FEVER = [[80, 'delirious with fever', -4], [55, 'a high fever', -2], [25, 'feverish', -1]];
-export const PAIN = { bruised: 3, hurt: 9, wounded: 18, out: 30, crack: 8, fracture: 22, cut: 3, deep: 10, artery: 12, split: 2, nose: 1 };
+export const PAIN = { bruised: 3, hurt: 9, wounded: 18, out: 30, crack: 8, fracture: 22, cut: 3, deep: 10, artery: 12, split: 2, nose: 1, blunt: 4 };   // (blunt: a round stopped by a vest, the bruise behind it: sim/armour.js)
 export const PAIN_BANDS = [[70, 'agony', -3], [45, 'bad pain', -2], [25, 'in pain', -1]];
 export const KNIT_STITCHED = 1.6, KNIT_UNSPLINTED = 0.5;
 const LIMBS = ['armL', 'armR', 'legL', 'legR'];

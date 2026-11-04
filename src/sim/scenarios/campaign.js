@@ -700,6 +700,10 @@ function instinct(state, c, now) {
     if (k0.weekday < 5 && !c.worked[Math.floor(now / DAY)] && k0.hour < WORK.to) return L('work-door', 'note', `The embassy. {instinct}: in, to your desk${k0.hour < WORK.from ? ' (early: the coffee\'s on)' : ''}.`, 'embassy');
     return L('work-shut', 'calm', `The embassy${k0.weekday >= 5 ? ': the weekend, the Marine and the flag' : ': your day\'s done here'}. {instinct}: in all the same.`, 'embassy');
   }
+  // (in the flat, at the embassy: what's at hand first, a reminder after it, so T still does it; the user, 2026-11-04,
+  // "window 't' prompt doesn't show up" under an assignment's "be off by")
+  const s = (state.map.place === 'home' || state.map.place === 'embassy') && me && !me.busy && spotNear(state, me), line = s && SPOT_LINE[s.kind]?.(state);
+  const spotL = line ? L(`spot-${s.kind}`, 'calm', line[0], line[1]) : null, withSpot = (l) => (spotL && l.tone !== 'warn' ? { ...spotL, id: `${spotL.id}+${l.id}`, text: `${spotL.text} ${l.text}` } : l);
   const next = agenda(c, now)[0];
   const k = calendar(now), today = Math.floor(now / DAY), worked = c.worked[today];
   if (next) {
@@ -707,7 +711,7 @@ function instinct(state, c, now) {
     const name = T ? T.asset?.codename ?? T.target?.name : a.kind === 'lesson' ? lessonBook(a.lesson)?.title : a.kind === 'sdr' ? c.posting.assets.find(s => s.id === a.who)?.codename : c.posting.targets.find(t => t.id === a.who)?.name;
     if (T) {                                                          // (a trip abroad: flown out, from the mind)
       if (next.when === 'now') return L(`now-${a.id}`, 'warn', `${cityById(T.city).name}: ${name}, now. {mindmap}, and go.`);
-      if (a.start - now < LEAD_H * HOUR) return L(`soon-${a.id}`, 'note', `${cityById(T.city).name}, ${name} at ${clockText(a.from)}: {mindmap} by ${clockText(a.start)}, and go.`);
+      if (a.start - now < LEAD_H * HOUR) return withSpot(L(`soon-${a.id}`, 'note', `${cityById(T.city).name}, ${name} at ${clockText(a.from)}: {mindmap} by ${clockText(a.start)}, and go.`));
     } else {                                                          // (here: walked to, and begun at its place)
       const at = missionPlace(c, a), w = windowOf(a);
       if (at && atMission(state, me, a, at)) {
@@ -718,7 +722,7 @@ function instinct(state, c, now) {
       if (at) {
         const off = leaveBy(state, a, at), far = farText(state, me, at);
         if (now >= off) return L(`now-${a.id}`, 'warn', `${KINDS[a.kind].name}: ${name}, at ${clockText(a.from)}. ${at.label}, ${far}: go now. The pointer has the way.`);
-        if (off - now < LEAD_H * HOUR) return L(`soon-${a.id}`, 'note', `${name} at ${clockText(a.from)}: ${lower(at.label)}, ${far}. Be off by ${clockText(off)}.`);
+        if (off - now < LEAD_H * HOUR) return withSpot(L(`soon-${a.id}`, 'note', `${name} at ${clockText(a.from)}: ${lower(at.label)}, ${far}. Be off by ${clockText(off)}.`));
       }
     }
   }
@@ -726,10 +730,9 @@ function instinct(state, c, now) {
   const tl = state.scenario.tail;
   if (tl && state.map.kind === 'street' && Object.values(tl.suspects).some(v => v >= 2)) return L('tail', 'warn', 'A tail, you\'d swear to it. Lose them before anywhere that matters (a safe house, an asset), or go about your day as if you hadn\'t seen them: everything you do, they write down.');
   const tired = fatigue(c, now);
-  if (tired.v) return L(`tired-${tired.word}`, tired.v <= -3 ? 'warn' : 'note', `${Math.floor(tired.h)} hours awake: ${tired.word}, ${tired.v} to everything. ${state.map.place === 'home' ? '{instinct}: to bed.' : 'Home, and to bed: the pointer has the way.'}`, state.map.place === 'home' ? 'sleep' : null);
+  if (tired.v) return withSpot(L(`tired-${tired.word}`, tired.v <= -3 ? 'warn' : 'note', `${Math.floor(tired.h)} hours awake: ${tired.word}, ${tired.v} to everything. ${state.map.place === 'home' ? '{instinct}: to bed.' : 'Home, and to bed: the pointer has the way.'}`, state.map.place === 'home' ? 'sleep' : null));
   // (in the flat, what's at hand: the bed, the telephone, the basin, the kitchen; at the embassy, your desk, the chief's)
-  const s = (state.map.place === 'home' || state.map.place === 'embassy') && me && !me.busy && spotNear(state, me), line = s && SPOT_LINE[s.kind]?.(state);
-  if (line) return L(`spot-${s.kind}`, 'calm', line[0], line[1]);
+  if (spotL) return spotL;
   const fd = state.map.place === 'home' && me && state.$world?.sections.get(0)?.plan?.exits[0];
   if (fd && Math.hypot(me.x - (fd.x0 + fd.x1) / 2, me.z - fd.z0) < 1.8) return L('front-door', 'calm', 'The front door. Through it, down the stairs and out onto the street.');
   if (state.map.place === 'embassy') return k.weekday < 5 && !worked && k.hour < WORK.to ? L('work-in', 'note', 'The station: through the arch, behind the vault door off the corridor. Your desk\'s in there.') : null;

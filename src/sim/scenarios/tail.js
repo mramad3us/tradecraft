@@ -70,6 +70,7 @@ import { isPasserby } from '../crowd.js';
 import { lightBand } from '../light.js';
 import { eyes, sees, seesActor, inView, lightHere, openAir, wrap } from '../perception.js';
 import { AREA_I } from '../transit.js';
+import { issue } from '../armour.js';
 
 export const KEEP_M = 22;
 export const KEEP_EVERY_S = 6;
@@ -1002,7 +1003,7 @@ function end(state, bus, outcome, text) {
  * my calls), on the tail's evening with another man at the end of it. Colonel Pavel Kostin of the
  * GRU, who has poisoned two defectors abroad and flies out on Friday for a third, walks from his office
  * to his bus stop three to five streets away (STOP_ROWS), his minder a few paces behind
- * (MINDER_KEEP_M), the tail's grey coats about. Nobody signs for it: an umbrella with a pellet in its
+ * (MINDER_KEEP_M; a soft vest under his coat now and then, sim/armour.js BODYGUARD_P), the tail's grey coats about. Nobody signs for it: an umbrella with a pellet in its
  * tip came in a pouch addressed to no one (Markov, Waterloo Bridge, 1978).
  *   - **The approach** is the tail's, all of it: his checks, seen twice and he's made you, keeping
  *     him among the grey coats. His minder weighs whoever comes within CLOSE_M of him, every
@@ -1109,6 +1110,7 @@ export const umbrellaTest = {
     state.people.minder = sheet({ id: 'minder', name: 'his minder', sex: 'm', cls: 'spook', os: 30, look: minderLook,
       skills: { awareness: [11, 1], tracking: [10, 1], deception: [8, 0], cqc: [15, 1] }, langs: { ru: 'native' } });
     state.people.minder.seen = describe(minderLook, 'm');
+    issue(state.people.minder, 'bodyguard', null, `${state.seed ?? ''}|minder`);   // (a bodyguard's soft vest, now and then: sim/armour.js, on dice of its own)
     state.map = { kind: 'street', seed: C ? C.mapSeed : seedFrom(r), row: 0, i0: null, i1: null, crowd: 1, city: C?.city ?? city ?? undefined };
     const seed = townOf(state.map);
     const door = [0, 1].flatMap(i => sectionOf(seed, 0, i).doors).find(d => d.x > 14 && d.x < 26 && d.kind !== 'arch' && d.z === Z.front) ?? { x: 20 };   // (a booked one's walked to: sim/places.js, 'door0')

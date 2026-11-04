@@ -89,6 +89,11 @@ export const TECHS = {
  * in a full hand, its fight-profile here (gun: true; firing it is sim/shooting.js); a magazine is no weapon.
  */
 const WHIPS = {};
+// (what you'd carry anyway, and could hit someone with: nobody looks twice at it in a hand, and the police don't take it;
+// the user, 2026-11-04, "an umbrella is not a weapon ???")
+export const EVERYDAY = new Set(['umbrella', 'bottle', 'stick', 'bikelock']);
+/** Whether a thing in the hand or a pocket looks like a weapon to whoever sees it: a weapon, and not an everyday one. */
+export const suspicious = (kind) => !!weaponOf(kind) && !EVERYDAY.has(String(kind));
 export const weaponOf = (kind) => (!kind ? null : WEAPONS[kind] ?? (isGun(kind) ? (WHIPS[kind.split('#')[0]] ??= gunWhip(kind)) : null));
 const gunWhip = (id) => { const model = id.split('#')[0], long = isLong(id); return { name: MODELS[model].name, short: MODELS[model].short, kind: 'blunt', edge: null, k: long ? 1.6 : 1.2, guard: long ? 0.7 : 0.15, grab: long ? -4 : -2, awkward: long ? -1 : 0, carry: long ? 'sling' : 'belt', gun: model, ...(long ? { long: true } : {}) }; };
 /** What a person has in hand, if a weapon. */

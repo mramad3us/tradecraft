@@ -77,6 +77,10 @@
 // done); a bottle may break into a broken one. Armed, Shift with a hit on someone stunned is an attempt
 // to kill (finish(): 'kill'; the user, "if wielding a weapon, shift hitting a stunned opponent is us
 // attempting a kill"). An armed fighter hits more and grabs less (choose()).
+// **Body armour** (sim/armour.js blow()): a hit that lands on the torso, or comes through the guard into it, may land
+// on what they wear: a plate stops a blade dead (a fifth of it felt) and spreads a blow; a soft vest turns most
+// slashes (no cut) and a knife's thrust now and then, the rest a cut, a slash's shallower. out.armour says what it
+// did. A fight ender (finish()) goes where the armour isn't.
 // **Injuries** besides the hurt (sim/health.js injure(): a crack, a split brow or lip, a bloody nose),
 // and blood flying from a blow that drew it, or landed on a face already bleeding (out.blood: how much;
 // the picture flings it, sim/cqcshow.js, onto the floor, sim/blood.js).
@@ -90,6 +94,7 @@ import { int, chance, weighted } from './rng.js';
 import { check } from './checks.js';
 import { wielded, techsOf, canGrabWith, bare, WEAPON_PREF, TRAINED_CQC, SOLID_GUARD, HEAVY_K, FUMBLE_PER_PT, TECHS } from './weapons.js';
 import { hurt, injure, stateOf, takes, mods as hurtMods, canGrapple, canStand, kill, wear } from './health.js';
+import { armourOf, blow as armourBlow, dice as armourDice } from './armour.js';
 
 export const MOVES = ['hit', 'grapple', 'guard'];
 export const BEATS = { guard: 'hit', hit: 'grapple', grapple: 'guard' };   // each beats the one it names
@@ -336,11 +341,15 @@ export function resolve(state, f, ours) {
       }
     }
     if (out.dmg && !out.finish) {
+      const wpn = T?.weapon ? arms[w] : null;
+      // (a blow on body armour, sim/armour.js: a blade turned or a cut made shallower, a blow spread; on dice of its own)
+      const A = out.part === 'torso' && (out.kind === 'landed' || out.kind === 'riposte') && armourOf(LP) ? armourBlow(LP, wpn?.edge ?? null, T?.id, armourDice(LP, state.time.ms, `blow${f.round}`)) : null;
+      if (A) { out.dmg = Math.round(out.dmg * A.k * 10) / 10; out.armour = A; }
       out.force = Math.round(out.dmg / takes(LP, out.part) * 100) / 100;
       hurt(LP, out.part, out.dmg);
       // What else it did (a crack, a split, a bloody nose), and whether it drew blood to fly.
-      const wpn = T?.weapon ? arms[w] : null;
-      out.injuries = injure(LP, out.part, out.force, r, state.time.ms, { edge: !!wpn?.edge, deep: !!wpn?.edge, bleedK: wpn?.bleed ?? 1, crackK: wpn?.crack ?? 0 });   // (a blade that lands clean: a deep cut)
+      const cuts = !!wpn?.edge && !A?.stopped;
+      out.injuries = injure(LP, out.part, out.force, r, state.time.ms, { edge: cuts, deep: cuts && (A ? A.deep : true), bleedK: wpn?.bleed ?? 1, crackK: wpn?.crack ?? 0 });   // (a blade that lands clean: a deep cut)
       if (wpn?.breaks && chance(r, wpn.breaks)) { out.broke = { side: w, from: state.people[W].hand, into: wpn.into ?? null }; state.people[W].hand = wpn.into ?? null; }
       out.blood = out.injuries.some(i => i.bleed) || (out.part === 'head' && LP.injuries?.some(i => i.bleed > state.time.ms)) ? Math.round(4 + out.force * 20) : 0;
       // A heavy blow staggers; a hard one to the head dazes, a very hard one stuns (likelier for a technique made for it).
@@ -434,12 +443,14 @@ function throughGuard(state, f, out, w, l, tech, arms) {
   if (roll.ok) { out.clean = 'block'; return; }
   const part = weighted(r, Object.entries(THROUGH_AT));
   const pts = (int(r, HIT_PTS[1] - HIT_PTS[0] + 1) + HIT_PTS[0]) * aw.k * THROUGH_K * (1 - g) * f.pull;
-  const dmg = Math.round(Math.min(pts, Math.max(0, takes(P, part) * THROUGH_CAP - (P.body?.[part] ?? 0))) * 10) / 10;
+  // (into the body past the guard, on armour: sim/armour.js, as a blow that lands)
+  const A = part === 'torso' && armourOf(P) ? armourBlow(P, aw.edge ?? null, tech[l]?.id, armourDice(P, state.time.ms, `through${f.round}`)) : null;
+  const dmg = Math.round(Math.min(pts * (A?.k ?? 1), Math.max(0, takes(P, part) * THROUGH_CAP - (P.body?.[part] ?? 0))) * 10) / 10;
   if (!dmg) { out.clean = 'block'; return; }
   hurt(P, part, dmg);
   const force = Math.round(dmg / takes(P, part) * 100) / 100;
-  out.through = { part, dmg, force, injuries: injure(P, part, force, r, state.time.ms, { edge: !!aw.edge, bleedK: (aw.bleed ?? 1) * 0.6 }) };
-  out.blood = Math.max(out.blood ?? 0, aw.edge ? 6 : 0);
+  out.through = { part, dmg, force, injuries: injure(P, part, force, r, state.time.ms, { edge: !!aw.edge && !A?.stopped, bleedK: (aw.bleed ?? 1) * 0.6 }), ...(A ? { armour: A } : {}) };
+  out.blood = Math.max(out.blood ?? 0, aw.edge && !A?.stopped ? 6 : 0);
 }
 
 /** Damage done: the edge the winner has, a bout's pulled blows. */

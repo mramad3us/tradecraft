@@ -19,7 +19,9 @@
 // carried, and shows (a carrier bag in the hand); at home it's unpacked (unpack()): clothes into the
 // wardrobe, things into the drawer, supplies into the bathroom cabinet.
 // At the wardrobe (dress()): a piece put on (what it replaces hung up), a hat or glasses taken off,
-// something carried left in the drawer, something in the drawer taken. A top with fewer pockets leaves
+// something carried left in the drawer, something in the drawer taken. Body armour (p.armour, sim/armour.js)
+// goes on and off there too, a piece of its slot ('armour': armourPiece()): a soft vest under the top, a plate
+// carrier over it; the carrier comes off at the flat's door (comeIn()), the vest stays on. A top with fewer pockets leaves
 // things with nowhere to go: they go in the bag (shed()), so at home they're put away.
 // At the basin (cabinetWays(), cabinetDo()): the cabinet over it, what's in it taken out one thing at a
 // time, if there's room, and what's on you put back. Nothing comes out of it unasked (the user,
@@ -30,6 +32,7 @@ import { bookOf } from './training.js';
 import { fits, fitsSupply, placed, ALWAYS } from './items.js';
 import { hash } from './rng.js';
 import { SOLD, KIT, goodOf, addSupply, SUPPLIES, packsOf, supplyWord } from './medicine.js';
+import { KINDS, armourOf, takeOffArmour } from './armour.js';
 
 export const SLOTS = ['top', 'hat', 'glasses'];
 export const DRESS_S = 4 * 60;                                     // (changing, at home)
@@ -62,6 +65,9 @@ export const GOODS = {
 };
 for (const [shop, kinds] of Object.entries(SOLD)) for (const k of kinds) (GOODS[shop] ??= []).push([k, ...goodOf(k)]);
 
+/** Body armour (sim/armour.js; p.armour's), as a piece for the wardrobe: { id, slot: 'armour', name, armour }. */
+export const armourPiece = (a) => ({ id: `armour-${a.kind}-${hash(JSON.stringify(a)) % 1e6}`, slot: 'armour', name: `the ${KINDS[a.kind]?.short ?? 'vest'}`, armour: structuredClone(a) });
+
 /** A piece's name ("the camel coat", "the flat cap", "the sunglasses"). */
 export function nameOf(slot, look) {
   if (slot === 'glasses') return `the ${GLASSES[look] ?? 'glasses'}`;
@@ -93,6 +99,8 @@ export function putOn(p, piece) {
 export const INDOOR = { kind: 'sweater', color: 0x4c5262, trim: 0x353947 };
 export function comeIn(p) {
   const said = [];
+  // (a plate carrier, over it all, off first: nobody wears 11 kg of plates about the flat; a soft vest stays on, under the top)
+  if (armourOf(p)?.over) { const a = armourPiece(takeOffArmour(p)); (p.wardrobe ??= []).push(a); said.push(`${a.name} off and put away`); }
   if (p.look?.top?.kind === 'coat' && !p.hook) {
     p.hook = worn(p, 'top');
     const under = p.under ?? (p.wardrobe ?? []).find(w => w.slot === 'top' && w.look.kind !== 'coat')?.look ?? INDOOR;
@@ -234,8 +242,12 @@ export function cabinetDo(p, cabinet, key) {
  */
 export function wardrobeWays(p) {
   const out = [];
-  for (const x of p.wardrobe ?? []) out.push({ key: `wear:${x.id}`, label: `Put on ${x.name}${p.look?.[x.slot] ? `, for ${nameOf(x.slot, p.look[x.slot])}` : ''}` });
+  for (const x of p.wardrobe ?? []) {
+    if (x.slot === 'armour') { out.push({ key: `wear:${x.id}`, label: `Put on ${x.name}, ${KINDS[x.armour?.kind]?.over ? 'over' : 'under'} your top${p.armour ? `, for ${armourPiece(p.armour).name}` : ''}` }); continue; }   // (body armour: sim/armour.js)
+    out.push({ key: `wear:${x.id}`, label: `Put on ${x.name}${p.look?.[x.slot] ? `, for ${nameOf(x.slot, p.look[x.slot])}` : ''}` });
+  }
   for (const slot of ['hat', 'glasses']) if (p.look?.[slot] && p.look[slot].kind !== 'hijab') out.push({ key: `off:${slot}`, label: `Take off ${nameOf(slot, p.look[slot])}` });
+  if (p.armour) out.push({ key: 'off:armour', label: `Take off ${armourPiece(p.armour).name}` });
   for (const k of [p.hand, ...(p.items ?? [])].filter(Boolean)) out.push({ key: `leave:${k}`, label: `Leave ${thingName(k)} in the drawer` });
   for (const [cal, n] of Object.entries(p.rounds ?? {})) if (n > 0) out.push({ key: `leave:box-${cal}`, label: `Leave ${boxWord(cal, n)} in the drawer` });   // (loose rounds, by the box: sim/firearms.js)
   (p.stash ?? []).forEach((k, i) => out.push({ key: `take:${i}`, label: `Take ${isBox(k) ? boxWord(boxCal(k), p.stashN?.[k] ?? 0) : thingName(k)} from the drawer` }));
@@ -248,10 +260,23 @@ export function dress(p, key) {
   if (what === 'wear') {
     const i = (p.wardrobe ?? []).findIndex(x => x.id === arg);
     if (i < 0) return null;
+    if (p.wardrobe[i].slot === 'armour') {                          // (body armour on, what was worn put away: sim/armour.js)
+      const piece = p.wardrobe.splice(i, 1)[0], had = takeOffArmour(p), was = had && armourPiece(had);
+      if (was) p.wardrobe.push(was);
+      p.armour = structuredClone(piece.armour);
+      return `${cap(piece.name)} on, ${KINDS[piece.armour.kind]?.over ? 'over' : 'under'} ${nameOf('top', p.look?.top ?? INDOOR)}${was ? `, ${was.name} put away` : ''}.`;
+    }
     const piece = p.wardrobe.splice(i, 1)[0], was = putOn(p, piece), wet = (p.wet ?? 0) >= 30;
     if (was) p.wardrobe.push(was);
     delete p.wet; delete p.shiver;                                   // (dry clothes: sim/wet.js)
     return `${cap(piece.name)} on${was ? `, ${was.name} on its hanger${wet ? ' to dry' : ''}` : ''}.${wet ? ' Dry, at last.' : ''}`;
+  }
+  if (what === 'off' && arg === 'armour') {
+    const had = takeOffArmour(p);
+    if (!had) return null;
+    const was = armourPiece(had);
+    (p.wardrobe ??= []).push(was);
+    return `${cap(was.name)} off, and put away.`;
   }
   if (what === 'off') {
     const was = takeOff(p, arg);

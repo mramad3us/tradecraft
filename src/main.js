@@ -12,7 +12,8 @@
 // cairo> in another city (sim/cities/; Moscow by default); &autoplay[=<m>] has the
 // game's own AI play the character (sim/agents.js; a follower m metres back). ?weather=<kind[-level]
 // [-wind]> pins the weather of every new game (sim/weather.js parseWeather(): snow-heavy-gale,
-// rain-light, fog-extreme, dust-heavy-strong, frost, clear), with ?play or from the title. window.__tradecraft is
+// rain-light, fog-extreme, dust-heavy-strong, frost, clear), with ?play or from the title. In the free walk,
+// ?armour=heavy puts a plate carrier on you for the soft vest it gives (?armour=none, nothing). window.__tradecraft is
 // the debug handle: { state, step(n, input), start(state or JSON), newGame(opts), save() (the JSON),
 // skip(ms), autosave(), pause(on), view }.
 import { newGame, start, step, skip } from './sim/game.js';
@@ -23,6 +24,7 @@ import { SCENARIOS } from './sim/scenarios/index.js';
 import { haleCall } from './sim/hale.js';
 import { options as shootOptions } from './sim/shooting.js';
 import { newGun, newMag, isGun } from './sim/firearms.js';
+import { wear as wearArmour } from './sim/armour.js';
 import { candidates, legendFile, newCampaign, context, fold, heatWord, KINDS, LEVELS, levelOf, promote, goalOf, bookLessons, lessonsLeft, lessonBook } from './sim/campaign.js';
 import { missionPlace } from './sim/places.js';
 import { cityById, CITY_IDS, FIRST_TOUR_CITY } from './sim/cities/index.js';
@@ -171,7 +173,7 @@ function launch(s, { hour = null } = {}) {
   stop();
   state = s;
   if (!s.autoplay) s.$reflexes = true;                              // (the played game's: time stops for a moment seen coming, sim/reflex.js)
-  if ((s.scenario.kind === 'walk' && !s.tutor && !s.campaign) || (settings.debug && q.has('gun') && !s.campaign)) armDebug(s);   // (the free walk, the sandbox: a pistol on you to try the guns (the user, 2026-11-03: "give us a gun in free walk"); elsewhere debug mode and ?gun; never in a campaign, where guns are rare: sim/firearms.js)
+  if ((s.scenario.kind === 'walk' && !s.tutor && !s.campaign) || (settings.debug && q.has('gun') && !s.campaign)) armDebug(s);   // (the free walk, the sandbox: a pistol on you to try the guns (the user, 2026-11-03: "give us a gun in free walk"), and a soft vest under your top (?armour=heavy a plate carrier); elsewhere debug mode and ?gun; never in a campaign, where guns are rare: sim/firearms.js)
   lastPhoto = null; snapWanted = null;
   bus = createBus();
   view = createView({ parent: ui.frame, bus, month: () => calendar(s.time.ms).month });   // (the season: the trees' leaves, the hedges', the fallen ones)
@@ -190,7 +192,7 @@ function launch(s, { hour = null } = {}) {
   bus.on('table', (list) => setTimeout(() => ui.openChoices('TABLE', 'THE KITCHEN TABLE', list, (key) => acts.push(`desk:table:${key}`)), 0));   // (the flat's kitchen table: a meal, or a gun's work: sim/gunwork.js)
   bus.on('wardrobe', (list) => setTimeout(() => list.length ? ui.openChoices('WARDROBE', 'WHAT TO WEAR, WHAT TO KEEP', list, (key) => acts.push(`desk:dress:${key}`)) : ui.closeOverlays(), 0));   // (the flat's wardrobe: sim/clothes.js)
   bus.on('basin', (list) => setTimeout(() => ui.openChoices('BASIN', 'WASH, OR THE CABINET', list, (key) => acts.push(`desk:basin:${key}`)), 0));   // (the flat's basin, and the cabinet over it: sim/clothes.js)
-  bus.on('reading', (c) => setTimeout(() => { if (state === s) ui.openChoices('BOOK', c.title, c.list, (key) => acts.push(`read:${key}`)); }, 0));   // (a book, ten minutes at a time: sim/reading.js)
+  bus.on('reading', (c) => setTimeout(() => { if (state === s) ui.openBooks(c, (key) => acts.push(`read:${key}`)); }, 0));   // (the shelf: one row a book, src/ui/ui.js openBooks())   // (a book, ten minutes at a time: sim/reading.js)
   bus.on('bed', (list) => ui.openChoices('BED', 'HOW LONG?', list, (key) => acts.push(`desk:${key}`)));   // (the flat's bed by day: sim/scenarios/campaign.js)
   bus.on('photo', (w) => { snapWanted = w; });                    // (sim/scenarios/watch.js: the frame, at the next draw)
   bus.on('shop', ({ shop, ways }) => ui.openChoices('SHOP', shopWord(shop).replace(/^the /, '').toUpperCase(), ways.map(w => ({ key: w.id, label: w.label, off: w.off ?? undefined })), (key) => acts.push(`shop:${key}`)));   // (sim/shops.js)
@@ -275,6 +277,9 @@ function launchAssignment(s, id) {
 /** Debug mode: the player has a gun on them (the station's SIG, loaded, a spare magazine and a box of rounds), if they've none. */
 function armDebug(s) {
   const p = s.people?.[s.player];
+  // (body armour to try: a soft vest under the top, once; ?armour=heavy a plate carrier over it, ?armour=none none: sim/armour.js)
+  const want = q.get('armour') ?? 'light';
+  if (p && !p.$armoured) { p.$armoured = true; if (want === 'none') delete p.armour; else if (!p.armour || q.has('armour')) wearArmour(p, want === 'heavy' ? 'heavy' : 'light', { color: 0x545e40 }); }
   if (!p || isGun(p.hand) || (p.items ?? []).some(isGun) || (p.stash ?? []).some(isGun)) return;
   (p.items ??= []).push(newGun(p, 'p229'), newMag(p, 'p229', 13));
   p.rounds = { ...(p.rounds ?? {}), '9x19': (p.rounds?.['9x19'] ?? 0) + 20 };

@@ -5,7 +5,8 @@
 // is a small template of pixels in three views, down (facing the camera), up (away) and right
 // (left is right mirrored), placed on a CELL of 24 × 34 with the feet at the bottom. A template's
 // letters are roles, not colours: s skin, h hair, t top, p legs, f shoes, a hat, r beard, y trim
-// (a tie, a collar, a belt), w white (a shirt), x a thing carried. A spec gives each role a palette
+// (a tie, a collar, a belt), w white (a shirt), x a thing carried, ø body armour (a plate carrier's cloth, over
+// the top: carrier(); sim/armour.js). A spec gives each role a palette
 // colour, and its ramp (RAMPS) gives the tones. Fixed letters: e eye and k ink (near-black), b brow
 // (the hair's darkest), g gold, l a lens' glint, m a spectacle frame, z the skin's darkest (a mouth).
 // An upper-case role letter is forced into shade.
@@ -81,6 +82,7 @@ const RAMPS = [
   [0x47302a, 0x7a5a22, 0xb9862e, 0xe7b84a, 0xf8e08a],
   [0x14151c, 0x4a2a52, 0x7a4a86, 0xe8896a],
   [0x14151c, 0x173327, 0x2f6b62, 0x76ad4c],
+  [0x14151c, 0x2b3020, 0x3d4530, 0x545e40, 0x6f7a55, 0x919b72],                       // olive drab: a soldier's, a plate carrier's
 ];
 function ramp(c) {
   for (const r of RAMPS) {
@@ -770,6 +772,20 @@ function torsoFront(kind, back) {
   return [x, 19, out];
 }
 
+// A plate carrier over the top (spec.armour: { color, patch }; sim/armour.js: a soft vest under the top isn't drawn),
+// for a view: [body, pouches] templates, the body in the armour's cloth (role ø), the pouches a part of their own over
+// it so their edges draw. From the front, the plates' slab over the chest from the collarbones to above the belt, a
+// strap over each shoulder, three pouches across the belly, a patch across the chest (patch: police, a strip of
+// white); from behind, the back plate, its drag handle between the straps, the patch; side on, the plates a pixel
+// proud of the chest and the back, the pouches standing out in front.
+function carrier(view, patch) {
+  if (view === 'right') return [[7, 20, ['.øøøøøø.', 'øøøøøøøø', 'øøøøøøøø', 'øøøøøøøø', 'øøøøøøøø']], [14, 22, ['øø', 'øø']]];
+  const slab = ['.øø...øø.', '.øøøøøøø.', 'øøøøøøøøø', 'øøøøøøøøø', 'øøøøøøøøø', 'øøøøøøøøø'];
+  if (patch) slab[2] = 'øø' + 'w'.repeat(5) + 'øø';
+  if (view === 'up') { slab[1] = '.øøØØØøø.'; return [[7, 19, slab], null]; }
+  return [[7, 19, slab], [7, 23, ['øøØøøøØøø', 'øøøøøøøøø']]];   // (the pouches: a band, its flaps split where they part)
+}
+
 // A front arm at column x0 (2 wide): the sleeve to the wrist (a tee's stops short), then the hand.
 // reach: 0 hanging, 1 forward (the hand a pixel lower), -1 back (a pixel higher).
 function armFront(x0, kind, reach, side) {
@@ -954,12 +970,14 @@ function compose(spec, dir, frame) {
     draw(legsSide(P.side[1], false), 0, air);
     if (!P.legOver) draw(legsSide(P.side[0], true), 0, air);
     draw(torsoSide(kind), lean, bob);
+    if (spec.armour) for (const t of carrier('right', spec.armour.patch)) draw(t, lean, bob);   // (a plate carrier over it)
     if (P.legOver) draw(legsSide(P.side[0], true), 0, air);        // (a kick: the leg comes in front)
     if (rig) drawAll(rig.body, lean);
     else if (!P.over) { draw(armSide(kind, brolly ? 2 : P.swing[0], false), lean, bob); hand = part; }
   } else {
     draw(legsFront(view === 'up' ? -P.front : P.front, P.sit));
     draw(torsoFront(kind, view === 'up'), 0, bob);
+    if (spec.armour) for (const t of carrier(view, spec.armour.patch)) draw(t, 0, bob);   // (a plate carrier over it)
     const [l, r] = view === 'up' ? [P.reach[1], P.reach[0]] : P.reach;
     // (an arm up, drawn after the head, over it where they cross: below)
     if (rig) drawAll(rig.body, 0);
@@ -1294,7 +1312,7 @@ function colours(spec) {
     s: SKIN[spec.skin] ?? spec.skin ?? SKIN.light, h: spec.hair?.color ?? 0x2a1c18, t: spec.top?.color ?? 0x3b6296,
     p: spec.legs ?? 0x283f6b, f: spec.shoes ?? 0x2a1c18, a: spec.hat?.color ?? 0x353947,
     r: spec.beard === true ? (spec.hair?.color ?? 0x2a1c18) : (spec.beard ?? spec.hair?.color ?? 0x2a1c18),
-    y: spec.top?.trim ?? spec.top?.tie ?? 0x9e3c36, x: 0x6b4636, w: 0xf6f4ee,
+    y: spec.top?.trim ?? spec.top?.tie ?? 0x9e3c36, x: 0x6b4636, w: 0xf6f4ee, ø: spec.armour?.color ?? 0x23252f,
     // (what's in the hand: steel, a dark grip, wood, green glass, brick, yellow plastic, black cloth)
     v: 0x9aa1ae, n: 0x353947, o: 0x8a5a3c, d: 0x3f6b4a, j: 0xb5493c, i: 0xd9a83a, u: 0x23252f,
   };

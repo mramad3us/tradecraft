@@ -16,7 +16,8 @@
 // cover (drawMove()).
 // A fight reads them as it goes (the user, 2026-10-26: "during combat it should automatically do READ
 // against our opponent"; sim/know.js read()): as you square up, and every READ_EVERY exchanges after;
-// F shows the read (src/main.js). A drill (a script) reads nobody.
+// F shows the read (src/main.js). A drill (a script) reads nobody. Their body armour (sim/armour.js) shows itself
+// the hard way too: a blow of ours on it, a grip on them through the shirt (sim/know.js noteArmour()).
 // At the end, whoever is out cold or down lies there (OUT_S; the dead for good, sim/game.js), and a
 // player dead is the scene's end, if the scene hasn't ended it its own way ('dead': the engine's paper,
 // sim/game.js deathPaper()).
@@ -26,7 +27,8 @@ import { animate, length } from './cqcshow.js';
 import { say } from './log.js';
 import { headOf } from './perception.js';
 import { canStand } from './health.js';
-import { read } from './know.js';
+import { read, noteArmour, armourKnown } from './know.js';
+import { armourOf } from './armour.js';
 import { weaponOf } from './weapons.js';
 import { draw, drop } from './items.js';
 import { wear } from './health.js';
@@ -116,6 +118,12 @@ export function exchange(state, bus, ours, scene) {
   const out = resolve(state, f, ours);
   if (out.by === 'b' && out.dmg && !f.bout && !f.script) strain(state, bus, 3 + 5 * (out.injuries?.length ?? 0));   // (hit, and hurt)
   say(state, bus, { kind: out.roll ? 'roll' : 'note', roll: out.roll ?? undefined, text: `${ours.drew ? `You pull ${weaponOf(ours.drew).name} and cover. ` : ''}${exchangeText(out, shortName(state, f.b), state.people[f.b], state.map.seed, state.map.kind === 'dojo' ? 'hall' : 'street')}` });
+  // (their armour, found the hard way: a blow of ours on it, or a grip on them through the shirt: sim/know.js)
+  const AB = armourOf(state.people[f.b]);
+  if (AB && armourKnown(state, f.b) !== AB.id && out.by === 'a' && (out.armour || ['thrown', 'locked', 'choked'].includes(out.kind))) {
+    noteArmour(state, f.b, AB.id);
+    if (!out.armour && !AB.over) say(state, bus, { kind: 'note', text: 'Under your hands, through the shirt: the stiff panels of a vest.' });
+  }
   if (out.dropped) {                                                // (knocked out of a hand: it lies where it fell)
     const a = out.dropped.side === 'a' ? playerOf(state) : actorOfWho(state, f.b);
     if (a) drop(state, state.people[a.who], a, out.dropped.kind);
@@ -169,8 +177,9 @@ export function drawMove(state, bus, scene) {
 function readThem(state, bus, them, when) {
   const me = playerOf(state);
   if (!me || !them.who || them.who === state.player) return;
-  const { roll } = read(state, me, them), n = shortName(state, them.who);
+  const { roll, vest } = read(state, me, them), n = shortName(state, them.who);
   say(state, bus, { kind: 'roll', roll, text: roll.ok ? `You read ${n} ${when}: how ${pronoun(state, them.who)} stands, the hands, the eyes. (F: your read)` : `You try to read ${n} ${when}, and get little.` });
+  if (vest?.ok) say(state, bus, { kind: 'roll', roll: vest, text: `And under the shirt, the stiff line of a vest: a blade to the body may not go in.` });   // (sim/armour.js)
 }
 const pronoun = (state, who) => (state.people[who]?.sex === 'f' ? 'she' : 'he');
 

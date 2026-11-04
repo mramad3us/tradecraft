@@ -29,7 +29,8 @@
 // face or the clothes until cleaned (p.bloody, src/art/sprites.js). They mend by their days (heal()).
 // A **fracture** (a broken jaw, a fractured eye socket, broken ribs, a fractured forearm or shin) is
 // what a fight ender gone wrong leaves (sim/cqc.js finish()): FRACTURE_MOD to what the part does (the
-// jaw: −2 to everything), six weeks to knit.
+// jaw: −2 to everything), six weeks to knit. A round body armour stopped leaves a bruise behind it, bleeding
+// nothing (kind 'blunt', named for what did it: sim/armour.js stoppedInjury()), and may crack a rib (addInjury()).
 //
 // **Blood** (p.blood: what's left of it, % of the body's; the user, 2026-10-26: "work on the bleeding out
 // system, with blood-pressure health stat"): whatever bleeds bleeds at its rate (i.rate, % a minute):
@@ -52,6 +53,7 @@ import { chance, pick, range } from './rng.js';
 import { DAY, HOUR } from './clock.js';
 import { painOf, painBand, feverOf, infectDays, infectionOf, needsCare, knitOf, expire, scarOf, careWords, broken, INFECTION } from './medicine.js';
 import { thermalMods, thermalDown } from './thermal.js';
+import { mobilityOf as armourMobility } from './armour.js';
 
 export const PARTS = {
   head: { name: 'Head', takes: 6 },
@@ -187,6 +189,14 @@ export function injure(p, part, force, r, ms, { edge = false, fracture = 0, blee
   return out;
 }
 
+/** An injury of a kind (INJURIES') on a part at game time ms, bleeding nothing: a rib cracked behind a vest (sim/shooting.js). The injury, or null if the part has one. */
+export function addInjury(p, part, kind, ms, r = null) {
+  if (has(p, part, kind)) return null;
+  const K = INJURIES[kind], i = { part, kind, name: K.name(part, r), ms, until: ms + K.days * DAY, bleed: 0 };
+  (p.injuries ??= []).push(i);
+  return i;
+}
+
 /** What's left of their blood, % of the body's. */
 export const bloodOf = (p) => p?.blood ?? 100;
 /** How fast they bleed at game time ms, % a minute (k: what holds it back, a hand pressed on it). */
@@ -221,8 +231,8 @@ export const canStand = (p) => !p.dead && !thermalDown(p) && bloodOf(p) >= BLOOD
 
 // How well someone moves, wounded (the user, 2026-11-03: "wounds should slow everyone down especially gunshot
 // wounds"): a factor on the walk and the run, each leg's and the torso's state, the blood lost, a fresh bullet
-// wound's pain (GUNSHOT_DAYS old at most); under RUN_BELOW, no running at all. The player's feet (sim/game.js)
-// and everyone else's (sim/agents.js) both go by it.
+// wound's pain (GUNSHOT_DAYS old at most), and what they wear (a plate carrier's 11 kg: sim/armour.js MOBILITY);
+// under RUN_BELOW, no running at all. The player's feet (sim/game.js) and everyone else's (sim/agents.js) both go by it.
 export const MOBILITY = { legs: { hurt: 0.85, wounded: 0.55, out: 0.3 }, torso: { hurt: 0.9, wounded: 0.65 }, blood: { pale: 0.85, shock: 0.6 }, gunshot: 0.8 };
 export const RUN_BELOW = 0.7, GUNSHOT_DAYS = 3;
 export function mobility(p, ms = 0) {
@@ -232,7 +242,7 @@ export function mobility(p, ms = 0) {
   k *= MOBILITY.torso[stateOf(p, 'torso')] ?? 1;
   k *= MOBILITY.blood[bandOf(p)] ?? 1;
   if ((p.injuries ?? []).some(i => i.gunshot && ms - i.ms < GUNSHOT_DAYS * DAY)) k *= MOBILITY.gunshot;
-  return k;
+  return k * armourMobility(p);
 }
 export const canRun = (p, ms = 0) => mobility(p, ms) >= RUN_BELOW && bandOf(p) !== 'shock';
 

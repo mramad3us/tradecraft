@@ -4,7 +4,8 @@
 // each pocket as it is (sim/items.js placed(): a coat's two, the inside one, the trousers' two, the beltline's
 // two places), everything in it (the wallet, the phone, burners, the first-aid supplies as well as what's
 // fought with: all of it takes room) drawn in the picture's pixels (src/art/sprites.js heldIcon()) and how
-// full it is. Beside it the hand, what fits nowhere, the shop's bag. A weapon's buttons: take it out, put it
+// full it is. Beside it the hand, what fits nowhere, body armour worn (sim/armour.js: a plate carrier drawn on the
+// figure, a soft vest only said), the shop's bag. A weapon's buttons: take it out, put it
 // away, drop it; 1–9 the first button of each, in order. A supply, a burner or a book can be thrown away, by a
 // click only: a stray digit shouldn't cost you your bandages.
 import { plaque } from './plaque.js';
@@ -18,6 +19,7 @@ import { cashOf } from '../sim/money.js';
 import { bagWord } from '../sim/clothes.js';
 import { SUPPLIES, supplyWord } from '../sim/medicine.js';
 import { bookOf } from '../sim/training.js';
+import { pictureOf as armourPicture, armourLine } from '../sim/armour.js';
 
 const K = 2, ICON_K = 3;
 const hex = (c) => `#${c.toString(16).padStart(6, '0')}`;
@@ -80,6 +82,7 @@ export function openPockets(host, state, deps) {
   const side = el('div', { className: 'pk-side' },
     el('h3', {}, 'In your hand'), inHand ?? el('p', { className: 'pk-none' }, `Nothing. ${deps.label('use')} picks up what lies about; ${deps.label('gun')} takes out the next thing.`),
     nowhere.length ? el('h3', {}, 'Nowhere to put it') : null, ...row(nowhere),
+    p.armour ? el('h3', {}, 'Worn') : null, p.armour ? el('p', {}, armourLine(p, true)) : null,   // (body armour: sim/armour.js)
     p.bag?.length ? el('h3', {}, 'The shop\'s bag, for home') : null,
     p.bag?.length ? el('p', {}, cap(p.bag.map(bagWord).join(', ')) + '.') : null,
     Object.keys(p.kit ?? {}).length || p.bag?.some(x => x.supply) ? el('p', { className: 'mind-note' }, `${deps.label('aid')} tends your wounds with what you have on you.`) : null);
@@ -100,7 +103,7 @@ function doll(p, P) {
     const here = P.spaces.map((sp, i) => (sp.id === id ? i : -1)).filter(i => i >= 0);
     if (here.length) marks[id] = here.map(i => { const inIt = P.out.filter(o => o.slot === i); return !inIt.length ? 'free' : inIt.some(o => o.shows) ? 'shows' : 'used'; });
   }
-  const rows = figure({ look: p.look ?? {}, sex: p.sex, marks, hand: p.hand, bag: !!p.bag?.length });
+  const rows = figure({ look: p.look ?? {}, sex: p.sex, marks, hand: p.hand, bag: !!p.bag?.length, armour: armourPicture(p) });   // (a plate carrier over the top: sim/armour.js)
   const cv = document.createElement('canvas'); cv.width = DOLL_W; cv.height = DOLL_H;
   const g = cv.getContext('2d');
   rows.forEach((row, y) => row.forEach((c, x) => { g.fillStyle = hex(c); g.fillRect(x, y, 1, 1); }));

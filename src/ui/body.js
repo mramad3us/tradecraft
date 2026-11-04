@@ -12,6 +12,7 @@
 import { plaque, STYLES } from './plaque.js';
 import { doll, backdropAt, W as DOLL_W, H as DOLL_H } from '../art/doll.js';
 import { checkShort } from '../sim/checks.js';
+import { pictureOf as armourPicture } from '../sim/armour.js';
 
 const MARGIN = 15;                                                 // (a margin each side of the figure for the plaques)
 /** The figure's pixels at two of the screen's, as the inventory's; your read's at three where the window's tall enough to take it (first aid's options want the room). */
@@ -30,7 +31,7 @@ export function tagCanvas(n, tone, k = 2) {
 
 /** The figure: p (their sheet: the look, the sex, what's in the hand) as findings f mark them, the plaques in the margins. A canvas; big: three of the screen's pixels a pixel where the window's tall enough. */
 export function figure(p, f, { big = false } = {}) {
-  const who = { look: p.look ?? {}, sex: p.sex, hand: p.hand ?? null }, rows = doll({ ...who, wounds: f.marks }), bare = doll(who), w = DOLL_W + 2 * MARGIN, h = DOLL_H;
+  const who = { look: p.look ?? {}, sex: p.sex, hand: p.hand ?? null, armour: armourPicture(p) }, rows = doll({ ...who, wounds: f.marks }), bare = doll(who), w = DOLL_W + 2 * MARGIN, h = DOLL_H;   // (a plate carrier over the top: sim/armour.js)
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   const g = cv.getContext('2d');
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const dx = x - MARGIN, c = dx >= 0 && dx < DOLL_W ? rows[y][dx] : backdropAt(dx, y); g.fillStyle = hex(c); g.fillRect(x, y, 1, 1); }

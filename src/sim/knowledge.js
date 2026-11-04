@@ -24,7 +24,7 @@ export const SEEN_M = 40, ARRIVED_M = 4;
 // (what a kind of shop is, to the mind's map: its group, and the group's word)
 const GROUP = {
   food: ['grocery', 'deli', 'vegetables', 'spices', 'butcher', 'bakery', 'sweets', 'manakish', 'cafe', 'restaurant', 'bar', 'pub', 'shawarma', 'kebab', 'chips', 'koshary', 'foul', 'juice', 'beer'],
-  clothes: ['clothes', 'shoes'], books: ['books'], bank: ['bank', 'exchange'], club: ['gym', 'club', 'culture'], school: ['school'], phones: ['phones'], optician: ['optician'], chemist: ['pharmacy'],
+  clothes: ['clothes', 'shoes'], books: ['books'], bank: ['bank', 'exchange'], club: ['gym', 'club', 'culture', 'range'], school: ['school'], phones: ['phones'], optician: ['optician'], chemist: ['pharmacy'],
 };
 export const KINDS = { job: 'the assignments', food: 'food and drink', clothes: 'clothes', books: 'books', bank: 'banks', club: 'gyms and clubs', school: 'schools', phones: 'phones', optician: 'opticians', chemist: 'chemists', other: 'other shops', metro: 'the metro', bus: 'bus stops', home: 'home', work: 'work', safe: 'safe houses' };
 const groupOf = (shop) => Object.keys(GROUP).find(g => GROUP[g].includes(shop)) ?? 'other';

@@ -28,7 +28,9 @@
 // recoil's recovery (RECOVER_S × the gun's recoil × the pace) before the next. A hit lands where it was
 // aimed (bullet(): BULLET points × the calibre, the gun; a wound that bleeds deep, sim/health.js injure(), and
 // goes through and out EXIT_P of the time, or stays in (i.through: a look tells which, sim/diagnosis.js);
-// to the head, HEAD_KILL of the time, dead); a miss goes on, and may find someone behind (STRAY).
+// to the head, HEAD_KILL of the time, dead); a miss goes on, and may find someone behind (STRAY). A torso hit
+// on body armour (sim/armour.js) may be stopped (stopped(): no wound, a bruise behind it, perhaps a cracked rib,
+// a moment's knock), or go through it, slowed.
 // **A gunshot is heard** (heard()): passers-by within HEAR_M run from it, the way away from it; in the
 // campaign, a shooting in the street is heat (SHOT_HEAT, once a minute).
 import { CALIBRES, KINDS, armOf, modelOf, kindOf, isGun, act as gunAct, fire, canDo, labelOf, baseOf, pace, ready, stepMs, AUTO_ROUNDS } from './firearms.js';
@@ -42,7 +44,9 @@ import { range, chance, pick, stream } from './rng.js';
 import { say } from './log.js';
 import { inView, eyes, sees, wrap, faceOf, lightHere } from './perception.js';
 import { lightBand } from './light.js';
-import { hurt, injure, takes, kill, canStand, stateOf } from './health.js';
+import { hurt, injure, takes, kill, canStand, stateOf, addInjury } from './health.js';
+import { armourOf, bullet as armourBullet, dice as armourDice, stoppedInjury } from './armour.js';
+import { noteArmour } from './know.js';
 import { spatter } from './blood.js';
 import { isPasserby } from './crowd.js';
 import { rowOf } from './agents.js';
@@ -439,13 +443,17 @@ const WORD = { head: 'head', torso: 'chest', armL: 'left arm', armR: 'right arm'
 export function bullet(state, bus, a, part, M, from) {
   const p = person(state, a), r = state.rng, ms = state.time.ms;
   const at = part === 'legs' ? pick(r, ['legL', 'legR']) : part === 'torso' && chance(r, 0.12) ? pick(r, ['armL', 'armR']) : part;
-  const dmg = BULLET * (CALIBRES[M.cal]?.dmg ?? 1) * M.dmg * range(r, 0.8, 1.25);
+  const raw = BULLET * (CALIBRES[M.cal]?.dmg ?? 1) * M.dmg * range(r, 0.8, 1.25);
+  // (a torso hit on armour: stopped, and the blow behind it; or through, slowed. sim/armour.js, on dice of its own)
+  const A = at === 'torso' && armourOf(p) ? armourBullet(p, M.cal, CALIBRES[M.cal]?.dmg ?? 1, raw, Math.hypot(a.x - from.x, a.z - from.z), armourDice(p, ms, 'bullet')) : null;
+  if (A?.stopped) return stopped(state, bus, a, p, A, M, from);
+  const dmg = raw * (A?.k ?? 1);
   const less = CALIBRES[M.cal]?.less;                               // (a traumatic pistol's rubber: a bruise, a broken rib at worst)
   hurt(p, at, dmg);
   const force = dmg / takes(p, at);
   if (less) injure(p, at, force, r, ms, { crackK: 0.5 });
   else for (const i of injure(p, at, force, r, ms, { edge: true, deep: true, bleedK: (at === 'torso' ? TORSO_BLEED_K : LIMB_BLEED_K) * Math.min(1.6, CALIBRES[M.cal]?.dmg ?? 1) })) if (i.kind === 'cut') {
-    i.gunshot = true; i.name = i.artery ? `a bullet through an artery in the ${WORD[at]}` : `a gunshot wound in the ${WORD[at]}`;
+    i.gunshot = true; i.name = i.artery ? `a bullet through an artery in the ${WORD[at]}` : `a gunshot wound in the ${WORD[at]}${A ? `, through the ${A.layer === 'plate' ? 'plate' : 'vest'}` : ''}`;
     // (through and out, or still in: EXIT_P by the part, from a stream of the wound's own, so the game's dice run as they did; a look tells it, sim/diagnosis.js)
     i.through = chance(stream('exit', p.id ?? '', ms, at, p.injuries.length), (EXIT_P[at.replace(/[LR]$/, '')] ?? 0) * Math.min(1.3, CALIBRES[M.cal]?.dmg ?? 1));
   }
@@ -473,7 +481,29 @@ export function bullet(state, bus, a, part, M, from) {
   if (down) { a.gait = 'down'; a.vx = a.vz = 0; if (a.ai) a.ai.downUntil = p.dead ? Infinity : Math.max(a.ai.downUntil ?? 0, ms + OUT_MS); if (a.who === state.player && p.dead) bus?.emit('scenario-end', 'dead'); }
   else if (a.ai && isPasserby(a)) flee(state, a, from.x);
   const who = a.who === state.player ? 'You' : cap(p.known === false ? p.seen ?? 'someone' : p.name ?? 'someone'), you = who === 'You';
-  return p.dead ? `${who}, hit in the ${WORD[at]}, ${you ? 'drop' : 'drops'}, and ${you ? 'don\'t' : 'doesn\'t'} move.` : down ? `${who}, hit in the ${WORD[at]}, ${you ? 'go' : 'goes'} down.` : `${who}: hit in the ${WORD[at]}.`;
+  const thru = A ? ` Through the ${A.layer === 'plate' ? 'plate' : 'vest'}.` : '';
+  return p.dead ? `${who}, hit in the ${WORD[at]}, ${you ? 'drop' : 'drops'}, and ${you ? 'don\'t' : 'doesn\'t'} move.${thru}` : down ? `${who}, hit in the ${WORD[at]}, ${you ? 'go' : 'goes'} down.${thru}` : `${who}: hit in the ${WORD[at]}.${thru}`;
+}
+
+/**
+ * A round the armour stopped (sim/armour.js bullet()): no wound and no blood, the blow behind it on the torso (a
+ * bruise, maybe a cracked rib: sim/health.js), a moment's knock (winded: an officer's aim lost, and now and then
+ * off their feet; you, a stagger, your aim lost). Whoever fired it now knows there's armour (sim/know.js). The words.
+ */
+function stopped(state, bus, a, p, A, M, from) {
+  const ms = state.time.ms, w = CALIBRES[M.cal]?.dmg ?? 1, you = a.who === state.player;
+  hurt(p, 'torso', A.blunt);
+  (p.injuries ??= []).push(stoppedInjury(A.layer, M.cal, w, ms));
+  if (A.crack) addInjury(p, 'torso', 'crack', ms);
+  if (a.ai?.gunner) { a.ai.gunner.aimed = null; a.ai.gunner.until = Math.max(a.ai.gunner.until ?? 0, ms + A.knockS * 1000); delete a.$aim; }
+  if (a.ai && A.down && !you) { a.gait = 'down'; a.vx = a.vz = 0; a.ai.downUntil = Math.max(a.ai.downUntil ?? 0, ms + A.knockS * 1000); }
+  if (you) { a.skid = Math.max(a.skid ?? 0, Math.round(A.knockS * 1000 / TICK_MS)); if (state.shoot?.aim) state.shoot.aim = null; }   // (the wind knocked out of you: a stagger, the sight picture gone)
+  if (from?.who === state.player && !you) noteArmour(state, a.who, p.armour.kind);
+  if (!canStand(p)) { a.gait = 'down'; a.vx = a.vz = 0; if (a.ai) a.ai.downUntil = Math.max(a.ai.downUntil ?? 0, ms + OUT_MS); }   // (beaten past standing, a round too many on the plates)
+  const plate = A.layer === 'plate';
+  if (you) return plate ? `It hits your plate like a sledgehammer${A.crack ? ', and something gives in your ribs' : ''}. It didn't go in.` : `It slams into your vest: a hammer blow to the ribs${A.crack ? ', and something cracks' : ''}. It didn't go in.`;
+  const who = cap(p.known === false ? p.seen ?? 'someone' : p.name ?? 'someone'), their = p.sex === 'f' ? 'her' : 'his';
+  return `${who}: hit in the chest, and it doesn't go in: ${plate ? 'it stops on the plate' : 'a vest, under the clothes'}.${A.down ? ` It knocks ${p.sex === 'f' ? 'her' : 'him'} off ${their} feet.` : ' A stagger, the breath knocked out.'}`;
 }
 
 /** A shot heard: passers-by within HEAR_M run, away from it; in the campaign, heat (once a minute). */

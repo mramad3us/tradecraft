@@ -26,7 +26,8 @@ const KIND = {
   bakery: 'bakery', sweets: 'bakery', manakish: 'bakery',
   cafe: 'cafe', restaurant: 'cafe', bar: 'cafe', pub: 'cafe', shawarma: 'cafe', kebab: 'cafe', chips: 'cafe', koshary: 'cafe', foul: 'cafe', juice: 'cafe',
   clothes: 'clothes', shoes: 'clothes', books: 'books', flowers: 'flowers', pharmacy: 'chemist', optician: 'chemist', phones: 'chemist', watches: 'chemist',
-  bank: 'bank', exchange: 'bank', bookie: 'bank', estate: 'office', school: 'school', culture: 'school', gym: 'gym', club: 'gym', barber: 'office', laundry: 'kiosk',
+  bank: 'bank', exchange: 'bank', bookie: 'bank', estate: 'office', school: 'school', culture: 'school', range: 'bank', gym: 'gym', club: 'gym',   // (a range: its desk behind glass, the lanes beyond)
+  barber: 'office', laundry: 'kiosk',
 };
 /** What a kind of shop's floor is ('grocer', 'bakery', 'cafe', 'clothes'…): what's in it. */
 export const floorKind = (shop) => KIND[shop] ?? 'kiosk';

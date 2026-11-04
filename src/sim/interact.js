@@ -6,7 +6,7 @@
 // options(state, them) lists what's open, each { id, label, ok, why } (greyed, with why, when not):
 //   - TALK: a conversation, time standing still (sim/talk.js; its minigame, and conversation proper,
 //     mechanic test 4, come later);
-//   - READ: what you make of them (sim/know.js): their sheet as you guess it; and if they're hurt, a look at
+//   - READ: what you make of them (sim/know.js): their sheet as you guess it (a vest under the top, if your eyes catch it); and if they're hurt, a look at
 //     that (Medicine: sim/diagnosis.js), as first aid's is (FIRST AID, when there's something to do);
 //   - VIOLENCE, an opening (OPENINGS): a hit; a sucker punch, if they don't see it coming (out of their
 //     sight, or your Deception against their Awareness): it lands on them open, with all your weight,
@@ -22,7 +22,7 @@
 // can't fight back is something else (the user, 2026-11-03: "violence in that context should be things like 'tie
 // down' or other options to kill them with what we have on us (knife is different than gun or bare hands)"): tie
 // them up (TIE_S, with their own belt and laces: they stay down till someone frees them), search them (SEARCH_S:
-// what they carry, their weapons taken if there's room), or kill them, by what's in your hand: a blade across the
+// what they carry, their weapons taken if there's room; a vest under the shirt found: sim/armour.js), or kill them, by what's in your hand: a blade across the
 // throat (THROAT_S), a gun to the head (a shot, heard as any shot is), something heavy (BLUDGEON_S), bare hands
 // (STRANGLE_S, longer if your CQC roll against STRANGLE_DC fails). Each is done crouched over them, the busy
 // plan's time (sim/game.js busy(): moving before it's over and nothing's done), and seen by whoever's looking
@@ -42,7 +42,8 @@ import { seesActor } from './perception.js';
 import { stateOf, canStand, bleeding } from './health.js';
 import { addHeat } from './heat.js';
 import { begin as beginFight, exchange, owners, shortName } from './fight.js';
-import { read, fought } from './know.js';
+import { read, fought, noteArmour } from './know.js';
+import { armourOf } from './armour.js';
 import { diagnose } from './diagnosis.js';
 import { begin as beginTalk } from './talk.js';
 import { wielded, canGrabWith, weaponOf } from './weapons.js';
@@ -144,8 +145,9 @@ export function act(state, bus, id, them) {
   if (id === 'talk') { beginTalk(state, bus, them); return { show: 'talk' }; }
   if (id === 'aid') { diagnose(state, bus, me, them); return { show: 'aid', who: them.who }; }   // (a look first: what it finds, the card shows, sim/diagnosis.js)
   if (id === 'read') {
-    const { roll, k } = read(state, me, them);
+    const { roll, k, vest } = read(state, me, them);
     say(state, bus, { kind: 'roll', roll, text: roll.ok ? `You size up ${name}: the build, the hands, the eyes.` : `You look ${name} over, and can't make up your mind.` });
+    if (vest?.ok) say(state, bus, { kind: 'roll', roll: vest, text: `Something under ${p.sex === 'f' ? 'her' : 'his'} top: the stiff, square line of a vest, the straps at the shoulders.` });   // (a soft vest, caught up close: sim/know.js)
     diagnose(state, bus, me, them);                                  // (and if they're hurt, a look at that: Medicine)
     return { show: 'read', who: them.who, k };
   }
@@ -229,8 +231,10 @@ export function finishDowned(state, bus, me, key) {
   } else if (what === 'search') {
     const found = [p.hand, ...(p.items ?? [])].filter(Boolean), took = [];
     for (const k of found) if (weaponOf(k) && fits(mine, k)) { if (p.hand === k) p.hand = null; p.items = (p.items ?? []).filter(x => x !== k); (mine.items ??= []).push(k); if (p.arms?.[k]) moveArm(p, mine, k); took.push(k); }
-    const rest = found.filter(k => !took.includes(k));
-    say(state, bus, { kind: 'note', text: found.length ? `On ${name}: ${found.map(k => thingName(k)).join(', ')}.${took.length ? ` You take ${took.map(k => thingName(k)).join(', ')}.` : ''}${rest.length && !took.length ? ' Nothing worth the room in your pockets.' : ''}` : `${cap(name)}'s pockets: keys, a phone with a cracked screen, receipts. Nothing.` });
+    const rest = found.filter(k => !took.includes(k)), A = armourOf(p);
+    if (A) noteArmour(state, them.who, A.id);                         // (a vest under the shirt, under your hands: sim/know.js)
+    const vest = A ? (A.over ? ' A plate carrier on them, the plates in it.' : ' Under the shirt, a soft vest.') : '';
+    say(state, bus, { kind: 'note', text: found.length ? `On ${name}: ${found.map(k => thingName(k)).join(', ')}.${took.length ? ` You take ${took.map(k => thingName(k)).join(', ')}.` : ''}${rest.length && !took.length ? ' Nothing worth the room in your pockets.' : ''}${vest}` : `${cap(name)}'s pockets: keys, a phone with a cracked screen, receipts. Nothing.${vest}` });
   } else if (what === 'kill' && !p.dead) {
     const gun = isGun(mine.hand), w = wielded(mine);
     if (gun) {

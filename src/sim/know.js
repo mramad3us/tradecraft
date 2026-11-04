@@ -12,11 +12,15 @@
 // (TRAINED_AT). The rest of a sheet (Social, Analysis, Tech, Deception…) doesn't show at a glance: it
 // takes talking, and watching, which come later. A fight tells bounds (fought()): beaten by someone,
 // their CQC is near yours or over; beating them, it isn't far over yours.
+// Body armour (sim/armour.js): a plate carrier anyone sees; a soft vest under the top, a read up close may catch
+// (your Awareness against its line, harder a metre off, under a coat, in the dark: armour.js vestCheck()), and a
+// round of yours stopped by it, a search, a grab tells you (noteArmour()). k.armour: the kind, once known.
 import { skill, CLASSES } from './skills.js';
 import { check } from './checks.js';
 import { range } from './rng.js';
 import { lightHere } from './perception.js';
 import { lightBand } from './light.js';
+import { armourOf, vestCheck } from './armour.js';
 
 export const READABLE = ['fitness', 'cqc', 'awareness', 'weapons'];
 export const READ_DC = 12;
@@ -43,9 +47,22 @@ export function read(state, me, them) {
   }
   if (roll.margin >= CLASS_AT) k.cls = p.cls;
   if (roll.margin >= TRAINED_AT) k.trained = (p.os ?? 0) < 15 ? 'little' : p.os < 40 ? 'some' : p.os < 70 ? 'much' : 'elite';
+  // (armour: a carrier anyone sees; a vest under the top, up close, if your eyes catch its line: Awareness, sim/armour.js)
+  const A = armourOf(p);
+  let vest = null;
+  if (A?.over) k.armour = A.id;
+  else if (A && k.armour !== A.id) {
+    const V = vestCheck(p, d, light);
+    if (V) { vest = check(r, { skill: 'awareness', value: skill(mine, 'awareness'), body: mine, dc: V.dc, mods: V.mods }); if (vest.ok) k.armour = A.id; }
+  }
   k.reads++; k.at = state.time.ms;
-  return { roll, k };
+  return { roll, k, vest };
 }
+
+/** What you've learned of someone's armour (a round of yours stopped by it, a search, a grab): kept with your read of them. */
+export function noteArmour(state, who, kind) { if (who && state.mind) known(state, who).armour = kind; }
+/** Whether you know they wear armour: its kind, or null. */
+export const armourKnown = (state, who) => state.mind?.known?.[who]?.armour ?? null;
 
 /** After a fight with them (won: whether we did): what it showed of their CQC. */
 export function fought(state, who, won) {

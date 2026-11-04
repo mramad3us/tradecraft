@@ -11,25 +11,27 @@
 // mods(): what shows, for someone looking for you (sim/scenarios: the tail's Orlov, Blown's hunters):
 // blood on the face +4, on the clothes +2, something in your hand +3, something at your belt with no
 // coat over it +2, a pocket bulging +1 (sim/items.js placed()); a sneeze, for a few seconds after, +3
-// (sim/wet.js). One helper, so it counts the same
-// everywhere.
+// (sim/wet.js); a plate carrier over your clothes +4 (sim/armour.js: a soft vest under them doesn't show). One
+// helper, so it counts the same everywhere (a police patrol's odds of stopping you too: sim/police.js).
 import { addHeat } from './heat.js';
 import { say } from './log.js';
 import { seesActor } from './perception.js';
 import { DAY } from './clock.js';
 import { showing } from './items.js';
+import { suspicious } from './weapons.js';
 import { SNEEZE_MOD } from './wet.js';
 import { SEASON_MOD, SEASON_MAX, UMBRELLA_MOD } from './thermal.js';
+import { showsArmour, SEEN_MOD as ARMOUR_SEEN } from './armour.js';
 
 export const SEEN_M = 10;
 export const BLOOD_HEAT_S = 20;
 export const BLOOD_HEAT_MAX = 6;
 export const FACE_MOD = 4, CLOTHES_MOD = 2, HELD_MOD = 3, BELT_MOD = 2, BULGE_MOD = 1;
 
-/** What shows on someone: { face, clothes } (blood), hand (a weapon held), belt (one tucked there with no coat over it), bulge (a pocket stuffed: sim/items.js). */
+/** What shows on someone: { face, clothes } (blood), hand (a weapon held, not an everyday thing: sim/weapons.js suspicious()), belt (one tucked there with no coat over it), bulge (a pocket stuffed: sim/items.js). */
 export function shown(p) {
   const c = p ? showing(p) : [];
-  return { face: p?.bloody?.face !== undefined, clothes: p?.bloody?.clothes !== undefined, hand: !!p?.hand, belt: c.some(o => o.at === 'belt'), bulge: c.some(o => o.at !== 'belt') };
+  return { face: p?.bloody?.face !== undefined, clothes: p?.bloody?.clothes !== undefined, hand: suspicious(p?.hand), belt: c.some(o => o.at === 'belt'), bulge: c.some(o => o.at !== 'belt') };
 }
 
 /** What shows, as modifiers for someone looking for them. */
@@ -44,6 +46,7 @@ export function mods(p) {
   // (dressed for another season; an umbrella under a clear sky: the day's, sim/thermal.js, kept on the sheet by the second)
   if (p?.$season?.off) out.push({ why: 'dressed for another season', v: Math.min(SEASON_MAX, p.$season.off * SEASON_MOD) });
   if (p?.$season?.umbrella) out.push({ why: 'an umbrella under a clear sky', v: UMBRELLA_MOD });
+  if (showsArmour(p) && p.cls !== 'cop' && p.cls !== 'soldier') out.push({ why: 'a plate carrier over your clothes', v: ARMOUR_SEEN });   // (a soft vest doesn't show: sim/armour.js)
   return out;
 }
 

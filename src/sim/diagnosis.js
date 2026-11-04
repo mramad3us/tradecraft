@@ -6,16 +6,19 @@
 // sim/health.js, its care sim/medicine.js and sim/aid.js.
 //
 // **Plain sight** (no roll): whether they're up or down, moving, conscious; where the wounds are (a hole in the
-// coat, a cut, a split lip, a bloody nose) and whether they bleed (badly: anyone can see that); a dressing, a
-// tourniquet, a splint; pale, grey; a limb that hangs wrong; a face swollen. On yourself, what hurts where too:
-// you feel it. Not what lies under it: what made a hole, whether the bullet came out, a crack, bleeding inside.
+// coat, a cut, a split lip, a bloody nose; a hole with no blood under it, where a vest stopped a round) and whether
+// they bleed (badly: anyone can see that); a dressing, a tourniquet, a splint; pale, grey; a limb that hangs wrong;
+// a face swollen; a plate carrier (a soft vest under the shirt only once you know of it: sim/know.js, sim/armour.js).
+// On yourself, what hurts where too: you feel it. Not what lies under it: what made a hole, whether the bullet came
+// out, a crack, bleeding inside.
 //
 // **The look** (diagnose()): a Medicine check against DIAGNOSE_DC, on the medic's own body like any roll (sim/
 // checks.js), harder in the dark or the dusk, on someone who won't keep still, on yourself (LOOK_MODS). What it
 // finds goes by the margin it's made by (FINDS, each finding's margin):
 //   - breath, −4: whether someone down is breathing (an airway's the first thing taught), dead or not;
-//   - kind, 0: what each wound is (a bullet's hole, a graze, a stab); the blunt hurts under the clothes; rate,
-//     0: how fast each bleeds (a trickle, steadily, heavily, fast);
+//   - kind, 0: what each wound is (a bullet's hole, a graze, a stab; a round a vest stopped, the bruise under it);
+//     the blunt hurts under the clothes; vest, 0: a soft vest under the shirt; rate, 0: how fast each bleeds (a
+//     trickle, steadily, heavily, fast);
 //   - artery, 2: an artery cut (bright, spurting); fracture, 2: a break, named; shock, 2: the blood's state;
 //   - through, 4: a bullet's entry, and its exit or none (the bullet still in); crack, 4: a cracked rib, a
 //     cracked shin; needs, 4: what it'll take (first aid, stitches, a splint, or a hospital and how fast);
@@ -47,9 +50,11 @@ import { careWords, broken, bandageOf } from './medicine.js';
 import { lightHere } from './perception.js';
 import { lightBand } from './light.js';
 import { hash } from './rng.js';
+import { armourOf, armourLine, stoppedSeen } from './armour.js';
+import { armourKnown } from './know.js';
 
 export const DIAGNOSE_DC = 10;
-export const FINDS = { breath: -4, kind: 0, rate: 0, artery: 2, fracture: 2, shock: 2, through: 4, crack: 4, needs: 4, inside: 8, blood: 8 };
+export const FINDS = { breath: -4, kind: 0, vest: 0, rate: 0, artery: 2, fracture: 2, shock: 2, through: 4, crack: 4, needs: 4, inside: 8, blood: 8 };
 export const LOOK_MODS = { dark: -3, dim: -1, walking: -2, running: -5, self: -2 };
 export const LOOK_AGAIN_S = 60, LOOK_KEEP_MIN = 30;
 export const RATE_WORDS = [[8, 'bleeding fast: minutes, not hours'], [3, 'bleeding heavily'], [0.5, 'bleeding steadily'], [0, 'a trickle']];
@@ -132,6 +137,7 @@ export function seenName(p, i, ms, self = false) {
     if (finds(p, ms, 'kind', i)) return i.artery && !finds(p, ms, 'artery', i) ? `a gunshot wound in the ${WHERE[i.part]}` : i.name;
     return isGraze(i) ? 'a bloody gash in the hair' : i.part === 'head' ? 'a wound in the head' : `a wound in the ${WHERE[i.part]}`;
   }
+  if (i.kind === 'blunt' && i.stopped && !self && !finds(p, ms, 'kind', i)) return stoppedSeen(i, p.armour?.kind);   // (a round stopped in a vest: a hole and no blood, till a look finds the bruise under it)
   if (i.kind === 'cut' && i.artery && !finds(p, ms, 'artery', i)) return i.part === 'head' ? 'a deep cut on the neck' : `a deep cut on the ${sideWord(i.part)} ${limbWord(i.part)}`;
   if (i.kind === 'fracture' && !finds(p, ms, 'fracture', i)) return `the ${WHERE[i.part]}: it hangs wrong`;
   return i.name;
@@ -167,6 +173,10 @@ export function findings(state, p, { actor = null, self = false } = {}) {
   else if (!awake) status.push({ text: find('breath') ? `Out cold, but breathing${chest ? ': fast and shallow' : ''}.` : 'Down, and not moving.', tone: 'bad' });
   else if (posture === 'down') status.push({ text: self ? 'You\'re down, and can\'t get up.' : `Down, conscious: ${!canStand(p) ? `${she} can't get up` : 'in pain'}.`, tone: 'bad' });
   else status.push({ text: self ? `On your feet${posture === 'running' ? ', running' : posture === 'walking' ? ', walking' : ''}.` : `On ${their} feet${posture === 'running' ? ', running' : posture === 'walking' ? ', walking' : ''}.`, tone: 'calm' });
+  // (body armour: a carrier anyone sees; a vest under the top you know of (your read caught it, a round of yours stopped in it, a
+  // search), or a look made at the body finds, the shirt opened; your own you feel: sim/armour.js, sim/know.js)
+  const A = armourOf(p), knew = A && (A.over || self || armourKnown(state, p.id) === A.id || (made && L.margin >= FINDS.vest) || (p.injuries ?? []).some(i => i.stopped && finds(p, ms, 'kind', i)));
+  if (knew) status.push({ text: armourLine(p, self), tone: 'calm' });
   // (the blood: what shows, then what the look makes of it)
   if (!p.dead) {
     if (find('blood') || self) {
@@ -259,9 +269,9 @@ function needsOf(p, ms, find, them) {
 
 /** A wound's mark on the figure: { part, kind, bleed, dressed, stitched, spurt }. */
 function markOf(p, i, ms, lv) {
-  const kind = i.internal && i.part === 'torso' ? 'inside' : gunshotOf(i) ? (isGraze(i) ? 'graze' : 'hole') : i.kind === 'cut' ? (i.deep || i.artery ? 'gash' : 'cut')
+  const kind = i.internal && i.part === 'torso' ? 'inside' : gunshotOf(i) ? (isGraze(i) ? 'graze' : 'hole') : i.kind === 'blunt' && i.stopped ? 'stopped' : i.kind === 'cut' ? (i.deep || i.artery ? 'gash' : 'cut')
     : i.kind === 'fracture' ? (LIMBS.includes(i.part) ? 'break' : 'bruise') : i.kind === 'crack' ? 'crack' : i.kind === 'split' && /lip/.test(i.name ?? '') ? 'lip' : i.kind;   // (split: a brow; nose)
-  return { part: i.part, kind, bleed: kind === 'inside' ? 0 : lv, dressed: bandageOf(i, ms) ? (i.rag ? 'rag' : 'bandage') : i.dressed ? 'bandage' : null, stitched: !!i.stitched, spurt: !!i.artery && lv >= 2 && !p.tourniquets?.[i.part] };
+  return { part: i.part, kind, bleed: kind === 'inside' ? 0 : lv, dressed: bandageOf(i, ms) ? (i.rag ? 'rag' : 'bandage') : i.dressed ? 'bandage' : null, stitched: !!i.stitched, spurt: !!i.artery && lv >= 2 && !p.tourniquets?.[i.part], ...(kind === 'stopped' ? { plate: i.stopped === 'plate' } : {}) };
 }
 /** All the figure's marks: the rows', the tourniquets and splints, the blood worn, what bleeds inside. */
 function marksOf(p, rows, ms, inside) {

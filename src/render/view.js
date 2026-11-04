@@ -73,6 +73,7 @@ import { createItems } from './items.js';
 import { sky, indoors, lightAt, lightLevel, LAMP } from '../sim/light.js';
 import { Z, SECTION_M } from '../sim/map/street.js';
 import { isGun, isLong } from '../sim/firearms.js';
+import { pictureOf as armourPicture } from '../sim/armour.js';
 import { passerby } from '../sim/people.js';
 import { geoOf, SHOP_EN, SHOP_EN_CITY, scriptLang } from '../sim/cities/index.js';
 import { focusActor, playerActor } from '../sim/game.js';
@@ -492,10 +493,12 @@ export function createView({ parent, bus, month = () => 11 }) {
       const P = a.who && state.people[a.who], bl = P?.bloody, hand = isGun(P?.hand) ? (isLong(P.hand) ? 'rifle' : 'pistol') : P?.hand, rain0 = rainwearOf(wx, a.who ?? a.seed, hand, a.who === state.player, look), rain = rain0 && (a.within || a.inside || unitAt(state, a.x, a.z)) ? null : rain0, bag = P?.bag?.length ? 'bag' : null;
       // (sunglasses put away once the light's gone, as an umbrella's put down under a roof: the user, 2026-11-03)
       const shadesOff = look.glasses === 'shades' && S.glow > 0.35 ? 'noshades' : null;
+      // (a plate carrier over the top is part of how they look; a soft vest under it isn't drawn: sim/armour.js)
+      const plates = armourPicture(P);
       const base = a.who ? `${a.who}#${lookKey(look)}` : a.seed;
-      const key = bl || hand || rain || bag || shadesOff ? `${base}~${bl ? Object.keys(bl).sort().join('') : ''}~${hand ?? ''}~${rain ?? ''}~${bag ?? ''}~${shadesOff ?? ''}` : base;
+      const key = bl || hand || rain || bag || shadesOff || plates ? `${base}~${bl ? Object.keys(bl).sort().join('') : ''}~${hand ?? ''}~${rain ?? ''}~${bag ?? ''}~${shadesOff ?? ''}~${plates ? `${plates.color}${plates.patch ? 'p' : ''}` : ''}` : base;
       const pose = isGun(P?.hand) ? gunPose(a, ms) : null;          // (carried, aimed, fired: on the sim's clock)
-      people.push({ key, look: bl || hand || rain || bag || shadesOff ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}), ...(rain ? { rainwear: rain } : {}), ...(bag ? { carry: 'bag' } : {}), ...(shadesOff ? { glasses: undefined } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S), own: a.who === state.player, frame: pose?.frame ?? null, flash: !!pose?.flash });
+      people.push({ key, look: bl || hand || rain || bag || shadesOff || plates ? { ...look, ...(bl ? { blood: bl } : {}), ...(hand ? { hand } : {}), ...(rain ? { rainwear: rain } : {}), ...(bag ? { carry: 'bag' } : {}), ...(shadesOff ? { glasses: undefined } : {}), ...(plates ? { armour: plates } : {}) } : look, x, z, face: a.face, gait: a.gait, stride, phase: (a.seed ?? 0) % 7 * 0.29, tint: lightAt(lamps, x, z, ms, S), own: a.who === state.player, frame: pose?.frame ?? null, flash: !!pose?.flash });
     }
     // (a shot's flash lights whoever's near it, for its moment: the shooter's face most; never darker than they were)
     for (const f of people.filter(p => p.flash)) for (const p of people) {
@@ -515,7 +518,8 @@ export function createView({ parent, bus, month = () => 11 }) {
       const look = lookFor(r[6]);
       if (!look) continue;
       drawn.set(id, [r[0], r[1]]);
-      people.push({ key: r[6], look, x: r[0], z: r[1], face: r[2], gait: r[3], stride: r[4], phase: 0, t: r[5] / 1000, tint: lightAt(lamps, r[0], r[1], ms, S) });
+      const plates = typeof r[6] === 'string' ? armourPicture(state.people[r[6]]) : null;   // (a carrier's still on them as remembered)
+      people.push({ key: plates ? `${r[6]}~${plates.color}${plates.patch ? 'p' : ''}` : r[6], look: plates ? { ...look, armour: plates } : look, x: r[0], z: r[1], face: r[2], gait: r[3], stride: r[4], phase: 0, t: r[5] / 1000, tint: lightAt(lamps, r[0], r[1], ms, S) });
     }
     crowd.update(people, t);
     blood.update(state);

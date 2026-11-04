@@ -67,4 +67,21 @@ export default [
       assert(pct[2][0] > pct[0][0] && pct[2][1] < pct[0][1], 'the better liar talks out more, and loses the knife less');
     },
   },
+  {
+    name: 'police: an umbrella in your hand is an umbrella: it doesn\'t draw them, it isn\'t "the thing in your hand", and they don\'t take it; a kitchen knife is, and they do',
+    fn() {
+      const out = [];
+      for (const hand of ['umbrella', 'kitchen']) {
+        const { g, p, bus } = walk('moscow'), said = [];
+        bus.on('log', (e) => said.push(e.text ?? ''));
+        const clean = stopChance(g); p.hand = hand; const held = stopChance(g);
+        stopped(g, bus);
+        answer(g, bus, 'papers');
+        const searched = said.some(t => /your pockets, please/.test(t)), blood = said.some(t => /blood on you/.test(t)), taken = p.hand !== hand;
+        assert(hand === 'umbrella' ? held === clean && !searched && !taken : held > clean && searched && !blood && taken, `${hand}: the stop's odds ${clean.toFixed(3)} → ${held.toFixed(3)}, searched ${searched}, blood named ${blood}, taken ${taken}`);
+        out.push(`${hand}: odds ×${(held / clean).toFixed(2)}, ${searched ? 'searched, taken' : 'papers, on your way'}`);
+      }
+      console.log(`      ${out.join('; ')}`);
+    },
+  },
 ];

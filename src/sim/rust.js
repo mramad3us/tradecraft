@@ -21,7 +21,7 @@ export const CORE = ['deception', 'tracking', 'pathfinding', 'awareness'];
 export const RUSTING = ['deception', 'tracking', 'pathfinding', 'awareness', 'social', 'analysis', 'tech', 'medicine', 'cqc', 'weapons'];
 const NAMES = { deception: 'Deception', tracking: 'Tracking', pathfinding: 'Pathfinding', awareness: 'Awareness', social: 'Social', analysis: 'Analysis', tech: 'Tech', medicine: 'Medicine', cqc: 'CQC', weapons: 'Weapon handling' };
 // (what keeps each up, for the note when it rusts: an assignment the core, a community centre's clubs the rest, sim/clubs.js)
-const KEPT_BY = { deception: 'the amateur dramatics', tracking: 'the photography club', pathfinding: 'the walking club', awareness: 'the photography club', social: 'the dance class', analysis: 'the chess club', tech: 'the radio club', medicine: 'the first-aid course', cqc: 'a class at the club', weapons: 'a gun in your hands' };
+const KEPT_BY = { deception: 'the amateur dramatics', tracking: 'the photography club', pathfinding: 'the walking club', awareness: 'the photography club', social: 'the dance class', analysis: 'the chess club', tech: 'the radio club', medicine: 'the first-aid course', cqc: 'a class at the club', weapons: 'a session at a range' };
 export const periodOf = (ms) => Math.floor(Math.floor(ms / DAY) / PERIOD_DAYS);
 
 /** What rust takes off a skill that shows `total` without it. */

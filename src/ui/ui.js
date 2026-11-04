@@ -793,6 +793,31 @@ export function createUI({ input, cb }) {
     card.querySelector('.item')?.focus();
   }
 
+  /**
+   * Your books, sat somewhere (sim/reading.js cardOf()): a row each, the ones still to finish first: its title and
+   * subject, a bar of how far in, where it is (on you, in the bag, on the shelf); its number (or a click) reads it ten
+   * minutes, and at the armchair its small button takes it with you or leaves it on the shelf. Long lists scroll.
+   */
+  function openBooks(c, act) {
+    const go = (key) => () => { closeOverlays(); act(key); };
+    const AT = { pocket: 'on you', bag: 'in the bag', home: 'on the shelf' };
+    const rows = c.books.map((b, i) => el('div', { className: `book-row${b.done ? ' done' : ''}` },
+      el('button', { className: 'item book', disabled: !!b.off, title: b.off ?? '', dataset: i < 10 ? { n: i + 1 } : {}, onclick: go(`on:${b.id}`) },
+        el('kbd', {}, i < 10 ? String((i + 1) % 10) : '·'),
+        el('span', { className: 'book-what' }, el('span', { className: 'book-title', textContent: b.title }), el('small', { textContent: `${b.subject} · ${AT[b.at] ?? b.at}` })),
+        el('span', { className: 'book-bar' }, el('i', { style: `width:${Math.round(100 * Math.min(1, b.read / b.hours))}%` })),
+        el('small', { className: 'book-h', textContent: b.done ? 'read' : b.read ? `${b.spent} of ${b.hours} h` : `${b.hours} h` })),
+      b.move ? el('button', { className: 'mini', disabled: !!b.moveOff, title: b.moveOff ?? '', onclick: go(`${b.move}:${b.id}`) }, b.move === 'take' ? 'take' : 'leave') : el('span')));
+    card.replaceChildren(el('div', { className: 'mind glass choices books' },
+      el('div', { className: 'mind-head' }, glassHead('BOOKS', c.title, 'book')),
+      el('div', { className: 'glass-list books-list' }, ...rows),
+      el('p', { className: 'mind-foot' }, `${c.books.length > 1 ? `1–${Math.min(10, c.books.length) % 10 || 0}` : '1'} or a click: read it. ${input.label('menu')} to shut the book.`)));
+    card.hidden = false;
+    card.dataset.kind = 'choices';
+    menu.hidden = log.hidden = true;
+    card.querySelector('button[data-n]')?.focus();
+  }
+
   /** I: what you carry, pocket by pocket (src/ui/pockets.js); each thing's buttons (take out, put away, drop) close it and do it. */
   function openInventory(state, act) {
     openPockets(card, state, { el, act: (cmd) => { closeOverlays(); act(cmd); }, label: (k) => input.label(k), price: (usd) => price(state, usd) });
@@ -843,7 +868,8 @@ export function createUI({ input, cb }) {
 
   /**
    * Your read of them: their body as you see it (src/ui/body.js: the figure, the wounds marked, what your look found:
-   * sim/diagnosis.js), as they are this moment (up or down, running), and their sheet as you guess it (sim/know.js).
+   * sim/diagnosis.js), as they are this moment (up or down, running), what armour you know they wear (a carrier drawn on
+   * them, a vest under the top once your read's caught it: sim/armour.js), and their sheet as you guess it (sim/know.js).
    * aid(actorId): first aid for them, if they're in reach and hurt (a button, and the aid key).
    */
   const READ_MAX = 30;                                              // (the read's bars: a skill's scale, as far as it goes on a person)
@@ -1063,5 +1089,5 @@ export function createUI({ input, cb }) {
   /** The picture's frame on the ground, in m (what can be aimed at is in it: sim/shooting.js targets()). */
   const frameBox = (view) => { const cam = view?.camera; return cam ? { x0: cam.x - RES[0] / 32, x1: cam.x + RES[0] / 32, z0: cam.z - RES[1] / 32, z1: cam.z + RES[1] / 32 } : null; };
 
-  return { pickAt, frameBox, frame, fit, flash, openInventory, openAid, readAid, openMind: openMindUI, openTube, openChoices, showCandidates, showPaper, showCall, showTitle, showTutorial, toggleKeys, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
+  return { pickAt, frameBox, frame, fit, flash, openInventory, openAid, readAid, openMind: openMindUI, openTube, openChoices, openBooks, showCandidates, showPaper, showCall, showTitle, showTutorial, toggleKeys, hideTitle, update, toast, clearToasts, openMenu, openLog, openSheet, openInteract, openRead, showBrief, showResult, closeOverlays, closeAll, overlay, hud };
 }

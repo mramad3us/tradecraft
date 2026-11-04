@@ -25,14 +25,17 @@
 // out of it. Left and right are the wearer's list order, the viewer's left first. The marks go on after the dark
 // lines, so that no seam crosses them, and the trousers' before the top, so that a coat's edge falls over them.
 // What's in the hand (a weapon kind) hangs from it, drawn from its shape (heldIcon()) to its length; a shop's
-// bag from the other. The fingers close over what they hold.
+// bag from the other. The fingers close over what they hold. A plate carrier (armour: { color, patch }; sim/armour.js)
+// goes over the top, under the arms (carrier()): the plate cut for the arms, its straps, the cummerbund, three
+// pouches, a patch; a soft vest under the top isn't drawn.
 //
 // **Wounds** (wounds: sim/diagnosis.js findings().marks; the user, 2026-11-03: "graphical representations (high
 // quality based on inventory screen)"): each where it lies, a part's in turn at its places (SLOTS; a graze in the
 // hair, a split brow or lip, a nose, a break on the shin or the forearm, at their own), their right on our left as
 // they face us. Blood in four tones of its own (BL): what's soaked into the cloth a stain in its own pixels,
 // darkened toward blood and ragged at the edge; what runs fresh bright, in drips as long as it bleeds fast. A
-// bullet's entry a dark hole with a wet rim and a glint; a cut a slant, a gash a deeper one, an artery spurting
+// bullet's entry a dark hole with a wet rim and a glint (one a vest stopped, a hole with no blood, the lead grey in
+// it, a carrier's cover frayed pale round it); a cut a slant, a gash a deeper one, an artery spurting
 // aside; a bruise on the face; a break or a crack a jag across the limb, light on dark cloth and dark on light.
 // What's on them: a dressing (a taped pad on the body, wound round a limb in its turns; a strip of shirt greyer),
 // blood come through it where it still bleeds; a tourniquet's strap high on the limb, its buckle outside; a
@@ -619,6 +622,41 @@ function onTop(g, M, top, P) {
   }
 }
 
+// ---------- body armour ----------
+
+/**
+ * A plate carrier over the top (armour: { color, patch }; sim/armour.js: a soft vest under it isn't drawn): the front
+ * plate from under the collar to above the belt, its top corners cut for the arms, a strap from each over the
+ * shoulder; the cummerbund's soft panels round the sides; three magazine pouches across the belly, their flaps lit;
+ * a patch across the chest (police: white, a word in it). Lit from the upper left, the right falling into shade.
+ */
+function carrier(g, B, armour) {
+  const T = cloth(armour.color ?? 0x23252f), top = 31, foot = WAIST_Y + 1;
+  // (the cummerbund first, round the sides under the plate's edge; then the straps, then the plate over them)
+  const band = g.add(scan(both([[11, 40], [B.chest + 0.6, 41], [B.waist + 1.8, WAIST_Y - 1], [B.waist + 1.4, foot + 1], [11, foot + 1]])), T.shade);
+  g.on(band, scan(rt([[11, 40], [20, 40], [20, foot + 2], [11, foot + 2]])), T.deep);
+  for (const side of [lf, rt]) { const s = g.add(scan(side([[6.2, top + 1], [B.neck + 1.4, 26.6], [B.neck + 4.6, 27.6], [10.4, top + 1]])), side === lf ? T.soft : T.shade, 0); g.on(s, [[27, 0, W]], side === lf ? T.light : T.base); }
+  const plate = g.add(scan(both([[6.4, top], [9.4, top], [12.2, top + 4], [12.4, foot], [0, foot]])), T.base);
+  g.on(plate, scan(lf([[0, top], [9.4, top], [12.2, top + 4], [12.4, foot], [10.6, foot], [10.6, top + 5], [8.4, top + 1.6], [0, top + 1.6]])), T.soft);   // (its lit edge)
+  g.on(plate, [[top, 0, W]], T.light);
+  g.on(plate, scan(rt([[2, top + 2], [8.4, top + 2], [11, top + 5], [11, foot], [2, foot]])), T.shade);   // (the right half, falling away)
+  g.on(plate, [[foot - 1, 0, W]], T.deep);
+  // (the webbing: rows of stitched loops across the plate, a dark dash every other pixel)
+  for (const y of [top + 9, top + 11]) for (let x = MID - 10; x <= MID + 9; x += 2) if (g.part[y]?.[x] === plate) g.col[y][x] = T.deep;
+  if (armour.patch) {                                              // (POLICE across the chest: a white strip, dark marks in it)
+    const P = cloth(0xf6f4ee), p = g.add(scan(both([[7, top + 4], [7, top + 7]])), P.base);
+    g.on(p, [[top + 6, 0, W]], P.shade); g.on(p, scan(rt([[5, top + 4], [8, top + 4], [8, top + 7], [5, top + 7]])), P.shade);
+    for (let x = MID - 5; x <= MID + 4; x += 2) g.put(x, top + 5, mix(P.deep, P.shade, 0.3));
+  }
+  // (three magazine pouches, their flaps lit, each seated on the plate by a dark line)
+  for (const [x0, w] of [[MID - 11, 6], [MID - 3, 6], [MID + 5, 6]]) {
+    const id = g.add([...Array(7)].map((_, k) => [foot - 8 + k, x0, x0 + w - 1]), x0 > MID ? T.shade : T.base);
+    g.on(id, [[foot - 8, x0, x0 + w - 1]], x0 > MID ? T.base : T.light); g.on(id, [[foot - 7, x0, x0 + w - 1]], x0 > MID ? T.base : T.soft);
+    g.on(id, [[foot - 6, x0, x0 + w - 1]], T.deep);                // (the flap's edge)
+    g.on(id, [[foot - 5, x0 + w - 1, x0 + w - 1], [foot - 4, x0 + w - 1, x0 + w - 1], [foot - 3, x0 + w - 1, x0 + w - 1], [foot - 2, x0 + w - 1, x0 + w - 1]], T.deep);
+  }
+}
+
 // ---------- what's in the hands ----------
 
 function heldThing(g, kind, [hx, hy]) {
@@ -741,6 +779,12 @@ function wounds(g, B, sex, M) {
       dab(g, x, y, HOLE); dab(g, x + 1, y, HOLE); dab(g, x, y + 1, HOLE); dab(g, x + 1, y + 1, BL.deep);
       dab(g, x - 1, y, BL.shade); dab(g, x, y - 1, BL.shade); dab(g, x + 1, y - 1, BL.shade); dab(g, x - 1, y + 1, BL.base); dab(g, x + 2, y + 1, BL.base); dab(g, x + 2, y, BL.shade);
       if (lv) { dab(g, x - 1, y - 1, BL.light); drips(g, x, y + 2, lv); }
+    } else if (w.kind === 'stopped') {
+      // (a round body armour stopped: a hole in the cloth and no blood, the flattened lead grey in it; on a carrier, its
+      // cover torn pale round the strike; sim/armour.js. The bruise is under the clothes.)
+      const fray = w.plate ? [[-1, 0], [2, 0], [0, -1], [1, -1], [0, 2], [1, 2], [-1, 1], [2, 1]] : [[-1, 0], [2, 1], [0, -1]];
+      for (const [dx, dy] of fray) tint(g, x + dx, y + dy, 0xdfe2e8, w.plate ? 0.4 : 0.3);
+      dab(g, x, y, 0x2a2c36); dab(g, x + 1, y, 0x1f2029); dab(g, x, y + 1, 0x1f2029); dab(g, x + 1, y + 1, 0x9aa1ae);
     } else if (w.kind === 'graze') {
       // (a furrow along the skull, where the hair or the hat's torn; what runs from it comes down the temple, by the face's edge)
       for (let k = -2; k <= 2; k++) dab(g, x + k, y + (k > 0 ? 1 : 0), Math.abs(k) < 2 ? BL.deep : BL.shade);
@@ -802,7 +846,7 @@ export const backdropAt = (x, y) => backdrop(x, y - DROP);
 // ---------- the figure ----------
 
 /** Rows of colours, H × W, nothing clear: the backdrop and the figure on it. { look, sex, marks, hand, bag, wounds }; with wounds, rows.spots: where each numbered one is (x, y on the rows). */
-export function doll({ look = {}, sex = 'm', marks = {}, hand = null, bag = false, wounds: hurts = null } = {}) {
+export function doll({ look = {}, sex = 'm', marks = {}, hand = null, bag = false, wounds: hurts = null, armour = null } = {}) {
   const g = grid(), B = BODY[sex] ?? BODY.m, top = look.top ?? { kind: 'coat' }, dress = top.kind === 'dress', wrist = B.armIn[0][1];
   hair(g, look, true);
   if (isOpen(top) && CUT[top.kind].hem > 90) backOf(g, B, top);
@@ -820,6 +864,7 @@ export function doll({ look = {}, sex = 'm', marks = {}, hand = null, bag = fals
     P = closedTop(g, B, look, top);
     if (top.kind === 'tee') belt(g, B.hip + 0.8);
   }
+  if (armour) carrier(g, B, armour);                               // (a plate carrier over the top, under the arms)
   // (before the arms: the fingers close over what they hold)
   if (hand) heldThing(g, hand, [Math.round(MID - B.hand), wrist + 3]);
   if (bag) bagIn(g, [Math.round(MID + B.hand) - 1, wrist + 2]);

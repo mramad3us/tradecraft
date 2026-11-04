@@ -2,19 +2,19 @@
 // when; a session waited for and sat through, paid, its practice taking a level of rust off its skill, half a
 // session on its other, its hours in the skill; a club that isn't meeting, not today.
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
-import { ways } from '../src/sim/shops.js';
+import { ways, RANGES } from '../src/sim/shops.js';
 import { CLUBS, whenText } from '../src/sim/clubs.js';
 import { at, calendar } from '../src/sim/clock.js';
 import { cashOf } from '../src/sim/money.js';
 import { atDoor, walkIn, walk, spotOf } from './shopwalk.mjs';
 import { assert, fmt } from './helpers.mjs';
 
-// (the nearest community centre on the player's street, walked into, the player at its desk; a few towns tried)
-function atCentre(city) {
+// (the nearest shop of a kind (a community centre, a range) on the player's street, walked into, the player at its desk; a few towns tried)
+function atCentre(city, kind = 'culture') {
   for (let seed = 1; seed <= 12; seed++) {
     const g = newGame({ seed, scenario: 'walk', city, weather: 'clear' });
     start(g, null);
-    const u = atDoor(g, (o) => o.shop === 'culture' && !!spotOf(o, 'counter'));
+    const u = atDoor(g, (o) => o.shop === kind && !!spotOf(o, 'counter'));
     if (!u) continue;
     walkIn(g, u);
     const s = spotOf(u, 'counter');
@@ -50,6 +50,27 @@ export default [
         out.push(`${city ?? 'moscow'} (seed ${c.seed}) ${fmt(mins, 0)} min`);
       }
       console.log(`      the dramatics, Tuesday 18:40: ${out.join('; ')}; the radio club: "Not today: it meets ${whenText(CLUBS.find(c => c.id === 'radio'))}"`);
+    },
+  },
+  {
+    name: 'clubs: a shooting range in each city, what a visitor may shoot there (London: a club .22, no pistol); a session an hour and a quarter, paid, Weapon handling practised and trained',
+    fn() {
+      const out = [];
+      for (const city of [null, 'london', 'beirut', 'cairo']) {
+        const c = atCentre(city, 'range');
+        assert(c, `${city ?? 'moscow'}: a range within a dozen towns`);
+        const { g, d } = c, me = playerActor(g), p = g.people[g.player];
+        const w = ways(g, d, 'counter').filter(o => o.id.startsWith('range:')), want = RANGES[city ?? 'moscow'];
+        assert(w.length === want.length && (city !== 'london' || !w.some(o => /pistol/i.test(o.id))), `${city ?? 'moscow'}: ${w.map(o => o.id).join(', ')}`);
+        p.cash = 5000; p.rust = { weapons: 1 };
+        const t0 = g.time.ms, cash0 = cashOf(p), tr0 = p.training?.weapons ?? 0, sk0 = p.skills.weapons?.[0] ?? 0;
+        step(g, { act: [`shop:${w[0].id}`] }, null);
+        for (let t = 0; t < 20 * 200 && me.inside; t++) step(g, {}, null);
+        const mins = (g.time.ms - t0) / 60000, trained = (p.skills.weapons?.[0] ?? 0) > sk0 || (p.training?.weapons ?? 0) > tr0;
+        assert(Math.abs(mins - 75) < 2 && cashOf(p) < cash0 && trained && !p.rust.weapons, `${city ?? 'moscow'}: ${fmt(mins, 0)} min, paid ${cashOf(p) < cash0}, trained ${trained}, rust ${p.rust.weapons}`);
+        out.push(`${city ?? 'moscow'} (seed ${c.seed}): ${w.map(o => o.id.slice(6)).join(' or ')}, ${fmt(mins, 0)} min`);
+      }
+      console.log(`      ${out.join('; ')}`);
     },
   },
 ];

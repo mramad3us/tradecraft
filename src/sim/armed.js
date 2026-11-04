@@ -6,7 +6,9 @@
 //
 // **Who's armed**: a patrol carries its country's sidearm holstered (sim/countries/ police.arms.patrol; none
 // in London: its patrols are unarmed), at COP_WEAPONS.patrol; its armed response (police.arms.response) comes
-// with long guns, in the hand, ready, at COP_WEAPONS.response.
+// with long guns, in the hand, ready, at COP_WEAPONS.response. Body armour with them (sim/armour.js issue()): the
+// response in plate carriers over the uniform; a patrol officer in a soft vest under the shirt, their country's
+// share of the time (police.armour.patrol). Where the response is the army (Beirut's), it's soldiers.
 // **A gun seen** (second()): you with a gun in your hand, in an officer's sight, or a shot of yours heard
 // (HEARD_M, SHOT_FRESH_S), and the alarm's up (state.$alarm): they shout (ORDER), and the papers can wait.
 //   - Drop it, or put it away, and keep your hands where they can be seen (COMPLY_S with nothing in them, an
@@ -38,6 +40,7 @@ import { sheet } from './people.js';
 import { addHeat } from './heat.js';
 import { canStand, staysDown } from './health.js';
 import { stream, chance, pick, range } from './rng.js';
+import { issue } from './armour.js';
 import { say } from './log.js';
 import { HOUR } from './clock.js';
 
@@ -54,6 +57,7 @@ const cops = (state) => state.actors.filter(a => a.cop);
 export function armCop(state, p, role = 'patrol', r = state.rng) {
   const K = policeOf(state.map), list = K.arms?.[role] ?? [];
   p.skills.weapons = [...COP_WEAPONS[role]];
+  issue(p, role, K, `${state.seed ?? ''}|${p.id ?? ''}`);          // (body armour: the response's carrier, a patrol's vest, by its country: sim/armour.js, on dice of its own)
   if (!list.length) return null;
   // (the response: a long gun in the hand, on semi and ready, and a pistol at the belt if they have one; a patrol, its pistol holstered)
   const long = list.filter(m => MODELS[m] && KINDS[MODELS[m].kind]?.hands > 1), side = list.filter(m => MODELS[m] && !(KINDS[MODELS[m].kind]?.hands > 1));
@@ -130,8 +134,9 @@ function respond(state, bus, me, R) {
   R.came = state.time.ms;
   for (let k = 0; k < RESPONDERS; k++) {
     const who = `unit${R.at % 100000}${k}`;
-    state.people[who] = sheet({ id: who, name: 'an armed officer', sex: chance(r, 0.2) ? 'f' : 'm', cls: 'cop', skills: { awareness: [(K.awareness ?? 8) + 2, 0], cqc: [10, 1], tracking: [8, 0] },
-      look: { skin: pick(r, K.skin ?? ['light']), hair: { style: 'crew', color: pick(r, [0x23252f, 0x47302a]) }, shoes: 0x14151c, ...structuredClone(K.look) } });
+    const army = !!K.response?.soldiers;                             // (Beirut's response is the army: soldiers, in its olive)
+    state.people[who] = sheet({ id: who, name: army ? 'a soldier' : 'an armed officer', sex: chance(r, 0.2) ? 'f' : 'm', cls: army ? 'soldier' : 'cop', skills: { awareness: [(K.awareness ?? 8) + 2, 0], cqc: [10, 1], tracking: [8, 0] },
+      look: { skin: pick(r, K.skin ?? ['light']), hair: { style: 'crew', color: pick(r, [0x23252f, 0x47302a]) }, shoes: 0x14151c, ...structuredClone(K.response?.look ?? K.look) } });
     armCop(state, state.people[who], 'response', r);
     const a = makeAgent(state, { who, row, x: me.x + dir * (40 + k * 1.5), z: LINE.F + k * 0.6, speed: 2.2, face: dir > 0 ? 'left' : 'right' });
     Object.assign(a, { cop: true, unit: true, alert: state.time.ms });

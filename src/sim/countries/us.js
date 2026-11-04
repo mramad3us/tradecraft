@@ -9,6 +9,8 @@ export const US = {
     order: '"Police! Drop the gun! Drop it!"',                         // (the order to drop it: sim/armed.js)
     arms: { patrol: ['glock17'], patrolLong: ['m4', 'rem870'], response: ['m4', 'glock17'], visible: 'patrols' },
     response: { unit: 'SWAT', minutes: [5, 15] },
+    // (body armour, sim/armour.js: most patrol officers in a soft vest under the shirt, standard issue; SWAT in olive-drab carriers, POLICE across them)
+    armour: { patrol: 0.85, color: 0x545e40, patch: true },
     ems: { police: [4, 9], ambulance: [6, 12], policeCar: { body: 0x14151c, stripe: [0xf6f4ee, 0xf6f4ee], word: 'POLICE' }, ambulanceCar: { body: 0xf6f4ee, stripe: [0xc95c45, 0xc95c45], word: 'AMBULANCE' }, medic: { top: { kind: 'uniform', color: 0x283f6b, trim: 0xf6f4ee }, legs: 0x23252f } },
   },
   law: { handgun: 'licensed', long: 'licensed', carry: 'permit', ranges: 'open', diplomats: 'permit' },

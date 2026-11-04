@@ -81,7 +81,15 @@ export function cardOf(state, me) {
     else if (b.at !== 'bag') rows.push({ key: `leave:${b.id}`, label: `Leave ${t} on the shelf` });
   }
   rows.push({ key: 'close', label: 'Shut the book' });
-  return { title: `${READ_MIN} MINUTES AT A TIME`, list: rows };
+  // (the shelf, as the card draws it, one row a book (src/ui/ui.js openBooks(): the user, 2026-11-04, "this interface is
+  // clunky and won't scale with a lot of books"): what it is, how far in, where it is, and taking it or leaving it)
+  const books = within(p, where).map(b => {
+    const B = bookOf(b.id), done = finished(b), mine = where === 'chair';
+    return { id: b.id, title: B.title, subject: B.lang ? (LANG_NAME[typeof B.lang === 'string' ? B.lang : taughtIn(state.map.city)] ?? 'a language') : B.skill ? SKILLS[B.skill]?.name ?? B.skill : 'a novel',
+      read: b.read ?? 0, hours: B.hours, spent: spent(b.read ?? 0), done, at: b.at ?? 'pocket', off: why,
+      move: !mine ? null : !onYou(b) ? 'take' : b.at !== 'bag' ? 'leave' : null, moveOff: mine && !onYou(b) && !fits(p, 'book') ? 'no room about you' : null };
+  }).sort((x, y) => Number(x.done) - Number(y.done));
+  return { title: `${READ_MIN} MINUTES AT A TIME`, list: rows, books };
 }
 
 /** Opened (R; T at the armchair): the card, with time to spend; in a lived scene, cover. */

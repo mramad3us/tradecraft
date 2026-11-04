@@ -35,7 +35,7 @@ import { skill } from './skills.js';
 import { addHeat, heat } from './heat.js';
 import { say } from './log.js';
 import { placed, thingName } from './items.js';
-import { weaponOf } from './weapons.js';
+import { suspicious } from './weapons.js';
 import { HOUR } from './clock.js';
 import { policeOf } from './countries/index.js';
 import { armCop } from './armed.js';
@@ -136,7 +136,7 @@ export function answer(state, bus, key) {
   }
   // (papers: a diplomat's, handed back; what shows gets a search anyway)
   say(state, bus, { kind: 'note', text: state.legend?.cover === 'official' ? 'He turns the diplomatic passport over, reads it twice, writes your name in his notebook, and hands it back.' : 'He reads your papers slowly, and looks at you over them.' });
-  if (blood || held) return search(state, bus, them, end, 'The blood on you, the thing in your hand: "And your pockets, please."');
+  if (blood || held) return search(state, bus, them, end, `${blood && held ? 'The blood on you, the thing in your hand' : blood ? 'The blood on you' : 'The thing in your hand'}: "And your pockets, please."`);   // (what showed, and only that)
   return end('"Thank you." They walk on.', PAPERS_HEAT);
 }
 
@@ -144,9 +144,9 @@ export function answer(state, bus, key) {
 function search(state, bus, them, end, why = null) {
   const p = state.people[state.player], found = [];
   if (why) say(state, bus, { kind: 'note', text: why });
-  if (p.hand && weaponOf(p.hand)) found.push(p.hand);
+  if (p.hand && suspicious(p.hand)) found.push(p.hand);             // (an umbrella's an umbrella: sim/weapons.js EVERYDAY)
   for (const o of placed(p).out) {
-    if (!weaponOf(o.kind)) continue;
+    if (!suspicious(o.kind)) continue;
     if (o.shows) { found.push(o.kind); continue; }
     const r = opposed(state.rng, { skill: 'awareness', value: skill(them, 'awareness'), body: them }, { skill: 'deception', value: skill(p, 'deception'), body: p, mods: [{ why: 'in a pocket', v: POCKET_MOD }] }, { them: true });
     if (r.ok) found.push(o.kind);

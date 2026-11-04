@@ -10,6 +10,8 @@ export const EG = {
     // (a CZ 75, a Glock or a revolver at the belt; rifles and submachine guns at the stations, the MP5 with special units; the embassy streets in Garden City guarded)
     arms: { patrol: ['cz75', 'helwan', 'sw686'], patrolLong: ['akm'], response: ['mp5', 'akm'], visible: 'the guards on the embassy streets of Garden City' },
     response: { unit: 'the Central Security Forces', minutes: [6, 15] },
+    // (body armour, sim/armour.js: the CSF in carriers, black; a patrol's vest rare)
+    armour: { patrol: 0.1, color: 0x23252f, patch: true },
     // (Cairo: 122 for the police, 123 for the ambulance, and the traffic between)
     ems: { police: [10, 30], ambulance: [12, 30], policeCar: { body: 0xf6f4ee, stripe: [0x283f6b, 0x14151c], word: 'شرطة' }, ambulanceCar: { body: 0xf6f4ee, stripe: [0xc95c45, 0x3b6296], word: 'إسعاف' }, medic: { top: { kind: 'uniform', color: 0x3b6296, trim: 0xf6f4ee }, legs: 0x283f6b } },
   },
