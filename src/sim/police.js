@@ -38,6 +38,10 @@ import { placed, thingName } from './items.js';
 import { suspicious } from './weapons.js';
 import { HOUR } from './clock.js';
 import { policeOf } from './countries/index.js';
+import { noImmunity } from './prison.js';
+const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+import { arrest } from './armed.js';
+import { isGun } from './firearms.js';
 import { armCop } from './armed.js';
 
 export const EYE_M = 14, STOP_M = 6, STOP_PER_POINT = 0.07, HEAT_FROM = 30, HEAT_PER = 400, SPAWN_M = 70, GONE_M = 110;
@@ -196,6 +200,14 @@ function search(state, bus, them, end, why = null) {
   if (permitted && !found.length) { policeHeat(state, POLICE_PAPERS); return end('The rest of your pockets: keys, a phone, coins. "On your way." Your name, and the permit\'s number, in the notebook.', PAPERS_HEAT); }
   if (!found.length) { policeHeat(state, POLICE_SEARCH); return end('Hands down your coat, your pockets turned out: keys, a phone, coins. Nothing. "On your way." Your name\'s in the notebook.', PAPERS_HEAT); }
   policeHeat(state, POLICE_FOUND);
+  // (under a legend, no diplomatic passport: a weapon found is an arrest, and the legend looked into: sim/armed.js arrest(), sim/prison.js)
+  if (noImmunity(state)) {
+    const rest = found.filter(k => !isGun(k));
+    take(p, rest);
+    delete state.$stop;
+    say(state, bus, { kind: 'note', text: `${rest.length ? `${cap(rest.map(k => thingName(k)).join(', '))}. ` : ''}${found.some(isGun) ? 'The gun. ' : ''}No diplomatic passport to wave: "You're under arrest."` });
+    return arrest(state, bus, playerOf(state), 'searched', 'what they found', { found: rest.map(k => thingName(k)) });
+  }
   // (taken; a diplomat isn't arrested: driven to the embassy's gate)
   take(p, found);
   const words = found.map(k => thingName(k));

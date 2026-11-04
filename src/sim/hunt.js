@@ -71,8 +71,9 @@ import { isGun } from './firearms.js';
 import { thingName } from './items.js';
 import { disguiseOf } from './disguise.js';
 import { SCREEN_HALF_M } from './crowd.js';
+import { noImmunity, questionedDeep } from './prison.js';
 
-export const ORDER = ['fight', 'gun', 'shots', 'wounded', 'killed'];
+export const ORDER = ['fight', 'gun', 'shots', 'wounded', 'killed', 'blown'];
 const CITY = Infinity;
 // (posts: officers stood at the street's corners, the lanes' mouths, on every street in it; most: units walking or driving
 // it at once; armed: the armed response's (soldiers where it's the army), long guns, at a jog. The user, 2026-11-04: "For
@@ -84,6 +85,9 @@ export const HUNTS = {
   shots: { rows: 8, searchH: 24, keepD: 3, every: [5, 9], cars: 0.45, eye: 0, posts: 1, most: 1, armed: true, what: 'shots fired' },
   wounded: { rows: CITY, searchH: 36, keepD: 5, every: [2, 4], cars: 0.45, eye: -1, posts: 2, most: 2, armed: true, what: 'someone shot' },
   killed: { rows: CITY, searchH: 48, keepD: 7, every: [1.5, 3], cars: 0.45, eye: -2, posts: 3, most: 3, armed: true, what: 'a killing' },
+  // (blown under a legend, 0.2's: the counter-intelligence's and the police's hunt for a foreign spy, the whole city, days of it;
+  // your face from their own file: sim/campaign.js pass(), docs/POSTINGS.md)
+  blown: { rows: CITY, searchH: 72, keepD: 14, every: [2, 4], cars: 0.4, eye: -2, posts: 2, most: 2, armed: true, what: 'a foreign spy' },
 };
 export const JOG_PACE = 1.6, POST_NEAR_M = 70;                     // (an armed pair's pace; how far along a post stands from you, at most)
 // (the perimeter: round where they last had you, growing as they reckon you'd walk; units outside it this much more seldom)
@@ -97,7 +101,7 @@ export const READ_DC = { who: 14, wearing: 10, where: 12 };
 // (the check's mods, yours: they have your face, or it's not the one they have, or nobody saw it; the same for your clothes)
 export const MOD = { disguise: 5, face: -3, faceOther: 2, faceNone: 4, wear: -4, wearOther: 4, wearNone: 1, deep: -3, inside: -1, outside: 2, far: 5, over: 2, blood: -4, held: -3 };
 // (taken in for questioning: the hours, heat, the ambassador's view of you, by the hunt's kind; the police's file)
-export const QUESTION = { fight: { h: 1.5, heat: 4, cover: 5 }, gun: { h: 2, heat: 8, cover: 10 }, shots: { h: 3, heat: 12, cover: 15 }, wounded: { h: 4, heat: 15, cover: 20 }, killed: { h: 6, heat: 20, cover: 25 } };
+export const QUESTION = { fight: { h: 1.5, heat: 4, cover: 5 }, gun: { h: 2, heat: 8, cover: 10 }, shots: { h: 3, heat: 12, cover: 15 }, wounded: { h: 4, heat: 15, cover: 20 }, killed: { h: 6, heat: 20, cover: 25 }, blown: { h: 6, heat: 20, cover: 25 } };
 export const POLICE_QUESTION = 10, HUNT_HEAT = 10, DEPLOY_MIN = 4;
 
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
@@ -674,16 +678,19 @@ export function questioned(state, bus, me) {
   for (const a of state.actors) if (a.cop) { a.alert = null; if (a.ai) { a.ai.gunner = null; a.ai.closing = null; a.ai.pace = undefined; } }
   delete state.$alarm; delete state.$response; delete state.hunt; state.$takedown = null;
   const ward = underGuard(state.people[me.who], now);              // (hurt: a hospital first, under guard)
+  // (under a legend, no diplomatic passport: its papers read, the legend looked into, sim/prison.js; it breaks, and you're theirs)
+  const deep = noImmunity(state);
+  if (deep && !questionedDeep(state, bus, me)) return true;
   const lines = [
     `What they wanted you for: ${low(H?.what ?? 'a description that fitted you')}.`,
     'Searched against the wall: nothing on you they could hold you on.',
     ...(ward ? [ward.line] : []),
-    `${hoursWords(Q.h)} at ${station}, in a room with a table and two chairs: where you were, and when, and who can say so. The diplomatic passport, and the calls it takes. They let you go: there's nothing to keep you on.`,
-    `Heat +${Q.heat}; the police's file on you +${POLICE_QUESTION}${P ? `; the ambassador's view of you ${cover0} → ${P.cover}` : ''}.`,
+    `${hoursWords(Q.h)} at ${station}, in a room with a table and two chairs: where you were, and when, and who can say so. ${deep ? `${P.alias}'s papers, read twice, and a call to ${P.employer} at an hour that will be remarked on.` : 'The diplomatic passport, and the calls it takes.'} They let you go: there's nothing to keep you on.`,
+    `Heat +${Q.heat}; the police's file on you +${POLICE_QUESTION}${P ? `; ${deep ? 'the job\'s standing' : 'the ambassador\'s view of you'} ${cover0} → ${P.cover}` : ''}.`,
     'Your name on their list of those questioned: if it ever comes back to you, it starts there.',
   ];
   say(state, bus, { kind: 'note', text: `The car, and ${station}: ${low(hoursWords(Q.h))} of questions, and they let you go.` });
-  state.campaign?.log?.push({ ms: now, text: `Taken in for questioning: ${low(H?.what ?? 'a description that fitted')}; ${hoursWords(Q.h).toLowerCase()} at the station; the ambassador's view of you −${Q.cover}.` });
+  state.campaign?.log?.push({ ms: now, text: `Taken in for questioning: ${low(H?.what ?? 'a description that fitted')}; ${hoursWords(Q.h).toLowerCase()} at the station; ${deep ? 'the job\'s standing' : 'the ambassador\'s view of you'} −${Q.cover}.` });
   bus?.emit('papers', [{ kind: 'questioned', title: 'TAKEN IN FOR QUESTIONING', lines }]);
   state.$held = (Q.h + (ward?.h ?? 0)) * HOUR;
   state.$released = true;

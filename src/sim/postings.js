@@ -33,7 +33,7 @@ import { hash } from './rng.js';
 
 export const WEEK = 7 * DAY, LEGEND_AFTER = 2;
 // (how a posting can end, and what the career makes of it: on to the next, the official kind only (a deep post gone wrong), or over)
-export const GOES_ON = new Set(['completed', 'promoted']), RECALLED = new Set(['sacked', 'exfiltrated', 'released']), OVER = new Set(['expelled', 'taken', 'dead', 'brought']);
+export const GOES_ON = new Set(['completed', 'promoted']), RECALLED = new Set(['sacked', 'exfiltrated', 'imprisoned']), OVER = new Set(['expelled', 'taken', 'dead', 'brought']);
 // (a legend's reason to stop, at last: the user, "can be terminal disease")
 export const PRETEXTS = [
   'the scan the Agency\'s doctors asked about, twice, and the oncologist who didn\'t need to',
@@ -47,9 +47,9 @@ const span = (w) => (w >= 52 ? `${Math.round(w / 52 * 10) / 10} years` : w >= 9 
 /** The countries where p's face is on file: served in under official cover, made on a trip there, blown in. [id]. */
 export function facesOf(c) {
   const out = new Set(c.faces ?? []), P = c.posting;
-  for (const k of c.career ?? []) if (k.city && (OFFICIAL.has(k.level) || ['taken', 'exfiltrated', 'released', 'blown'].includes(k.how))) out.add(countryOfCity(k.city)?.id);
+  for (const k of c.career ?? []) if (k.city && (OFFICIAL.has(k.level) || ['taken', 'exfiltrated', 'imprisoned', 'brought'].includes(k.how))) out.add(countryOfCity(k.city)?.id);
   if (P && OFFICIAL.has(P.level)) out.add(P.country ?? countryOfCity(P.city)?.id);
-  if (P && DEEP_LEVELS.has(P.level) && (c.blown || ['exfiltrated', 'taken', 'released'].includes(c.over?.why))) out.add(P.country);
+  if (P && DEEP_LEVELS.has(P.level) && (c.blown || ['exfiltrated', 'taken', 'imprisoned', 'brought'].includes(c.over?.why))) out.add(P.country);
   // (a trip abroad on a first tour where they made you: their service has a face, and a name off a diplomatic passport)
   for (const a of c.done ?? []) if (a.trip && ['burned', 'made', 'blown'].includes(a.outcome)) out.add(countryOfCity(a.trip)?.id);
   out.delete(undefined);
@@ -77,6 +77,7 @@ export function careerEnd(c, ms) {
   const p = c.character, how = c.over?.why;
   if (OVER.has(how) && how !== 'brought') return null;              // (lost, not retired: the next officer all the same, src/main.js)
   if (how === 'brought') return { retire: true, why: 'last', words: `${p.name} comes home, and the Agency gives them a medal nobody may see` };
+  if (how === 'imprisoned' && c.posting.level === 'illegal') return { retire: true, why: 'last', words: `${p.name} comes home from a prison under another name, and the Center lets them stop` };
   if (retires(p, ms)) return { retire: true, why: 'age', words: `${p.name} retires, ${ageOf(p, ms)}` };
   if (p.legend && postingsOf(c) > LEGEND_AFTER && GOES_ON.has(how)) return { retire: true, why: 'pretext', words: `${p.name} stops at last: ${PRETEXTS[hash(p.name ?? '', 'pretext') % PRETEXTS.length]}` };
   return null;

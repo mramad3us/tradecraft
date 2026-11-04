@@ -671,7 +671,8 @@ export function createUI({ input, cb }) {
   // over-skill and the skills; and the file, who you are and the career, as the station keeps it (sim/campaign.js record()))
   const LEVEL = Object.fromEntries(Object.entries(TRAINED).map(([k, v]) => [v, k]));
   const STAGE_WORDS = { shivering: 'shivering', hypothermia: 'hypothermia', severe: 'hypothermia, badly', collapse: 'collapsed with the cold', hot: 'too hot', exhaustion: 'heat exhaustion', stroke: 'heat stroke' };
-  const OVER_WORDS = { expelled: 'Declared persona non grata', completed: 'Done: the station has what it wanted', promoted: 'Promoted: a posting of your own to come' };
+  const OVER_WORDS = { expelled: 'Declared persona non grata', completed: 'Done: the station has what it wanted', promoted: 'Promoted: a posting of your own to come',
+    sacked: 'Let go by the legend\'s employer, and pulled out', exfiltrated: 'Out by your own means, burned', brought: 'Brought out by the Center', imprisoned: 'Sentenced under the legend\'s name', taken: 'Taken as a spy' };   // (0.2's deep postings: sim/prison.js, sim/dial.js)
   // (a date as a file writes it: "2 Nov 2026"; in the year it's written in, "16 Nov"; a month: "Oct 2025")
   const fileDate = (ms, now = null) => { const k = calendarOf(ms); return `${k.day} ${MONTHS[k.month - 1].slice(0, 3)}${now !== null && calendarOf(now).year === k.year ? '' : ` ${k.year}`}`; };
   const fileMonth = (ms) => { const k = calendarOf(ms); return `${MONTHS[k.month - 1].slice(0, 3)} ${k.year}`; };

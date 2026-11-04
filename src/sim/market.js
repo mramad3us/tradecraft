@@ -30,6 +30,7 @@ import { sectionOf } from './city.js';
 import { placeName, streetName } from './map/street.js';
 import { burnersOf, spendBurner } from './items.js';
 import { policeHeat } from './police.js';
+import { noImmunity } from './prison.js';
 
 export const ASK_USD = 25, ASK_HEAT = 2, OWN_HEAT = 6, OWN_POLICE = 10;
 export const PAY_H = 36, GET_AFTER_H = 24, GET_FOR_H = 48, DROP_AT_M = 2.5;
@@ -95,7 +96,7 @@ export function order(state, bus, model, phone) {
   if (phone === 'burner' && !(burnersOf(p) > 0)) return { ok: false, text: 'No burner on you: a phone shop sells them.' };
   const lines = [];
   if (phone === 'burner') { spendBurner(p); lines.push('A burner, the number off the beer mat.'); }
-  else { addHeat(state, OWN_HEAT); policeHeat(state, OWN_POLICE); lines.push('Your own phone: a diplomat\'s number on a gun dealer\'s bill. Somebody, somewhere, will read it.'); }
+  else { addHeat(state, OWN_HEAT); policeHeat(state, OWN_POLICE); lines.push(state.legend?.cover === 'official' ? 'Your own phone: a diplomat\'s number on a gun dealer\'s bill. Somebody, somewhere, will read it.' : 'Your own phone: the legend\'s number on a gun dealer\'s bill. Somebody, somewhere, will read it.'); }
   const r = stream('order', c.seed, model, Math.floor(now / HOUR)), pay = benchFor(c, r), get = benchFor(c, r, pay);
   const scam = chance(r, SCAM(city)), sting = !scam && chance(r, STING(city));
   c.order = { model, name: item.name, usd: item.usd, city, at: now, pay: { ...pay, by: now + PAY_H * HOUR }, get: { ...get, from: null }, paid: null, scam, sting, done: false };
@@ -136,6 +137,9 @@ export function atDrop(state, bus, p, which) {
   if (o.scam) { o.done = 'scam'; delete c.black[o.city]; return 'Behind the bench\'s leg: a crisp packet, and nothing else. His number rings out, and tomorrow it won\'t ring at all. That money\'s gone.'; }
   if (o.sting) {
     o.done = 'sting';
+    // (under a legend, no diplomatic passport to put on the table: an arrest, and the legend looked into; sim/prison.js)
+    // (the hub springs it: sim/dial.js trapped(), state.$trap)
+    if (noImmunity(state)) { delete c.black[o.city]; state.$trap = 'the gun'; return 'A bag behind the bench, and as your hand closes on it, two men off the next bench and a third from the path.'; }
     addHeat(state, STING_HEAT); policeHeat(state, STING_POLICE);
     if (c.posting) c.posting.cover = Math.max(0, c.posting.cover - STING_COVER);
     delete c.black[o.city];

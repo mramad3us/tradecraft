@@ -48,6 +48,7 @@ import { placeName, streetName } from './map/street.js';
 import { newGun, newMag, MODELS } from './firearms.js';
 import { huntOf } from './hunt.js';
 import { EQUIPMENT } from './disguise.js';
+import { isDeep } from './legends.js';
 
 export const PHONES = { burner: 'From a burner', own: 'From your own phone', home: 'From the flat\'s phone' };
 export const FOOD_USD = 18, FOOD_MIN = [30, 45], TAXI_MIN = [3, 6], TAXI_HEAT = 2, TRACKED_P = 0.5, OWN_HEAT = 4;
@@ -98,7 +99,8 @@ export function services(state) {
     ...Object.entries(EQUIPMENT).map(([k, E]) => ({ key: `kit:${k}`, label: `${cap(E.name)}, from the agency`, ok: S.now >= E.as && !R.drops.some(d => d.what === k), why: R.drops.some(d => d.what === k) ? 'one\'s waiting already' : `${support(E.as)}: ${E.uses} uses, at a dead drop`, phones: phones(true) })),
     { key: 'clinic', label: 'A clandestine clinic, in a safe house', ok: S.now >= COST.clinic && !!houseFor(c) && !(R.clinic && R.clinic.until > now), why: R.clinic && R.clinic.until > now ? `set up in ${c.posting.safehouses.find(h => h.id === R.clinic.house)?.label ?? 'a safe house'}` : !houseFor(c) ? 'no safe house left to make one of' : `${support(COST.clinic)}: a doctor of the agency's there from a few hours on, for ${CLINIC_DAYS} days`, phones: phones(true) },
     ...(CLEANUP_KINDS.includes(S.kind) ? [{ key: 'cleanup', label: 'A clean-up crew, here', ok: S.now >= COST.cleanup && bodies.length > 0 && !R.cleanup, why: R.cleanup ? 'on its way' : !bodies.length ? 'nothing here for one: nobody dead that hasn\'t been called in' : `${support(COST.cleanup)}: ${bodies.length === 1 ? 'the body' : `${bodies.length} bodies`} gone in a few minutes`, phones: phones(true) }] : []),
-    { key: 'extract', label: 'Extraction', ok: !!hunted && S.now >= COST.extract && !R.extract, why: R.extract ? `the car's waiting, ${streetName(townOf(state.map), R.extract.row)}` : !hunted ? 'only with the police hunting you' : `${support(COST.extract)}: a car somewhere in the city, to the embassy`, phones: phones(true) },
+    // (under a legend, no car of the agency's: the way out is your own, far from the centre; an illegal's only once the Center answers: exfilWays())
+    ...(isDeep(c.posting) ? [exfilWays(state, c, hunted, now)] : [{ key: 'extract', label: 'Extraction', ok: !!hunted && S.now >= COST.extract && !R.extract, why: R.extract ? `the car's waiting, ${streetName(townOf(state.map), R.extract.row)}` : !hunted ? 'only with the police hunting you' : `${support(COST.extract)}: a car somewhere in the city, to the embassy`, phones: phones(true) }]),
   ];
   // (his, if you know a man: sim/market.js)
   const sl = sellerOf(c);
@@ -166,6 +168,13 @@ export function ring(state, bus, key, phone) {
       c.waypoint = { row, x: Math.round(x), z: LINE.F, label: 'the van', kind: 'job' };
       lines.push(`"There's a van. In the back, under the boxes, and out." ${cap(label)}, for ${EXTRACT_WAIT_MIN} minutes: ${price(state, bm.usd)}, cash, to the driver.`);
     }
+  } else if (key === 'exfil') {
+    // (the way out, your own: open now undercover, for EXFIL_WAIT_H; an illegal's once the Center answers the signal, EXFIL_SIGNAL_H on)
+    const X = c.posting.exfil, ill = c.posting.level === 'illegal', from = ill ? now + Math.round(range(r, ...EXFIL_SIGNAL_H) * 60) * MIN : now;
+    R.exfil = { from, until: from + (ill ? EXFIL_WAIT_H.illegal : EXFIL_WAIT_H.undercover) * HOUR };
+    c.waypoint = { row: X.row, x: X.x, z: LINE.F, label: 'the way out', kind: 'job' };
+    lines.length = 0;
+    lines.push(ill ? `A chalk mark where the Center will see it: the signal nobody wants to send. If they answer, ${X.label}, ${when(from, now)}, for ${EXFIL_WAIT_H.illegal} hours.` : `The plan you made the week you arrived and hoped never to use: ${X.label}, by your own means, in the next ${EXFIL_WAIT_H.undercover} hours.`);
   } else if (key === 'extract') {
     spend(c, COST.extract);
     const dir = chance(r, 0.5) ? 1 : -1, row = (state.map.row ?? 0) + dir * (EXTRACT_ROWS[0] + int(r, EXTRACT_ROWS[1] - EXTRACT_ROWS[0] + 1)), x = me.x + range(r, -60, 60);
@@ -212,6 +221,7 @@ export function collect(state, bus, d) {
   const c = state.campaign, p = state.people[state.player], now = state.time.ms;
   if (now < d.from) return `Nothing behind it yet: ${when(d.from, now)}.`;
   c.rung.drops = c.rung.drops.filter(x => x !== d);
+  if (d.what === 'signal') { bus?.emit('papers', [d.paper]); return 'Taped under the seat, a cigarette packet with a film of paper in it: read, memorised, and down a drain on the way home.'; }   // (the station's word, under a legend)
   if (d.bm) {
     const me = playerOf(state);
     if (d.bm.trap) return trapped(state, bus, me, 'the gun');
@@ -237,7 +247,7 @@ export function collect(state, bus, d) {
  * clean-up crew at work, the extraction's car. extracted: the hub's, when you're at the car (sim/scenarios/campaign.js).
  */
 export function second(state, bus, me, { extracted = null } = {}) {
-  const c = state.campaign, R = c?.rung;
+  const c = state.campaign, R = c && (c.rung || c.signals?.length) ? rungOf(c) : c?.rung;   // (the station's word to leave makes the rung, under a legend)
   if (!R || !me) return;
   const now = state.time.ms, row = state.map.row ?? 0;
   if (R.food && now >= R.food.at) {
@@ -257,7 +267,9 @@ export function second(state, bus, me, { extracted = null } = {}) {
       } else if (now - R.taxi.at > 60000) { delete R.taxi; say(state, bus, { kind: 'note', text: 'The taxi you rang for never found the kerb free: it\'s gone on.' }); }
     }
   }
-  R.drops = (R.drops ?? []).filter(d => now < d.until || (say(state, bus, { kind: 'note', text: `The sports bag behind ${low(d.at.label)}: gone back where it came from. Nobody came for it.` }), false));
+  signals(state, bus, c, now);                                      // (under a legend, the station's word: a drop)
+  exfilSecond(state, bus, me, c, now);                              // (and the way out, if you're making for it)
+  R.drops = (R.drops ?? []).filter(d => now < d.until || (say(state, bus, { kind: 'note', text: d.what === 'signal' ? `The station's word behind ${low(d.at.label)}: cleared, unread. They'll wonder why.` : `The sports bag behind ${low(d.at.label)}: gone back where it came from. Nobody came for it.` }), false));
   if (R.clinic && now >= R.clinic.until) { delete R.clinic; say(state, bus, { kind: 'note', text: 'The safe house is a safe house again: the doctor\'s packed up and gone.' }); }
   if (R.cleanup && now >= R.cleanup.at) {
     const gone = state.actors.filter(a => a !== me && a.who && state.people[a.who]?.dead && (a.row ?? row) === R.cleanup.row && !state.people[a.who].reported && Math.hypot(a.x - R.cleanup.x, a.z - R.cleanup.z) < CLEANUP_M);
@@ -332,6 +344,43 @@ function station(state, bus, c, now) {
     const S = supportOf(c);
     if (S) c.posting.support.now = Math.min(S.max, S.now + OPT_AS);
     say(state, bus, { kind: 'note', text: `${O.name}, as the station asked: a line in the next cable, and they're pleased. (Support +${OPT_AS}.)` });
+  }
+}
+
+// ---------- under a legend (0.2's deep postings: docs/POSTINGS.md) ----------
+
+// The way out (self-extraction): no car of the agency's, no embassy to be driven to; the posting's own point far from the centre
+// (sim/legends.js exfilOf()), reached by your own means while it's open: undercover, EXFIL_WAIT_H.undercover hours from when you
+// decide to go; an illegal, only once a signal's answered (EXFIL_SIGNAL_H), and then for EXFIL_WAIT_H.illegal hours. Only hunted,
+// or blown. Reached: out of the country, the posting over (c.over 'exfiltrated'; an illegal's, 'brought': the career's end).
+export const EXFIL_WAIT_H = { undercover: 6, illegal: 3 }, EXFIL_SIGNAL_H = [24, 48], EXFIL_AT_M = 3;
+function exfilWays(state, c, hunted, now) {
+  const R = rungOf(c), X = c.posting.exfil, ill = c.posting.level === 'illegal', need = !!hunted || !!c.blown;
+  const why = R.exfil ? (now < R.exfil.from ? `the Center's answer, if it comes, ${when(R.exfil.from, now)}` : `open till ${clockText(R.exfil.until)}: ${X.label}`)
+    : !need ? 'only hunted, or blown' : ill ? 'a signal for the Center, a day or two for its answer, then the place by your own means' : `${X.label}: by your own means`;
+  return { key: 'exfil', label: 'The way out, on your own', ok: need && !R.exfil, why,
+    phones: [ill ? { key: 'signal', label: 'A signal for the Center', ok: true, why: 'a chalk mark, and a day or two' } : { key: 'plan', label: 'Your own plan', ok: true, why: 'nobody to call' }] };
+}
+// (reached, while it's open: out; its paper, and the posting's end)
+function exfilSecond(state, bus, me, c, now) {
+  const R = c.rung, X = c.posting.exfil, ill = c.posting.level === 'illegal';
+  if (!R.exfil || !X) return;
+  if (now > R.exfil.until) { delete R.exfil; c.waypoint = null; say(state, bus, { kind: 'note', text: `${cap(X.label)}: shut, gone, or never there. You're on your own, and still here.` }); return; }
+  if (now < R.exfil.from || state.map.kind !== 'street' || state.map.seed !== c.posting.mapSeed || (state.map.row ?? 0) !== X.row || Math.abs(me.x - X.x) > EXFIL_AT_M) return;
+  delete R.exfil; c.waypoint = null;
+  c.over = { ms: now, why: ill ? 'brought' : 'exfiltrated' };
+  c.log.push({ ms: now, text: ill ? 'Brought out: the Center came for you, at the last.' : `Out: ${X.label}, and over the border by morning.` });
+  bus?.emit('papers', [{ kind: 'over', title: ill ? 'BROUGHT OUT' : 'OUT', lines: [ill ? `${cap(X.label)}: a man who says the word you were told, years ago, he'd say. Out under a tarpaulin, and the border by morning.` : `${cap(X.label)}: there, on time, and nobody behind you that you can see. Out, and over the border by morning.`,
+    `${c.posting.alias} is gone: the flat, the job, the café. ${ill ? 'Whoever you married wakes to an empty bed and a policeman at the door.' : 'Your face is in their files now, for good.'}`] }]);
+}
+// (the station's word, its week's review, left at a bench on Monday morning: the drops' own, read when collected)
+function signals(state, bus, c, now) {
+  if (!c.signals?.length) return;
+  const R = rungOf(c);
+  for (const S of c.signals.splice(0)) {
+    const at = benchFor(c, stream('signal', c.seed, S.from));
+    R.drops.push({ id: `signal${S.from}`, what: 'signal', at, from: S.from, until: S.from + DROP_FOR_H * HOUR, paper: S.paper });
+    say(state, bus, { kind: 'note', text: `A chalk mark on a lamp post you pass, where there wasn't one: the ${c.posting.level === 'illegal' ? 'Center' : 'station'}'s word, ${low(at.label)}, ${when(S.from, now)}.` });
   }
 }
 

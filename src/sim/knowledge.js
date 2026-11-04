@@ -52,6 +52,9 @@ export function knownPlaces(c) {
     const at = a.status === 'open' && missionPlace(c, a);
     if (at) out.push({ id: `job:${a.id}`, kind: 'job', label: `${AKINDS[a.kind].name}: ${at.label.charAt(0).toLowerCase()}${at.label.slice(1)}`, row: at.row, x: at.x, z: at.z, i: Math.floor(at.x / SECTION_M) });
   }
+  // (the dead drops waiting for you: the agency's bench, the station's word under a legend (0.2's, sim/dial.js); the way out once you need it)
+  for (const d of c.rung?.drops ?? []) out.push({ id: `drop:${d.id}`, kind: 'job', label: d.what === 'signal' ? `The station's word: ${d.at.label.charAt(0).toLowerCase()}${d.at.label.slice(1)}` : `A dead drop: ${d.at.label.charAt(0).toLowerCase()}${d.at.label.slice(1)}`, row: d.at.row, x: d.at.x, z: d.at.z, i: Math.floor(d.at.x / SECTION_M) });
+  if (c.rung?.exfil && c.posting.exfil) out.push({ id: 'exfil', kind: 'job', label: `The way out: ${c.posting.exfil.label}`, row: c.posting.exfil.row, x: c.posting.exfil.x, z: Z.front, i: Math.floor(c.posting.exfil.x / SECTION_M) });
   for (const key of Object.keys(c.known ?? {})) {
     const [row, i] = key.split('|').map(Number), S = sectionOf(town, row, i);
     for (const d of S.doors) {

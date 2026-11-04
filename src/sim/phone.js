@@ -58,7 +58,7 @@ export function call(state, bus, id, phone, why) {
     spendBurner(p);
     lines.push('A burner, a number from memory.');
   } else {
-    lines.push('Your own phone: the embassy\'s Second Secretary, on their bill.');
+    lines.push(state.legend?.cover === 'official' ? 'Your own phone: the embassy\'s Second Secretary, on their bill.' : 'Your own phone: the legend\'s number, on their bill.');
     const r = stream('call', c.seed, id, Math.floor(now / MIN));
     if (s.burned) { addHeat(state, OWN_BURNED_HEAT); lines.push('Their line\'s watched: whoever listens heard you.'); }
     else { addHeat(state, OWN_HEAT); if (chance(r, (c.posting.heat ?? 0) / OWN_BURN_HEAT)) { s.burned = now; s.burnedBy = 'call'; } }

@@ -516,8 +516,9 @@ export function pass(c, from, to) {
     const dayMs = d * DAY;
     if (isWorkday(dayMs) && !c.worked[d] && d >= Math.max(dayOf(p.startMs), p.deskFrom ?? 0)) { p.cover = Math.max(0, p.cover - COVER_MISSED); c.log.push({ ms: dayMs + 18 * HOUR, text: p.embassy.door ? `A working day missed at ${p.employer}, and no call to say why. Your boss noticed.` : 'A working day missed at the embassy. Someone noticed.' }); }
     const next = calendar((d + 1) * DAY);
-    if (next.day === 1 && next.month !== p.money.paid) { p.money.paid = next.month; p.money.bank = (p.money.bank ?? 0) + p.money.salary; p.money.fundLeft = p.money.fund; papers.push({ kind: 'pay', title: 'PAY', lines: [`Salary in: $${p.money.salary}.`, `The operational fund topped up to $${p.money.fund}.`] }); }
-    if (weekday(dayMs) === 6) papers.push(review(c, dayMs));
+    if (next.day === 1 && next.month !== p.money.paid) { p.money.paid = next.month; p.money.bank = (p.money.bank ?? 0) + p.money.salary; p.money.fundLeft = p.money.fund; papers.push({ kind: 'pay', title: 'PAY', lines: isDeep(p) ? [`${p.employer}'s pay, and the rest of it from a relative abroad who doesn't exist: $${p.money.salary}.`, `The fund, in cash, from a drop you'll never see filled: $${p.money.fund}.`] : [`Salary in: $${p.money.salary}.`, `The operational fund topped up to $${p.money.fund}.`] }); }
+    // (the week's review; under a legend, the station's word left at a drop on Monday morning for you to collect: sim/dial.js, docs/POSTINGS.md)
+    if (weekday(dayMs) === 6) { const R = review(c, dayMs); if (isDeep(p)) (c.signals ??= []).push({ paper: { ...R, title: R.title.replace('THE WEEK', p.level === 'illegal' ? 'THE CENTER' : 'THE STATION') }, from: dayMs + DAY + WAKE_H * HOUR }); else papers.push(R); }
     // (a day goes by: the opposition's interest cools a little, never to nothing: official cover's floor is HEAT_FLOOR (embassy
     // staff are watched), an unofficial cover's 1 once it's ever risen past it, so your own phone's a watched line from then
     // on, as official cover's is: sim/dial.js watchedLine(); the user, 2026-11-04)
@@ -538,9 +539,15 @@ export function pass(c, from, to) {
       papers.push({ kind: 'news', title: `${s.codename}: ARRESTED`, lines: [`The evening news: ${s.role} detained on suspicion of espionage.`, `${s.codename} won't make the next signal, or any. Whoever followed you to the bench made sure of that.`, 'Heat up. The station will want to know how.'] });
       c.log.push({ ms: dayMs + 20 * HOUR, text: `${s.codename} arrested.` });
     }
-    if (p.heat >= EXPEL_HEAT && !c.over) {
+    if (p.heat >= EXPEL_HEAT && !c.over && isDeep(p)) { if (!c.blown) papers.push(blow(c, dayMs + DAY + WAKE_H * HOUR)); }   // (no immunity to be expelled on: blown, and hunted)
+    else if (p.heat >= EXPEL_HEAT && !c.over) {
       c.over = { ms: dayMs + 11 * HOUR, why: 'expelled' };
       papers.push({ kind: 'over', title: 'PERSONA NON GRATA', lines: ['The Foreign Ministry summons the ambassador: you have forty-eight hours to leave the country.', 'Immunity keeps you out of a cell. It doesn\'t keep the posting. Whatever you built here, someone else will have to rebuild.'] });
+    }
+    // (the legend's job lost: the posting fails with it; DESIGN.md, Career: "losing it fails the posting")
+    if (isDeep(p) && p.cover <= 0 && !c.over && !c.blown) {
+      c.over = { ms: dayMs + 18 * HOUR, why: 'sacked' };
+      papers.push({ kind: 'over', title: 'LET GO', lines: [`${p.employer} lets ${p.alias} go: the absences, the excuses, a month of the boss's face. A letter, and a handshake nobody means.`, 'Without the job there\'s no reason to be here, and a residence permit with a month left on it. The station pulls you out before anyone starts to wonder why you stay.'] });
     }
   }
   plan(c, to);
@@ -588,6 +595,23 @@ export function rest(c, ms) {
   const until = (k.hour < WAKE_H ? d : d + 1) * DAY + WAKE_H * HOUR;
   c.awake = until;
   return until;
+}
+
+/**
+ * Blown under a legend (heat at EXPEL_HEAT, and no immunity to be expelled on): c.blown from ms; the flat theirs; the way out your
+ * own (sim/legends.js exfilOf(), on the waypoint); the hunt for a foreign spy begun in the hub (sim/scenarios/campaign.js, sim/hunt.js
+ * HUNTS.blown). Taken now is their prison (sim/prison.js). Its paper.
+ */
+export function blow(c, ms) {
+  const p = c.posting, X = p.exfil, O = cityById(p.city).station.opposition, The = O.the.charAt(0).toUpperCase() + O.the.slice(1);
+  c.blown = { ms, hunt: false };
+  p.heat = 100;
+  c.waypoint = { row: X.row, x: X.x, label: 'the way out', kind: 'job' };
+  c.log.push({ ms, text: `Blown: ${O.the} know who ${p.alias} is.` });
+  return { kind: 'over', title: 'BLOWN', lines: [`It comes as nothing much: a car that stays, a colleague who won't meet your eye, a call with nobody on it. ${The} know who ${p.alias} is.`,
+    'No embassy to run to, nobody who\'ll say you\'re ours. The flat is theirs now: don\'t go back. The safe houses they don\'t know, perhaps.',
+    `The way out is yours to make: ${X.label}, far from the centre, by your own means. ${p.level === 'illegal' ? 'The Center has to be told first, and answer.' : 'Nobody is coming for you.'}`,
+    `Taken now, and it's ${O.prison}.`] };
 }
 
 /** Whether ms is a working day you're expected at the embassy, not yet worked: lying low then is calling in sick. */

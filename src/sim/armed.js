@@ -58,6 +58,7 @@ import { issue } from './armour.js';
 import { say } from './log.js';
 import { HOUR } from './clock.js';
 import { outside, nearestDoor, needsOf, care, hoursWords, bedHours, discharged } from './services.js';
+import { noImmunity, jailed } from './prison.js';
 const low = (t) => t.charAt(0).toLowerCase() + t.slice(1);
 
 export const COP_WEAPONS = { patrol: [8, 1], response: [15, 2] };
@@ -78,7 +79,7 @@ export const TIERS = {
 };
 export const HIT_RECENT_H = 2;                                       // (who your rounds hit counts against you this long: p.hitBy, sim/shooting.js)
 // (a hunt's kind as what they had you for, when it's the worse: arrested hours after a killing, for the killing: sim/hunt.js)
-export const HUNT_TIER = { fight: 'described', gun: 'gun', shots: 'shots', wounded: 'wounded', killed: 'killed' };
+export const HUNT_TIER = { fight: 'described', gun: 'gun', shots: 'shots', wounded: 'wounded', killed: 'killed', blown: 'gun' };   // (blown: a spy's, sim/prison.js, whatever the tier)
 const TIER_RANK = ['described', 'gun', 'shots', 'wounded', 'killed'];
 
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
@@ -357,6 +358,8 @@ export function arrest(state, bus, me, how = 'submitted', because = null, { foun
     wounded: `${cap(n(hit.length, 'someone', 'people'))} hit by your rounds${copsHit.length ? `, ${copsHit.length === hit.length ? (copsHit.length === 1 ? 'a police officer' : 'all of them police') : `${n(copsHit.length, 'one of them', 'of them')} police`}` : ''}.`,
     killed: `${cap(n(dead.length, 'someone', 'people'))} dead by your rounds${copsDead.length ? `, ${copsDead.length === dead.length ? (copsDead.length === 1 ? 'a police officer' : 'all of them police') : `${n(copsDead.length, 'one of them', 'of them')} police`}` : ''}.`,
   }[tier];
+  // (no diplomatic passport to show, under a legend: the legend looked into, and a cell, a sentence, or their prison: sim/prison.js)
+  if (noImmunity(state)) return jailed(state, bus, me, { tier, how, what, taken: [...names, ...found], ward, station });
   const lines = [
     `What they had you for: ${what.charAt(0).toLowerCase()}${what.slice(1)}`,
     how === 'submitted' ? 'You went down when he came for you, and kept your hands where they could see them.' : how === 'drew' ? 'You went for your gun as he reached you, and he had you down before it was out: resisting, with a firearm.' : how === 'ran' ? 'You didn\'t stop for him, and he ran you down: resisting arrest.' : how === 'trap' ? 'A deal on the black market, and theirs all along: they were waiting for you at it.' : how === 'searched' ? `You stood for the search, hands on the wall${found.length ? `, and they found ${found.join(', ')}` : why === 'the blood on you' ? ', and they saw the blood on you' : ''}.` : how === 'shove' ? 'You tried to shove him off. Resisting arrest is on the file too.' : how === 'ran' ? 'You ran when they told you to stop. Resisting arrest is on the file too.' : 'You fought them. Resisting arrest is on the file too.',

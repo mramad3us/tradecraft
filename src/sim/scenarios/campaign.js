@@ -47,8 +47,10 @@ import { Z, streetName } from '../map/street.js';
 import { townOf, cityById, FIRST_TOUR_CITY } from '../cities/index.js';
 import { skip, newMap } from '../game.js';
 import { eat, soothe } from '../needs.js';
-import { agenda, pass, work, rest, lieLow, expected, heatWord, places, trip, fatigue, watched, heatFloor, KINDS, WORK, TRAVEL, EXCUSES, EXCUSES_DEEP, EXCUSE_LINES } from '../campaign.js';
+import { agenda, pass, work, rest, lieLow, expected, heatWord, places, trip, fatigue, watched, heatFloor, goalOf, KINDS, WORK, TRAVEL, EXCUSES, EXCUSES_DEEP, EXCUSE_LINES } from '../campaign.js';
 import { isDeep } from '../legends.js';
+import { takenAtHome } from '../prison.js';
+import { huntOf, start as startHunt } from '../hunt.js';
 import { lessonBook, sceneOf } from '../lessons.js';
 import { order, lapse, dropHere, atDrop } from '../market.js';
 import { ring, second as dialSecond, dropAt, collect, clinicAt, trapped, dealt, EXTRACT_COVER, TRACKED_P } from '../dial.js';
@@ -281,6 +283,8 @@ export const campaignHub = {
     if (call?.rang && now - call.rang > RING_S * 1000) { call.done = now; call.missed = true; say(state, bus, { kind: 'note', text: 'The telephone stops. Hale, most likely: his number\'s on the pad by it.' }); }
     if (state.map.place === 'embassy') staffTick(state, bus, state.$world.sections.get(0));   // (its people through the day: sim/interiors/staffing.js)
     if (arrived(state)) say(state, bus, { kind: 'note', text: 'There.' });   // (the waypoint reached, and cleared: sim/knowledge.js)
+    // (blown under a legend: the hunt for a foreign spy, the whole city, your face theirs, wherever you step out: sim/hunt.js HUNTS.blown)
+    if (c.blown && state.map.kind === 'street' && !huntOf(state) && me) { startHunt(state, bus, { why: 'blown', x: me.x, who: true, aware: true }); c.blown.hunt = now; }
     state.scenario.prompt = instinct(state, c, now);
   },
 
@@ -363,6 +367,7 @@ export const campaignHub = {
   /** The posting over (expelled, or the goal met): what it came to. */
   result(state) {
     const c = state.campaign, p = c.posting, days = Math.round((state.time.ms - p.startMs) / DAY), done = c.over?.why === 'completed';
+    if (isDeep(p) && c.over?.why && c.over.why !== 'completed') return deepResult(c, days);   // (under a legend: let go, out, brought out, sentenced, taken)
     if (c.over?.why === 'promoted') {                               // (a first tour done: a station of your own, chosen on this paper: src/ui/ui.js)
       const trips = c.done.filter(a => a.trip);
       return { stamp: 'PROMOTED', good: true, title: `STATION ${cityById(p.city).name.toUpperCase()}: FIRST TOUR`,
@@ -462,7 +467,7 @@ export const RING_S = 45;                                          // (a call le
 function use(state, bus, act, here = false) {
   const c = state.campaign, me = state.actors.find(a => a.who === state.player);
   if (!act || !me || state.fight) return;
-  if (act === 'home') return enterHome(state, bus, 'door');
+  if (act === 'home') return c.blown ? takenAtHome(state, bus, me) : enterHome(state, bus, 'door');   // (blown: they were waiting on the stairs, sim/prison.js)
   if (act === 'unwindow') return backFromWindow(state, bus);
   if (act === 'embassy') return c.posting.embassy.door ? campaignHub.act(state, bus, 'desk:work') : enterEmbassy(state, bus);   // (a legend's workplace: no rooms of its own, the day's work at its door)
   if (String(act).startsWith('dial:collect:')) { const d = dropAt(state, me); if (d && `dial:collect:${d.id}` === act) say(state, bus, { kind: 'note', text: collect(state, bus, d) }); return; }   // (the agency's bench: sim/dial.js)
@@ -477,7 +482,7 @@ function use(state, bus, act, here = false) {
     else if (bm && !bm.paid) { bm.paid = true; p.cash = Math.round((cashOf(p) - bm.usd) * 100) / 100; dealt(c); }
     return;
   }
-  if (act === 'drop:pay' || act === 'drop:get') { const w = dropHere(state, me); if (w && `drop:${w}` === act) say(state, bus, { kind: 'note', text: atDrop(state, bus, state.people.me, w) }); return; }   // (the black market's benches: sim/market.js)
+  if (act === 'drop:pay' || act === 'drop:get') { const w = dropHere(state, me); if (w && `drop:${w}` === act) say(state, bus, { kind: 'note', text: atDrop(state, bus, state.people.me, w) }); if (state.$trap) { const what = state.$trap; delete state.$trap; trapped(state, bus, me, what); } return; }   // (a sting under a legend: an arrest, sim/market.js)   // (the black market's benches: sim/market.js)
   if (String(act).startsWith('begin:')) return begin(state, bus, act.slice(6));
   const kind = { phone: 'phone', call: 'phone', sleep: 'sleep', wash: 'wash', eat: 'eat', table: 'eat', window: 'window', read: 'read', work: 'desk', chief: 'chief', dress: 'dress' }[act], s = kind && spotOf(state, kind);
   if (!s) return;
@@ -646,6 +651,12 @@ function extracted(state, bus, E) {
   for (const a of state.actors) if (a.cop) { a.alert = null; if (a.ai) { a.ai.gunner = null; a.ai.closing = null; } }
   delete state.hunt; delete state.$alarm; delete state.$response; state.$takedown = null;
   state.actors = state.actors.filter(a => !a.huntPost && !a.unit);
+  if (E.bm && isDeep(p)) {                                          // (under a legend, his van is the way out: out of the country under the boxes, the posting over)
+    c.over = { ms: state.time.ms, why: p.level === 'illegal' ? 'brought' : 'exfiltrated' };
+    c.log?.push({ ms: state.time.ms, text: 'Out of the country in the back of a black-market van, paid in cash.' });
+    bus?.emit('papers', [{ kind: 'over', title: 'OUT', lines: ['A van of his, cash to the driver, and a night under boxes of tinned tomatoes: a ring road, a border post where the driver knows the guard, and morning somewhere else.', `${p.alias} is gone, and the posting with them.`] }]);
+    return;
+  }
   if (E.bm) {                                                       // (his van, not the agency's: out of the city under the boxes, and back to the flat by dark; the embassy none the wiser)
     c.log?.push({ ms: state.time.ms, text: 'Out of the hunt in the back of a black-market van, paid in cash.' });
     skip(state, bus, 3 * HOUR);
@@ -773,7 +784,7 @@ function instinct(state, c, now) {
   if (state.map.place === 'home') {
     if ((c.calls ?? []).some(k => k.rang && !k.done)) return L('ring', 'warn', 'The telephone is ringing. {instinct}: answer it.', 'phone');
   } else if (me && state.map.kind === 'street' && state.map.row === p.home.row && p.home.x !== undefined && Math.abs(me.x - p.home.x) < 1.2 && me.z < (p.home.z ?? Z.front) + DOORSTEP_M) {
-    return L('home-door', 'calm', 'Your building. {instinct}: up to the flat.', 'home');
+    return c.blown ? L('home-door', 'warn', 'Your building, and a car outside it with two in it and the engine off. {instinct}: up to the flat, if you must.', 'home') : L('home-door', 'calm', 'Your building. {instinct}: up to the flat.', 'home');
   } else if (me && state.map.kind === 'street' && state.map.row === p.embassy.row && p.embassy.x !== undefined && Math.abs(me.x - p.embassy.x) < 1.6 && me.z < (p.embassy.z ?? Z.front) + DOORSTEP_M) {
     // (at the embassy's door: in, to your desk on a working day not yet worked; any other time, in all the same)
     const k0 = calendar(now), E = p.embassy.door ? cap(p.employer) : null;
@@ -837,6 +848,20 @@ const BEGIN_LINE = {
   watch: (name, a) => `The café: ${name}, due between ${clockText(a.from)} and ${clockText(a.to)}. {instinct}: somewhere to watch it from.`,
 };
 const LATE_LINE = { lesson: 'Hale waited, and went home. Ring him for another evening.', tail: 'He\'s out of his door and away.', sdr: 'The bench is as good as empty.', watch: 'Whatever passed outside the café, you weren\'t there for it.' };
+// (a deep posting's end that isn't its goal: the paper, sim/prison.js, sim/dial.js, sim/campaign.js pass())
+function deepResult(c, days) {
+  const p = c.posting, o = c.over, K = cityById(p.city), met = c.done.filter(a => a.kind === 'sdr' && ['clean', 'burned'].includes(a.outcome)).length;
+  const W = {
+    sacked: ['LET GO', false, `${p.employer} let ${p.alias} go, and without the job there was no reason to stay. The station pulled you out quietly; the review will be less quiet.`],
+    exfiltrated: ['OUT', false, `Out by your own means, ${p.exfil.label}, and over the border by morning. Alive, and burned: ${K.name} is closed to you now, and the legend dead.`],
+    brought: ['BROUGHT OUT', true, 'The Center did the thing it almost never can, and brought you home. A debrief that lasts a year, a medal in a drawer, and a name you have to learn to answer to again.'],
+    imprisoned: ['SENTENCED', false, `${o.years} years as ${p.alias} for ${o.charge}, ${o.served} of them served before a deal nobody signed. The legend held; the posting didn't.`],
+    taken: ['TAKEN', false, `${cap(K.station.opposition.prison)}. ${o.years ? `${o.years} years for espionage, ` : ''}and the Agency's silence. The career is over; whether the life is, isn't yours to say.`],
+  }[o.why] ?? ['OVER', false, 'The posting is over.'];
+  return { stamp: W[0], good: W[1], title: `${K.name.toUpperCase()}: ${String(p.alias).toUpperCase()}`, text: W[2],
+    notes: [`${days} days on the posting as ${p.alias}: ${met} meetings; intelligence ${p.intelligence} of ${p.level === 'illegal' ? 'the Center\'s' : 'the station\'s'} ${goalOf(p)}.`, c.reviews.length ? `The weeks: ${c.reviews.map(r => r.grade).join(', ')}.` : null].filter(Boolean),
+    stats: `Heat at the end: ${heatWord(p.heat)} · the job's standing ${p.cover}` };
+}
 const EXCUSES_DEEP_OF = (now) => EXCUSES_DEEP[Math.floor(now / DAY) % EXCUSES_DEEP.length];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const dayWord = (ms, now) => { const d = Math.floor(ms / DAY) - Math.floor(now / DAY); return d === 0 ? 'today' : d === 1 ? 'tomorrow' : DAYS[calendar(ms).weekday]; };
