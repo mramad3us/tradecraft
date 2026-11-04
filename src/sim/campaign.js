@@ -56,6 +56,7 @@
 // next step; an asset trusted enough (TRUSTED) brings more (yield 2).
 // **The file** (record()): the career as the character sheet (C) shows it: the posting now, the postings before
 // it (c.career: promote()), every assignment done or missed and how it went as the officer knows it, the reviews.
+import { kindOf, regen } from './support.js';
 import { stream, int, pick, chance, range, weighted, hash } from './rng.js';
 import { sheet, streetLook } from './people.js';
 import { at, DAY, HOUR, MIN, calendar } from './clock.js';
@@ -100,6 +101,7 @@ export const WORK = { from: 9, to: 18 };
 export const WAKE_H = 7;
 export const COVER_PER_DAY = 6;                                   // (a day's work at the embassy, cover standing up)
 export const COVER_MISSED = 10;                                   // (a working day missed)
+export const HEAT_FLOOR = 20;                                     // (official cover's heat, at its lowest: embassy staff are always watched; pass())
 export const HEAT_LOW_PER_DAY = 6;                                // (a day lying low)
 export const SAFE_LOW_K = 1.7;                                     // (… at a safe house)
 export const ARREST_PER_DAY = 0.25;
@@ -489,7 +491,12 @@ export function pass(c, from, to) {
     const next = calendar((d + 1) * DAY);
     if (next.day === 1 && next.month !== p.money.paid) { p.money.paid = next.month; p.money.bank = (p.money.bank ?? 0) + p.money.salary; p.money.fundLeft = p.money.fund; papers.push({ kind: 'pay', title: 'PAY', lines: [`Salary in: $${p.money.salary}.`, `The operational fund topped up to $${p.money.fund}.`] }); }
     if (weekday(dayMs) === 6) papers.push(review(c, dayMs));
-    p.heat = Math.max(20, p.heat - 1);                              // (a day goes by: the opposition's interest cools a little)
+    // (a day goes by: the opposition's interest cools a little, never to nothing: official cover's floor is HEAT_FLOOR (embassy
+    // staff are watched), an unofficial cover's 1 once it's ever risen past it, so your own phone's a watched line from then
+    // on, as official cover's is: sim/dial.js watchedLine(); the user, 2026-11-04)
+    if (p.heat > 1) p.heatEver = true;
+    p.heat = Math.max(kindOf(p) === 'firstTour' || kindOf(p) === 'official' ? HEAT_FLOOR : p.heatEver ? 1 : 0, p.heat - 1);
+    regen(c);                                                       // (the agency's support, its day's worth back: sim/support.js)
     if (p.police) p.police = Math.max(0, p.police - POLICE_COOL_DAY);   // (and the police's: sim/police.js)
     // (a safe house they saw you go into: the station hears by morning)
     for (const s of p.safehouses.filter(x => x.seen && !x.burned && x.seen < dayMs + DAY)) {

@@ -33,9 +33,11 @@ import { townOf } from '../sim/cities/index.js';
 import { streetName, SECTION_M, Z } from '../sim/map/street.js';
 import { sectionOf } from '../sim/city.js';
 import { callWays, nextMeeting } from '../sim/phone.js';
+import { services, supportWords } from '../sim/dial.js';
 
 export const KIND_COLOUR = { job: 0xd36bd0, home: 0xe7b84a, work: 0x5d8fc2, safe: 0x76ad4c, food: 0xe8896a, clothes: 0x7a4a86, books: 0x2f6b62, bank: 0xb9862e, club: 0xc95c45, school: 0x3b6296, phones: 0x95c1e3, optician: 0x8f96a6, chemist: 0x356f42, hospital: 0xdfe2e8, police: 0x283f6b, other: 0x6a7182, metro: 0x9e3c36, bus: 0xc4bba9 };
-const LEAVES = [['ahead', 'Ahead'], ['city', 'The city'], ['people', 'People'], ['stand', 'Where you stand']];
+const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+const LEAVES = [['ahead', 'Ahead'], ['city', 'The city'], ['people', 'People'], ['stand', 'Where you stand'], ['phone', 'The phone']];
 const ROW_PX = 30, NAME_PX = 92, MAP_W = 320;                     // (a canvas this wide, drawn big: some 350 m across at the first zoom)
 // The city's window (the user, 2026-11-03: "the map should be zoomed in our position, showing 2 streets around
 // us maximum, and a zooming and arrows control to navigate if we need to see something out of frame, otherwise
@@ -52,8 +54,8 @@ export function openMind(host, state, leaf = 'ahead', deps) {
   const show = (to) => openMind(host, state, to, deps);
   const tabs = el('div', { className: 'mind-tabs' }, ...LEAVES.map(([id, name], k) => el('button', { className: `mind-tab${id === leaf ? ' on' : ''}`, onclick: () => show(id), title: `${k + 1}` }, name)));
   const title = el('div', { className: 'mind-head' }, pix(copy(plaque({ text: 'THE MIND', sub: me.name.toUpperCase(), style: 'way', icon: 'eye', notch: false })), 2), tabs);
-  const body = el('div', { className: 'mind-body' }, ...(leaf === 'city' ? cityLeaf(state, deps, show) : leaf === 'people' ? peopleLeaf(state, deps, show) : leaf === 'stand' ? standLeaf(state, deps) : aheadLeaf(state, deps, show)));
-  host.replaceChildren(el('div', { className: 'mind' }, title, body, el('p', { className: 'mind-foot' }, `${deps.label('mindmap')} or ${deps.label('menu')} to close · 1–4 the leaves`)));
+  const body = el('div', { className: 'mind-body' }, ...(leaf === 'city' ? cityLeaf(state, deps, show) : leaf === 'people' ? peopleLeaf(state, deps, show) : leaf === 'stand' ? standLeaf(state, deps) : leaf === 'phone' ? phoneLeaf(state, deps, show) : aheadLeaf(state, deps, show)));
+  host.replaceChildren(el('div', { className: 'mind' }, title, body, el('p', { className: 'mind-foot' }, `${deps.label('mindmap')} or ${deps.label('menu')} to close · 1–5 the leaves`)));
   host.hidden = false;
   host.dataset.kind = 'mind';
   host.dataset.leaf = leaf;
@@ -96,8 +98,24 @@ function standLeaf(state, { el }) {
     el('h3', {}, 'The embassy'), el('p', {}, rd.cover.text), el('p', { className: 'mind-sure' }, rd.cover.sure),
     el('h3', {}, 'The station'), el('p', {}, `What they wanted on ${p.subject}: ${p.intelligence} of ${goalOf(p)}, by their own count.${c.reviews.length ? ` The last week, they said: ${c.reviews.at(-1).grade.toLowerCase()}.` : ''}`),
     el('h3', {}, 'Money'), el('p', {}, `${price(state, cashOf(me))} on you; ${price(state, p.money.bank ?? 0)} in the account${p.money.fund ? `; the operational fund, ${price(state, p.money.fundLeft ?? p.money.fund)}` : ''}.`),
+    el('h3', {}, 'The agency\'s support'), el('p', {}, `${cap(supportWords(c))}.`),   // (sim/support.js: what the station will do for you, rung for from The phone)
     el('h3', {}, 'You'), el('p', {}, `${nw.fed.charAt(0).toUpperCase() + nw.fed.slice(1)}; ${nw.stress}; ${tired.word ?? 'rested enough'}.`),
   ];
+}
+
+// ---------- The phone ----------
+// (what you can ring for: sim/dial.js; a service picked, then which phone: a burner, your own (a watched line: heat), the
+// flat's; the agency's support beside it, sim/support.js)
+function phoneLeaf(state, deps, show) {
+  const { el, act } = deps, c = state.campaign, list = services(state), on = deps.on.ring, pick = list.find(s => s.key === on);
+  const rows = list.map(sv => el('div', { className: 'mind-acts' },
+    el('span', { className: `what${sv.ok ? '' : ' off'}` }, `${sv.label}: `, el('small', {}, sv.why)),
+    sv.ok && on !== sv.key ? el('button', { className: 'mind-go', onclick: () => { deps.on.ring = sv.key; show('phone'); } }, 'Ring…') : null));
+  const panel = pick && pick.ok ? el('div', { className: 'mind-call' },
+    el('p', { className: 'mind-note' }, `${pick.label}: which phone?`),
+    el('div', { className: 'mind-acts' }, ...pick.phones.map(ph => el('button', { disabled: !ph.ok, title: ph.why, onclick: () => { deps.on.ring = null; act(`dial:${pick.key}:${ph.key}`); } }, ph.label)),
+      el('button', { onclick: () => { deps.on.ring = null; show('phone'); } }, 'Not now'))) : null;
+  return [el('h3', {}, 'The agency\'s support'), el('p', {}, `${cap(supportWords(c))}.`), el('h3', {}, 'Ring for'), ...rows, panel];
 }
 
 // ---------- People ----------

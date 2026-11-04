@@ -50,6 +50,8 @@ import { eat, soothe } from '../needs.js';
 import { agenda, pass, work, rest, lieLow, expected, heatWord, places, trip, fatigue, watched, KINDS, WORK, TRAVEL, EXCUSES, EXCUSE_LINES } from '../campaign.js';
 import { lessonBook, sceneOf } from '../lessons.js';
 import { order, lapse, dropHere, atDrop } from '../market.js';
+import { ring, second as dialSecond, dropAt, collect, clinicAt, EXTRACT_COVER, TRACKED_P } from '../dial.js';
+import { admit } from '../services.js';
 import { chiefWays, chiefDo } from '../armoury.js';
 import { price } from '../money.js';
 import { screen } from '../screening.js';
@@ -182,6 +184,8 @@ export const campaignHub = {
     else if (what === 'low') {
       const house = safeHere(state), safe = !!house;
       if (house && seenGoing(state)) house.seen = now;               // (its door, with them watching: sim/campaign.js pass(), the cable)
+      // (and only so many days' use before they find it, by the city: its station's safehouseDays; the user, 2026-11-04)
+      if (house) { house.days = (house.days ?? 0) + 1; if (house.days > (cityById(c.posting.city)?.station?.safehouseDays ?? 2)) house.seen ??= now; }
       const sick = expected(c, now);
       until(lieLow(c, now, safe), `${sick ? 'You ring the section: a temperature, the flu going round. ' : ''}${safe ? 'A day in the safe house: the curtains drawn, the kettle, nobody.' : 'A day of being nobody.'}`); eat(state.people.me, state.time.ms, 40);
     }
@@ -194,6 +198,10 @@ export const campaignHub = {
       if (id === 'desk') return bus?.emit('desk-open');
       const line = chiefDo(state, id);
       if (line) say(state, bus, { kind: 'note', text: line });
+    }
+    else if (what === 'dial') {                                     // (a service rung for, from the mind's Phone leaf: sim/dial.js; desk:dial:<service…>:<phone>)
+      const parts = action.split(':'), phone = parts.at(-1), key = parts.slice(2, -1).join(':'), r = ring(state, bus, key, phone);
+      if (r.text) say(state, bus, { kind: r.ok ? 'note' : 'instinct', text: r.text });
     }
     else if (what === 'market') {                                   // (a call to the seller, from the mind: sim/market.js; desk:market:<model>:<burner|own>)
       const r = order(state, bus, id, action.split(':')[3]);
@@ -241,6 +249,7 @@ export const campaignHub = {
     if (c.over && !state.scenario.outcome) { Object.assign(state.scenario, { outcome: c.over.why, ended: now }); bus?.emit('scenario-end', c.over.why); return; }   // (the goal met in the last assignment: the posting's paper)
     c.now = now;
     c.posting.heat = state.heat[heatKey('embassy', c.posting.country)] ?? c.posting.heat;
+    { const me1 = state.actors.find(a => a.who === state.player); if (me1) dialSecond(state, bus, me1, { extracted: (E) => extracted(state, bus, E) }); }   // (what you rang for: sim/dial.js)
     const tired = fatigue(c, now);                                  // (up too long: every skill pays: sim/skills.js strain)
     if (tired.v) state.people.me.strain = tired.v; else delete state.people.me.strain;
     // (in the flat: out by its front door, down the stairs, onto the street at your door)
@@ -278,7 +287,10 @@ export const campaignHub = {
   },
 
   // Out on the street with the team's sheet (outing()): being tailed's hooks, as the test has them.
-  onTaxi(state, bus, to, phase) { if (state.scenario.tail) sdr.onTaxi(state, bus, to, phase); },
+  onTaxi(state, bus, to, phase) {
+    if (state.scenario.tail) sdr.onTaxi(state, bus, to, phase);
+    else if (phase === 'out' && state.$tracked) { delete state.$tracked; tracked(state, bus); }   // (rung from your own phone: they knew where it was taking you, sim/dial.js)
+  },
   onBus(state, bus, to, phase) { if (state.scenario.tail) sdr.onBus(state, bus, to, phase); },
   onMetro(state, bus, to, phase) { if (state.scenario.tail) sdr.onMetro(state, bus, to, phase); },
   onShop(state, bus, phase, way) { if (state.scenario.tail) sdr.onShop(state, bus, phase, way); },
@@ -449,6 +461,13 @@ function use(state, bus, act, here = false) {
   if (act === 'home') return enterHome(state, bus, 'door');
   if (act === 'unwindow') return backFromWindow(state, bus);
   if (act === 'embassy') return enterEmbassy(state, bus);
+  if (String(act).startsWith('dial:collect:')) { const d = dropAt(state, me); if (d && `dial:collect:${d.id}` === act) say(state, bus, { kind: 'note', text: collect(state, bus, d) }); return; }   // (the agency's bench: sim/dial.js)
+  if (act === 'clinic') {                                          // (the clandestine clinic's door: seen to, no names, nothing reported; out where you went in)
+    const h = safeHere(state);
+    if (!h || !clinicAt(c, h.id, state.time.ms)) return;
+    if (!admit(state, bus, me, { official: false, out: null })) say(state, bus, { kind: 'note', text: 'The doctor looks you over and shrugs: nothing for him to do.' });
+    return;
+  }
   if (act === 'drop:pay' || act === 'drop:get') { const w = dropHere(state, me); if (w && `drop:${w}` === act) say(state, bus, { kind: 'note', text: atDrop(state, bus, state.people.me, w) }); return; }   // (the black market's benches: sim/market.js)
   if (String(act).startsWith('begin:')) return begin(state, bus, act.slice(6));
   const kind = { phone: 'phone', call: 'phone', sleep: 'sleep', wash: 'wash', eat: 'eat', table: 'eat', window: 'window', read: 'read', work: 'desk', chief: 'chief', dress: 'dress' }[act], s = kind && spotOf(state, kind);
@@ -611,6 +630,28 @@ function outing(state, door) {
   if (door === 'home') for (const p of postsOf(state, team, crew)) Object.assign(actorOf(state, p.c.id), { x: p.x, z: p.z });
 }
 
+// Extraction (sim/dial.js): at the car, in, and to the embassy; the hunt over outside without you; the ambassador's view of you the
+// less for it.
+function extracted(state, bus, E) {
+  const c = state.campaign, p = c.posting;
+  for (const a of state.actors) if (a.cop) { a.alert = null; if (a.ai) { a.ai.gunner = null; a.ai.closing = null; } }
+  delete state.hunt; delete state.$alarm; delete state.$response; state.$takedown = null;
+  state.actors = state.actors.filter(a => !a.huntPost && !a.unit);
+  p.cover = Math.max(0, p.cover - EXTRACT_COVER);
+  c.log?.push({ ms: state.time.ms, text: `Extracted, hunted, to the embassy: the ambassador's view of you −${EXTRACT_COVER}.` });
+  skip(state, bus, 25 * MIN);
+  goTo(state, bus, p.embassy, 'The back door\'s open before you reach it. In, down on the seat, a coat over you; the driver doesn\'t say a word. Twenty-five minutes of turns, a gate, and the embassy\'s yard: inside, the hunt goes on without you.');
+  bus?.emit('papers', [{ kind: 'note', title: 'EXTRACTED', lines: ['A car of the station\'s, and the embassy\'s gate behind you: whatever the police are looking for, they\'re looking for it outside.', `The ambassador's view of you −${EXTRACT_COVER}: an extraction is never nothing.`] }]);
+}
+// A taxi rung from your own phone, the line read: at the other end, a covert team picks you up, TRACKED_P of the time.
+function tracked(state, bus) {
+  const r = outingDice(state, 'cab');
+  if (!chance(r, TRACKED_P)) return;
+  const crew = crewFor(state, 'covert', r);
+  state.scenario.tail = newTeam(state, 'covert', crew, r);
+  pickUp(state, r);
+}
+
 /** The team off the street (the clock skipped hours on): their people gone, their sheet with them. */
 function dropTeam(state) {
   const ids = (state.scenario.tail?.crew ?? []).map(x => x.id).filter(Boolean);
@@ -723,6 +764,11 @@ function instinct(state, c, now) {
     if (k0.weekday < 5 && !c.worked[Math.floor(now / DAY)] && k0.hour < WORK.to) return L('work-door', 'note', `The embassy. {instinct}: in, to your desk${k0.hour < WORK.from ? ' (early: the coffee\'s on)' : ''}.`, 'embassy');
     return L('work-shut', 'calm', `The embassy${k0.weekday >= 5 ? ': the weekend, the Marine and the flag' : ': your day\'s done here'}. {instinct}: in all the same.`, 'embassy');
   }
+  // (the clandestine clinic at this safe house, its doctor in; the agency's bench, what's behind it: sim/dial.js)
+  const house = safeHere(state);
+  if (house && clinicAt(c, house.id, now)) return L('clinic', 'warn', `${cap(house.label)}: the agency's doctor is in. {instinct}: in, to be seen to.`, 'clinic');
+  const ad = dropAt(state, me);
+  if (ad) return L('agency-drop', 'warn', now >= ad.from ? 'The bench. {instinct}: what the agency left behind it.' : `The bench. Nothing yet: from ${clockText(ad.from)}.`, now >= ad.from ? `dial:collect:${ad.id}` : null);
   // (at one of the black market's benches: the envelope, or what's behind it; sim/market.js)
   const drop = dropHere(state, me), O = c.order;
   if (drop === 'pay') return L('drop-pay', 'warn', `The bench. {instinct}: the envelope behind its leg, ${price(state, O.usd)}. Nobody watching, you hope.`, 'drop:pay');

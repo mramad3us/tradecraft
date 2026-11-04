@@ -113,6 +113,37 @@ export function badge(icon, state) {
   return out;
 }
 
+// The emergency services' two logos by the watch (sim/emergency.js emsBadges(); the user, 2026-11-04): a police car's light,
+// an ambulance; flashing while one's on its way (lit and not, by turns), steady on the scene, grey with nothing coming; the
+// guess under it in the picture's letters.
+const EMS = {
+  police: ['.......', '...#...', '..###..', '.#####.', '.#####.', '#######', '#######'],
+  ambulance: ['.......', '.####..', '.#####.', '#######', '#######', '##.#.##', '.#...#.'],
+};
+const EMS_STYLE = {
+  police: [{ face: 0x283f6b, hi: 0x3b6296, lo: 0x1b2541, glyph: 0x95c1e3 }, { face: 0x3b6296, hi: 0x5d8fc2, lo: 0x283f6b, glyph: 0xf6f4ee }],
+  ambulance: [{ face: 0x9e3c36, hi: 0xc4574e, lo: 0x6e2a2e, glyph: 0xf6f4ee }, { face: 0xc95c45, hi: 0xe8896a, lo: 0x9e3c36, glyph: 0xf6f4ee }],
+};
+/** One of them: kind, state ('inbound' | 'here' | 'none'), the guess's few letters, lit (the flash's frame). Placed 'left'. */
+export function emsBadge(kind, state, short = '', lit = false) {
+  const key = `ems|${kind}|${state}|${short}|${lit}`;
+  if (kept.has(key)) return kept.get(key);
+  const S = state === 'none' ? BADGE_STYLE.unknown : EMS_STYLE[kind][state === 'inbound' && lit ? 1 : 0], n = 13, tw = short ? textWidth(short) : 0;
+  const W = Math.max(n, tw + 2), cv = document.createElement('canvas');
+  cv.width = W + 1; cv.height = n + 1 + (short ? 7 : 0);
+  const g = cv.getContext('2d'), px = (x, y, ww = 1, hh = 1, c = INK) => { g.fillStyle = typeof c === 'string' ? c : hex(c); g.fillRect(x, y, ww, hh); };
+  const o = Math.floor((W - n) / 2);
+  px(o + 1, 1, n, n, SHADOW); px(o, 0, n, n, INK);
+  px(o + 1, 1, n - 2, n - 2, S.face); px(o + 1, 1, n - 2, 1, S.hi); px(o + 1, n - 2, n - 2, 1, S.lo);
+  for (const [x, y] of [[o, 0], [o + n - 1, 0], [o, n - 1], [o + n - 1, n - 1]]) g.clearRect(x, y, 1, 1);
+  EMS[kind].forEach((row, j) => [...row].forEach((b, i) => { if (b === '#') px(o + 3 + i, 3 + j, 1, 1, S.glyph); }));
+  if (short) { px(Math.floor((W - tw) / 2) - 1, n + 1, tw + 2, 7, INK); glyphs(px, Math.floor((W - tw) / 2), n + 2, short, state === 'here' ? 0xf8e08a : 0xf6f4ee); }
+  const words = `${kind}: ${state === 'none' ? 'nothing coming' : state === 'here' ? 'on the scene' : short.toLowerCase()}`;
+  const out = { canvas: cv, w: cv.width, h: cv.height, tip: Math.floor(W / 2), words };
+  kept.set(key, out);
+  return out;
+}
+
 /**
  * Corner brackets round what's picked (shooting's target: src/ui/ui.js), w × h pixels, in a style's colours: four
  * corners, a pixel of ink round each so they show on snow and on night alike. Placed as a plaque is, its tip the

@@ -12,7 +12,9 @@
 // about a gun. One a city at a time: a worse one makes it worse (ORDER), never lighter. Its kind (HUNTS) sets how hard they
 // look: how many streets round it (rows: a fist fight's three, someone shot the whole city), how long the search goes on
 // (searchH), how long every officer keeps your description after (keepD), how often a unit comes down a street in it
-// (every, in minutes), how many of them are cars, and how hard they look at a face (eye).
+// (every, in minutes), how many of them are cars, and how hard they look at a face (eye). Deployed only once the first
+// responders are there (H.deploy: the call's police, or an officer's own sighting DEPLOY_MIN on); while an armed one's out,
+// another call in its streets is answered in a quarter of the time (onAlert(), sim/emergency.js ON_ALERT_K).
 // **What they know** (state.hunt): three markers. Who you are (your face, your age, your hair: whoOf(); the one description,
 // which a disguise will change, Queued), what you wear (your top and its colour, a hat, glasses: wearOf()), and where they
 // last had you (where: the street, the place, the time). A caller has what you wear nearly always (wearP(), less in the dark)
@@ -67,6 +69,7 @@ import { Z, streetName, SECTION_M, mouthOf } from './map/street.js';
 import { heardFrom } from './sense.js';
 import { isGun } from './firearms.js';
 import { thingName } from './items.js';
+import { disguiseOf } from './disguise.js';
 
 export const ORDER = ['fight', 'gun', 'shots', 'wounded', 'killed'];
 const CITY = Infinity;
@@ -77,7 +80,7 @@ const CITY = Infinity;
 export const HUNTS = {
   fight: { rows: 3, searchH: 1, keepD: 1, every: [14, 24], cars: 0, eye: 2, posts: 0, most: 1, armed: false, what: 'a fight' },
   gun: { rows: 4, searchH: 2, keepD: 2, every: [9, 15], cars: 0.35, eye: 0, posts: 0, most: 1, armed: false, what: 'a gun seen' },
-  shots: { rows: 8, searchH: 8, keepD: 3, every: [5, 9], cars: 0.45, eye: 0, posts: 1, most: 1, armed: true, what: 'shots fired' },
+  shots: { rows: 8, searchH: 24, keepD: 3, every: [5, 9], cars: 0.45, eye: 0, posts: 1, most: 1, armed: true, what: 'shots fired' },
   wounded: { rows: CITY, searchH: 36, keepD: 5, every: [2, 4], cars: 0.45, eye: -1, posts: 2, most: 2, armed: true, what: 'someone shot' },
   killed: { rows: CITY, searchH: 48, keepD: 7, every: [1.5, 3], cars: 0.45, eye: -2, posts: 3, most: 3, armed: true, what: 'a killing' },
 };
@@ -91,10 +94,10 @@ export const WEAR_P = { day: 0.97, dim: 0.9, dark: 0.75 }, FACE_M = 14;
 // (your Tradecraft's read of each marker: d20 + Tradecraft / 5 against these)
 export const READ_DC = { who: 14, wearing: 10, where: 12 };
 // (the check's mods, yours: they have your face, or it's not the one they have, or nobody saw it; the same for your clothes)
-export const MOD = { face: -3, faceOther: 2, faceNone: 4, wear: -4, wearOther: 4, wearNone: 1, deep: -3, inside: -1, outside: 2, far: 5, over: 2, blood: -4, held: -3 };
+export const MOD = { disguise: 5, face: -3, faceOther: 2, faceNone: 4, wear: -4, wearOther: 4, wearNone: 1, deep: -3, inside: -1, outside: 2, far: 5, over: 2, blood: -4, held: -3 };
 // (taken in for questioning: the hours, heat, the ambassador's view of you, by the hunt's kind; the police's file)
 export const QUESTION = { fight: { h: 1.5, heat: 4, cover: 5 }, gun: { h: 2, heat: 8, cover: 10 }, shots: { h: 3, heat: 12, cover: 15 }, wounded: { h: 4, heat: 15, cover: 20 }, killed: { h: 6, heat: 20, cover: 25 } };
-export const POLICE_QUESTION = 10, HUNT_HEAT = 10;
+export const POLICE_QUESTION = 10, HUNT_HEAT = 10, DEPLOY_MIN = 4;
 
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
 const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
@@ -105,8 +108,8 @@ const ageBand = (age) => (age == null ? '' : age < 30 ? '20s' : age < 40 ? '30s'
 export const whoOf = (p) => { const L = p?.look ?? {}; return [p?.sex, L.skin, ageBand(p?.age), L.hair?.style, L.hair?.color, L.beard ?? '', L.moustache ? 'm' : ''].join('|'); };
 /** What someone wears, as a witness says it: the top and its colour, a hat, glasses. Another of any, other clothes. */
 export const wearOf = (p) => { const L = p?.look ?? {}; return [L.top?.kind, L.top?.color, L.hat?.kind ?? 'bare', L.hat?.color ?? '', L.glasses ?? ''].join('|'); };
-/** How good a disguise someone has on, 0 … 1 (Queued, DESIGN.md: none yet). */
-export const disguise = () => 0;
+/** How good a disguise someone has on, 0 … 1 (sim/disguise.js: a kit's). */
+export const disguise = (p) => disguiseOf(p);
 /** The worse of two kinds. */
 export const worse = (a, b) => (ORDER.indexOf(b) > ORDER.indexOf(a) ? b : a);
 /** A caller's chance of your face: close and lit, nearly sure; FACE_M off, hardly; in the dark, half. */
@@ -122,6 +125,16 @@ export function huntOf(state) {
 export function fullMatch(state, p) {
   const H = huntOf(state);
   return !!H && H.who.known && H.wearing.known && H.who.look === whoOf(p) && !disguise(p) && H.wearing.look === wearOf(p);
+}
+/**
+ * A street the city's armed search covers now (a gun fired, someone shot, a killing: deployed, in its window, its streets;
+ * before its first responders are there it's the same incident still): the police already out on them, so a call there is answered in ON_ALERT_K of the time (sim/emergency.js; the user, 2026-11-04:
+ * "while inside the window police has been called and is patrolling ... an other incident triggers a response in 1/4 of
+ * the normal response time").
+ */
+export function onAlert(state, row = state.map.row ?? 0, now = state.time.ms) {
+  const H = huntOf(state), S = H && HUNTS[H.why];
+  return !!S && S.armed && now >= (H.deploy ?? 0) && now < H.search && (!H.city || H.city === (state.map.city ?? null)) && (S.rows === CITY || Math.abs(row - H.origin.row) <= S.rows);
 }
 /** How far round where they last had you they're looking now, in metres of walking (a street over ROW_WALK_M), as far as the hunt's streets. */
 export function perimeterM(H, now) {
@@ -150,6 +163,9 @@ export function start(state, bus, { why, row = state.map.row ?? 0, x, who = fals
     what: what ?? (H0 && w === H0.why ? H0.what : `${cap(S.what)} on ${streetName(townOf(state.map), row)}`),
     units: H0?.units ?? {}, next: H0?.next ?? first ?? now + range(stream('hunt-first', now), 2, 5) * MIN, n: H0?.n ?? 0,
     fled: H0?.fled ?? false, read: H0?.read ?? null, aware: H0?.aware ?? null, reads: H0?.reads ?? 0,
+    // (the search deployed only once the first responders are there: the call's police; an officer's own sighting, a few
+    // minutes on; the user, 2026-11-04: "they are FIRST responders")
+    deploy: H0?.deploy ?? first ?? now + DEPLOY_MIN * MIN,
   };
   const H = H0 ? Object.assign(H0, fresh) : (state.hunt = fresh);   // (the same hunt brought up to date: whoever holds it holds this one)
   if (!H0 || w !== H0.why) { if (state.legend) addHeat(state, HUNT_HEAT); policeHeat(state, POLICE_WANTED); }   // (your description out to every officer: the police's own file, sim/police.js)
@@ -197,6 +213,7 @@ export function mods(state, H, p, me) {
   const out = [], now = state.time.ms, S = HUNTS[H.why];
   if (H.who.known) out.push(H.who.look === whoOf(p) && !disguise(p) ? { why: 'they have your face', v: MOD.face } : { why: 'not the face they have', v: MOD.faceOther });
   else out.push({ why: 'nobody had a good look at your face', v: MOD.faceNone });
+  if (disguise(p)) out.push({ why: 'a disguise', v: Math.round(disguise(p) * MOD.disguise) });   // (how good it is: sim/disguise.js)
   if (H.wearing.known) out.push(H.wearing.look === wearOf(p) ? { why: 'dressed as they described you', v: MOD.wear } : { why: 'not dressed as they described you', v: MOD.wearOther });
   else out.push({ why: 'they don\'t know what you wore', v: MOD.wearNone });
   if (now < H.search) {
@@ -310,7 +327,7 @@ function noticed(state, bus, me, H) {
 // A unit sent down the street you're on, while the search is on and you're in its streets, every so often: a pair on foot, or a car.
 function units(state, bus, me, H, now) {
   const S = HUNTS[H.why], row = state.map.row ?? 0;
-  if (now >= H.search || !inArea(state, H)) return;
+  if (now >= H.search || !inArea(state, H) || now < (H.deploy ?? 0)) return;   // (nothing deployed before the first responders are on the scene)
   const K = policeOf(state.map);
   posts(state, me, H, S, K, row);
   // (a car waiting for room at an end of the stretch, as a call's does: tried each second, CAR_WAIT_S, then the pair on foot)

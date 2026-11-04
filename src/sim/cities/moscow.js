@@ -276,6 +276,7 @@ export const MOSCOW = {
   // The station (DESIGN.md, Stations and countries): the work here. risk: how dangerous the trade is here (sim/xp.js);
   // watched: how closely the opposition follows a diplomat in their own hours (sim/campaign.js watched()).
   station: {
+    safehouseDays: 1,                                             // (how many days' use a safe house stands before they find it: sim/scenarios/campaign.js; the user, 2026-11-04, "Moscow is the most difficult")
     risk: 1.4, watched: 1, embassy: 'US Embassy', cover: 'Second Secretary, Political Section, US Embassy',
     opposition: { the: 'the FSB', an: 'an FSB', name: 'FSB', prison: 'Lefortovo' },
     subjects: [['sanctions evasion', 'who in the Kremlin\'s circle moves money and chips past the sanctions, and how'], ['the hypersonic programme', 'how far the new missile has come, and who builds it'],

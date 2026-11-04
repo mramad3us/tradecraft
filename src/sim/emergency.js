@@ -53,7 +53,7 @@ import { addHeat } from './heat.js';
 import { shortName } from './fight.js';
 import { care, needsOf, outside, hoursWords, VISIT_HEAT } from './services.js';
 import { HOSPITAL_HEAT } from './aid.js';
-import { start as startHunt, know, fullMatch, faceP, wearP } from './hunt.js';
+import { start as startHunt, know, fullMatch, faceP, wearP, onAlert } from './hunt.js';
 import { lightHere } from './perception.js';
 import { MIN, HOUR, DAY } from './clock.js';
 
@@ -62,6 +62,10 @@ export const DRIVE_S = 14, TREAT_S = [60, 150], STATEMENT_S = 120, CORDON_H = 24
 export const LINE_WARN_S = 30, ERR_K = 0.7;
 export const SHOTS_HEARD_M = 60, SHOTS_CALL_P = 0.15, SHOTS_CALL_S = 90;   // (shots with nobody hit: who hears them, how soon one of them calls, how long after the last)
 const DEFAULT_EMS = { police: [8, 15], ambulance: [10, 20] };
+// (a call on a street the city's armed search is out on, in its window: answered in a quarter of the time, the police
+// already on the corners and the ambulances standing by: sim/hunt.js onAlert(); the user, 2026-11-04)
+export const ON_ALERT_K = 0.25;
+const responseMin = (state, row, now, span, r) => range(r, ...span) * (onAlert(state, row, now) ? ON_ALERT_K : 1);
 
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
 /** What a witness says of someone: the top they wear and its colour, the hat, the hair. Another of any, someone else. */
@@ -113,13 +117,13 @@ function report(state, bus, me, now, row) {
     let c = (state.calls ?? []).find(k => !k.done && k.row === row && Math.hypot(k.x - a.x, k.z - a.z) < MERGE_M);
     if (c) {
       c.who.push(a.id);
-      if (c.shots && c.ambulance.stage === 'done') { const E2 = policeOf(state.map)?.ems ?? DEFAULT_EMS, r2 = stream('ems-late', state.map.seed, now); c.ambulance = { stage: 'coming' }; c.at.ambulance = now + Math.round(range(r2, ...E2.ambulance) * MIN); c.err.ambulance = gauss(r2); }   // (someone hurt after all: an ambulance too)
+      if (c.shots && c.ambulance.stage === 'done') { const E2 = policeOf(state.map)?.ems ?? DEFAULT_EMS, r2 = stream('ems-late', state.map.seed, now); c.ambulance = { stage: 'coming' }; c.at.ambulance = now + Math.round(responseMin(state, row, now, E2.ambulance, r2) * MIN); c.err.ambulance = gauss(r2); }   // (someone hurt after all: an ambulance too)
       continue;
     }
     const E = policeOf(state.map)?.ems ?? DEFAULT_EMS, r = stream('ems', state.map.seed, now);
     const V = state.$violent && now - state.$violent.ms < VIOLENT_S * 1000 ? state.$violent : null;
     c = { id: `call${now}`, city: state.map.city ?? null, row, x: a.x, z: a.z, ms: now, who: [a.id], described: V?.look ?? null, known: false,
-      at: { police: now + Math.round(range(r, ...E.police) * MIN), ambulance: now + Math.round(range(r, ...E.ambulance) * MIN) },
+      at: { police: now + Math.round(responseMin(state, row, now, E.police, r) * MIN), ambulance: now + Math.round(responseMin(state, row, now, E.ambulance, r) * MIN) },   // (before the hunt it may start: its window's)
       err: { police: gauss(r), ambulance: gauss(r) }, police: { stage: 'coming' }, ambulance: { stage: 'coming' } };
     (state.calls ??= []).push(c);
     const knows = Math.hypot(caller.x - me.x, caller.z - me.z) < KNOW_M || seesActor(state, me, caller);
@@ -151,7 +155,7 @@ function heard(state, bus, me, now, row) {
   S.called = now;
   const caller = pick(state.rng, near);
   Object.assign(caller, { gait: 'phone', vx: 0, vz: 0 }); caller.ai.wait = ON_PHONE_S * 20;
-  const E = policeOf(state.map)?.ems ?? DEFAULT_EMS, r = stream('ems', state.map.seed, now), at = now + Math.round(range(r, ...E.police) * MIN);
+  const E = policeOf(state.map)?.ems ?? DEFAULT_EMS, r = stream('ems', state.map.seed, now), at = now + Math.round(responseMin(state, row, now, E.police, r) * MIN);
   const V = state.$violent && now - state.$violent.ms < VIOLENT_S * 1000 ? state.$violent : null;
   const c = { id: `call${now}`, city: state.map.city ?? null, row, x, z, ms: now, who: [], shots: true, described: V?.look ?? null, known: false, at: { police: at, ambulance: at },
     err: { police: gauss(r), ambulance: 0 }, police: { stage: 'coming' }, ambulance: { stage: 'done' } };
@@ -180,6 +184,28 @@ export function etaOf(state, c, now = state.time.ms) {
   }
   return out;
 }
+/**
+ * The two logos by the watch (src/ui/ui.js; the user, 2026-11-04: "two pixel art logos always visible in top right close to
+ * the time and flashing when inbound with the time underneath"): [police, ambulance], each { kind, state: 'inbound' | 'here'
+ * | 'none', short (the guess, a few letters: '12M', '~8M', 'SOON'), where (its street, off yours) }; the call you know of,
+ * on whatever street.
+ */
+export function emsBadges(state) {
+  const none = (kind) => ({ kind, state: 'none', short: '' });
+  if (state.map?.kind !== 'street') return [none('police'), none('ambulance')];
+  const row = state.map.row ?? 0, mine = (state.calls ?? []).filter(k => k.known && !k.done && (!k.city || k.city === (state.map.city ?? null)));
+  const c = mine.filter(k => k.row === row).at(-1) ?? mine.at(-1);
+  if (!c) return [none('police'), none('ambulance')];
+  const eta = etaOf(state, c), os = state.people[state.player]?.os ?? 20, where = c.row !== row ? streetName(townOf(state.map), c.row) : null;
+  return ['police', 'ambulance'].map(kind => {
+    const S = c[kind].stage, e = eta.find(x => x.kind === kind);
+    if (S === 'working' || S === 'walking') return { kind, state: 'here', short: 'HERE', where };
+    if (!e || (S !== 'coming' && S !== 'driving')) return none(kind);
+    const m = Math.round((e.ms ?? 0) / MIN);
+    return { kind, state: 'inbound', short: os >= 70 ? (m < 1 ? 'NOW' : `${m}M`) : os >= 40 ? (m < 2 ? 'NOW' : `${Math.max(2, Math.round(m / 2) * 2)}M`) : m < 3 ? 'NOW' : m < 9 ? 'SOON' : 'LATER', where };
+  });
+}
+
 /**
  * The call you know of and are waiting on, its guesses: for the watch (src/ui/ui.js), or null. On whatever street it is (the
  * user, 2026-11-04: "I moved up a few streets as police had been called and the 'timer' for emergency services dissapeared"):

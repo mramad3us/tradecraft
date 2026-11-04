@@ -4,6 +4,25 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.35 (2026-11-04)
+
+- **The phone.** A new leaf in the mind (Tab, then 5) lists what you can ring for, each from a burner (single use, nothing to trace), your own phone, or at the flat its line.
+  - **Your own phone** is a watched line whenever your heat is 1 or more, which under official cover is always. Each spook-related call on it costs heat +4.
+  - **Food** to the flat: any phone, no heat.
+  - **A taxi** to your kerb in a few minutes. On your own phone outside the UK and the US, it costs heat +2, and half the time a covert team is waiting at the other end.
+- **Agency Support**, a new resource in "Where you stand". London's first tour has 100 at most and gets 50 back a day; a handler under official cover elsewhere has 80, back 10 a day. It starts full. It pays for:
+  - **A clean gun**: 20, at a dead drop with its numbers ground off.
+  - **A disguise kit**: 5, five uses.
+  - **A clandestine clinic** in a safe house: 40, three days of hospital care with no records.
+  - **A clean-up crew**: 60, only at a well-supported station; it removes bodies nobody's called in yet.
+  - **Extraction** when you're hunted: 80, a car somewhere in the city that takes you to the embassy and out of the hunt, the ambassador's view of you −10.
+- **Disguises.** A use of the kit dyes your hair or puts on a wig, adds or removes glasses and, on a man, a moustache. To the police you're someone else: the face icon turns green, and it helps you get past an officer's look by its quality, which comes from your Tradecraft and Deception. Take it off and you're as they described you.
+- **Safe houses wear out.** Lying low in one is safe for a limited number of days before they find it: Moscow 1, Cairo 2, Beirut and London 3. A tail seeing you go in still burns it at once.
+- **Heat never drops back to nothing.** Under official cover it stays at 20 or more; under a clean cover, once it has risen past 1 it never drops below 1.
+- **Police and ambulance logos by the clock.** The ETA text is gone. Two pixel logos in the clock's last row flash while they're on their way, with the time underneath. They're steady once they're on the scene, and grey when nothing's coming. The hunt's three icons moved into the same row, clear of the fight banner they used to cover.
+- **A city on alert answers fast.** While an armed search is out (shots fired, someone shot, a killing), another incident on its streets brings the police and an ambulance in a quarter of the usual time: about 3 minutes instead of 12. The search after shots fired with nobody hit now lasts 24 hours instead of 8.
+- **First responders first.** The corner officers and the search's cars and patrols deploy only once the call's police have reached the scene, or a few minutes after an officer spots you himself.
+
 ## v0.1.34 (2026-11-04)
 
 - **Shoot people and the city fills with police.** After someone's shot, every street in the city is searched for 36 hours (48 after a killing). Armed police stand at the street's corners (two, or three after a killing), armed pairs jog the pavements, and police cars crawl with their lights on, two or three units about at once. Shots that hit nobody get 8 hours, with one officer at a corner of every street.

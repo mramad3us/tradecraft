@@ -85,6 +85,10 @@ export function openPockets(host, state, deps) {
     p.armour ? el('h3', {}, 'Worn') : null, p.armour ? el('p', {}, armourLine(p, true)) : null,   // (body armour: sim/armour.js)
     p.bag?.length ? el('h3', {}, 'The shop\'s bag, for home') : null,
     p.bag?.length ? el('p', { className: 'pk-bag' }, cap(p.bag.map(bagWord).join(', ')) + '.', ' ', el('span', { className: 'pk-btns' }, el('button', { className: 'pk-bin', title: 'Into a bin, and all in it: the old clothes gone with it', onclick: go('discard:bag') }, 'Bin'))) : null,   // (the user, 2026-11-04: "we should be able to drop the bag with old clothes")
+    // (special equipment, the agency's: sim/disguise.js; a disguise kit's uses, and the disguise on or off)
+    (p.equip?.disguise ?? 0) > 0 || p.disguise ? el('h3', {}, 'Equipment') : null,
+    (p.equip?.disguise ?? 0) > 0 || p.disguise ? el('p', { className: 'pk-bag' }, `A disguise kit: ${p.equip?.disguise ?? 0} use${(p.equip?.disguise ?? 0) === 1 ? '' : 's'} left${p.disguise ? '; a disguise on' : ''}.`, ' ',
+      el('span', { className: 'pk-btns' }, p.disguise ? el('button', { title: 'You again, as they described you', onclick: go('disguise:off') }, 'Take it off') : el('button', { title: 'A use: the hair, glasses, the rest; what a witness says of you, someone else\'s', onclick: go('disguise:on') }, 'Put on a disguise'))) : null,
     Object.keys(p.kit ?? {}).length || p.bag?.some(x => x.supply) ? el('p', { className: 'mind-note' }, `${deps.label('aid')} tends your wounds with what you have on you.`) : null);
   const title = el('div', { className: 'mind-head' }, pixCanvas(plaque({ text: 'WHAT YOU CARRY', sub: (top?.name ?? 'your clothes').replace(/^the /, '').toUpperCase(), style: 'way', icon: 'key', notch: false })));
   host.replaceChildren(el('div', { className: 'mind pockets' }, title,

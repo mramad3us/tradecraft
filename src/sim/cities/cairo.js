@@ -321,6 +321,7 @@ export const CAIRO = {
   schoolLangs: ['fr', 'de', 'ru', 'es'],                  // (what else its language schools teach, and its bookshops' grammars: sim/shops.js)
   // The station (DESIGN.md, Stations and countries): risk (sim/xp.js), watched (sim/campaign.js watched()).
   station: {
+    safehouseDays: 2,                                             // (how many days' use a safe house stands before they find it: sim/scenarios/campaign.js; the user, 2026-11-04, "Moscow is the most difficult")
     risk: 1.2, watched: 0.8, embassy: 'US Embassy', cover: 'Second Secretary, Political Section, US Embassy',
     opposition: { the: 'the GIS', an: 'a GIS', name: 'GIS', prison: 'Tora' },
     subjects: [['the arms deals', 'what Egypt buys, from whom, paid how'], ['the Sinai networks', 'the jihadist cells in Sinai: their couriers in the city']],

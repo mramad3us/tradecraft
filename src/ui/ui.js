@@ -68,8 +68,8 @@ import { CHOICES as TALK_CHOICES } from '../sim/talk.js';
 import { LESSONS, FARM, lessonOf, numberOf, nextLesson } from '../sim/tutorial/index.js';
 import { READ_S, WORD_S } from '../sim/tutorial/earpiece.js';
 import { HEARSAY } from '../sim/hale.js';
-import { plaque, place, bracket, badge } from './plaque.js';
-import { waiting as waitingFor } from '../sim/emergency.js';
+import { plaque, place, bracket, badge, emsBadge } from './plaque.js';
+import { emsBadges } from '../sim/emergency.js';
 import { options as shootOptions, targets as shootTargets, odds as shootOdds, gunsOf, aimMs } from '../sim/shooting.js';
 import { said as gunSaid, armOf, modelOf as gunModel } from '../sim/firearms.js';
 import { openMind } from './mind.js';
@@ -97,7 +97,10 @@ let hudMs = 0, lastReal = 0;                                      // (the HUD's 
 
 export function createUI({ input, cb }) {
   const frame = el('div', { id: 'frame' });
-  const watch = el('div', { className: 'watch' }, el('div', { className: 'time' }), el('div', { className: 'date' }), el('div', { className: 'place' }), el('div', { className: 'sky' }), el('div', { className: 'hand' }), el('div', { className: 'sirens' }));
+  // (the watch's last row: the hunt's three icons and the police's and an ambulance's logos, drawn in the picture's pixels at its
+  // scale; in the watch's own box, so it grows with them and nothing overlaps: the user, 2026-11-04)
+  const status = el('div', { className: 'status' }, ...[0, 1, 2, 3, 4].map(i => el('canvas', { className: i < 3 ? 'st-hunt' : 'st-ems' })));
+  const watch = el('div', { className: 'watch' }, el('div', { className: 'time' }), el('div', { className: 'date' }), el('div', { className: 'place' }), el('div', { className: 'sky' }), el('div', { className: 'hand' }), el('div', { className: 'sirens' }), status);
   // (a lesson of the tutorial: Hale on the earpiece, his line at a time, and the lesson's checklist under the watch: sim/tutorial/)
   const earpiece = el('div', { className: 'earpiece', hidden: true }, el('div', { className: 'who' }), el('div', { className: 'line' }));
   const lessonBox = el('div', { className: 'lesson', hidden: true });
@@ -125,10 +128,9 @@ export function createUI({ input, cb }) {
   const signs = el('div', { className: 'tags' });                  // the places that are yours, over their doors (a scenario's signs())
   const feltTags = el('div', { className: 'tags' });                // what's felt, not seen (sim/sense.js): over them, or at the picture's edge
   const goal = el('canvas', { className: 'plaque goal', hidden: true });   // where you're going, when it's off the picture (src/ui/plaque.js)
-  const hunted = el('div', { className: 'tags hunted', hidden: true }, ...[0, 1, 2].map(() => el('canvas', { className: 'plaque' })));   // the hunt for you: what you think they have (sim/hunt.js badges())
   const prompt = el('div', { className: 'prompt', hidden: true });
   const veil = el('div', { className: 'bloodveil' });                 // (the blood lost: the world dims and reddens at the edges)
-  const hud = el('div', { id: 'hud' }, veil, signs, tags, feltTags, marker, bubble, intent, ...states, you, pointed, speech, reach, ask, talkbox, bout, moves, gunPanel, frameA, frameT, reticle, goal, hunted, prompt, watch, toasts, earpiece, keys, banner);
+  const hud = el('div', { id: 'hud' }, veil, signs, tags, feltTags, marker, bubble, intent, ...states, you, pointed, speech, reach, ask, talkbox, bout, moves, gunPanel, frameA, frameT, reticle, goal, prompt, watch, toasts, earpiece, keys, banner);
   const menu = el('div', { className: 'overlay', hidden: true });
   const log = el('div', { className: 'overlay', hidden: true });
   const paper = el('div', { className: 'overlay', hidden: true });     // a brief, a result
@@ -255,9 +257,8 @@ export function createUI({ input, cb }) {
     const me = state.actors.find(a => a.who === state.player);
     const held = weaponOf(state.people[state.player]?.hand);       // (what's in your hand, under the watch: sim/items.js)
     put(watch.querySelector('.hand'), held ? `in hand: ${bare(held)}` : '');
-    // (a call you know of: your instinct's guess at how long they'll be, by your Tradecraft: sim/emergency.js)
-    const sirens = waitingFor(state);
-    put(watch.querySelector('.sirens'), sirens ? `${sirens[0].where ? `${sirens[0].where}: ` : ''}${sirens.map(e => `${e.kind === 'police' ? 'police' : 'ambulance'}: ${e.text}`).join(' · ')}` : '');   // (a call off your street: where it is, first)
+    // (a call you know of: no longer words on the watch but its two logos under it, below; the user, 2026-11-04, "this is clunky")
+    put(watch.querySelector('.sirens'), '');
     if (me && state.map?.kind === 'street') put(watch.querySelector('.place'), placeName(townOf(state.map), state.map.row ?? 0, me.x, me.z));
     else put(watch.querySelector('.place'), SCENARIOS[state.scenario.kind]?.place?.(state) ?? '');
     { const w = weatherAt(state); put(watch.querySelector('.sky'), w.indoors || w.temp === undefined ? w.words : `${w.words}, ${Math.round(w.temp)}°`); }   // (the weather, in a few words, and the temperature: sim/weather.js)
@@ -331,9 +332,22 @@ export function createUI({ input, cb }) {
       const [name, far] = gl.name ? [gl.name, gl.far] : String(gl.label).split(' · ');
       place(goal, plaque({ text: name, sub: far ? shortFar(far) : null, style: gl.kind ?? 'way', icon: way, notch: false }), cx, cy, k0, cx < RES[0] / 2 ? 'left' : 'right');
     }
-    // The hunt for you (sim/hunt.js): three icons at the top of the picture, its middle: your face, your clothes, where you are;
-    // red, they have it; green, clear; grey with a question mark, you can't tell.
-    { const B = huntBadges(state); hunted.hidden = !B; if (B) B.forEach((b, i) => place(hunted.children[i], badge(b.key, b.state), RES[0] / 2 - 22 + i * 16, 10, k0, 'left')); }
+    // The hunt for you (sim/hunt.js): three icons under the watch: your face, your clothes, where you are; red, they have it;
+    // green, clear; grey with a question mark, you can't tell.
+    // (the watch's last row: the hunt's three, then the police's and an ambulance's logos, flashing while they're on their way,
+    // the guess under each: sim/hunt.js badges(), sim/emergency.js emsBadges())
+    {
+      const street = state.map?.kind === 'street', E = street ? emsBadges(state) : null, B = huntBadges(state), lit = Math.floor(performance.now() / 450) % 2 === 1;
+      const cvs = status.children, draw = (cv, p, tip) => {
+        if (!p) { cv.hidden = true; return; }
+        cv.hidden = false;
+        if (cv.$p !== p) { cv.$p = p; cv.width = p.w; cv.height = p.h; const g = cv.getContext('2d'); g.clearRect(0, 0, p.w, p.h); g.drawImage(p.canvas, 0, 0); cv.title = tip ?? p.words; cv.dataset.text = p.words; }
+        if (cv.$k !== k0) { cv.$k = k0; cv.style.width = `${p.w * k0}px`; cv.style.height = `${p.h * k0}px`; }
+      };
+      for (let i = 0; i < 3; i++) draw(cvs[i], B ? badge(B[i].key, B[i].state) : null);
+      for (let i = 0; i < 2; i++) { const e = E?.[i]; draw(cvs[3 + i], e ? emsBadge(e.kind, e.state, e.short, lit) : null, e?.where ? `${e.where}: ${e.kind}` : null); }
+      status.hidden = !B && !E;
+    }
     // What's felt (sim/sense.js): named over them on the picture; off it, or on another street, at its edge, the way they lie.
     while (feltTags.children.length < fl.length) feltTags.append(el('canvas', { className: 'plaque' }));
     [...feltTags.children].forEach((t, i) => {

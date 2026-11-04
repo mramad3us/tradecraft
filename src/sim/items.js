@@ -29,6 +29,7 @@ import { BOX, isArm, isGun, isMag, isLong, isBox, boxCal, boxWord, armName, armO
 import { packsOf, useSupply, supplyWord } from './medicine.js';
 import { bookOf } from './training.js';
 import { say } from './log.js';
+import { wear as wearDisguise, remove as removeDisguise } from './disguise.js';
 
 // Where things go on a person: SPACES, each so many, each holding so much (litres) of things no longer
 // than so much (cm): the trousers' pockets (not under a dress), a coat's, a jacket's or a suit's two
@@ -241,6 +242,9 @@ export function use(state, bus, a, cmd) {
     else if (p.hand === kind) drop(state, p, a);
     else return;
     say(state, bus, { kind: 'note', text: `You drop ${weaponOf(kind)?.name ?? armName(kind) ?? 'it'}.` });
+  } else if (verb === 'disguise') {                                 // (the kit's: on, a use; off: sim/disguise.js)
+    const line = kind === 'off' ? removeDisguise(p) : wearDisguise(p);
+    if (line) say(state, bus, { kind: 'note', text: line });
   } else if (verb === 'discard' && kind) {
     const n = Number(arg) || 1;
     if (kind === 'bag') {                                            // (the shop's bag and all in it, into a bin: the old coat gone with it, the user, 2026-11-04)

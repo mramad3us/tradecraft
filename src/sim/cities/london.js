@@ -440,6 +440,7 @@ export const LONDON = {
   schoolLangs: ['ar', 'fr', 'de', 'es', 'zh', 'fa'],                  // (what else its language schools teach, and its bookshops' grammars: sim/shops.js)
   // The station (DESIGN.md, Stations and countries): risk (sim/xp.js), watched (sim/campaign.js watched()); the opposition's the Russians'.
   station: {
+    safehouseDays: 3,                                             // (how many days' use a safe house stands before they find it: sim/scenarios/campaign.js; the user, 2026-11-04, "Moscow is the most difficult")
     risk: 0.8, watched: 0.25, embassy: 'US Embassy', cover: 'First Secretary, Economic Section, US Embassy',
     opposition: { the: 'the Russian residency', short: 'the residency', an: 'an SVR', name: 'SVR', prison: 'a basement off Kensington Palace Gardens' },
     subjects: [['the oligarchs\' money', 'whose fortunes in London are the Kremlin\'s, held in trust'], ['the residency', 'the Russian intelligence officers under diplomatic cover, and whom they run']],

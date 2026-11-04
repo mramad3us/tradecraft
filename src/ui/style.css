@@ -219,6 +219,12 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .watch .hand { color: var(--brass); font-size: calc(11px * var(--ui, 1)); }
 .watch .sirens { color: #c4574e; font-size: calc(11px * var(--ui, 1)); }   /* a call you know of: how long they'll be, your instinct's guess (sim/emergency.js) */
 .watch .sirens:empty { display: none; }
+/* the watch's last row: the hunt's icons, the police's and an ambulance's logos (src/ui/plaque.js), at the picture's scale */
+.watch .status { display: flex; justify-content: flex-end; align-items: flex-start; gap: 3px; margin-top: 5px; }
+.watch .status[hidden], .watch .status canvas[hidden] { display: none; }
+#frame .watch .status canvas { position: static; inset: auto; image-rendering: pixelated; }   /* (in the row, not over the picture: #frame canvas's) */
+.watch .status .st-hunt + .st-ems { margin-left: 8px; }   /* (a gap between the hunt's three and the logos) */
+.watch .sirens:empty { display: none; }
 .inventory td.where { color: #6a7182; font-size: calc(12px * var(--ui, 1)); }
 .inventory button.small { font: calc(12px * var(--ui, 1)) var(--mono); margin-left: 6px; padding: 2px 8px; cursor: pointer; pointer-events: auto; }
 .bloodveil { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(40, 0, 0, 0) 35%, rgba(46, 6, 8, 0.55) 70%, rgba(20, 2, 4, 0.92) 100%); transition: opacity 1s; }
@@ -486,6 +492,9 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 /* A call (the mind's People: src/ui/mind.js, sim/phone.js). */
 .mind-asset { border-bottom: 1px solid #23252f; padding: 3px 0; }
 .mind-asset > .mind-acts .what { flex: 1; }
+.mind-body > .mind-acts .what { flex: 1; }                         /* the phone's services, sim/dial.js */
+.mind-body > .mind-acts .what.off { color: #6a7182; }
+.mind-body > .mind-acts .what small { color: #8f96a6; }
 .mind-call { border-left: 2px solid #353947; padding: 2px 0 4px 10px; margin: 4px 0 6px; }
 .mind-why { background: #1b1c24; border: 1px solid #353947; color: #b8bdc8; padding: 2px 8px; cursor: pointer; border-radius: 2px; }
 .mind-why.on { border-color: #e7b84a; color: #f6f4ee; }

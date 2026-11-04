@@ -265,6 +265,7 @@ export const BEIRUT = {
   schoolLangs: ['fr', 'ru', 'de', 'es'],                  // (what else its language schools teach, and its bookshops' grammars: sim/shops.js)
   // The station (DESIGN.md, Stations and countries): risk (sim/xp.js), watched (sim/campaign.js watched()).
   station: {
+    safehouseDays: 3,                                             // (how many days' use a safe house stands before they find it: sim/scenarios/campaign.js; the user, 2026-11-04, "Moscow is the most difficult")
     risk: 1.3, watched: 0.6, embassy: 'US Embassy', cover: 'Second Secretary, Political Section, US Embassy',
     opposition: { the: 'Hezbollah\'s security', an: 'a Hezbollah security', name: 'Hezbollah security', prison: 'a basement in the Dahiyeh' },
     subjects: [['the arms routes', 'how Iran\'s weapons reach Lebanon, by which ports and whose trucks'], ['the hostages', 'who holds the two Westerners taken in the spring, and where']],
