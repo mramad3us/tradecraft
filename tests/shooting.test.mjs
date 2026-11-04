@@ -3,7 +3,7 @@
 // distance, the aim held and the skill; a bullet's wound; a gunshot heard empties the street.
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
 import { newGun, newMag, armOf, said } from '../src/sim/firearms.js';
-import { toggle, options, choose, targets, aimMs, odds, bullet, discharge, heard, MAX_M } from '../src/sim/shooting.js';
+import { toggle, options, choose, targets, aimMs, odds, bullet, discharge, heard, MAX_M, tapsOf, climbOf } from '../src/sim/shooting.js';
 import { MODELS } from '../src/sim/firearms.js';
 import { sheet } from '../src/sim/people.js';
 import { skill } from '../src/sim/skills.js';
@@ -185,6 +185,25 @@ export default [
       for (let k = 0; k < 40; k++) { const w = armed(10 + k, [0, 0]); const before = w.g.people[w.g.player].injuries?.length ?? 0; discharge(w.g, null, w.me, w.p, w.id, 'draw'); if ((w.g.people[w.g.player].injuries?.length ?? 0) > before) self++; else if (Object.values(w.g.people).some(q => q !== w.p && q.injuries?.some(i => i.gunshot))) others++; }
       assert(self > 5, `a discharge drawing: into your own leg ${self} times in 40, someone else ${others}`);
       console.log(`      2000 draws of a chambered Glock: ${out.map(o => `${o.who} fumbled ${o.f}, dropped ${o.d}, went off ${o.sh}`).join('; ')}; a discharge drawing, 40 of them: your own leg ${self}, someone else ${others}`);
+    },
+  },
+  {
+    name: 'shooting: Fire again while the shot plays out: a double tap (Weapon handling 8 and up), a triple (18 and up), none for a novice; the follow-ups\' odds down with the muzzle\'s climb, less in a better hand',
+    fn() {
+      const out = [];
+      for (const w of [[3, 0], [8, 2], [18, 2]]) {
+        const { g, me, p, id } = armed(4, w);
+        step(g, { act: ['aim'] }, null);
+        take(g, 'draw'); take(g, 'safety'); take(g, `aim:${g.shoot.pick}`);
+        const mag = () => armOf(p, armOf(p, id).mag)?.n ?? 0, n0 = mag();
+        step(g, { act: ['shoot:fire'] }, null);                       // (the first)
+        for (let k = 0; k < 2; k++) { step(g, {}, null); step(g, { act: ['shoot:fire'] }, null); }   // (1 again, twice, as fast as the hand goes)
+        for (let n = 0; n < 600 && g.shoot?.phase === 'act'; n++) step(g, {}, null);
+        const fired = n0 - mag(), want = tapsOf(p);
+        assert(fired === want, `Weapon handling ${skill(p, 'weapons')}: ${fired} rounds of ${want}`);
+        out.push(`WH ${skill(p, 'weapons')}: ${fired === 1 ? 'one shot' : fired === 2 ? 'a double tap' : 'a triple tap'}, the climb ×${climbOf(p).toFixed(2)}`);
+      }
+      console.log(`      ${out.join('; ')}`);
     },
   },
 ];

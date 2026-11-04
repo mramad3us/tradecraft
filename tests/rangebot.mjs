@@ -34,7 +34,7 @@ export function shootRange(g, bus, { order = DISTANCES_M, skip = [], turn = null
   const G = () => gunOf(g), p = g.people[g.player];
   const benchWork = (kinds) => {
     outOf(); table = null; T();
-    for (let k = 0; k < 6 && !over() && table; k++) { const w = table.find(x => kinds.some(j => x.key.startsWith(j))); if (!w) break; table = null; S(1, { act: [`desk:table:${w.key}`] }); }
+    for (let k = 0; k < 6 && !over() && table; k++) { const w = table.find(x => kinds.some(j => x.key.startsWith(j))); if (!w) break; table = null; S(1, { act: [`desk:table:${w.key}`] }); const me = g.actors.find(x => x.who === g.player); for (let n = 0; n < 20 * 200 && me?.busy && !over(); n++) S(1); }   // (the rounds in a round at a time, lived at the bench: sim/scenarios/range.js)
   };
   const paper = (m) => g.actors.find(a => { const P = g.people[a.who]?.paper; return P && P.lane === LANE && P.m === m; });
   // (the gun ready to fire at a paper: a stoppage cleared, a magazine in, a round up, the safety off)

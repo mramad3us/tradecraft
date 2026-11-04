@@ -265,7 +265,7 @@ export function step(state, input = {}, bus) {
     const n = Math.hypot(mx, mz);
     if (n > 0.01 && !input.look) me.busy = null;
     me.looking = !!input.look && !me.busy;
-    if (me.busy) { busy(me); if (me.$done) { const d = me.$done; delete me.$done; if (d.startsWith('downed:')) interact.finishDowned(state, bus, me, d); } }   // (a plan's time up: what it was for, sim/interact.js)
+    if (me.busy) { busy(me); if (me.$done) { const d = me.$done; delete me.$done; if (d.startsWith('downed:')) interact.finishDowned(state, bus, me, d); else if (d.startsWith('scene:')) SCENARIOS[state.scenario.kind]?.afterBusy?.(state, bus, d.slice(6)); } }   // (a plan's time up: what it was for, sim/interact.js)
     else if (input.look) {
       me.vx = me.vz = 0; me.gait = 'idle';
       // (at a shop's glass, left and right slant the eyes along it, a little at a time, as far as the glass

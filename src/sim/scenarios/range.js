@@ -24,7 +24,7 @@
 // A range is a room with a door: no passers-by, no police; its shots are what it's for (sim/shooting.js heard()). From
 // a campaign (an assignment's context: the lesson booked, sim/campaign.js), the range is the one at C.at's door, and
 // you're let out of that door after (sc.out: src/main.js backToPosting()).
-import { at, dateText, clockText } from '../clock.js';
+import { at, dateText, clockText, TICK_MS } from '../clock.js';
 import { heatKey } from '../heat.js';
 import { say } from '../log.js';
 import { handler, asOfficer, recruit, sheet, streetLook } from '../people.js';
@@ -35,7 +35,7 @@ import { planHere, walkTo, spotNear, exitHere, SPOT_REACH_M } from '../interiors
 import { wayAcross } from '../interiors/path.js';
 import { follow } from '../crowd.js';
 import { newGun, newMag, armOf, isGun, isMag, modelOf, calWord, moveArm, MODELS } from '../firearms.js';
-import { ways as tableWays, work as gunWork } from '../gunwork.js';
+import { ways as tableWays, work as gunWork, LIVE_MAX_S } from '../gunwork.js';
 import { discharge } from '../shooting.js';
 import { setPaper, papers, group, isPaper } from '../paper.js';
 import { CITIES, cityById, cityWords } from '../cities/index.js';
@@ -99,6 +99,9 @@ export const rangeScenario = {
       keys: rangeScenario.keys,
     };
   },
+
+  /** A lived job done at the bench (sim/game.js: busy's done 'scene:bench'): the bench's card again, if there's more. */
+  afterBusy(state, bus, what) { const p = state.people[state.player]; if (what === 'bench' && benchWays(p).length) bus?.emit('bench', benchWays(p)); },
 
   setup(state, { campaign: C = null, city = null, lesson = null, character = null } = {}) {
     const r = state.rng, cityId = CITIES[C?.city ?? city] ? C?.city ?? city : 'moscow', R = RANGE_CITY[cityId];
@@ -260,6 +263,7 @@ function bench(state, bus, key) {
   if (!me || spotNear(state, me)?.kind !== 'bench') return;
   const ms = gunWork(state, bus, p, key, { bang: (st, b, id) => { discharge(st, b, me, p, id, 'rack', { fired: true }); stop(st, b, 'discharge'); } });
   if (state.scenario.outcome) return;
+  if (ms && ms <= LIVE_MAX_S * 1000) { me.busy = { what: 'bench', steps: [['wait', Math.round(ms / TICK_MS), me.face, 'idle']], wait: 0, done: 'scene:bench', since: state.time.ms }; me.vx = me.vz = 0; return; }   // (lived at the bench, the clock running: sim/game.js afterBusy)
   if (ms) skip(state, bus, ms);
   if (benchWays(p).length) bus?.emit('bench', benchWays(p));
 }

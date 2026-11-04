@@ -242,7 +242,9 @@ function launch(s, { hour = null } = {}) {
   prev = new Map(); acc = 0; paused = false; running = true; acts = [];
   const sc = SCENARIOS[state.scenario.kind];
   if (state.scenario.outcome) result();
-  else if (sc.brief && state.tick === 0) ui.showBrief(briefFor(state, typeof sc.brief === 'function' ? sc.brief(state) : sc.brief), () => {}, state.map?.city);   // (a lesson's: its framing first: sim/tutorial/)
+  else if (sc.brief && state.tick === 0) ui.showBrief(briefFor(state, typeof sc.brief === 'function' ? sc.brief(state) : sc.brief), () => {}, state.map?.city);
+  // (a posting past the first tour: no Hale on the telephone to open it, so its brief on day one, once: the user, 2026-11-04)
+  else if (state.scenario.kind === 'campaign' && state.campaign && state.campaign.posting.level !== 'junior' && !state.campaign.briefed) { state.campaign.briefed = true; ui.showPaper(postingPaper(state.campaign), () => {}); }   // (a lesson's: its framing first: sim/tutorial/)
 }
 
 /** A test's result paper, with the ways on. */
@@ -397,7 +399,9 @@ input.onAction((action) => {
   if ((action === 'hit' || action === 'grapple' || action === 'guard') && !open && !paused) acts.push(input.poll().run ? `${action}+` : action);   // (Shift held: an edge spent)
 });
 addEventListener('keydown', (e) => {                               // (shooting's choice, time standing still: a digit, a step: sim/shooting.js options())
-  if (!running || ui.overlay() || paused || e.repeat || state?.shoot?.phase !== 'choose') return;
+  if (!running || ui.overlay() || paused || e.repeat) return;
+  if (state?.shoot?.phase === 'act' && state.shoot.doing?.what === 'fire' && /^(?:Digit|Numpad)1$/.test(e.code)) { e.preventDefault(); acts.push('shoot:fire'); return; }   // (1 again while the shot plays out: a double tap, a triple, sim/shooting.js tap())
+  if (state?.shoot?.phase !== 'choose') return;
   const m = /^(?:Digit|Numpad)([1-9])$/.exec(e.code), o = m && shootOptions(state)[Number(m[1]) - 1];
   if (o) { e.preventDefault(); acts.push(`shoot:${o.key}`); return; }
   if ((e.code === 'Enter' || e.code === 'NumpadEnter') && state.shoot.pick) { e.preventDefault(); acts.push(`shoot:aim:${state.shoot.pick}`); return; }   // (Enter: aim at the one the brackets are round)

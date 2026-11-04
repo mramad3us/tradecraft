@@ -66,7 +66,18 @@ export const AIM = { sight: 0.6, turn: { base: 90, per: 6 }, arc: { base: 30, pe
 export const HELD = 3, HELD_MAX = 4;                              // (DC off a second the aim's held, at most)
 export const TRIGGER_S = 0.15, RECOVER_S = 0.35;
 export const SHOT = { dc: 6 };                                    // (and the kind's DC by the metre and the metre's square: sim/firearms.js KINDS; a pistol's gets hard fast past 15 m)
-export const BURST_K = 2, BURST_GAP_S = 0.1;                       // (each round of a burst after the first: its DC off, × the recoil; the time between)
+export const BURST_K = 2, BURST_GAP_S = 0.1;
+// A double tap, a triple (the user, 2026-11-04: "we should be able to shoot several times (double tap instead of fire when
+// pressing 1 while the time is unfrozen after the first shot, and when skilled enough up to triple tap) with accuracy
+// dropping as it is now from recoil and recoil lessened by higher weapons skill"): Fire again while the shot's still playing
+// out (its recovery, time running), at the same aim, before the muzzle's back down: TAPS by Weapon handling (two from
+// TAP_SKILL[2], three from TAP_SKILL[3]); each after the first the muzzle's climb against it (BURST_K × its place × the
+// gun's recoil), less in a better hand (climbOf(): × CLIMB_MAX − skill / CLIMB_PER, down to CLIMB_MIN), its split TAP_SPLIT_S.
+export const TAP_SKILL = { 2: 8, 3: 18 }, TAP_SPLIT_S = 0.25, CLIMB_MAX = 1.4, CLIMB_PER = 25, CLIMB_MIN = 0.35;
+/** The most rounds p can put out in one press and a quick follow-up or two: 1, 2 (a double tap), 3 (a triple). */
+export const tapsOf = (p) => (skill(p, 'weapons') >= TAP_SKILL[3] ? 3 : skill(p, 'weapons') >= TAP_SKILL[2] ? 2 : 1);
+/** The muzzle's climb on a follow-up, by the hand: a novice's ×1.4, a skilled one's less, an expert's a third. */
+export const climbOf = (p) => Math.max(CLIMB_MIN, Math.min(CLIMB_MAX, CLIMB_MAX - skill(p, 'weapons') / CLIMB_PER));                       // (each round of a burst after the first: its DC off, × the recoil; the time between)
 export const PART_DC = { torso: 0, head: 6, legs: 3 };
 export const PARTS = ['head', 'torso', 'legs'];
 export const MAX_M = 60;
@@ -241,6 +252,7 @@ const fireMs = (p, M, n = 1) => Math.round((TRIGGER_S + (n - 1) * BURST_GAP_S + 
  */
 export function choose(state, bus, key) {
   const sh = state.shoot, me = playerOf(state), p = me && state.people[me.who];
+  if (sh && p && sh.phase === 'act' && key === 'fire') return tap(state, bus, me, p);   // (Fire again while the shot plays out: a double tap, a triple)
   if (!sh || !p || sh.phase !== 'choose') return false;
   const [k, arg] = key.split(':');
   if (k === 'pick') {                                               // (the next target across the picture: the arrows)
@@ -269,6 +281,7 @@ export function choose(state, bus, key) {
     sh.aim = null;
     text = `You bring ${modelOf(g.id).short} round onto ${T.a ? 'them' : 'it'}.`;
   } else if (k === 'fire') {
+    sh.doing.taps = 1;                                              // (a double tap's, a triple's, still to come: tap())
     shot(state, bus, me, p, g.id);
     if (!state.shoot) return true;                                  // (the shot ended it: you're down)
     ms = sh.doing.ms ?? ms;                                          // (a burst cut short: the rounds that went)
@@ -282,6 +295,24 @@ export function choose(state, bus, key) {
   }
   sh.doing.until = now + Math.max(TICK_MS, ms);
   sh.phase = 'act';
+  return true;
+}
+
+/**
+ * Fire again while a shot's still playing out (time running, the muzzle not yet back down): a follow-up at the same aim,
+ * the second of a double tap, the third of a triple, as the hand allows (tapsOf()); its split TAP_SPLIT_S, the recovery
+ * after the last. A semi-automatic's or a revolver's trigger; not a burst's, a bolt's or a pump's (they want working).
+ */
+function tap(state, bus, me, p) {
+  const sh = state.shoot, d = sh.doing, M = modelOf(sh.gun), g = armOf(p, sh.gun);
+  if (d?.what !== 'fire' || !M || !g || (d.taps ?? 1) >= tapsOf(p) || !sh.aim || (d.rounds ?? 1) > 1) return true;
+  if (!['semi', 'da', 'sa'].includes(M.action) || (g.mode && g.mode !== 'semi')) return true;
+  const now = state.time.ms;
+  if (now - d.start > fireMs(p, M, 1)) return true;                 // (the moment's gone: the muzzle's down, it's a new shot)
+  shot(state, bus, me, p, sh.gun, { follow: d.taps });
+  if (!state.shoot) return true;
+  d.taps = (d.taps ?? 1) + 1; d.start = now;
+  d.until = now + Math.round((TAP_SPLIT_S + RECOVER_S * M.recoil * pace(p)) * 1000);
   return true;
 }
 
@@ -366,7 +397,7 @@ const take = (p, id) => { const i = (p.items ?? []).indexOf(id); if (i >= 0) p.i
 const stowHand = (state, p, me) => { const k = p.hand; p.hand = null; (p.items ??= []).push(k); if (!placed(p).out.find(o => o.kind === k)?.at) { p.items.pop(); drop(state, p, me, k); } };
 
 /** The trigger pulled at the picked target (or where you face): the gun's say, the round's flight, its wound. */
-export function shot(state, bus, me, p, id) {
+export function shot(state, bus, me, p, id, { follow = 0 } = {}) {
   const sh = state.shoot, M = modelOf(id), T = targetOf(state, sh?.aim?.key ?? sh?.pick), g = armOf(p, id), n = roundsOf(g, M), da = M.decocker && !g?.cocked;
   const aimedAt = T && sh.aim?.key === T.key ? T : null;             // (no aim, no shot at anything: the user, 2026-11-03, "if you're not aiming you can't shoot")
   let f = null, fired = 0, hits = 0, first = null, words = [], last = null;
@@ -379,7 +410,7 @@ export function shot(state, bus, me, p, id) {
     if (o && da && !k) o.mods = [...o.mods, { why: 'the long double-action pull', v: DA_MOD }];
     if (!k) me.$shot = state.time.ms;                                 // (the muzzle's flash, and the kick: src/art; a burst's rounds after, in tick())
     if (aimedAt && o && !(aimedAt.a && state.people[aimedAt.a.who]?.dead)) {
-      const roll = check(state.rng, { skill: 'weapons', value: skill(p, 'weapons'), dc: o.dc, mods: k ? [...o.mods, { why: 'the muzzle climbing', v: -Math.round(BURST_K * k * M.recoil) }] : o.mods, body: p });
+      const climb = k + follow, roll = check(state.rng, { skill: 'weapons', value: skill(p, 'weapons'), dc: o.dc, mods: climb ? [...o.mods, { why: follow ? 'the muzzle still up from the last' : 'the muzzle climbing', v: -Math.round(BURST_K * climb * M.recoil * climbOf(p)) }] : o.mods, body: p });   // (a tap's or a burst's after the first: the climb, less in a good hand)
       first ??= roll;
       if (aimedAt.a && isPaper(state, aimedAt.a)) { const hole = shotAt(state, aimedAt.a, sh.part, roll); if (roll.ok) hits++; words.push(hole.words); }   // (a paper's: a hole by the roll, or the trap; sim/paper.js)
       else if (roll.ok) { hits++; last = aimedAt.item ? hitThing(state, aimedAt.item) : bullet(state, bus, aimedAt.a, sh.part, M, me); }   // (a burst's hits on them: the last one's words say how they are)
@@ -399,7 +430,7 @@ export function shot(state, bus, me, p, id) {
   if (f?.stoppage) say(state, bus, { kind: 'note', text: f.stoppage === 'double' ? 'It jams half-open: a double feed.' : 'The case doesn\'t clear: a stovepipe.' });
   else if (f?.empty) say(state, bus, { kind: 'note', text: M.feed === 'cylinder' ? 'Click: the cylinder\'s spent.' : M.holdOpen ? 'It locks back: empty.' : 'Empty.' });
   if (sh?.aim) sh.aim.settled = state.time.ms + Math.round(RECOVER_S * M.recoil * pace(p) * (1 + 0.3 * (fired - 1)) * 1000);   // (the muzzle comes down: steady again after)
-  if (sh?.doing) { sh.doing.ms = fireMs(p, M, fired) + (da ? DA_S * 1000 : 0); sh.doing.rounds = fired; }
+  if (sh?.doing && !follow) { sh.doing.ms = fireMs(p, M, fired) + (da ? DA_S * 1000 : 0); sh.doing.rounds = fired; }
   return f;
 }
 

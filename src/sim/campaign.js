@@ -329,7 +329,7 @@ export const goalOf = (p) => (p.level === 'junior' ? GOAL_JUNIOR : GOAL_INTEL);
 export function newCampaign(seed, character, city = 'moscow', level = 'handler', startMs = undefined, world = seed) {
   const p = posting(seed, city, startMs, level, world);
   const c = { seed, world, character, posting: p, day: dayOf(p.startMs), assignments: [], done: [], plannedTo: dayOf(p.startMs) - 1, worked: {}, log: [], reviews: [], awake: p.startMs, next: { },
-    calls: [{ id: 'hale', at: p.startMs + CALL_S * 1000 }], cabinet: { ...CABINET } };   // (day one: Hale on the telephone, the exercises or straight in: src/main.js; the bathroom cabinet's few things, sim/medicine.js)
+    calls: level === 'junior' ? [{ id: 'hale', at: p.startMs + CALL_S * 1000 }] : [], cabinet: { ...CABINET } };   // (Hale and his exercises: the first station's, London's first tour, only; the user, 2026-11-04, "no tutorials on stations past the first station London, no calls from Hale")   // (day one: Hale on the telephone, the exercises or straight in: src/main.js; the bathroom cabinet's few things, sim/medicine.js)
   born(character, p.startMs);                                      // (their birth, from the file's age: the years go by, sim/career.js)
   for (const t of p.targets) fileOf(c, t);                         // (the station's files on them: sim/dossier.js)
   for (const s of p.assets) assetFile(c, s);

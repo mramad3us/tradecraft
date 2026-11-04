@@ -45,20 +45,22 @@ export default [
     },
   },
   {
-    name: 'interiors: the campaign\'s flat: day one in it, Hale\'s call answered at the telephone, out of the front door and back, a save and a load, the bed by day (a nap) and the night',
+    name: 'interiors: the campaign\'s flat: day one in it, Hale\'s call answered at the telephone (a first tour; a posting of one\'s own, no call), out of the front door and back, a save and a load, the bed by day (a nap) and the night',
     fn() {
-      for (const city of ['moscow', 'cairo']) for (const seed of [3, 8]) {
-        const c = newCampaign(seed, candidates(seed, city)[0], city), s = newGame({ seed, scenario: 'campaign', campaign: c }), bus = createBus(), calls = [];
+      for (const [city, level, seed] of [['london', 'junior', 3], ['london', 'junior', 8], ['moscow', 'handler', 3], ['cairo', 'handler', 8]]) {
+        const c = newCampaign(seed, candidates(seed, city, level)[0], city, level), s = newGame({ seed, scenario: 'campaign', campaign: c }), bus = createBus(), calls = [];
         bus.on('call', (id) => calls.push(id));
         start(s, bus);
         const me = () => playerActor(s);
         assert(s.map.kind === 'interior' && s.map.place === 'home', `${city} ${seed}: day one in the flat`);
         // (the telephone rings; T, and you walk to it, round the furniture, and pick up)
         for (let i = 0; i < (CALL_S + 1) * 20; i++) step(s, {}, bus);
-        assert(s.scenario.prompt?.act === 'phone', `${city} ${seed}: the telephone ringing (${s.scenario.prompt?.text})`);
-        step(s, { act: ['instinct'] }, bus);
-        for (let i = 0; i < 600 && !calls.length; i++) step(s, {}, bus);
-        assert(calls[0] === 'hale', `${city} ${seed}: walked to it and picked up`);
+        if (level === 'junior') {                                       // (Hale: the first tour's only, sim/campaign.js newCampaign())
+          assert(s.scenario.prompt?.act === 'phone', `${city} ${seed}: the telephone ringing (${s.scenario.prompt?.text})`);
+          step(s, { act: ['instinct'] }, bus);
+          for (let i = 0; i < 600 && !calls.length; i++) step(s, {}, bus);
+          assert(calls[0] === 'hale', `${city} ${seed}: walked to it and picked up`);
+        } else assert(s.scenario.prompt?.act !== 'phone' && !(c.calls ?? []).length, `${city} ${seed}: a posting of one's own: no call from Hale (${s.scenario.prompt?.text})`);
         // (out by the front door: the street, at your door; T there, and up again)
         const p = s.$world.sections.get(0).plan, e = p.exits[0];
         Object.assign(me(), { x: (e.x0 + e.x1) / 2, z: e.z1 - 0.05 });

@@ -53,7 +53,7 @@ import { order, lapse, dropHere, atDrop } from '../market.js';
 import { chiefWays, chiefDo } from '../armoury.js';
 import { price } from '../money.js';
 import { screen } from '../screening.js';
-import { ways as tableWays, work as gunWork } from '../gunwork.js';
+import { ways as tableWays, work as gunWork, LIVE_MAX_S } from '../gunwork.js';
 import { discharge } from '../shooting.js';
 import { N_M, HALL_M } from '../interiors/embassy.js';
 import { signOf, missionPlace } from '../places.js';
@@ -114,6 +114,11 @@ export const campaignHub = {
     if (state.map.kind === 'street' && state.scenario.tail === undefined && !state.scenario.window) outing(state, 'street');
   },
 
+  /** A lived job done (sim/game.js: busy's done 'scene:<what>'): the kitchen table's card again, if there's more to do at it. */
+  afterBusy(state, bus, what) {
+    if (what === 'table' && state.map.place === 'home' && tableWays(state.people.me).length) bus?.emit('table', [...(larderOf(state.campaign).meals ? [{ key: 'eat', label: `Something to eat (20 min; ${larderOf(state.campaign).meals} meals in)` }] : []), ...tableWays(state.people.me)]);
+  },
+
   act(state, bus, action) {
     const c = state.campaign;
     if (action === 'instinct') return use(state, bus, state.scenario.prompt?.act);
@@ -155,6 +160,8 @@ export const campaignHub = {
       const key = action.split(':').slice(2).join(':'), me = state.actors.find(a => a.who === state.player);
       if (key === 'eat') { use(state, bus, 'eat', true); return; }
       const ms = gunWork(state, bus, state.people.me, key, { bang: (st, b, id) => discharge(st, b, me, st.people.me, id, 'rack', { fired: true }) });
+      // (a magazine's rounds, a few seconds to a minute or two: lived, sat at the table, the clock running; the card again when it's done; longer, skipped)
+      if (ms && ms <= LIVE_MAX_S * 1000 && me && !state.scenario.outcome) { me.busy = { what: 'table', steps: [['wait', Math.round(ms / TICK_MS), me.face, 'idle']], wait: 0, done: 'scene:table', since: state.time.ms }; me.vx = me.vz = 0; return; }
       if (ms) skip(state, bus, ms);
       if (state.map.place === 'home' && tableWays(state.people.me).length) bus?.emit('table', [...(larderOf(c).meals ? [{ key: 'eat', label: `Something to eat (20 min; ${larderOf(c).meals} meals in)` }] : []), ...tableWays(state.people.me)]);   // (and still at the table: what else)
     }
@@ -255,7 +262,7 @@ export const campaignHub = {
     // (a spot walked to: what you went there for)
     if (state.scenario.using && me && !me.busy) { const u = state.scenario.using; state.scenario.using = null; if (spotNear(state, me)?.kind === u.spot) use(state, bus, u.act, true); }
     // (a call: the telephone rings in the flat, when it's due and you're there)
-    const call = (c.calls ?? []).find(k => !k.done && now >= k.at);
+    const call = (c.calls ?? []).find(k => !k.done && now >= k.at && (k.id !== 'hale' || c.posting.level === 'junior'));   // (Hale only on a first tour: a save's from before, quiet)
     if (call && state.map.place === 'home' && !call.rang) { call.rang = now; say(state, bus, { kind: 'note', text: 'The telephone rings.' }); }
     // (let ring, it stops: Hale, most likely; his number's on the pad by it, and he'll be glad to hear from you)
     if (call?.rang && now - call.rang > RING_S * 1000) { call.done = now; call.missed = true; say(state, bus, { kind: 'note', text: 'The telephone stops. Hale, most likely: his number\'s on the pad by it.' }); }
@@ -453,7 +460,7 @@ function use(state, bus, act, here = false) {
     call.done = state.time.ms;
     say(state, bus, { kind: 'note', text: 'You pick up.' });
     bus?.emit('call', call.id);
-  } else if (act === 'call') { say(state, bus, { kind: 'note', text: 'You dial the number Hale left you.' }); bus?.emit('call', 'hale-again'); }
+  } else if (act === 'call' && c.posting.level === 'junior') { say(state, bus, { kind: 'note', text: 'You dial the number Hale left you.' }); bus?.emit('call', 'hale-again'); }
   else if (act === 'sleep') {
     // (late, or worn out: to bed; by day the bed asks how long: sim/ui's choices, back as desk:sleep, desk:rest:nap, desk:rest:lie)
     const k = calendar(state.time.ms);
@@ -500,7 +507,7 @@ function wash(state, bus) {
 // (the instinct's line at a spot in the flat: [its words, its act])
 const SPOT_LINE = {
   sleep: (state) => { const h = calendar(state.time.ms).hour; return [h >= 20 || h < 5 ? 'Your bed. {instinct}: sleep till seven.' : 'Your bed. {instinct}: a nap, a rest, or the night.', 'sleep']; },
-  phone: () => ['The telephone. {instinct}: call Hale, about the exercises.', 'call'],
+  phone: (state) => (state.campaign.posting.level === 'junior' ? ['The telephone. {instinct}: call Hale, about the exercises.', 'call'] : null),   // (Hale's number: a first tour's)
   wash: (state) => [`The basin${kitWords(state.campaign.cabinet) ? ', the cabinet over it' : ''}. {instinct}: ${state.people.me.bloody ? 'wash the blood off' : 'wash'}, a clean shirt${kitWords(state.campaign.cabinet) ? `; or the cabinet: ${kitWords(state.campaign.cabinet)}` : ''}.`, 'wash'],
   eat: (state) => { const m = larderOf(state.campaign).meals, food = m ? `something to eat (${m} meal${m > 1 ? 's' : ''} in)` : 'the cupboard\'s bare: a grocer\'s'; return tableWays(state.people.me).length ? [`The kitchen table. {instinct}: ${food}, or your gun on the table.`, 'table'] : [`The kitchen table. {instinct}: ${food}.`, m ? 'eat' : null]; },
   cook: () => ['The cooker. {instinct}: something to eat.', 'eat'],

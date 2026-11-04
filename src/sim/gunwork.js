@@ -108,7 +108,7 @@ export function work(state, bus, p, key, { bang = null } = {}) {
     if (job === 'fill') { p.rounds[cal] -= n; m.n += n - lost; }
     else { m.n = 0; p.rounds[cal] = (p.rounds[cal] ?? 0) + Math.max(0, n - lost - dummy); }
     if (p.rounds[cal] <= 0) delete p.rounds[cal];
-    text = `${cap(armName(id))}: ${job === 'fill' ? `${before} → ${m.n}` : `${n - lost} round${n - lost === 1 ? '' : 's'} into the box`}.${lost ? ` ${lost} went skittering under the furniture, and stay there.` : ''}`;
+    text = `${cap(armName(id))}: ${job === 'fill' ? `${before} → ${m.n}` : `${n - lost} round${n - lost === 1 ? '' : 's'} into the box`}, ${spanWords(s)}${job === 'fill' && n >= 8 ? ', the thumb sore by the last' : ''}.${lost ? ` ${lost} went skittering under the furniture, and stay there.` : ''}`;   // (the time it took: a round at a time, by the hand, pace(); the user, 2026-11-04, "filling and emptying magazines with bullets should take time based on weapons handling skill")
   } else if (job === 'spring') {
     const m = armOf(p, id);
     if (bad) { m.cond = BENT_COND; text = `The spring's out with a twang, and a lip of ${armName(id)} bent getting it back: it'll feed badly now.`; }
@@ -117,6 +117,15 @@ export function work(state, bus, p, key, { bang = null } = {}) {
   say(state, bus, { kind: 'roll', roll, text });
   return Math.round(s * 1000);
 }
+
+// (how long a job took, in words: "40 seconds", "a minute and a half")
+export function spanWords(s) {
+  if (s < 55) return `${Math.max(5, Math.round(s / 5) * 5)} seconds`;
+  const m = Math.round(s / 30) / 2;
+  return m === 1 ? 'a minute' : m === 1.5 ? 'a minute and a half' : m % 1 ? `${Math.floor(m)} and a half minutes` : `${m} minutes`;
+}
+/** Seconds of a job lived through at the table (the clock running, you at it), rather than skipped: LIVE_MAX_S. */
+export const LIVE_MAX_S = 180;
 
 /** Everything out of a gun into its holder's hands: the magazine to the pockets, the rounds to the box. */
 function unload(p, id) {

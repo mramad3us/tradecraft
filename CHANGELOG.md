@@ -4,6 +4,13 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.27 (2026-11-04)
+
+- **Hale is the first station's.** His welcome call, his exercises and his number by the phone come with the first tour, in London, and only there. A posting of your own starts with its posting's paper instead, and nobody rings. A saved game from before that's already past its first tour stays quiet too.
+- **Magazines take their time, and you see it.** Filling or emptying one at the kitchen table or a range's bench is a round at a time, by your Weapon handling: about 3.5 s a round untrained, 2.8 at 5, 1.3 for an expert, emptying faster. It's lived rather than skipped: you sit at it with the clock running, and the card comes back when you're done. The line says how long it took ("40 seconds, the thumb sore by the last"). Longer jobs, like stripping and cleaning, still skip.
+- **Double and triple taps.** Press 1 (or click) again while a shot's still playing out, before the muzzle's back down, and you fire a quick follow-up at the same aim. Weapon handling 8 and up gives a double tap, 18 and up a triple; below 8, it's one shot at a time. Each follow-up takes the muzzle's climb against it, less in a better hand: × 1.24 at Weapon handling 4, × 0.92 at 12, × 0.44 at 24. Bursts now get the same steadier hand. It works on semi-automatics and revolvers, not bolts or pumps.
+- Tests: interiors (a first tour's call, a posting's silence); shooting (the taps by skill); the range's scripted shooter waits out the bench.
+
 ## v0.1.26 (2026-11-04)
 
 - **The world's business, over the years.** A station's tasking now comes from what its country is caught up in at the time. Each issue rises, matters for a year and a half to four, and is settled, and another has risen by then. It's built procedurally: a country's profile says what kinds of business it has (a weapons programme, sanctions, a succession, armies for hire, a rival's money or spies, arms routes, hostages, a bank collapse, a border war, an insurgency, a river, arms deals, smuggling) and the names they need. The world's seed picks the rest and lays it out in time. Back at a station after years away, the posting's paper says what changed while you were gone.
