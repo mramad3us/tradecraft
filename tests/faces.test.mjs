@@ -1,4 +1,4 @@
-// Advanced disguises (sim/disguise.js LOOKS; docs/POSTINGS.md): a change of face, age and build made by the agency's disguise
+// Advanced disguises (sim/disguise.js LOOKS; DESIGN.md, Cover, heat and the hunt: Disguise): a change of face, age and build made by the agency's disguise
 // officer (from a handler's posting on, one with a network to run), kept at a safe house, put on there; the description the hunt
 // has isn't yours while it's on; a good eye reads through it, the better the disguise the rarer; taken off at its safe house it's
 // kept, anywhere else it's spent.

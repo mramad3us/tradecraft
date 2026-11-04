@@ -1,4 +1,4 @@
-// Under a legend (docs/POSTINGS.md; sim/prison.js, sim/dial.js, sim/campaign.js pass() and blow(), sim/scenarios/campaign.js):
+// Under a legend (DESIGN.md, Cover, heat and the hunt: Under a legend; sim/prison.js, sim/dial.js, sim/campaign.js pass() and blow(), sim/scenarios/campaign.js):
 // no diplomatic immunity (an arrest is the legend looked into, and bail, a sentence, or their prison), the job lost fails the
 // posting, blown is hunted not expelled (the flat theirs, the way out your own), the agency's support thin (no extraction), the
 // station's word by dead drop; what each end makes of the career.

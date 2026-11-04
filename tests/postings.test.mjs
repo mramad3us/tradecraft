@@ -1,10 +1,10 @@
-// The career into the deep postings (sim/postings.js, sim/legends.js, sim/incubation.js; docs/POSTINGS.md): what a posting's
+// The career into the deep postings (sim/postings.js, sim/legends.js, sim/incubation.js; DESIGN.md, Career: The deep postings): what a posting's
 // end offers (an undercover post after a handler's, never where your face is on file, never London; an illegal's for Tradecraft
 // 80 and an undercover post carried out), the training and the incubation before it (the clock, the age, the language, the
 // legend's history), the legends' start and their pretext, retiring at a posting's end, the deep start from the picker, and the
 // long rivalries a deep post draws its purpose from (sim/geopolitics.js).
 import { candidates, newCampaign, legendFile, record, LEVELS, heatFloor, pass } from '../src/sim/campaign.js';
-import { offers, nextPosting, facesOf, careerEnd, forecast, LEGEND_AFTER } from '../src/sim/postings.js';
+import { offers, nextPosting, facesOf, careerEnd, forecast, afterPhases, LEGEND_AFTER } from '../src/sim/postings.js';
 import { incubationOf, ciOf, UNDERCOVER_MONTHS, ILLEGAL_YEARS, YEAR, MONTH } from '../src/sim/incubation.js';
 import { DEEP, DEEP_CITIES, isDeep } from '../src/sim/legends.js';
 import { threads, purposeAt, rivalryOf } from '../src/sim/geopolitics.js';
@@ -76,20 +76,26 @@ export default [
     },
   },
   {
-    name: 'postings: the illegal\'s gate (the user, 2026-11-04): a posting done well and under 30, nothing else (a first tour at 26 opens all three; at 30, none; sacked, none); the training ends at Tradecraft 80; native; years lying low; the last posting: nothing after it; brought out, the career\'s over',
+    name: 'postings: the illegal\'s gate: a posting of your own carried out, under 30 (a first tour alone, not yet; a handler\'s done at 26, open but in its own country; at 30, none; sacked, none; a legend at 50, open); the school (two years, or the language to fluent): the floors and Tradecraft 80 at once, fluent at its end, native on day one; the last posting',
     fn() {
-      const young = { ...candidates(13, 'london', 'junior')[0], age: 26 }, old = { ...young, age: 30 }; delete young.born; delete old.born;
-      const J = ended(newCampaign(13, young, 'london', 'junior'), 70, 'promoted'), O = ended(newCampaign(13, old, 'london', 'junior'), 70, 'promoted');
-      const il = open(offers(J, J.over.ms), 'illegal'), closed = offers(O, O.over.ms).find(o => o.kind === 'illegal');
-      const S = ended(nextPosting(J, 'moscow', 'official'), 40, 'sacked'); S.character.os = 95;
-      assert(il.join() === 'moscow,beirut,cairo' && !closed.ok && /under 30/.test(closed.why) && !open(offers(S, S.over.ms), 'illegal').length && J.character.os < ILLEGAL_OS, `at 26: ${il}; at 30: ${closed.why}; sacked: ${open(offers(S, S.over.ms), 'illegal')}; Tradecraft ${J.character.os}`);
-      const paper = planPaper(J.character, 'cairo', 'illegal');
-      const i = nextPosting(J, 'cairo', 'illegal'), p = i.posting, y = p.incubation.months / 12;
-      assert(p.level === 'illegal' && i.character.os === ILLEGAL_OS && i.character.langs.ar === 'native' && y >= 3 && y <= 14 && i.character.skills.deception[0] >= 20 && paper.lines.some(l => /Tradecraft 80/.test(l)), `illegal: Tradecraft ${i.character.os}, ${i.character.langs.ar}, ${fmt(y, 1)} years`);
+      const mk = (age, legend = false) => { const ch = legend ? legendFile(13, 'london', 'junior') : { ...candidates(13, 'london', 'junior')[0] }; ch.age = age; delete ch.born; return ended(newCampaign(13, ch, 'london', 'junior'), 20, 'promoted'); };
+      const J = mk(26), tour = offers(J, J.over.ms).find(o => o.kind === 'illegal');
+      const H = ended(nextPosting(J, 'moscow', 'official'), 25), il = open(offers(H, H.over.ms), 'illegal');
+      const O = ended(nextPosting(mk(29), 'moscow', 'official'), 400), old = offers(O, O.over.ms).find(o => o.kind === 'illegal' && o.city === 'cairo');
+      const S = ended(nextPosting(J, 'moscow', 'official'), 40, 'sacked');
+      const G = ended(nextPosting(mk(50, true), 'beirut', 'undercover'), 60), lg = open(offers(G, G.over.ms), 'illegal');
+      assert(!tour.ok && /of your own/.test(tour.why) && il.join() === 'beirut,cairo' && !old.ok && /under 30/.test(old.why) && !open(offers(S, S.over.ms), 'illegal').length && lg.join() === 'moscow,cairo',
+        `the tour alone: ${tour.why}; a handler's at 26: ${il}; at ${ageOf(O.character, O.over.ms)}: ${old.why}; sacked: ${open(offers(S, S.over.ms), 'illegal')}; a legend: ${lg}`);
+      const W = forecast(H, 'cairo', 'illegal', H.over.ms), paper = planPaper(H.character, 'cairo', 'illegal', afterPhases(H, 'cairo', 'illegal', H.over.ms));
+      const i = nextPosting(H, 'cairo', 'illegal'), p = i.posting, y = p.incubation.months / 12, school = i.career.find(k => k.level === 'training');
+      const schoolY = (school.until - school.from) / YEAR;
+      assert(p.level === 'illegal' && i.character.os === ILLEGAL_OS && i.character.langs.ar === 'native' && y >= 3 && y <= 14 && i.character.skills.deception[0] === 20 && i.character.skills.medicine[0] >= 14 && schoolY >= 2 && schoolY <= 3.2
+        && paper.lines.some(l => /Tradecraft 80/.test(l)) && paper.lines.some(l => /native comes after/.test(l)) && p.life.lines.some(l => /to native in the first/.test(l)), `illegal: Tradecraft ${i.character.os}, ${i.character.langs.ar}, school ${fmt(schoolY, 1)} y, ${fmt(y, 1)} years`);
       ended(i, 400);
-      const brought = ended(nextPosting(J, 'cairo', 'illegal'), 400, 'brought');
+      const brought = ended(nextPosting(H, 'cairo', 'illegal'), 400, 'brought');
       assert(!offers(i, i.over.ms).length && careerEnd(brought, brought.over.ms)?.why === 'last', 'the last posting');
-      console.log(`      a first tour done at 26: illegal offered in ${il.join(', ')}; at 30: "${closed.why}"; for Cairo: Tradecraft ${J.character.os} → ${i.character.os}, ${fmt(y, 1)} years lying low, activated ${yearOf(p.startMs)} at ${ageOf(i.character, p.startMs)}; the paper: "${paper.lines.find(l => /Tradecraft 80/.test(l))}"`);
+      console.log(`      London alone: "${tour.why}"; a handler's posting done at ${ageOf(H.character, H.over.ms)}: illegal in ${il.join(', ')} (Moscow, its face); at ${ageOf(O.character, O.over.ms)}: "${old.why}"; a legend of ${ageOf(G.character, G.over.ms)} after an undercover post: ${lg.join(', ')}`);
+      console.log(`      for Cairo: the school ${fmt(schoolY, 1)} years, Tradecraft ${H.character.os} → ${i.character.os}, fluent → native lying low (${p.life.lines.find(l => /to native/.test(l))}), ${fmt(y, 1)} years of it, activated ${yearOf(p.startMs)} at ${ageOf(i.character, p.startMs)}; the paper: "${paper.lines.find(l => /Tradecraft 80/.test(l))}"`);
     },
   },
   {

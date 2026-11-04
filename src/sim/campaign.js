@@ -56,7 +56,7 @@
 // next step; an asset trusted enough (TRUSTED) brings more (yield 2).
 // **The file** (record()): the career as the character sheet (C) shows it: the posting now, the postings before
 // it (c.career: promote()), every assignment done or missed and how it went as the officer knows it, the reviews.
-// **The deep postings** (0.2's: docs/POSTINGS.md): the rungs under a legend and an illegal's (LEVELS), a posting made deep from a
+// **The deep postings** (0.2's: DESIGN.md, Career: The deep postings): the rungs under a legend and an illegal's (LEVELS), a posting made deep from a
 // handler's (posting(): sim/legends.js deepPosting()), its heat's floor nothing (heatFloor()), blown not expelled (blow()), the job
 // lost the posting lost (pass()), the week's review left at a drop, an illegal's taskings one after another (nextTasking()); the
 // career's offers and the next posting are sim/postings.js's.
@@ -77,7 +77,7 @@ import { taskingAt, purposeAt } from './geopolitics.js';
 import { LANG_NAME } from './langs.js';
 import { POLICE_COOL_DAY } from './police.js';
 import { LESSON_BOOK, lessonBook, sceneOf } from './lessons.js';
-import { deepPosting, backstory, isDeep, DEEP_LEVELS, GOAL_DEEP, DEEP_CITIES } from './legends.js';   // (0.2's deep postings: docs/POSTINGS.md)
+import { deepPosting, backstory, isDeep, DEEP_LEVELS, GOAL_DEEP, DEEP_CITIES } from './legends.js';   // (0.2's deep postings: DESIGN.md, Career: The deep postings)
 export { LESSON_BOOK, lessonBook, sceneOf };
 export const LESSON_GAP_H = 2, LESSON_XP_K = 0.4;
 
@@ -116,7 +116,7 @@ export const WATCHED_MAX = 0.85, COVERT_MAX = 0.75;
 export const GOAL_INTEL = 10;                                  // (six or seven good operations: two or three weeks, done well)
 export const TRUSTED = 4;
 export const GOAL_JUNIOR = 6;                                      // (a first tour: four or five good evenings, a trip done well)
-// The career's rungs, lowest first (DESIGN.md, Next: the ladder to an illegal; the deep two, 0.2's: sim/legends.js, docs/POSTINGS.md).
+// The career's rungs, lowest first (DESIGN.md, Next: the ladder to an illegal; the deep two, 0.2's: sim/legends.js, DESIGN.md, Career: The deep postings).
 export const LEVELS = [
   { id: 'junior', name: 'A first tour', rank: 'Junior officer', about: cityById(FIRST_TOUR_CITY).station.firstTour?.about },   // (its station's words: London's)
   { id: 'handler', name: 'A posting of your own', rank: 'Handler', about: 'A station of your choosing under official cover: a network to run, a man to watch, the heat to keep down.' },
@@ -279,8 +279,8 @@ export function candidates(seed, city = 'moscow', level = 'handler') {
  * Officers who start under a legend (LEVELS' deep rungs: an undercover officer's, opened by a game that's carried one out; an
  * illegal's, debug's only): a handler's file, the post's training done (sim/career.js FLOORS, the language to fluent or native),
  * a past behind them (sim/legends.js backstory()). Undercover: aged on a few years, Tradecraft DEEP_OS. An illegal (the user's
- * branch for the young): gone illegal at BACK_DECIDED (under ILLEGAL_AGE, after a first tour done well, perhaps a handler's
- * posting), the training's own weeks and this posting's incubation since (so their age on day one is that), Tradecraft ILLEGAL_OS.
+ * branch for the young): gone illegal at BACK_DECIDED (under ILLEGAL_AGE, a handler's posting done well after London's first
+ * tour), the school's own weeks and this posting's incubation since (so their age on day one is that), Tradecraft ILLEGAL_OS.
  */
 export const DEEP_OS = { undercover: [55, 69] }, BACK_DECIDED = [25, ILLEGAL_AGE - 1];
 export const ILLEGAL_REHIRED = 40;                                 // (an illegal's job lost: another, the standing this)
@@ -533,7 +533,7 @@ export function pass(c, from, to) {
     if (isWorkday(dayMs) && !c.worked[d] && d >= Math.max(dayOf(p.startMs), p.deskFrom ?? 0)) { p.cover = Math.max(0, p.cover - COVER_MISSED); c.log.push({ ms: dayMs + 18 * HOUR, text: p.embassy.door ? `A working day missed at ${p.employer}, and no call to say why. Your boss noticed.` : 'A working day missed at the embassy. Someone noticed.' }); }
     const next = calendar((d + 1) * DAY);
     if (next.day === 1 && next.month !== p.money.paid) { p.money.paid = next.month; p.money.bank = (p.money.bank ?? 0) + p.money.salary; p.money.fundLeft = p.money.fund; papers.push({ kind: 'pay', title: 'PAY', lines: isDeep(p) ? [`${p.employer}'s pay, and the rest of it from a relative abroad who doesn't exist: $${p.money.salary}.`, `The fund, in cash, from a drop you'll never see filled: $${p.money.fund}.`] : [`Salary in: $${p.money.salary}.`, `The operational fund topped up to $${p.money.fund}.`] }); }
-    // (the week's review; under a legend, the station's word left at a drop on Monday morning for you to collect: sim/dial.js, docs/POSTINGS.md)
+    // (the week's review; under a legend, the station's word left at a drop on Monday morning for you to collect: sim/dial.js, DESIGN.md, Career: The deep postings)
     if (weekday(dayMs) === 6) { const R = review(c, dayMs); if (isDeep(p)) (c.signals ??= []).push({ paper: { ...R, title: R.title.replace('THE WEEK', p.level === 'illegal' ? 'THE CENTER' : 'THE STATION') }, from: dayMs + DAY + WAKE_H * HOUR }); else papers.push(R); }
     // (a day goes by: the opposition's interest cools a little, never to nothing: official cover's floor is HEAT_FLOOR (embassy
     // staff are watched), an unofficial cover's 1 once it's ever risen past it, so your own phone's a watched line from then

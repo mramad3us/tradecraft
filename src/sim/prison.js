@@ -1,4 +1,4 @@
-// TRADECRAFT sim: arrested with no diplomatic passport (docs/POSTINGS.md; DESIGN.md, Career: the undercover officer has "no
+// TRADECRAFT sim: arrested with no diplomatic passport (DESIGN.md, Cover, heat and the hunt: Under a legend; DESIGN.md, Career: the undercover officer has "no
 // immunity"; Cover, heat and the hunt: "An arrest is survivable unless it also blows the cover, which will be under scrutiny.
 // Captured alone costs time: deadlines pass, and posting objectives can fail badly. Captured and burned is game over").
 // sim/armed.js arrest() hands a deep posting's arrest here (jailed()), with what they had you for; so do sim/hunt.js

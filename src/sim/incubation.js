@@ -14,6 +14,8 @@
 // **What's lived** (life()): the legend's true history, on the file: the job since its first day, the flat, the café, the
 // colleagues who know you by the legend's name; for an illegal, years of it: a marriage perhaps (MARRY_P, more the longer),
 // a child, the neighbours, the man at the kiosk who keeps the paper for you. Lines for the file (sim/campaign.js record()).
+// **The language** (an illegal's): fluent at the school's end, native by day one: the last step lived among its speakers in the first
+// NATIVE_K of the language's FSI weeks of it (sim/career.js), inside the three years at least (lived(); on the file, life()).
 // **What it does to the officer** (lived()): the legend lived every day keeps Deception and Social up (you lie, you charm,
 // for a living); the street's craft goes unused, lying low (LIVED_RUST: a level of rust on the street skills and the
 // fighting ones undercover, two as an illegal, sim/rust.js), and the calendar's months start from the day you're activated.
@@ -25,6 +27,8 @@ import { targetOf } from './legends.js';
 import { streetName } from './map/street.js';
 import { DAY, calendar, MONTHS } from './clock.js';
 import { periodOf, RUST_MAX } from './rust.js';
+import { LANG_WEEKS, NATIVE_K } from './career.js';
+import { LANG_NAME } from './langs.js';
 
 export const MONTH = 30.44 * DAY, YEAR = 365.25 * DAY;
 export const UNDERCOVER_MONTHS = [3, 20], ILLEGAL_YEARS = [3, 14];
@@ -72,6 +76,8 @@ export function life(seed, P, character, kind) {
       lines.push(`Married ${given} ${family} in ${month(wed)}, who has never known what you are, and never will if you're good.`);
       if (years >= 4 && chance(r, CHILD_P)) { const [cg] = K.people.name(r, chance(r, 0.5) ? 'f' : 'm', 2); out.child = { name: cg, born: wed + Math.round(range(r, 1, 2.5) * YEAR) }; lines.push(`A child, ${cg}, born ${month(out.child.born)}.`); }
     } else lines.push(pick(r, ['Alone, as far as the neighbours know: a quiet one, polite on the stairs.', 'A friend or two from work, a name-day remembered, nobody close.', 'Engaged once, years ago; it didn\'t take, and nobody wonders why any more.']));
+    const lang = K.lang, nw = lang === 'en' ? 0 : Math.round((LANG_WEEKS[lang] ?? 44) * NATIVE_K);
+    if (nw) lines.push(`${LANG_NAME[lang] ?? lang} to native in the first ${nw >= 52 ? `${Math.round(nw / 52 * 10) / 10} years` : `${Math.round(nw / 4.35)} months`} of it, among its speakers: no accent now, nothing.`);
     lines.push(`${Math.round(years * 10) / 10} years of it, lying low: no signal, no drop, nothing that would make anyone look twice. The Center's word, when it comes, will be the first in all that time.`);
   } else {
     lines.push(`${pick(r, ['Colleagues who know you by the legend\'s name, and a boss who likes your work', 'An editor who thinks you\'re wasted on the job, and says so', 'A desk by the window, and colleagues who invite you to their name-days'])}: ${I.months} months of being nobody but ${P.alias}.`);
@@ -83,8 +89,9 @@ export function life(seed, P, character, kind) {
  * The incubation lived by the officer p, activated at ms (kind: 'undercover' | 'illegal'): the street's craft rusty from lying low
  * (LIVED_RUST), Deception and Social kept by living the legend, the rust's calendar from the day you're activated. p, changed.
  */
-export function lived(p, kind, ms) {
+export function lived(p, kind, ms, lang = null) {
   if (!p?.skills) return p;
+  if (kind === 'illegal' && lang && lang !== 'en') p.langs = { ...(p.langs ?? {}), [lang]: 'native' };   // (the last step to native, among its speakers: native on day one)
   const L = LIVED_RUST[kind] ?? LIVED_RUST.undercover, rust = (p.rust ??= {});
   for (const k of STREET) rust[k] = Math.min(RUST_MAX, Math.max(rust[k] ?? 0, L.street));
   for (const k of FIGHT) rust[k] = Math.min(RUST_MAX, Math.max(rust[k] ?? 0, L.fight));

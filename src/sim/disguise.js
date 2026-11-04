@@ -52,7 +52,7 @@ export function remove(p) {
   return adv ? 'The latex off at a basin, in strips, the glue with it: you again, as they described you, and that face is gone for good.' : 'The wig, the glasses, the rest of it off and into a pocket: you again, as they described you.';
 }
 
-// **Advanced disguises** (0.2's, docs/POSTINGS.md; the user, 2026-11-04: "we will be able to change our face description+age+build
+// **Advanced disguises** (0.2's, DESIGN.md, Cover, heat and the hunt: Disguise; the user, 2026-11-04: "we will be able to change our face description+age+build
 // (1 description, disguises will allow us to alter all three depending on how good the disguise is)"; "disguises will begin at
 // officer level when we have to manage networks"). A change of look beyond a coat or a kit's rinse (LOOKS: older, heavier, another
 // face; each what it makes of your age, your build and your face, and what shows of it on you), made by the agency's disguise

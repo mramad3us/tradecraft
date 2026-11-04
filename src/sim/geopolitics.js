@@ -13,7 +13,7 @@
 // come again). **A posting's tasking** (taskingAt()): the station's country's newest issue open at the posting's start.
 // **The news** (newsBetween()): what rose and what was settled between two dates, a line each (a posting's brief after
 // time away).
-// **The long rivalries** (RIVALRIES, THREADS: 0.2's, docs/POSTINGS.md; the user, 2026-11-04: "these postings should link to long
+// **The long rivalries** (RIVALRIES, THREADS: 0.2's, DESIGN.md, 0.2: the deep postings; the user, 2026-11-04: "these postings should link to long
 // running geopolitics (not surface stuff like regular officers who can be deployed to take part in a task force …) like decades
 // long rivalry with a country"). Between the agency's country (AGENCY_COUNTRY) and another, played out where a country's
 // profile says (rivalry: { [the agency's country]: { since, the (in words), threads (THREADS' keys), rival, patron, leader } }:

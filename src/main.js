@@ -29,7 +29,7 @@ import { candidates, legendFile, newCampaign, context, fold, heatWord, KINDS, LE
 import { missionPlace } from './sim/places.js';
 import { planPaper, retires, successorStart, ageOf } from './sim/career.js';
 import { newsBetween } from './sim/geopolitics.js';
-import { offers, nextPosting, careerEnd, afterPhases, deepPaper } from './sim/postings.js';   // (0.2's deep postings: docs/POSTINGS.md)
+import { offers, nextPosting, careerEnd, afterPhases, deepPaper } from './sim/postings.js';   // (0.2's deep postings: DESIGN.md, Career: The deep postings)
 import { isDeep, DEEP_LEVELS, DEEP_CITIES } from './sim/legends.js';
 import { cityById, CITY_IDS, FIRST_TOUR_CITY } from './sim/cities/index.js';
 import { shopWord } from './sim/shops.js';

@@ -1,4 +1,4 @@
-// TRADECRAFT sim: the career into the deep postings (docs/POSTINGS.md; DESIGN.md, Career: ranks and classes, and Toward 0.2).
+// TRADECRAFT sim: the career into the deep postings (DESIGN.md, Career: ranks and classes, The deep postings).
 // A posting's end offers the next (offers()); one chosen, the time before it goes by and the officer with it (nextPosting()).
 //
 // **What's offered** (offers(): at a posting's end, done well; nothing to a career that's over, nor to an illegal, whose post
@@ -14,21 +14,25 @@
 //     illegal being a career ending move, officers won't be expecting to get out of alive. So it'll be a branch, either go
 //     illegal while young enough (we'll make it so their tradecraft is boosted to 80 as they end their illegal training), or
 //     decide to go undercover which is a lighter assignment or keep going with regular handler assignments under official
-//     cover"): any posting done well (a first tour's too) with the officer under ILLEGAL_AGE (30) the day it ends; never where
-//     your face is on file. Neither deep post (my call, to settle) where you've lived another legend already (servedDeep()).
-//     The training ends with Tradecraft at least ILLEGAL_OS (80: trained()); a one-way post, the last there is.
+//     cover"): a posting of your own carried out (a handler's done well, or an undercover post: London's first tour alone isn't),
+//     with the officer under ILLEGAL_AGE (30) the day it ends, so the illegal's post, an undercover one and the official ladder
+//     are one choice at the same moment; a legend exempt from the age (the user: "allowed to go from London starting posting
+//     to undercover, then illegal"), their day one at LEGEND_DAY_ONE_MAX at most (capped()). Never where your face is on file,
+//     nor (my call) where you've lived another legend already (servedDeep()). The Center's school (sim/career.js
+//     schoolWeeks()) ends with the floors and Tradecraft at least ILLEGAL_OS (80) at once (trained()); a one-way post, the last.
 // **The end of a career** (careerEnd()): past RETIRE_AGE at a posting's end (never in the middle of one), or a legend's last
 // (LEGEND_AFTER postings after the one they started in: the user, "the already old officer should have a pretext to retire
-// (can be terminal disease) after two postings at most"; my reading, DESIGN's: the two are the undercover and the illegal
-// after London's start, the illegal's running to the end as any does; to settle) with their pretext (PRETEXTS).
+// (can be terminal disease) after two postings at most": the two are the undercover and the illegal after London's start, the
+// illegal's running to the end as any does) with their pretext (PRETEXTS).
 // **The next posting** (nextPosting()): a station under official cover as before (sim/campaign.js promote(): the leave, the
-// language to working); a deep one, the training (sim/career.js plan(): the language to fluent, or native for an illegal, the
-// skills to the post's floors, FLOORS, all of it put on the sheet), then the incubation (sim/incubation.js: months, or
-// years, of the legend lived), the posting's first day the Monday after, the officer that much older, the street's craft
-// rusty with it. The career's file keeps each phase (training, the legend lived) and how each posting ended (how).
+// language to working); a deep one, the training (sim/career.js plan(): undercover, the language to fluent and the skills to
+// their floors a point at a time; an illegal's, the Center's school, the floors and Tradecraft at its end at once, all of it
+// put on the sheet), then the incubation (sim/incubation.js: months, or years, of the legend lived; an illegal's language to
+// native in it), the posting's first day the Monday after, the officer that much older, the street's craft rusty with it. The career's file keeps each phase (training, the legend lived) and how each posting ended (how).
 import { CITY_IDS, cityById } from './cities/index.js';
 import { countryOfCity } from './countries/index.js';
-import { plan, born, ageOf, retires, ILLEGAL_OS, ILLEGAL_AGE, FLOORS, NEED, RETIRE_AGE } from './career.js';
+import { plan, born, ageOf, retires, ILLEGAL_OS, ILLEGAL_AGE, FLOORS, NEED, RETIRE_AGE, SCHOOL_NEED } from './career.js';
+import { LANG_LEVELS } from './skills.js';
 import { incubationOf, lived, MONTH, YEAR } from './incubation.js';
 import { DEEP_CITIES, DEEP_LEVELS, targetOf } from './legends.js';
 import { newCampaign, promote, dayOf, WAKE_H } from './campaign.js';
@@ -112,7 +116,8 @@ export function offers(c, ms) {
   for (const kind of ['undercover', 'illegal']) for (const city of DEEP_CITIES) {
     const country = countryOfCity(city)?.id, K = cityById(city);
     const why = kind === 'undercover' && !may ? 'a handler\'s posting carried out first'
-      : kind === 'illegal' && !youngEnough(me, ms) ? `under ${ILLEGAL_AGE} only, and you're ${ageOf(me, ms)}`
+      : kind === 'illegal' && !handlerDone(c) && !undercoverDone(c) ? 'a posting of your own carried out first'
+      : kind === 'illegal' && !legend && !youngEnough(me, ms) ? `under ${ILLEGAL_AGE} only, and you're ${ageOf(me, ms)}`
       : faces.has(country) ? `your face is in their files: ${countryOfCity(city)?.name ?? K.name} is closed to you`
       : deep.has(country) ? `you've lived a legend there already`
       : null;
@@ -129,10 +134,23 @@ export function offers(c, ms) {
  */
 export function forecast(c, city, kind, ms) {
   const weeks = plan(c.character, city, kind).reduce((t, x) => t + x.weeks, 0), ms0 = ms + weeks * WEEK, seed = seedFor(c, city, kind), w = c.world ?? c.seed;
-  let I = incubationOf(seed, city, kind, w, ms0);
-  I = incubationOf(seed, city, kind, w, ms0 + I.ms);
+  const cap = (I) => capped(c.character, kind, ms0, I);
+  let I = cap(incubationOf(seed, city, kind, w, ms0));
+  I = cap(incubationOf(seed, city, kind, w, ms0 + I.ms));
   const from = dayOf(ms0 + I.ms), monday = from + ((7 - calendar(from * DAY).weekday) % 7);
   return { weeks, ms0, I, T: targetOf(seed, city, kind, I.thread), start: monday * DAY + WAKE_H * 3600000 };
+}
+
+// A legend's illegal post (they're exempt from the age limit: the user, "allowed to go from London starting posting to
+// undercover, then illegal"): the lying low cut short so day one is LEGEND_DAY_ONE_MAX at the most (the lead's call), never
+// under the incubation's three years. The incubation as given, or cut: { …I, ms, months, capped }.
+export const LEGEND_DAY_ONE_MAX = 68;
+export function capped(p, kind, ms0, I) {
+  if (kind !== 'illegal' || !p?.legend || p.born === undefined) return I;
+  const most = p.born + (LEGEND_DAY_ONE_MAX + 1) * YEAR - 8 * DAY - ms0, least = 3 * 12 * MONTH;
+  if (I.ms <= most) return I;
+  const ms = Math.max(least, Math.floor(most));
+  return { ...I, ms, months: Math.round(ms / MONTH), capped: true };
 }
 
 /** The time a next posting takes before its first day, in a line (the training, the incubation). */
@@ -141,14 +159,18 @@ export function timeWords(c, city, kind, ms) {
   const extra = P.filter(x => x.what !== 'home leave').map(x => x.what);
   if (kind === 'official') return extra.length ? `${span(weeks)} first: home leave, ${extra.join(', ')}.` : `${span(weeks)}' home leave, then out.`;
   const I = forecast(c, city, kind, ms).I;
-  return `${extra.length ? `${span(weeks)} of training (${extra.join('; ')}${kind === 'illegal' ? `; Tradecraft to ${Math.max(ch.os ?? 0, ILLEGAL_OS)}` : ''})` : `${span(weeks)}' home leave`}, then ${kind === 'illegal' ? `${Math.round(I.months / 12 * 10) / 10} years lying low` : `${I.months} months living the legend`} before day one.`;
+  return `${extra.length ? `${span(weeks)} of training (${extra.join('; ')})` : `${span(weeks)}' home leave`}, then ${kind === 'illegal' ? `${Math.round(I.months / 12 * 10) / 10} years lying low` : `${I.months} months living the legend`} before day one.`;
 }
 
-/** The officer trained for a post of `kind` at city: the language to its need, the skills to its floors (sim/career.js); an illegal's Tradecraft to ILLEGAL_OS at least. p, changed. */
+/**
+ * The officer trained for a post of `kind` at city: the language to its need, the skills to its floors (sim/career.js). An illegal's
+ * school ends with the language fluent (native comes lying low: sim/incubation.js lived()), the floors and Tradecraft ILLEGAL_OS at
+ * least, all at once. p, changed.
+ */
 export function trained(p, city, kind) {
-  const lang = cityById(city).lang, need = NEED[kind];
+  const lang = cityById(city).lang, need = kind === 'illegal' ? SCHOOL_NEED : NEED[kind];
   if (kind === 'illegal') p.os = Math.max(p.os ?? 0, ILLEGAL_OS);
-  if (need && lang !== 'en') p.langs = { ...(p.langs ?? {}), [lang]: need };
+  if (need && lang !== 'en' && LANG_LEVELS.indexOf(p.langs?.[lang] ?? 'none') < LANG_LEVELS.indexOf(need)) p.langs = { ...(p.langs ?? {}), [lang]: need };
   for (const [k, f] of Object.entries(FLOORS[kind] ?? {})) { const v = p.skills?.[k] ?? [0, 0]; if (v[0] < f) (p.skills ??= {})[k] = [f, v[1] ?? 0]; }
   return p;
 }
@@ -167,11 +189,13 @@ export function nextPosting(c, city, kind = 'official') {
     return next;
   }
   const ch = { ...structuredClone(c.character), id: 'me' };
-  born(ch, c.posting.startMs);
+  born(ch, c.posting.startMs); born(c.character, c.posting.startMs);
   const F = forecast(c, city, kind, end);                            // (the training's weeks reckoned from the sheet before it)
   trained(ch, city, kind);
-  lived(ch, kind, F.start);
+  lived(ch, kind, F.start, cityById(city).lang);
+  if (F.I.capped) ch.$incMax = F.I.ms;                               // (a legend's lying low cut short: sim/legends.js deepPosting() makes the same)
   const next = newCampaign(seedFor(c, city, kind), ch, city, kind, F.start, c.world ?? c.seed);
+  delete next.character.$incMax; delete ch.$incMax;
   next.career = [...(c.career ?? []), { level: c.posting.level, city: c.posting.city, until: end, how },
     { level: 'training', kind, city, from: end, until: F.ms0 }, { level: 'incubation', kind, city, from: next.posting.incubation.from, until: F.start }];
   next.faces = faces;
@@ -188,7 +212,7 @@ export function afterPhases(c, city, kind, ms) {
   if (kind === 'official') return [];
   const { I, T } = forecast(c, city, kind, ms);
   return [{ what: kind === 'illegal' ? 'the legend lived, lying low' : 'the legend lived', where: `in ${cityById(city).name}, as ${T?.job?.[0] ?? 'someone else'}`, weeks: Math.round(I.ms / WEEK),
-    line: kind === 'illegal' ? 'a life, a real one, and nothing of the trade in it till the Center calls: the length of it by how hard the place is to get near, and how good their counter-intelligence is' : 'a job, a flat, a name, before the work begins: as long as it takes them to stop looking at a newcomer' }];
+    line: kind === 'illegal' ? `a life, a real one, and nothing of the trade in it till the Center calls${cityById(city).lang === 'en' ? '' : ', the language to native in its first year or two'}: the length of it by how hard the place is to get near, and how good their counter-intelligence is${I.capped ? ' (cut short: a legend\'s years are counted)' : ''}` : 'a job, a flat, a name, before the work begins: as long as it takes them to stop looking at a newcomer' }];
 }
 
 /** A deep posting's brief, its first day's paper (src/main.js postingPaper()): away, the station's news while you were (lines); the rivalry's own, since the last posting (or the legend's first day), at most two. */

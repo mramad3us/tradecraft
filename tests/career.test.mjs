@@ -2,7 +2,7 @@
 // language takes to working (official cover; fluent undercover), by its FSI category; the new posting that much later,
 // the officer older, the language on their file, the school on their record.
 import { candidates, newCampaign, promote, record, lieLow, expected, pass, context, plan as planDays, SICK_COVER } from '../src/sim/campaign.js';
-import { between, betweenWords, langWeeks, ageOf, plan, planPaper, retires, successorStart, YEAR, LEAVE_WEEKS, RETIRE_AGE, SUCCESSOR_WEEKS } from '../src/sim/career.js';
+import { between, betweenWords, langWeeks, ageOf, plan, planPaper, retires, successorStart, YEAR, LEAVE_WEEKS, RETIRE_AGE, SUCCESSOR_WEEKS, ILLEGAL_SCHOOL_Y } from '../src/sim/career.js';
 import { legendFile } from '../src/sim/campaign.js';
 import { DAY } from '../src/sim/clock.js';
 import { timeline, taskingAt, newsBetween } from '../src/sim/geopolitics.js';
@@ -38,13 +38,13 @@ export default [
     },
   },
   {
-    name: 'career: an illegal\'s training (0.2.x\'s post, planned now): the language to fluent and every skill to its floor, a phase a school; a legend\'s is short, a regular officer\'s very long; the paper opens with the hard word',
+    name: 'career: an illegal\'s training is the Center\'s school: two years after the leave, or the language to fluent if longer; the floors and Tradecraft 80 at its end, at once; the native step lived lying low; the paper opens with the hard word',
     fn() {
       const L = legendFile(5, 'moscow', 'handler', 2), R = candidates(5, 'moscow')[0];
-      const yl = plan(L, 'beirut', 'illegal').reduce((t, x) => t + x.weeks, 0) / 52, yr = plan(R, 'beirut', 'illegal').reduce((t, x) => t + x.weeks, 0) / 52;
-      const paper = planPaper(L, 'beirut', 'illegal');
-      assert(yl < yr && yr > 4 && /dead in a month/.test(paper.lines[0]) && paper.lines.some(t => /Delta|Ground Branch|Farm/.test(t)), `a legend ${yl.toFixed(1)} years, a regular officer ${yr.toFixed(1)}`);
-      console.log(`      an illegal's training for Beirut: a legend ${yl.toFixed(1)} years, a regular officer ${yr.toFixed(1)}; the legend's: ${plan(L, 'beirut', 'illegal').map(x => `${x.what} ${x.weeks} wk`).join(', ')}`);
+      const w = (p, city) => plan(p, city, 'illegal').reduce((t, x) => t + x.weeks, 0) / 52, paper = planPaper(R, 'beirut', 'illegal');
+      const yl = w(L, 'beirut'), yr = w(R, 'beirut'), ym = w(R, 'moscow');
+      assert(Math.abs(ym - (ILLEGAL_SCHOOL_Y + LEAVE_WEEKS / 52)) < 0.05 && yr >= ym && yr <= 3.3 && yl >= ym && /dead in a month/.test(paper.lines[0]) && paper.lines.some(t => /Tradecraft 80/.test(t)) && paper.lines.some(t => /native comes after/.test(t)), `a legend ${yl.toFixed(1)} years, a regular officer ${yr.toFixed(1)} (Moscow, Russian already working: ${ym.toFixed(1)})`);
+      console.log(`      an illegal's school for Beirut: a legend ${yl.toFixed(1)} years, a regular officer ${yr.toFixed(1)} (the Arabic to fluent is the longer); for Moscow, with working Russian, ${ym.toFixed(1)}: ${plan(R, 'beirut', 'illegal').map(x => `${x.what} ${x.weeks} wk`).join(', ')}`);
     },
   },
   {

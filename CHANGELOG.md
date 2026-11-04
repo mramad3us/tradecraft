@@ -4,6 +4,22 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+- **Undercover and illegal postings.** A posting done well now offers three branches, listed on the result paper with how long each takes and why any is closed:
+  - **A station under official cover**, as before.
+  - **Undercover** in Moscow, Beirut or Cairo (never London), after a handler's posting carried out. The language to fluent, a year or so of training, then 3–20 months living the legend before day one.
+  - **Illegal**, one way: after a posting of your own carried out, and only under 30 that day (legends excepted). The Center's school (two years, three if the language to fluent takes longer) ends with every skill at the illegal's floors and Tradecraft raised to 80; then 3–14 years lying low, the language turning native in the first of them. A 27-year-old starts at about 31–45.
+- **A face on file.** Every country you've served in under official cover is closed to you undercover or as an illegal, for good; so is one where a first tour's trip got you made, one where you were blown, and one where you've lived a legend already.
+- **The incubation.** Before day one the legend is lived: the longer the harder the place is to get into and the better the country's counter-intelligence (Russia 0.9, Egypt 0.75, Lebanon 0.65). The years go by, and the legend's history is on your file (C): the job, the flat, the café; for an illegal, perhaps a marriage and a child who never know. The street's craft comes back rusty.
+- **Under a legend.** No embassy: your workplace is the employer's door on your streets, the day's work done from it (T), nine to six. Lose the job and the posting's lost. Heat starts at nothing, and nobody watches a clean legend.
+- **No immunity.** Arrested, the legend is looked into (your Deception against their counter-intelligence, harder the graver the charge). It holds: a brawl is 48 hours and $1,500 bail, and the posting goes on; a gun is years in their prison under the legend's name (Russia 2–5), part of it served, and the posting's over. It breaks: their prison (Lefortovo, Tora, a basement in the Dahiyeh), and the career's over. A weapon found at a police stop, or the black market's sting, is an arrest now.
+- **Blown is hunted.** At the top of the heat there's nobody to expel you: the city hunts a foreign spy for days, your face theirs, your flat theirs.
+- **The way out is your own.** No agency extraction under a legend: on the phone leaf, the way out (only hunted or blown), a place 8–11 streets out, open six hours; reached, you're out, alive and burned. An illegal signals the Center first and waits a day or two for its answer.
+- **The station by dead drop.** Under a legend, the week's review is left behind a bench on Monday morning, a chalk mark telling you where. Drops are on the mind's map now. Agency support: 40 at most undercover (back 4 a day), 20 as an illegal (back 2).
+- **The illegal's posting is the last.** No "posting complete": each tasking done, the Center's next, left at a drop. A job lost, another found. It runs till they take you, you die, or the Center brings you out.
+- **Advanced disguises.** From a handler's posting on (with a network to run), the agency's disguise officer (15 support) leaves three faces at a safe house: fifteen years older, a heavier build, another face. Put one on at its door (half an hour); a witness then describes another age, build and face. Off at its door it's kept, off anywhere else it's gone. A good eye reads through it: a patrolman seldom, an expert half the time, and then it counts against you.
+- **The long rivalries.** A deep post's purpose is a thread of a decades-long rivalry (the long war with Moscow since 1947, with Tehran by way of the party since 1983, Moscow's courtship of Cairo since 1955), not the station's business of the season. Its brief says what the long war did while you were away.
+- **New starts.** "Under a legend" opens once a game of yours has gone illegal or carried out an undercover post; "An illegal" is debug's. Legends now stop at last after two postings past their first, with a reason.
+
 ## v0.1.42 (2026-11-04)
 
 - **Snow no longer sits on cars in the street's pattern.** Patches of the road's snow used to appear on car roofs and slide across moving cars. Cars and buses now stay clean, apart from an evenly white roof under heavy fresh snow, and frost on them no longer glints.

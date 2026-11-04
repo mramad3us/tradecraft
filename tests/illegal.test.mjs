@@ -1,4 +1,4 @@
-// The illegal's posting (docs/POSTINGS.md; sim/campaign.js nextTasking(), sim/legends.js, sim/support.js, sim/dial.js): no
+// The illegal's posting (DESIGN.md, Cover, heat and the hunt: Under a legend; sim/campaign.js nextTasking(), sim/legends.js, sim/support.js, sim/dial.js): no
 // embassy at all, the Center by dead drop and signal, support next to nothing, the last posting there is (no goal ends it: each
 // tasking done, the Center's next; a job lost, another found; it runs till they take you, you die, or the Center brings you out).
 import { candidates, newCampaign, pass, fold, goalOf } from '../src/sim/campaign.js';

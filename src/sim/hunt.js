@@ -90,7 +90,7 @@ export const HUNTS = {
   wounded: { rows: CITY, searchH: 36, keepD: 5, every: [2, 4], cars: 0.45, eye: -1, posts: 2, most: 2, armed: true, what: 'someone shot' },
   killed: { rows: CITY, searchH: 48, keepD: 7, every: [1.5, 3], cars: 0.45, eye: -2, posts: 3, most: 3, armed: true, what: 'a killing' },
   // (blown under a legend, 0.2's: the counter-intelligence's and the police's hunt for a foreign spy, the whole city, days of it;
-  // your face from their own file: sim/campaign.js pass(), docs/POSTINGS.md)
+  // your face from their own file: sim/campaign.js pass(), DESIGN.md, Cover, heat and the hunt: Under a legend)
   blown: { rows: CITY, searchH: 72, keepD: 14, every: [2, 4], cars: 0.4, eye: -2, posts: 2, most: 2, armed: true, what: 'a foreign spy' },
 };
 export const JOG_PACE = 1.6, POST_NEAR_M = 70;                     // (an armed pair's pace; how far along a post stands from you, at most)

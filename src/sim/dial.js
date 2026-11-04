@@ -27,7 +27,7 @@
 //     without you (sim/scenarios/campaign.js extracted()), the ambassador's view of you EXTRACT_COVER the less.
 // Spook-related calls cost OWN_HEAT on a watched line of your own; a burner, nothing. What's rung for and still to come is
 // the campaign's (c.rung), heard each second (second()).
-// Under a legend (0.2's, docs/POSTINGS.md): no extraction; the way out, your own (exfilWays(): the posting's point far from the
+// Under a legend (0.2's, DESIGN.md, Cover, heat and the hunt: Under a legend): no extraction; the way out, your own (exfilWays(): the posting's point far from the
 // centre, open EXFIL_WAIT_H, an illegal's only once the Center answers, EXFIL_SIGNAL_H); the station's word, its week's review,
 // left at a bench (signals()); and, from a handler's posting on, the agency's disguise officer (sim/disguise.js LOOKS).
 import { stream, chance, range, int, pick } from './rng.js';
@@ -362,7 +362,7 @@ function station(state, bus, c, now) {
   }
 }
 
-// ---------- under a legend (0.2's deep postings: docs/POSTINGS.md) ----------
+// ---------- under a legend (0.2's deep postings: DESIGN.md, Cover, heat and the hunt: Under a legend) ----------
 
 // The way out (self-extraction): no car of the agency's, no embassy to be driven to; the posting's own point far from the centre
 // (sim/legends.js exfilOf()), reached by your own means while it's open: undercover, EXFIL_WAIT_H.undercover hours from when you

@@ -1,4 +1,4 @@
-// The long rivalries (sim/geopolitics.js RIVALRIES, THREADS; docs/POSTINGS.md): decades-long rivalries between the agency's country
+// The long rivalries (sim/geopolitics.js RIVALRIES, THREADS; DESIGN.md, 0.2: the deep postings): decades-long rivalries between the agency's country
 // and another, from the countries' profiles; a deep post's purpose drawn from them, not the stations' few-years business; the news
 // of them between postings; an illegal's taskings over decades following their threads.
 import { RIVALRIES, THREADS, threads, threadAt, purposeAt, rivalryNews, taskingAt, timeline, rivalryOf } from '../src/sim/geopolitics.js';

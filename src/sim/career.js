@@ -52,7 +52,7 @@ export function betweenWords(character, city, cover = 'official') {
 // core four to master, close combat, fitness and the gun to 18, the rest to 14), each phase with the people who'd teach
 // it (SCHOOLS), at WEEKS_PER_POINT a point, harder the higher it is.
 // (an undercover officer's, 0.2's: the core four and Social a few points past a handler's 10, Deception most: a year and a little
-// more of it for a handler, nothing for a legend; docs/POSTINGS.md)
+// more of it for a handler, nothing for a legend; DESIGN.md, Career: The deep postings)
 export const FLOORS = { illegal: { deception: 20, tracking: 20, pathfinding: 20, awareness: 20, cqc: 18, fitness: 18, weapons: 18, social: 14, analysis: 14, tech: 14, medicine: 14 },
   undercover: { deception: 14, awareness: 13, tracking: 12, pathfinding: 12, social: 12 } };
 export const WEEKS_PER_POINT = (base) => 2 + 0.25 * base;
@@ -60,6 +60,16 @@ export const WEEKS_PER_POINT = (base) => 2 + 0.25 * base;
 // move, officers won't be expecting to get out of alive ... their tradecraft is boosted to 80 as they end their illegal training":
 // offered under ILLEGAL_AGE at a posting done well, sim/postings.js; Tradecraft at least ILLEGAL_OS when the training ends)
 export const ILLEGAL_OS = 80, ILLEGAL_AGE = 30;
+// (an illegal's school, the Center's own (the lead's call on the user's go, 2026-11-04): ILLEGAL_SCHOOL_Y after the leave, or as long
+// as the language to fluent takes if that's longer; at its end every skill at FLOORS.illegal and Tradecraft at least ILLEGAL_OS, at
+// once, not a point at a time (sim/postings.js trained()); the last step to native lived in the years lying low among its speakers,
+// NATIVE_K of the language's weeks, inside the incubation's three years at least (sim/incubation.js lived()): native on day one)
+export const ILLEGAL_SCHOOL_Y = 2, SCHOOL_NEED = 'fluent';
+/** An illegal's school, in weeks: ILLEGAL_SCHOOL_Y, or the language to fluent if that's longer. */
+export function schoolWeeks(character, city) {
+  const lang = cityById(city).lang, lw = lang === 'en' ? 0 : langWeeks(lang, character?.langs?.[lang] ?? 'none', SCHOOL_NEED);
+  return Math.max(Math.round(ILLEGAL_SCHOOL_Y * 52), lw);
+}
 // (who teaches what, for a post where nobody comes for you: the phase's name, its place, its line)
 const SCHOOLS = [
   { skills: ['tracking', 'awareness'], who: 'with the Secret Service\'s protective detail school', line: 'watching crowds for the one face that matters, and being that face' },
@@ -73,6 +83,12 @@ const SCHOOLS = [
 /** The training before a post: [{ what, where, weeks, line }] (home leave, the language; undercover or an illegal's, the skills to FLOORS). */
 export function plan(character, city, cover = 'official') {
   const out = [{ what: 'home leave', where: null, weeks: LEAVE_WEEKS, line: 'boxes, a dentist, people who ask what it\'s like and don\'t want to know' }];
+  if (cover === 'illegal') {                                         // (one school, the Center's: the language, every skill, the craft)
+    const lang = cityById(city).lang, os = Math.max(character?.os ?? 0, ILLEGAL_OS);
+    out.push({ what: `${lang === 'en' ? '' : `${LANG_NAME[lang] ?? lang} to fluent, `}every skill to the illegal's floors, Tradecraft to ${os}`, where: 'at the Center\'s own school, a farm in Virginia that isn\'t on any map', weeks: schoolWeeks(character, city),
+      line: 'a year as somebody else in a city that isn\'t told, the language all day, and instructors who were illegals themselves' });
+    return out;
+  }
   const lang = cityById(city).lang, need = NEED[cover] ?? 'working', have = character?.langs?.[lang] ?? 'none';
   const lw = lang === 'en' ? 0 : langWeeks(lang, have, need);
   if (lw) out.push({ what: `${LANG_NAME[lang] ?? lang} to ${need}`, where: need === 'native' ? 'at the Institute, then a year and more abroad among its speakers, under a name not your own' : 'at the Foreign Service Institute, Arlington', weeks: lw,
@@ -92,17 +108,19 @@ const span = (w) => { if (w >= 52) { const y = Math.round(w / 52 * 10) / 10; ret
  * after: phases after the training ([{ what, where, weeks, line }]: a deep post's incubation, sim/incubation.js), in the total.
  */
 export function planPaper(character, city, cover = 'official', after = []) {
-  const P = [...plan(character, city, cover), ...after], total = P.reduce((t, x) => t + x.weeks, 0), K = cityById(city);
+  const T = plan(character, city, cover), P = [...T, ...after], total = P.reduce((t, x) => t + x.weeks, 0), K = cityById(city);
   const open = cover === 'illegal' ? '"You\'re very good. At this level, over there, you\'ll be dead in a month. You won\'t get any backup: no embassy, no passport that means anything, nobody who\'ll admit you were ever ours. So first, this."'
     : cover === 'undercover' ? `"${K.name}, under a legend: no diplomatic passport, nobody at the embassy who knows your name. If they take you, it's their prison, and we were never there. So you'll be very good before you go."`
     : P.length > 1 ? `Station ${K.name} wants its officers to speak the language before they land. The personnel office has your next ${span(total)} worked out.` : `Station ${K.name}: you have what it needs. Leave, and then out.`;
   const deep = cover === 'illegal' || cover === 'undercover', os = Math.max(character?.os ?? 0, ILLEGAL_OS);
   // (an illegal's: Tradecraft at least ILLEGAL_OS when it's done, and no way back from what comes after it)
-  const end = cover === 'illegal' ? [`At its end, Tradecraft ${os}: as good as the Agency makes them. Then the legend, and the life in it, for as long as it lasts. Nobody comes home from an illegal's post on a pension: you go knowing you won't.`] : [];
+  const L = LANG_NAME[K.lang] ?? K.lang;
+  const end = cover === 'illegal' ? [`At its end, Tradecraft ${os} and every skill at the illegal's floors: as good as the Agency makes them.${K.lang === 'en' ? '' : ` The ${L} to native comes after, in the first years lying low among its speakers.`} Then the legend, and the life in it, for as long as it lasts. Nobody comes home from an illegal's post on a pension: you go knowing you won't.`] : [];
   return { stamp: deep ? 'TRAINING' : 'ORDERS', title: deep ? `BEFORE ${K.name.toUpperCase()}` : `TO STATION ${K.name.toUpperCase()}`,
-    lines: [open, ...P.map(x => `${cap(span(x.weeks))}: ${x.what}${x.where ? `, ${x.where}` : ''}: ${x.line}.`), ...end, `${cap(span(total))} in all, before you're anywhere near ${K.name}.`] };
+    lines: [open, ...T.map(phase), ...end, ...after.map(phase), after.length ? `${cap(span(total))} in all, before day one.` : `${cap(span(total))} in all, before you're anywhere near ${K.name}.`] };
 }
 const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+const phase = (x) => `${cap(span(x.weeks))}: ${x.what}${x.where ? `, ${x.where}` : ''}: ${x.line}.`;
 
 // **Retirement and the next officer** (the user, 2026-11-04: "Officers retire when they cross 60 years old and reach the end of
 // a posting (they don't retire mid-post)"; the world goes on, its date and its business, when an officer's lost or retires

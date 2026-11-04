@@ -1,4 +1,4 @@
-// TRADECRAFT sim: the legends of the deep postings (docs/POSTINGS.md; DESIGN.md, Career: the undercover officer "abroad,
+// TRADECRAFT sim: the legends of the deep postings (DESIGN.md, Career: The deep postings, and the table: the undercover officer "abroad,
 // under a legend (e.g. a translator at a news agency) … no immunity. The cover job matters, and losing it fails the
 // posting"; the illegal "abroad, as a citizen of the target country: a legally earned identity, never an obviously spooky
 // post").
@@ -134,7 +134,8 @@ export const GOAL_DEEP = { undercover: 14, illegal: 12 };          // (an underc
  * target, the heat at nothing, the job's standing, the way out, the history lived before day one (the incubation's).
  */
 export function deepPosting(P, seed, kind, world, character = null) {
-  const city = P.city, start = P.startMs, inc = incubationOf(seed, city, kind, world, start);
+  const city = P.city, start = P.startMs, inc0 = incubationOf(seed, city, kind, world, start);
+  const inc = character?.$incMax && character.$incMax < inc0.ms ? { ...inc0, ms: character.$incMax, months: Math.round(character.$incMax / (30.44 * DAY)) } : inc0;   // (a legend's lying low cut short: sim/postings.js capped())
   const pick0 = targetOf(seed, city, kind, inc.thread), purpose = purposeAt(world, city, start, inc.thread);   // (the thread open the day you're activated: what the Center wants of you now)
   const [what, employer, sign] = pick0.job, id = identity(seed, character, city, kind, pick0.job);
   const months = inc.ms / (30.44 * DAY);
@@ -166,18 +167,17 @@ export const isDeep = (P) => DEEP_LEVELS.has(P?.level);
 
 // A deep start's past (sim/campaign.js newCampaign(): the picker's undercover or illegal officer, nobody's career before it). An
 // undercover officer's: a handler's posting carried out in another country, the training (BACK_TRAINING_Y), the legend lived (the
-// posting's own incubation). An illegal's (the branch for the young): London's first tour done well, and half the time a handler's
-// posting after it in another country, ended under ILLEGAL_AGE; then the training (its own weeks: character.$back), the legend
-// lived. The career's file, as sim/postings.js nextPosting() would have made it.
-export const BACK_TRAINING_Y = { undercover: 1, illegal: 4 }, BACK_HANDLER_P = 0.5, BACK_SCHOOL_Y = 1.2;
+// posting's own incubation). An illegal's (the branch for the young): London's first tour done well, a handler's posting after it
+// in another country (its language school first, BACK_SCHOOL_Y), ended under ILLEGAL_AGE; then the school (its own weeks:
+// character.$back), the legend lived. The career's file, as sim/postings.js nextPosting() would have made it.
+export const BACK_TRAINING_Y = { undercover: 1, illegal: 2 }, BACK_SCHOOL_Y = 1.2, BACK_POSTING_Y = 0.15;
 export function backstory(seed, P, character = null) {
   const r = stream('deep-back', seed, P.city, P.level), Y = 365.25 * DAY, inc = P.incubation?.from ?? P.startMs;
   const train = inc - (P.level === 'illegal' && character?.$back ? character.$back.weeks * 7 * DAY : BACK_TRAINING_Y[P.level] * Y);
   const other = Object.keys(DEEP).concat(['london']).filter(c => countryOfCity(c)?.id !== P.country);
   const handler = pick(r, other), out = [];
   if (P.level === 'illegal') {
-    if (chance(r, BACK_HANDLER_P)) out.push({ level: 'junior', city: 'london', until: train - BACK_SCHOOL_Y * Y, how: 'promoted' }, { level: 'handler', city: handler, until: train, how: 'completed' });
-    else out.push({ level: 'junior', city: 'london', until: train, how: 'promoted' });
+    out.push({ level: 'junior', city: 'london', until: train - (BACK_SCHOOL_Y + BACK_POSTING_Y) * Y, how: 'promoted' }, { level: 'handler', city: handler, until: train, how: 'completed' });
   } else out.push({ level: 'handler', city: handler, until: train, how: 'completed' });
   out.push({ level: 'training', kind: P.level, city: P.city, from: train, until: inc }, { level: 'incubation', kind: P.level, city: P.city, from: inc, until: P.startMs });
   return out;
