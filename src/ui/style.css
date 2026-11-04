@@ -499,3 +499,5 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .mind-why { background: #1b1c24; border: 1px solid #353947; color: #b8bdc8; padding: 2px 8px; cursor: pointer; border-radius: 2px; }
 .mind-why.on { border-color: #e7b84a; color: #f6f4ee; }
 .mind-why:disabled, .mind-acts button:disabled { opacity: 0.45; cursor: default; }
+
+.mind-row.done .what, .mind-row.done .when { opacity: 0.55; }   /* (an optional task done: sim/dial.js OPTIONAL) */

@@ -33,7 +33,7 @@ import { townOf } from '../sim/cities/index.js';
 import { streetName, SECTION_M, Z } from '../sim/map/street.js';
 import { sectionOf } from '../sim/city.js';
 import { callWays, nextMeeting } from '../sim/phone.js';
-import { services, supportWords } from '../sim/dial.js';
+import { services, supportWords, OPTIONAL } from '../sim/dial.js';
 
 export const KIND_COLOUR = { job: 0xd36bd0, home: 0xe7b84a, work: 0x5d8fc2, safe: 0x76ad4c, food: 0xe8896a, clothes: 0x7a4a86, books: 0x2f6b62, bank: 0xb9862e, club: 0xc95c45, school: 0x3b6296, phones: 0x95c1e3, optician: 0x8f96a6, chemist: 0x356f42, hospital: 0xdfe2e8, police: 0x283f6b, other: 0x6a7182, metro: 0x9e3c36, bus: 0xc4bba9 };
 const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
@@ -83,6 +83,10 @@ function aheadLeaf(state, { el, act }, show) {
     })) : el('p', { className: 'mind-note' }, 'Nothing planned. Days like this are for the cover job.'),
     // (the next one's brief, as the station wrote it: sim/dossier.js)
     items[0] ? el('div', { className: 'mind-brief' }, el('p', { className: 'mind-brief-title' }, briefOf(c, items[0].a).title), ...briefOf(c, items[0].a).body.map(t => el('p', {}, t))) : null,
+    // (the station's optional tasks for the network: sim/dial.js OPTIONAL; done, ticked)
+    el('h3', {}, 'The station would like, if you can'),
+    el('div', { className: 'mind-list' }, ...OPTIONAL.map(O => el('div', { className: `mind-row${O.done(c) ? ' done' : ''}` },
+      el('span', { className: 'when' }, O.done(c) ? 'done' : 'optional'), el('span', { className: 'what' }, O.name, el('span', { className: 'where' }, O.about))))),
     el('h3', {}, 'The day'),
     el('div', { className: 'mind-acts' },
       el('button', { onclick: () => act('low') }, expected(c, now) ? 'Call in sick, and lie low for a day' : 'Lie low for a day'),   // (a working day you're expected: a sick day, sim/campaign.js lieLow())

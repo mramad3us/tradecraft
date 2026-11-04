@@ -34,7 +34,12 @@ import { addHeat } from './heat.js';
 import { pay, price } from './money.js';
 import { eat } from './needs.js';
 import { burnersOf, spendBurner } from './items.js';
-import { supportOf, spend } from './support.js';
+import { supportOf, spend, AS_USD } from './support.js';
+import { sellerOf } from './market.js';
+import { arrest } from './armed.js';
+import { check } from './checks.js';
+import { skill } from './skills.js';
+import { cashOf } from './money.js';
 import { sendFare } from './traffic.js';
 import { countryOfCity } from './countries/index.js';
 import { townOf } from './cities/index.js';
@@ -50,6 +55,16 @@ export const COST = { gun: 20, clinic: 40, cleanup: 60, extract: 80 };
 export const DROP_H = [4, 10], DROP_FOR_H = 36, DROP_AT_M = 2.5, CLINIC_H = 4, CLINIC_DAYS = 3, CLEANUP_M = 40, CLEANUP_MIN = [4, 8];
 export const EXTRACT_ROWS = [2, 4], EXTRACT_WAIT_MIN = 40, EXTRACT_COVER = 10, CLEANUP_KINDS = ['firstTour', 'official'];
 export const FRIENDLY = new Set(['gb', 'us']);
+// (the black market's ways instead of the agency's (the user, 2026-11-04: "Black market provides alternative ways to:
+// extract, gun and clandestine clinic (costs a LOT of money (1AS = 1000£) and can be a trap with authorities waiting for us
+// instead, which we can spot when getting close if we successfully roll our awareness"; "we need to have developed a
+// relationship with a black market contact to have access to it"): a deal done with him first (BM_DEALS); his price the
+// support's in cash (AS_USD a point), paid when it's done; a trap settled when you ring, by how thin the market is (BM_TRAP);
+// near it (NOTICE_M), each time you come, your Awareness: missed, you can't tell; made, you can: waiting, or clean)
+export const BM_DEALS = 1, NOTICE_M = 25, NOTICE_DC = 14;
+export const BM_TRAP = (city) => 0.05 + (1 - (countryOfCity(city)?.black?.ease ?? 0.5)) * 0.3;
+export const bmUsd = (k) => COST[k] * AS_USD;
+export const developed = (s) => (s?.deals ?? 0) >= BM_DEALS;
 // (the agency's clean gun: what its armourer has, by the posting's country)
 const CLEAN_GUN = { ru: 'makarov', gb: 'glock19', lb: 'browning', eg: 'helwan', us: 'glock19' };
 
@@ -85,6 +100,16 @@ export function services(state) {
     ...(CLEANUP_KINDS.includes(S.kind) ? [{ key: 'cleanup', label: 'A clean-up crew, here', ok: S.now >= COST.cleanup && bodies.length > 0 && !R.cleanup, why: R.cleanup ? 'on its way' : !bodies.length ? 'nothing here for one: nobody dead that hasn\'t been called in' : `${support(COST.cleanup)}: ${bodies.length === 1 ? 'the body' : `${bodies.length} bodies`} gone in a few minutes`, phones: phones(true) }] : []),
     { key: 'extract', label: 'Extraction', ok: !!hunted && S.now >= COST.extract && !R.extract, why: R.extract ? `the car's waiting, ${streetName(townOf(state.map), R.extract.row)}` : !hunted ? 'only with the police hunting you' : `${support(COST.extract)}: a car somewhere in the city, to the embassy`, phones: phones(true) },
   ];
+  // (his, if you know a man: sim/market.js)
+  const sl = sellerOf(c);
+  if (sl) {
+    const dev = developed(sl), nm = cap(sl.name);
+    const bm = (k, label, can, why) => ({ key: `bm:${k}`, label: `${label}, from ${nm}`, ok: dev && can, why: !dev ? `he doesn't know you well enough yet: a deal done with him first` : why ?? `${price(state, bmUsd(k))} cash, paid when it's done: his people, not the agency's, and nobody's word for them`, phones: phones(true) });
+    out.push(
+      bm('gun', 'A clean gun', !R.drops.some(d => d.what === 'gun'), R.drops.some(d => d.what === 'gun') ? 'one\'s waiting already' : undefined),
+      bm('clinic', 'A doctor who asks no questions', !!houseFor(c) && !(R.clinic && R.clinic.until > now), R.clinic && R.clinic.until > now ? 'there\'s one set up already' : !houseFor(c) ? 'no safe house to have him at' : undefined),
+      bm('extract', 'A way out of the city', !!hunted && !R.extract, R.extract ? 'a car\'s waiting already' : !hunted ? 'only with the police hunting you' : undefined));
+  }
   return out;
 }
 
@@ -123,6 +148,24 @@ export function ring(state, bus, key, phone) {
     spend(c, COST.cleanup);
     R.cleanup = { at: now + Math.round(range(r, ...CLEANUP_MIN)) * MIN, row: state.map.row ?? 0, x: me.x, z: me.z };
     lines.push(`"There's been a spill: a van, please, and two of your best." Minutes, they say. (Support ${COST.cleanup}: ${supportOf(c).now} left.)`);
+  } else if (key.startsWith('bm:')) {
+    // (his: no support spent; the price when it's done; a trap, or not, settled now)
+    const k = key.slice(3), sl = sellerOf(c), nm = cap(sl.name), bm = { usd: bmUsd(k), trap: chance(r, BM_TRAP(c.posting.city)) };
+    if (k === 'gun') {
+      const at = benchFor(c, r), from = now + Math.round(range(r, ...DROP_H) * 60) * MIN;
+      R.drops.push({ id: `drop${now}`, what: 'gun', at, from, until: from + DROP_FOR_H * HOUR, bm });
+      lines.push(`${nm} doesn't ask what it's for. "Clean. Nothing on it. ${price(state, bm.usd)}, in the bag where you find it": ${low(at.label)}, ${when(from, now)}.`);
+    } else if (k === 'clinic') {
+      const h = houseFor(c);
+      R.clinic = { house: h.id, from: now + CLINIC_H * HOUR, until: now + CLINIC_H * HOUR + CLINIC_DAYS * DAY, bm };
+      lines.push(`"I know a man. He was a surgeon once." ${cap(h.label)}, ${when(R.clinic.from, now)}, for ${CLINIC_DAYS} days: ${price(state, bm.usd)}, cash, at the door.`);
+    } else {
+      const dir = chance(r, 0.5) ? 1 : -1, row = (state.map.row ?? 0) + dir * (EXTRACT_ROWS[0] + int(r, EXTRACT_ROWS[1] - EXTRACT_ROWS[0] + 1)), x = me.x + range(r, -60, 60);
+      const label = `a delivery van, ${placeName(townOf(state.map), row, x, 0)}`;
+      R.extract = { row, x: Math.round(x), until: now + EXTRACT_WAIT_MIN * MIN, label, bm };
+      c.waypoint = { row, x: Math.round(x), z: LINE.F, label: 'the van', kind: 'job' };
+      lines.push(`"There's a van. In the back, under the boxes, and out." ${cap(label)}, for ${EXTRACT_WAIT_MIN} minutes: ${price(state, bm.usd)}, cash, to the driver.`);
+    }
   } else if (key === 'extract') {
     spend(c, COST.extract);
     const dir = chance(r, 0.5) ? 1 : -1, row = (state.map.row ?? 0) + dir * (EXTRACT_ROWS[0] + int(r, EXTRACT_ROWS[1] - EXTRACT_ROWS[0] + 1)), x = me.x + range(r, -60, 60);
@@ -169,6 +212,13 @@ export function collect(state, bus, d) {
   const c = state.campaign, p = state.people[state.player], now = state.time.ms;
   if (now < d.from) return `Nothing behind it yet: ${when(d.from, now)}.`;
   c.rung.drops = c.rung.drops.filter(x => x !== d);
+  if (d.bm) {
+    const me = playerOf(state);
+    if (d.bm.trap) return trapped(state, bus, me, 'the gun');
+    if (cashOf(p) < d.bm.usd) { lostSeller(c, false); return `A sports bag behind the bench, and a man on the next one watching you count. ${price(state, cashOf(p))}: not enough. He takes the bag, and his number won't answer again.`; }
+    p.cash = Math.round((cashOf(p) - d.bm.usd) * 100) / 100;
+    dealt(c);
+  }
   if (d.what === 'gun') {
     const model = CLEAN_GUN[countryOfCity(c.posting.city)?.id] ?? 'glock19', M = MODELS[model];
     const id = newGun(p, model), spare = newMag(p, id);
@@ -218,7 +268,70 @@ export function second(state, bus, me, { extracted = null } = {}) {
   }
   if (R.extract) {
     if (now > R.extract.until) { delete R.extract; c.waypoint = null; say(state, bus, { kind: 'note', text: 'The car will have gone by now. You\'re on your own.' }); return; }
-    if (state.map.kind === 'street' && row === R.extract.row && Math.abs(me.x - R.extract.x) < 3 && extracted) { const E = R.extract; delete R.extract; c.waypoint = null; extracted(E); }
+    if (state.map.kind === 'street' && row === R.extract.row && Math.abs(me.x - R.extract.x) < 3 && extracted) {
+      const E = R.extract, p = state.people[state.player]; delete R.extract; c.waypoint = null;
+      if (E.bm?.trap) { trapped(state, bus, me, null); return; }
+      if (E.bm && cashOf(p) < E.bm.usd) { lostSeller(c, false); say(state, bus, { kind: 'note', text: `The driver counts it twice: ${price(state, cashOf(p))}. "That's not what he said." The van goes without you.` }); return; }
+      if (E.bm) { p.cash = Math.round((cashOf(p) - E.bm.usd) * 100) / 100; dealt(c); }
+      extracted(E);
+    }
+  }
+  sense(state, bus, me, now);
+  station(state, bus, c, now);
+}
+
+// Near one of the black market's (a bench, the safe house's door, the van; and his own gun's bench, sim/market.js), each
+// time you come within NOTICE_M: your Awareness, against NOTICE_DC. Missed, you can't tell; made, it tells you true.
+function sense(state, bus, me, now) {
+  const c = state.campaign, R = c.rung, row = state.map.row ?? 0;
+  if (state.map.kind !== 'street' || state.map.seed !== c.posting.mapSeed) return;
+  const spots = [...(R.drops ?? []).filter(d => d.bm).map(d => ({ o: d, at: d.at, trap: d.bm.trap, label: low(d.at.label) })),
+    ...(R.clinic?.bm ? [{ o: R.clinic, at: c.posting.safehouses.find(h => h.id === R.clinic.house), trap: R.clinic.bm.trap, label: c.posting.safehouses.find(h => h.id === R.clinic.house)?.label }] : []),
+    ...(R.extract?.bm ? [{ o: R.extract, at: R.extract, trap: R.extract.bm.trap, label: R.extract.label }] : []),
+    ...(c.order && !c.order.done && c.order.paid ? [{ o: c.order, at: c.order.get, trap: c.order.sting, label: low(c.order.get.label) }] : [])];
+  const p = state.people[state.player];
+  for (const S of spots) {
+    if (!S.at || S.at.row !== row) continue;
+    const d = Math.hypot(me.x - S.at.x, me.z - (S.at.z ?? me.z));
+    if (d > NOTICE_M + 15) { S.o.near = false; continue; }
+    if (d > NOTICE_M || S.o.near) continue;
+    S.o.near = true; S.o.looks = (S.o.looks ?? 0) + 1;
+    const roll = check(stream('notice', c.seed, S.o.id ?? S.o.at ?? 'x', S.o.looks), { skill: 'awareness', value: skill(p, 'awareness'), dc: NOTICE_DC, body: p });
+    const text = !roll.ok ? `${cap(S.label)}: you look it over from ${Math.round(d)} m, and can't tell whether anyone's waiting for you there.`
+      : S.trap ? `${cap(S.label)}: something's off. A man reading the same page he was reading a minute ago; a car with two in it and the engine off; nobody looking your way, and all of them placed. Someone's waiting.`
+        : `${cap(S.label)}: you look it over from ${Math.round(d)} m. Nobody waiting, nothing out of place.`;
+    say(state, bus, { kind: 'roll', roll, text });
+  }
+}
+
+/** The trap sprung: police off the next bench, out of the van, in the stairwell: taken in, his number theirs. */
+export function trapped(state, bus, me, what) {
+  const c = state.campaign;
+  lostSeller(c, true);
+  say(state, bus, { kind: 'note', text: 'And as you reach it, they come: two off the next bench, one from behind you, plain clothes, quick, and they\'d been waiting. Your face on the pavement, the cuffs.' });
+  if (me) arrest(state, bus, me, 'trap', 'the black market', { found: what ? [what] : [] });
+  return 'It was theirs all along.';
+}
+// (him gone: a trap's, his number dead; or short-changed, he won't call back)
+function lostSeller(c, trap) { if (c.black) delete c.black[c.posting.city]; if (trap && c.posting) c.posting.cover = Math.max(0, (c.posting.cover ?? 70) - 10); }
+/** A deal done with him (sim/market.js, and his ways here): he knows you better. */
+export function dealt(c) { const s = sellerOf(c); if (s) s.deals = (s.deals ?? 0) + 1; }
+
+// The station's optional tasks for the network (the user, 2026-11-04: "Black market contact acquisition will be one of the
+// missions we have when developing a network, there should be optional assignments to that purpose"): a black-market
+// contact found (a quiet word at a bar), and a deal done with him; each done, the station's thanks (support back, OPT_AS).
+export const OPTIONAL = [
+  { key: 'contact', name: 'A black-market contact', about: 'A quiet word at a bar or a pub, the right question asked the right way (Social): a name and a number.', done: (c) => !!sellerOf(c) || !!c.opt?.contact },
+  { key: 'deal', name: 'A deal with him', about: 'Something bought from him, collected, paid for: a man who knows you is a man you can call on (his clean gun, his doctor, his van).', done: (c) => developed(sellerOf(c)) || !!c.opt?.deal },
+];
+export const OPT_AS = 10;
+function station(state, bus, c, now) {
+  for (const O of OPTIONAL) {
+    if (c.opt?.[O.key] || !O.done(c)) continue;
+    (c.opt ??= {})[O.key] = now;
+    const S = supportOf(c);
+    if (S) c.posting.support.now = Math.min(S.max, S.now + OPT_AS);
+    say(state, bus, { kind: 'note', text: `${O.name}, as the station asked: a line in the next cable, and they're pleased. (Support +${OPT_AS}.)` });
   }
 }
 

@@ -6,7 +6,7 @@
 import { newGame, start, step, playerActor, newMap } from '../src/sim/game.js';
 import { candidates, newCampaign, pass } from '../src/sim/campaign.js';
 import { supportOf, SUPPORT, kindOf } from '../src/sim/support.js';
-import { services, ring, dropAt, collect, watchedLine, second as dialSecond, COST, FOOD_USD, TAXI_HEAT, OWN_HEAT } from '../src/sim/dial.js';
+import { services, ring, dropAt, collect, watchedLine, second as dialSecond, COST, FOOD_USD, TAXI_HEAT, OWN_HEAT, bmUsd, OPT_AS } from '../src/sim/dial.js';
 import { wear, remove, quality, EQUIPMENT } from '../src/sim/disguise.js';
 import { start as startHunt, mods, whoOf, badges } from '../src/sim/hunt.js';
 import { heat } from '../src/sim/heat.js';
@@ -129,6 +129,40 @@ export default [
       seconds(w, 2);
       console.log(`      the clinic: ${clinic.text}\n      the clean-up offered ${okClean}: the body gone ${goneBody}; extraction: ${ex.text.split('.')[0]}; reached: ${!!w.done || !w.g.hunt}`);
       assert(okClean && cl.ok && goneBody && ex.ok && E && w.done, 'the clinic, the clean-up, the extraction');
+    },
+  },
+  {
+    name: 'dial: the black market\'s ways: offered once you know a man, open once you\'ve done a deal with him; his price the support\'s in cash; a clean gun paid at the bench; a trap your Awareness can see, and taken in at it; his van out of the hunt; the station\'s optional tasks ticked',
+    fn() {
+      const w = hub('moscow'), c = w.c;
+      const none = services(w.g).filter(s => s.key.startsWith('bm:')).length;
+      c.black = { moscow: { name: 'Vadik', at: w.g.time.ms } };
+      const fresh = services(w.g).find(s => s.key === 'bm:gun');
+      c.black.moscow.deals = 1; w.p.cash = 400000;
+      const dev = services(w.g).find(s => s.key === 'bm:gun');
+      dialSecond(w.g, w.bus, w.me, {});                                 // (the station's tasks: both done)
+      const opts = { ...(c.opt ?? {}) }, S0 = c.posting.support.now;
+      // (a clean deal: the gun at the bench, paid there)
+      const g1 = ring(w.g, w.bus, 'bm:gun', 'burner'), d = c.rung.drops.at(-1); d.bm.trap = false;
+      w.g.time.ms = d.from + 1; newMap(w.g, w.bus, { kind: 'street', seed: c.posting.mapSeed, row: d.at.row, i0: null, i1: null, crowd: 1, city: c.posting.city }, d.at.x); w.me = playerActor(w.g);
+      const cash0 = w.p.cash, line1 = collect(w.g, w.bus, d), paid = cash0 - w.p.cash, gun = (w.p.bag ?? []).map(x => x.item).find(isGun);
+      // (a trap: near the bench, a sharp eye sees it; at it, taken in)
+      w.p.skills.awareness = [40, 0];
+      ring(w.g, w.bus, 'bm:gun', 'own'); const t = c.rung.drops.at(-1); t.bm.trap = true;
+      w.g.time.ms = t.from + 1; newMap(w.g, w.bus, { kind: 'street', seed: c.posting.mapSeed, row: t.at.row, i0: null, i1: null, crowd: 1, city: c.posting.city }, t.at.x - 20); w.me = playerActor(w.g);
+      Object.assign(w.me, { x: t.at.x - 20, z: t.at.z }); dialSecond(w.g, w.bus, w.me, {});
+      const sensed = w.log.filter(l => /waiting|can't tell|Nobody waiting/.test(l)).at(-1);
+      collect(w.g, w.bus, t);
+      const arrested = w.papers.some(x => x.kind === 'arrest' && x.lines.some(l => /black market/.test(l))), sellerGone = !c.black?.moscow;
+      // (his van, a contact again for it)
+      c.black = { moscow: { name: 'Vadik', at: w.g.time.ms, deals: 1 } };
+      startHunt(w.g, null, { why: 'killed', x: w.me.x, who: true, wearing: true, sure: true });
+      const ex = ring(w.g, w.bus, 'bm:extract', 'burner'), E = c.rung.extract; E.bm.trap = false;
+      newMap(w.g, w.bus, { kind: 'street', seed: c.posting.mapSeed, row: E.row, i0: null, i1: null, crowd: 1, city: c.posting.city }, E.x); w.me = playerActor(w.g); Object.assign(w.me, { x: E.x, z: -2.6 });
+      const cash1 = w.p.cash;
+      dialSecond(w.g, w.bus, w.me, { extracted: () => { w.out = true; } });
+      console.log(`      no man known: ${none} offered; known, no deal: "${fresh?.why}"; a deal done: ok ${dev?.ok}, "${dev?.why}"\n      the station's tasks: ${Object.keys(opts).join(', ')} (support ${S0}, +${OPT_AS} each)\n      the clean gun: ${g1.text.split('"')[1]}… paid ${paid} (${bmUsd('gun')}), ${gun}; the trap: "${sensed}", taken in ${arrested}, his number gone ${sellerGone}\n      his van: ${ex.ok}, out ${!!w.out}, paid ${cash1 - w.p.cash}`);
+      assert(none === 0 && fresh && !fresh.ok && dev.ok && opts.contact && opts.deal && paid === bmUsd('gun') && gun && /Someone's waiting/.test(sensed ?? '') && arrested && sellerGone && ex.ok && w.out && cash1 - w.p.cash === bmUsd('extract'), 'the black market');
     },
   },
 ];

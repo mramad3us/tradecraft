@@ -4,6 +4,17 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.39 (2026-11-04)
+
+- **The black market's alternatives.** Once you know a black-market man (a beer mat from a barman) and have done one deal with him, the phone leaf offers his versions of three agency services, paid in cash at £1,000 per support point:
+  - **A clean gun:** $25,000, paid at the bench.
+  - **A doctor who asks no questions** at your safe house: $50,000, at the door.
+  - **A van out of the city** when you're hunted: $100,000, to the driver. You spend three hours under boxes, come back to the flat after dark, and lose the hunt. The embassy never hears of it.
+
+  If you don't have the cash when it's due, he's gone for good.
+- **Traps.** Any of his deals can be a police trap: 5% where guns are easy, up to 35% where they're rare. Each time you come within 25 m, your Awareness rolls. A miss says you can't tell; a success says truthfully whether someone's waiting. His ordinary gun drops work the same way. Walk into a trap and you're taken in, his number goes dead, and the ambassador's view of you drops by 10.
+- **The station's optional tasks.** The mind's Ahead leaf lists two: find a black-market contact, then do a deal with him. Each one done earns support +10.
+
 ## v0.1.38 (2026-11-04)
 
 - **Cover.** Every shot, yours and theirs, now checks what's on the line of fire in the last 3 m before the target. Kept off, as a share of the rounds:

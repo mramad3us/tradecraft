@@ -50,10 +50,10 @@ import { eat, soothe } from '../needs.js';
 import { agenda, pass, work, rest, lieLow, expected, heatWord, places, trip, fatigue, watched, KINDS, WORK, TRAVEL, EXCUSES, EXCUSE_LINES } from '../campaign.js';
 import { lessonBook, sceneOf } from '../lessons.js';
 import { order, lapse, dropHere, atDrop } from '../market.js';
-import { ring, second as dialSecond, dropAt, collect, clinicAt, EXTRACT_COVER, TRACKED_P } from '../dial.js';
+import { ring, second as dialSecond, dropAt, collect, clinicAt, trapped, dealt, EXTRACT_COVER, TRACKED_P } from '../dial.js';
 import { admit } from '../services.js';
 import { chiefWays, chiefDo } from '../armoury.js';
-import { price } from '../money.js';
+import { price, cashOf } from '../money.js';
 import { screen } from '../screening.js';
 import { ways as tableWays, work as gunWork, LIVE_MAX_S } from '../gunwork.js';
 import { discharge } from '../shooting.js';
@@ -465,7 +465,12 @@ function use(state, bus, act, here = false) {
   if (act === 'clinic') {                                          // (the clandestine clinic's door: seen to, no names, nothing reported; out where you went in)
     const h = safeHere(state);
     if (!h || !clinicAt(c, h.id, state.time.ms)) return;
+    // (his doctor, not the agency's: paid at the door, or a trap, sim/dial.js)
+    const bm = c.rung.clinic.bm, p = state.people[me.who];
+    if (bm?.trap) { delete c.rung.clinic; trapped(state, bus, me, null); return; }
+    if (bm && !bm.paid && cashOf(p) < bm.usd) { say(state, bus, { kind: 'note', text: `The man at the door wants ${price(state, bm.usd)} before he lets you past him, and you've ${price(state, cashOf(p))}.` }); return; }
     if (!admit(state, bus, me, { official: false, out: null })) say(state, bus, { kind: 'note', text: 'The doctor looks you over and shrugs: nothing for him to do.' });
+    else if (bm && !bm.paid) { bm.paid = true; p.cash = Math.round((cashOf(p) - bm.usd) * 100) / 100; dealt(c); }
     return;
   }
   if (act === 'drop:pay' || act === 'drop:get') { const w = dropHere(state, me); if (w && `drop:${w}` === act) say(state, bus, { kind: 'note', text: atDrop(state, bus, state.people.me, w) }); return; }   // (the black market's benches: sim/market.js)
@@ -637,6 +642,13 @@ function extracted(state, bus, E) {
   for (const a of state.actors) if (a.cop) { a.alert = null; if (a.ai) { a.ai.gunner = null; a.ai.closing = null; } }
   delete state.hunt; delete state.$alarm; delete state.$response; state.$takedown = null;
   state.actors = state.actors.filter(a => !a.huntPost && !a.unit);
+  if (E.bm) {                                                       // (his van, not the agency's: out of the city under the boxes, and back to the flat by dark; the embassy none the wiser)
+    c.log?.push({ ms: state.time.ms, text: 'Out of the hunt in the back of a black-market van, paid in cash.' });
+    skip(state, bus, 3 * HOUR);
+    goTo(state, bus, p.home, 'In the back of the van, under boxes of tinned tomatoes, for hours: a ring road, a yard somewhere outside the city, a cigarette with the driver, and back after dark by other streets. The flat\'s door.');
+    bus?.emit('papers', [{ kind: 'note', title: 'OUT', lines: ['A van of his, cash to the driver, and three hours outside the city: whatever the police are looking for, they\'re looking for it in the wrong place.', 'Nobody at the embassy knows. He does.'] }]);
+    return;
+  }
   p.cover = Math.max(0, p.cover - EXTRACT_COVER);
   c.log?.push({ ms: state.time.ms, text: `Extracted, hunted, to the embassy: the ambassador's view of you −${EXTRACT_COVER}.` });
   skip(state, bus, 25 * MIN);

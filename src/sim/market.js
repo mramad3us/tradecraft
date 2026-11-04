@@ -148,5 +148,6 @@ export function atDrop(state, bus, p, which) {
   (p.bag ??= []).push({ item: id }, ...(spare ? [{ item: spare }] : []));
   p.rounds = { ...(p.rounds ?? {}), [M.cal]: (p.rounds?.[M.cal] ?? 0) + 20 };
   o.done = 'got'; o.gun = id;
+  const sl = sellerOf(c); if (sl) sl.deals = (sl.deals ?? 0) + 1;    // (a deal done: he knows you, and you can call on him, sim/dial.js)
   return `A sports bag behind the bench, heavier than it looks. Inside, in a towel: ${o.name}, used, its magazine in${spare ? ', a spare' : ''}, and a box of twenty. Into your carrier bag, and walk.`;
 }
