@@ -24,5 +24,7 @@ export const GB = {
   black: { ease: 0.15, models: ['converted', 'glock17'] },
   // (its business over the years, sim/geopolitics.js: another country's, played out in London)
   geo: { traits: ['money', 'residency', 'hit'], the: 'Britain', rival: 'the Kremlin' },
+  // (its counter-intelligence, 0 … 1, the Security Service's: how hard a legend is to get in unseen, the deep postings' incubation, sim/incubation.js)
+  ci: 0.85,
   range: { name: 'a smallbore rifle club', what: ['hunting'] },
 };

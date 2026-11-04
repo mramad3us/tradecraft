@@ -32,6 +32,15 @@ const COVER = [
   [101, 'The ambassador\'s office thinks you\'re one of the good ones.'],
 ];
 
+// (under a legend, the job's standing: the employer's view of you, sim/legends.js)
+const JOB = [
+  [20, 'The job\'s hanging by a thread: one more absence and they\'ll let you go.'],
+  [40, 'Your boss has stopped asking where you were, which is worse.'],
+  [60, 'There\'ve been remarks at work about your hours.'],
+  [80, 'Nobody at work has said a word about your hours.'],
+  [101, 'At work they think you\'re the best hire they\'ve made in years.'],
+];
+
 /** The spread of the officer's error on a gauge read by a skill: points (SPREAD.min at the best). */
 export function spreadOf(p, c, key = 'awareness') {
   const days = c ? (c.now ?? c.posting.startMs) / DAY - c.posting.startMs / DAY : 0, done = c?.done?.length ?? 0;
@@ -52,6 +61,6 @@ export function readOf(c, p, ms) {
   const h = read(P.heat, 'awareness', HEAT, 'heat'), cv = read(P.cover, 'social', COVER, 'cover');
   return {
     heat: { text: HEAT.find(([t]) => h.v < t)[1], sure: sureOf(h.s) },
-    cover: { text: COVER.find(([t]) => cv.v < t)[1], sure: sureOf(cv.s) },
+    cover: { text: (P.embassy?.door ? JOB : COVER).find(([t]) => cv.v < t)[1], sure: sureOf(cv.s) },
   };
 }

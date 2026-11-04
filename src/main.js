@@ -29,6 +29,8 @@ import { candidates, legendFile, newCampaign, context, fold, heatWord, KINDS, LE
 import { missionPlace } from './sim/places.js';
 import { planPaper, retires, successorStart, ageOf } from './sim/career.js';
 import { newsBetween } from './sim/geopolitics.js';
+import { offers, nextPosting, careerEnd, afterPhases, deepPaper } from './sim/postings.js';   // (0.2's deep postings: docs/POSTINGS.md)
+import { isDeep, DEEP_LEVELS, DEEP_CITIES } from './sim/legends.js';
 import { cityById, CITY_IDS, FIRST_TOUR_CITY } from './sim/cities/index.js';
 import { shopWord } from './sim/shops.js';
 import { price } from './sim/money.js';
@@ -93,6 +95,7 @@ function pickOfficer(city = CITY_IDS[0], level = null, world = null) {
   const best = careerBest(), open = (k) => k === 0 || k <= best - 1 || settings.debug;
   level ??= open(1) ? 'handler' : 'junior';
   if (level === 'junior') city = FIRST_TOUR_CITY;                  // (a first tour is at its station: sim/cities/)
+  if (DEEP_LEVELS.has(level) && !DEEP_CITIES.includes(city)) city = DEEP_CITIES[0];   // (a legend's posting is never London's: sim/legends.js)
   const seed = randomSeed(), list = candidates(seed, city, level), start = world ? successorStart(world.ms) : undefined;   // (the next officer of a world: its date, its business)
   home = null;
   ui.hideTitle();
@@ -101,7 +104,7 @@ function pickOfficer(city = CITY_IDS[0], level = null, world = null) {
   const show = () => {
     list[3] = legendFile(seed, city, level, n);
     ui.showCandidates(list, (i) => { if (!world) keepWorld(null); launch(newGame({ seed, scenario: 'campaign', version: VERSION, campaign: newCampaign(seed, list[i], city, level, start, world?.seed ?? seed), weather: WEATHER })); },
-      city, { cities: level === 'junior' ? null : (c) => pickOfficer(c, level, world), back: () => showTitle(), level, another: () => { n++; show(); }, world: world ? `The same world, from ${stampText(start).split(',')[0]} ${calendar(start).year}` : null,
+      city, { cities: level === 'junior' ? null : (c) => pickOfficer(c, level, world), cityIds: DEEP_LEVELS.has(level) ? DEEP_CITIES : null, back: () => showTitle(), level, another: () => { n++; show(); }, world: world ? `The same world, from ${stampText(start).split(',')[0]} ${calendar(start).year}` : null,
         levels: LEVELS.map((L, k) => ({ id: L.id, name: L.name, open: open(k), why: k ? `Opens when a game of yours reaches the rung above it${settings.debug ? ' (open: debug mode)' : ''}.` : null })), levelTo: (id) => pickOfficer(id === 'junior' ? FIRST_TOUR_CITY : CITY_IDS[0], id) });
   };
   show();
@@ -257,11 +260,13 @@ function result() {
     if (over) reached(levelOf(c.posting.level) + (over === 'promoted' || over === 'completed' ? 1 : 0));
     // (the station chosen: the orders first, the leave and the language school and how long they take, sim/career.js; then the posting, that much later)
     // (a posting done or promoted from: the next station, unless they're past RETIRE_AGE; lost or retired: the next officer, the world going on)
-    const end = c.over?.ms ?? state.time.ms, lost = state.people[state.player]?.dead || over === 'expelled', retiring = (over === 'promoted' || over === 'completed') && retires(c.character, end);
-    const next = (over === 'promoted' || over === 'completed') && !retiring ? (city) => ui.showPaper(planPaper(c.character, city), () => launch(newGame({ seed: randomSeed(), scenario: 'campaign', version: VERSION, campaign: promote(c, city), weather: WEATHER }))) : null;
+    // (the next posting from what the career offers, the deep ones among them: sim/postings.js; lost: dead, expelled, taken; retiring: age, a legend's pretext, an illegal brought home)
+    const end = c.over?.ms ?? state.time.ms, lost = state.people[state.player]?.dead || over === 'expelled' || over === 'taken', E = careerEnd(c, end), retiring = !!over && !lost && !!E?.retire;
+    const list = over && !lost && !retiring ? offers(c, end) : [];
+    const next = list.length ? { offers: list, go: (o) => ui.showPaper(planPaper(c.character, o.city, o.kind, afterPhases(c, o.city, o.kind, end)), () => launch(newGame({ seed: randomSeed(), scenario: 'campaign', version: VERSION, campaign: nextPosting(c, o.city, o.kind), weather: WEATHER }))) } : null;
     const W = { seed: c.world ?? c.seed, ms: end, last: c.character.name, why: retiring ? 'retired' : lost ? 'lost' : null };
     if (lost || retiring) keepWorld(W);
-    const successor = lost || retiring ? { words: `${retiring ? `${c.character.name} retires, ${ageOf(c.character, end)}` : `${c.character.name}'s career is over`}: the next officer, the world going on`, go: async () => { await autosave(); stop(); pickOfficer(CITY_IDS[0], null, W); } } : null;
+    const successor = lost || retiring ? { words: `${retiring ? E.words : `${c.character.name}'s career is over`}: the next officer, the world going on`, go: async () => { await autosave(); stop(); pickOfficer(CITY_IDS[0], null, W); } } : null;
     return ui.showResult(state, { back: over ? null : () => backToPosting(state), title: async () => { await autosave(); stop(); showTitle(); }, photo: lastPhoto?.url, next, successor }, settings);
   }
   // (a lesson of the tutorial: again with Hale, on your own, the next one, the directory: sim/tutorial/)
@@ -334,6 +339,7 @@ function awayNews(c) {
 
 function postingPaper(c) {
   const p = c.posting, me = c.character, K = cityById(p.city);
+  if (isDeep(p)) return deepPaper(c, awayNews(c));                 // (under a legend: its own brief, sim/postings.js)
   // (a first tour's: its station's words, sim/cities/ firstTour)
   if (p.level === 'junior') return { stamp: 'FIRST TOUR', title: `STATION ${K.name.toUpperCase()}`, go: 'Begin the tour', lines: [
     `${me.name}: ${p.job}. ${K.station.firstTour.paper}, and${me.legend ? ', for the record,' : ''} its most junior officer.`,

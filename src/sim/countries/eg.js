@@ -22,5 +22,9 @@ export const EG = {
   black: { ease: 0.6, models: ['helwan', 'tokarev', 'browning', 'akm', 'model10'] },
   // (its business over the years, sim/geopolitics.js)
   geo: { traits: ['arms', 'insurgency', 'water', 'smuggling'], the: 'Egypt', region: 'Sinai', neighbour: 'Libyan' },
+  // (its counter-intelligence, 0 … 1, the GIS's and the NSS's: how hard a legend is to get in unseen, the deep postings' incubation, sim/incubation.js)
+  ci: 0.75,
+  // (the long rivalry the agency's country plays out here, decades of it: a deep posting's purpose, sim/geopolitics.js rivalryOf())
+  rivalry: { us: { since: 1955, the: 'Moscow\'s long courtship of Cairo', rival: 'Moscow', leader: 'the president', threads: ['patron', 'regime', 'programme'] } },
   range: { name: 'the Egyptian Shooting Club', what: ['helwan', 'cz75', 'rem870'] },
 };

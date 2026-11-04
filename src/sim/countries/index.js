@@ -18,6 +18,9 @@
 // to come by, models: what's on offer }), range (a shooting club or range in its station, where there is one:
 // { name, what: the guns it lets you shoot }) }. The research behind them is DESIGN.md's (Firearms: the law
 // and the police, by country).
+// The deep postings' (0.2, docs/POSTINGS.md): ci (its counter-intelligence, 0–1: a legend's incubation, sim/incubation.js)
+// and rivalry ({ [the agency's country]: { since, the, rival, patron, leader, threads } }: the long rivalry played out
+// there, decades of it, sim/geopolitics.js rivalryOf(); a country without has no deep posting's purpose of its own).
 import { RU } from './ru.js';
 import { GB } from './gb.js';
 import { LB } from './lb.js';

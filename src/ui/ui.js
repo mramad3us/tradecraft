@@ -736,12 +736,14 @@ export function createUI({ input, cb }) {
         sec(el('h3', {}, 'The posting'),
           row('Post', `${R.rank}, ${R.agency}, Station ${cityById(R.city).name}`),
           row('Since', `${fileDate(R.since)}: day ${R.day}`),
-          row('Cover', underLegend ? `${R.job} (tonight, a legend: below)` : `${R.job}: your own name, a diplomatic passport; caught, expelled, not jailed`),
+          row('Cover', R.deep ? `${R.job}: a legend, below` : underLegend ? `${R.job} (tonight, a legend: below)` : `${R.job}: your own name, a diplomatic passport; caught, expelled, not jailed`),
           row('Tasking', `${cap(R.subject)}. Delivered: ${R.intel} of ${R.goal}`),
           row('Network', R.network.length ? R.network.join(', ') : R.level === 'junior' ? 'none of your own on a first tour' : 'nobody left'),
-          row('Heat', rd.heat.text), row('Embassy', rd.cover.text),
+          row('Heat', rd.heat.text), row(R.deep ? 'The job' : 'Embassy', rd.cover.text),
+          R.deep?.target ? row('Way in', cap(R.deep.target)) : null, R.deep?.rivalry ? row('Purpose', cap(R.deep.rivalry)) : null,
           R.over ? row('Ended', `${OVER_WORDS[R.over.why] ?? R.over.why}${R.over.ms ? `, ${fileDate(R.over.ms, now)}` : ''}.`) : null),
-        sec(el('h3', {}, 'The record'),
+        ...(R.deep?.life?.length ? [sec(el('h3', {}, 'The legend lived'), ...R.deep.life.map(t => el('p', { className: 'cs-row' }, t)))] : []),   // (its history, the incubation's: sim/incubation.js)
+      sec(el('h3', {}, 'The record'),
           ...R.past.map(k => row('Before', `${k.rank}${k.city ? `, Station ${cityById(k.city).name}` : ''}${k.until ? `, to ${fileMonth(k.until)}` : ''}`)),
           row('Assignments', R.done.length ? `${R.done.filter(d => !d.missed).length} done${R.done.some(d => d.missed) ? `, ${R.done.filter(d => d.missed).length} missed` : ''}${R.done.length > 4 ? '; the last four:' : ':'}` : 'none yet'),
           R.done.length ? el('ul', { className: 'cs-ops' }, ...R.done.slice(-4).map(d => el('li', { className: d.missed ? 'missed' : '' }, el('time', {}, fileDate(d.ms, now)), el('span', {}, `${opWords(d)}: ${d.word}`)))) : null,
@@ -979,14 +981,14 @@ export function createUI({ input, cb }) {
 
   // ---------- a test's papers: the brief, the result ----------
   /** The campaign's three candidates (sim/campaign.js candidates()): pick one. */
-  function showCandidates(list, onPick, city = CITY_IDS[0], { cities = null, back = null, level = 'handler', levels = null, levelTo = null, another = null, world = null } = {}) {
+  function showCandidates(list, onPick, city = CITY_IDS[0], { cities = null, cityIds = null, back = null, level = 'handler', levels = null, levelTo = null, another = null, world = null } = {}) {
     const C = cityById(city), lang = C.lang ?? 'ru', junior = level === 'junior';
     // (the career's rung to start at: a first tour, or a posting of your own once it's open: src/main.js)
     const rungs = levels && levels.length > 1 && el('div', { className: 'cities' }, el('span', { className: 'note', textContent: 'Start as: ' }),
       ...levels.map(L => el('button', { className: `small${L.id === level ? ' on' : ''}`, disabled: !L.open, title: L.open ? '' : L.why ?? '', onclick: () => { if (L.open && L.id !== level) levelTo?.(L.id); } }, L.open ? L.name : `${L.name} (locked)`)));
     // (the posting's city: another one, three other officers; the stations, sim/cities/)
     const tabs = cities && el('div', { className: 'cities' }, el('span', { className: 'note', textContent: 'Posted to: ' }),
-      ...CITY_IDS.map(c =>
+      ...(cityIds ?? CITY_IDS).map(c =>   // (a legend's posting only where there are legends to be had: sim/legends.js DEEP_CITIES)
         el('button', { className: `small${c === city ? ' on' : ''}`, onclick: () => { if (c !== city) cities(c); } }, CITIES[c].name)));
     const top = (p) => Object.entries(p.skills).map(([k, [b, x]]) => [k, b + x]).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => SKILLS[k]?.name ?? k).join(', ');
     paper.replaceChildren(el('div', { className: 'sheet brief candidates' },
@@ -1086,10 +1088,11 @@ export function createUI({ input, cb }) {
       el('button', { className: 'item', onclick: go(lesson.tutorial) }, 'The tutorial', el('small', { textContent: 'The lessons, all of them.' })),
       el('button', { className: 'item', onclick: go(title) }, home ? 'Back to the flat' : 'Back to the title')]
       : state.campaign ? [el('hr'),
-      // (promoted: a station of your own, chosen here: sim/campaign.js promote(); each its profile's line, sim/cities/)
-      ...(stations ? [el('p', { className: 'note', textContent: 'A posting of your own: which station do you ask for?' }),
-        ...CITY_IDS.map(c =>
-          el('button', { className: 'item', onclick: go(() => stations(c)) }, `Station ${CITIES[c].name}`, el('small', { textContent: `${CITIES[c].station.about} ${betweenWords(state.campaign.character, c)}` })))] : []),   // (the time it takes to get there: sim/career.js)
+      // (the next posting, chosen here: what the career offers, sim/postings.js offers(): the stations, each its profile's line, sim/cities/;
+      // the deep ones, undercover and an illegal's, where they're open, and why not where they aren't)
+      ...(stations ? [el('p', { className: 'note', textContent: stations.offers?.some(o => o.kind !== 'official' && o.ok) ? 'What next: a station, or a legend?' : 'A posting of your own: which station do you ask for?' }),
+        ...(stations.offers ?? CITY_IDS.map(c => ({ city: c, kind: 'official', ok: true, title: `Station ${CITIES[c].name}`, about: CITIES[c].station.about, words: betweenWords(state.campaign.character, c) }))).map(o =>
+          el('button', { className: 'item', disabled: !o.ok, onclick: o.ok ? go(() => (stations.go ? stations.go(o) : stations(o.city))) : null }, o.title, el('small', { textContent: o.ok ? `${o.about} ${o.words}` : `Not yet: ${o.why}.` })))] : []),   // (the time it takes to get there: sim/career.js, sim/postings.js)
       successor ? el('button', { className: 'item', onclick: go(successor.go) }, 'The next officer', el('small', { textContent: `${successor.words}: the same date, the same world's business.` })) : null,   // (the world goes on: sim/career.js)
       back && !stations && !state.people[state.player]?.dead ? el('button', { className: 'item', onclick: go(back) }, 'Back to the posting', el('small', { textContent: 'The debrief, and on with it.' })) : null,
       el('button', { className: 'item', onclick: go(title) }, home ? 'Back to the flat' : 'Back to the title')] : [

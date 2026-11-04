@@ -18,20 +18,21 @@ import { hash } from './rng.js';
 export const YEAR = 365.25 * DAY, WEEK = 7 * DAY, LEAVE_WEEKS = 3;
 // (weeks of full-time study to working proficiency from nothing, by the FSI's categories: I 30, II 36, III 44, IV 88)
 export const LANG_WEEKS = { fr: 30, es: 30, it: 30, pt: 30, de: 36, ru: 44, fa: 44, hi: 44, hy: 44, pl: 44, ar: 88, zh: 88, en: 0 };
-export const BASIC_K = 0.25, FLUENT_K = 0.8;
-export const NEED = { official: 'working', undercover: 'fluent' };
+export const BASIC_K = 0.25, FLUENT_K = 0.8, NATIVE_K = 1;
+// (an illegal's is native: no accent, nothing (the user, 2026-10-26); the last step a year and more of living in it, NATIVE_K of the category's weeks)
+export const NEED = { official: 'working', undercover: 'fluent', illegal: 'native' };
 
 /** Weeks of full-time language school from level `have` to `want` in lang (0 if you have it). */
 export function langWeeks(lang, have = 'none', want = 'working') {
   const W = LANG_WEEKS[lang] ?? 44, at = Math.max(0, LANG_LEVELS.indexOf(have ?? 'none')), to = LANG_LEVELS.indexOf(want);
   if (at >= to) return 0;
-  const step = { basic: BASIC_K * W, working: (1 - BASIC_K) * W, fluent: FLUENT_K * W };
+  const step = { basic: BASIC_K * W, working: (1 - BASIC_K) * W, fluent: FLUENT_K * W, native: NATIVE_K * W };
   let weeks = 0;
   for (let i = at + 1; i <= to; i++) weeks += step[LANG_LEVELS[i]] ?? 0;
   return Math.round(weeks);
 }
 
-/** The time before a station: { lang, langName, have, need, langW, leaveW, weeks }. cover: 'official' | 'undercover'. */
+/** The time before a station: { lang, langName, have, need, langW, leaveW, weeks }. cover: 'official' | 'undercover' | 'illegal'. */
 export function between(character, city, cover = 'official') {
   const lang = cityById(city).lang, have = character?.langs?.[lang] ?? 'none', need = NEED[cover] ?? 'working';
   const langW = lang === 'en' ? 0 : langWeeks(lang, have, need);
@@ -47,10 +48,13 @@ export function betweenWords(character, city, cover = 'official') {
 
 // **The plan, as a paper** (plan(), planPaper(): the user, 2026-11-04, "make them fit whatever we're doing"): each phase,
 // where and for how long, in its own words: the leave, the Institute's language; and for an undercover or an illegal
-// post (0.2.x: the postings themselves wait), the language to fluent and the skills to the post's floors (FLOORS: the
+// post (0.2's: sim/postings.js), the language to fluent and the skills to the post's floors (FLOORS: an illegal's the
 // core four to master, close combat, fitness and the gun to 18, the rest to 14), each phase with the people who'd teach
 // it (SCHOOLS), at WEEKS_PER_POINT a point, harder the higher it is.
-export const FLOORS = { illegal: { deception: 20, tracking: 20, pathfinding: 20, awareness: 20, cqc: 18, fitness: 18, weapons: 18, social: 14, analysis: 14, tech: 14, medicine: 14 } };
+// (an undercover officer's, 0.2's: the core four and Social a few points past a handler's 10, Deception most: a year and a little
+// more of it for a handler, nothing for a legend; docs/POSTINGS.md)
+export const FLOORS = { illegal: { deception: 20, tracking: 20, pathfinding: 20, awareness: 20, cqc: 18, fitness: 18, weapons: 18, social: 14, analysis: 14, tech: 14, medicine: 14 },
+  undercover: { deception: 14, awareness: 13, tracking: 12, pathfinding: 12, social: 12 } };
 export const WEEKS_PER_POINT = (base) => 2 + 0.25 * base;
 export const ILLEGAL_OS = 80;
 // (who teaches what, for a post where nobody comes for you: the phase's name, its place, its line)
@@ -63,12 +67,13 @@ const SCHOOLS = [
   { skills: ['tech'], who: 'in the Directorate of Science and Technology\'s workshops', line: 'locks, radios, cameras, and the things you build from what\'s in a hardware shop' },
   { skills: ['social', 'analysis'], who: 'at the Sherman Kent School, and on a borrowed embassy\'s cocktail circuit', line: 'reading rooms, and reading people in them' },
 ];
-/** The training before a post: [{ what, where, weeks, line }] (home leave, the language; for an illegal, the skills to FLOORS). */
+/** The training before a post: [{ what, where, weeks, line }] (home leave, the language; undercover or an illegal's, the skills to FLOORS). */
 export function plan(character, city, cover = 'official') {
   const out = [{ what: 'home leave', where: null, weeks: LEAVE_WEEKS, line: 'boxes, a dentist, people who ask what it\'s like and don\'t want to know' }];
-  const lang = cityById(city).lang, need = NEED[cover === 'illegal' ? 'undercover' : cover] ?? 'working', have = character?.langs?.[lang] ?? 'none';
+  const lang = cityById(city).lang, need = NEED[cover] ?? 'working', have = character?.langs?.[lang] ?? 'none';
   const lw = lang === 'en' ? 0 : langWeeks(lang, have, need);
-  if (lw) out.push({ what: `${LANG_NAME[lang] ?? lang} to ${need}`, where: 'at the Foreign Service Institute, Arlington', weeks: lw, line: need === 'fluent' ? 'until you dream in it, and the instructors stop correcting your accent' : 'grammar in the morning, newspapers in the afternoon, a teacher who won\'t speak English to you' });
+  if (lw) out.push({ what: `${LANG_NAME[lang] ?? lang} to ${need}`, where: need === 'native' ? 'at the Institute, then a year and more abroad among its speakers, under a name not your own' : 'at the Foreign Service Institute, Arlington', weeks: lw,
+    line: need === 'native' ? 'until a stranger in a queue there would take you for one of them, and your dreams have no accent' : need === 'fluent' ? 'until you dream in it, and the instructors stop correcting your accent' : 'grammar in the morning, newspapers in the afternoon, a teacher who won\'t speak English to you' });
   const F = FLOORS[cover];
   if (F) for (const S of SCHOOLS) {
     let weeks = 0;
@@ -79,12 +84,17 @@ export function plan(character, city, cover = 'official') {
 }
 const SKILL_NAMES = { deception: 'Deception', tracking: 'Tracking', pathfinding: 'Pathfinding', awareness: 'Awareness', social: 'Social', analysis: 'Analysis', tech: 'Tech', medicine: 'Medicine', cqc: 'CQC', weapons: 'Weapon handling', fitness: 'Fitness' };
 const span = (w) => { if (w >= 52) { const y = Math.round(w / 52 * 10) / 10; return `${y} year${y === 1 ? '' : 's'}`; } return w >= 9 ? `${Math.round(w / 4.35)} months` : `${w} week${w === 1 ? '' : 's'}`; };
-/** The paper of it: { stamp, title, lines } (its opening the post's: an illegal's the hard word). */
-export function planPaper(character, city, cover = 'official') {
-  const P = plan(character, city, cover), total = P.reduce((t, x) => t + x.weeks, 0), K = cityById(city);
+/**
+ * The paper of it: { stamp, title, lines } (its opening the post's: an illegal's the hard word; an undercover officer's, the legend's).
+ * after: phases after the training ([{ what, where, weeks, line }]: a deep post's incubation, sim/incubation.js), in the total.
+ */
+export function planPaper(character, city, cover = 'official', after = []) {
+  const P = [...plan(character, city, cover), ...after], total = P.reduce((t, x) => t + x.weeks, 0), K = cityById(city);
   const open = cover === 'illegal' ? '"You\'re very good. At this level, over there, you\'ll be dead in a month. You won\'t get any backup: no embassy, no passport that means anything, nobody who\'ll admit you were ever ours. So first, this."'
+    : cover === 'undercover' ? `"${K.name}, under a legend: no diplomatic passport, nobody at the embassy who knows your name. If they take you, it's their prison, and we were never there. So you'll be very good before you go."`
     : P.length > 1 ? `Station ${K.name} wants its officers to speak the language before they land. The personnel office has your next ${span(total)} worked out.` : `Station ${K.name}: you have what it needs. Leave, and then out.`;
-  return { stamp: cover === 'illegal' ? 'TRAINING' : 'ORDERS', title: cover === 'illegal' ? `BEFORE ${K.name.toUpperCase()}` : `TO STATION ${K.name.toUpperCase()}`,
+  const deep = cover === 'illegal' || cover === 'undercover';
+  return { stamp: deep ? 'TRAINING' : 'ORDERS', title: deep ? `BEFORE ${K.name.toUpperCase()}` : `TO STATION ${K.name.toUpperCase()}`,
     lines: [open, ...P.map(x => `${cap(span(x.weeks))}: ${x.what}${x.where ? `, ${x.where}` : ''}: ${x.line}.`), `${cap(span(total))} in all, before you're anywhere near ${K.name}.`] };
 }
 const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);

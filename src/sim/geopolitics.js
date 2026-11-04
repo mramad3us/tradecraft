@@ -12,7 +12,15 @@
 // next rising before the last is done (OVERLAP_Y at most), from START_Y to END_Y, round and round (a hostage crisis can
 // come again). **A posting's tasking** (taskingAt()): the station's country's newest issue open at the posting's start.
 // **The news** (newsBetween()): what rose and what was settled between two dates, a line each (a posting's brief after
-// time away). The long rivalries, decades each, for 0.2's undercover and illegal postings, are to come (DESIGN.md).
+// time away).
+// **The long rivalries** (RIVALRIES, THREADS: 0.2's, docs/POSTINGS.md; the user, 2026-11-04: "these postings should link to long
+// running geopolitics (not surface stuff like regular officers who can be deployed to take part in a task force …) like decades
+// long rivalry with a country"). Between the agency's country (AGENCY_COUNTRY) and another, played out where a country's
+// profile says (rivalry: { [the agency's country]: { since, the (in words), threads (THREADS' keys), rival, patron, leader } }:
+// Moscow's own, Beirut's Tehran's by way of the party, Cairo's Moscow's long courtship of it). A rivalry's threads run
+// THREAD_Y each, decades, from its since and round again, the next rising before the last is done (THREAD_OVERLAP_Y): a deep
+// posting's purpose is the thread open when it's decided (purposeAt(), threadAt()), not the station's business of the
+// season (ISSUES above: a few years, a handler's tasking).
 import { stream, range, pick } from './rng.js';
 import { at } from './clock.js';
 import { countryOfCity, countryById } from './countries/index.js';
@@ -81,3 +89,55 @@ export function newsBetween(w, city, from, to, words = (ms) => new Date(Date.UTC
   return out;
 }
 const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+
+// ---------- the long rivalries (0.2's deep postings) ----------
+
+export const AGENCY_COUNTRY = { CIA: 'us' };
+export const THREAD_Y = [10, 25], THREAD_OVERLAP_Y = 3, RIVALRY_SINCE = 1947;
+// (each thread: its subject, what the post is to learn of it, how it's said when a decade's done with it; {tokens} the rivalry's words)
+export const THREADS = {
+  command: ['the command chain', 'who stands behind {leader} when the codes change hands, and what they would do with them', 'a generation of generals retired, and their files in our safe'],
+  programme: ['the long programme', 'the weapon {country} has been building for thirty years: its designers, its tests, what it can do', 'the thing in service at last, and nothing about it we didn\'t know first'],
+  inner: ['the inner circle', 'the score of men around {leader}: what they own, whom they fear, which of them would move first', 'the circle broken and remade, and our man inside the new one'],
+  illegals: ['their illegals', '{rival}\'s own illegals in the West: who trains them, who runs them, under what names', 'a dozen of them gone home in a swap, and the school that made them known to us'],
+  influence: ['the influence networks', 'whom {rival} pays in Western capitals, and through whom', 'the money traced, and the names in a report nobody published'],
+  proxies: ['{patron}\'s army in {country}', 'the party\'s chain of command to {patron}: who gives the orders, how they travel, who carries them', 'the chain mapped, and two of its links dead'],
+  arsenal: ['the hidden arsenal', 'how many rockets the party has dug in, where, and who holds the keys to them', 'the tunnels on a map in Langley, and the party knowing it'],
+  hostages: ['the abductions', 'the men who have taken Westerners in {country} for forty years, and the next they mean to take', 'the last of the old kidnappers dead, the young ones known'],
+  patron: ['{rival} on the Nile', '{rival}\'s long courtship of {country}: the arms, the reactor, the officers it trains, and what it\'s promised', 'the reactor running, and the officers who trained in Moscow our friends'],
+  regime: ['the army\'s grip', 'the generals who really run {country}: their companies, their quarrels, who comes after', 'a new man at the top, from the list we had'],
+};
+/** The rivalry played out at city, for the agency's country (us): { since, the, threads, words }, or null (none: no deep posting's purpose here). */
+export function rivalryOf(city, agency = 'us') {
+  const K = countryOfCity(city), L = K?.rivalry?.[agency];
+  if (!L?.threads?.length) return null;
+  return { ...L, words: { country: K.geo?.the ?? K.name, rival: L.rival ?? K.geo?.rival ?? K.geo?.the ?? K.name, patron: L.patron ?? K.geo?.patron ?? 'its patron', leader: L.leader ?? K.geo?.leader ?? 'the man at the top' } };
+}
+/** A rivalry's threads over the decades from world seed w at city: [{ thread, subject, goal, ended, from, to }] (game ms). */
+export function threads(w, city, agency = 'us') {
+  const R = rivalryOf(city, agency);
+  if (!R) return [];
+  const K = countryOfCity(city), r = stream('rivalry', w, K.id, agency), order = shuffleOf(r, R.threads), fill = (s) => s.replace(/\{(\w+)\}/g, (m, k) => R.words[k] ?? m), out = [];
+  let t = at(R.since ?? RIVALRY_SINCE, 1, 1) + range(r, 0, 2) * Y, k = 0;
+  while (t < at(END_Y, 1, 1)) {
+    const key = order[k % order.length], T = THREADS[key], len = range(r, ...THREAD_Y) * Y;
+    if (T) out.push({ thread: key, subject: fill(T[0]), goal: fill(T[1]), ended: fill(T[2]), from: t, to: t + len });
+    t += len - range(r, 0, THREAD_OVERLAP_Y) * Y; k++;
+  }
+  return out;
+}
+/** The thread open at city at ms (the newest begun): its { thread, subject, goal, from, to }, or null. */
+export function threadAt(w, city, ms, agency = 'us') {
+  return threads(w, city, agency).filter(I => I.from <= ms && ms < I.to).sort((a, b) => b.from - a.from)[0] ?? null;
+}
+/**
+ * A deep posting's purpose at city, decided at ms: the rivalry's thread then (or the one named, if it's this rivalry's): { subject,
+ * goal, thread, rivalry: { the, since, years (how long it's run by ms) } }; a station without a rivalry, its tasking then.
+ */
+export function purposeAt(w, city, ms, thread = null, agency = 'us') {
+  const R = rivalryOf(city, agency), all = threads(w, city, agency);
+  const I = (thread && all.filter(x => x.thread === thread && x.from <= ms).sort((a, b) => b.from - a.from)[0]) ?? threadAt(w, city, ms, agency);
+  if (!R || !I) { const t = taskingAt(w, city, ms); return t ? { subject: t[0], goal: t[1], thread: null, rivalry: null } : null; }
+  const year = new Date(Date.UTC(2026, 0, 1) + ms).getUTCFullYear();
+  return { subject: I.subject, goal: I.goal, thread: I.thread, rivalry: { the: R.the, since: R.since ?? RIVALRY_SINCE, years: year - (R.since ?? RIVALRY_SINCE) } };
+}

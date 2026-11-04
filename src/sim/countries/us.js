@@ -19,5 +19,7 @@ export const US = {
   black: { ease: 0.6, models: ['glock19', 'colt1911', 'model10'] },
   // (its business over the years, sim/geopolitics.js: the foreign services at work on American soil)
   geo: { traits: ['residency', 'money'], the: 'the United States', rival: 'Moscow' },
+  // (its counter-intelligence, 0 … 1, the FBI's: how hard a legend is to get in unseen, the deep postings' incubation, sim/incubation.js)
+  ci: 0.8,
   range: { name: 'the Farm\'s range', what: ['glock17', 'p229', 'm4', 'rem870'] },
 };

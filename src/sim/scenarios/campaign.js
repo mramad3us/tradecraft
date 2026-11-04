@@ -47,7 +47,8 @@ import { Z, streetName } from '../map/street.js';
 import { townOf, cityById, FIRST_TOUR_CITY } from '../cities/index.js';
 import { skip, newMap } from '../game.js';
 import { eat, soothe } from '../needs.js';
-import { agenda, pass, work, rest, lieLow, expected, heatWord, places, trip, fatigue, watched, KINDS, WORK, TRAVEL, EXCUSES, EXCUSE_LINES } from '../campaign.js';
+import { agenda, pass, work, rest, lieLow, expected, heatWord, places, trip, fatigue, watched, heatFloor, KINDS, WORK, TRAVEL, EXCUSES, EXCUSES_DEEP, EXCUSE_LINES } from '../campaign.js';
+import { isDeep } from '../legends.js';
 import { lessonBook, sceneOf } from '../lessons.js';
 import { order, lapse, dropHere, atDrop } from '../market.js';
 import { ring, second as dialSecond, dropAt, collect, clinicAt, trapped, dealt, EXTRACT_COVER, TRACKED_P } from '../dial.js';
@@ -90,7 +91,9 @@ export const campaignHub = {
   setup(state) {
     const c = state.campaign, p = c.posting;
     state.time.ms = c.now ?? p.startMs;
-    state.legend = { id: 'embassy', name: p.job, cover: 'official', floor: 20 };
+    // (the posting's heat is kept under 'embassy' whatever the cover: the hub's own key; under a legend (0.2's: sim/legends.js) no
+    // diplomatic passport, its name and papers the legend's, the heat's floor nothing till it's ever risen: campaign.js heatFloor())
+    state.legend = isDeep(p) ? { id: 'embassy', name: p.job, cover: 'legend', alias: p.alias, papers: p.papers, floor: heatFloor(p) } : { id: 'embassy', name: p.job, cover: 'official', floor: 20 };
     state.country = p.country;
     state.heat[heatKey('embassy', p.country)] = p.heat;
     state.people.me = structuredClone(c.character);
@@ -136,15 +139,16 @@ export const campaignHub = {
       // (an assignment to be off for before six: out in time for it, with an excuse: sim/campaign.js work())
       const six = Math.floor(now / DAY) * DAY + WORK.to * HOUR, soon = c.assignments.filter(a => a.status === 'open' && !a.trip && windowOf(a)[1] > now && a.from < six + 2 * HOUR)
         .map(a => { const at = missionPlace(c, a); return at ? leaveBy(state, a, at) - SPARE_MIN * MIN : null; }).filter(t => t !== null && t < six).sort((x, y) => x - y)[0];
-      const here = state.map.place === 'embassy';
-      if (!here || !state.scenario.screened) { state.scenario.screened = true; screen(state, bus, state.people.me, c); }   // (in the way every morning: through the arch, sim/screening.js)
+      const here = state.map.place === 'embassy', E = c.posting.embassy.door ? c.posting.employer : null;   // (a legend's employer: its door, no arch, no Marine)
+      if (!E && (!here || !state.scenario.screened)) { state.scenario.screened = true; screen(state, bus, state.people.me, c); }   // (in the way every morning: through the arch, sim/screening.js)
       const to = work(c, now, soon ?? null), early = to < six;
-      if (to === now) return say(state, bus, { kind: 'instinct', text: 'Not a working day, or it\'s over: nobody at the embassy wants you now.' });
-      until(to, here ? 'The day\'s cables, a meeting about the meetings, the canteen at one.' : 'The metro to the embassy, the guard\'s nod, the day\'s cables.');
+      if (to === now) return say(state, bus, { kind: 'instinct', text: `Not a working day, or it's over: nobody at ${E ?? 'the embassy'} wants you now.` });
+      until(to, E ? `In at ${E}'s door, a nod at reception: the legend's day, done as well as anyone does it.` : here ? 'The day\'s cables, a meeting about the meetings, the canteen at one.' : 'The metro to the embassy, the guard\'s nod, the day\'s cables.');
       eat(state.people.me, state.time.ms - 4 * HOUR, 5);             // (lunch in the canteen: sim/needs.js)
       if (state.scenario.outcome) return;
       // (at your desk: still there at six, up from it; from anywhere else, the day worked and out of its door)
       if (here) { const me = state.actors.find(a => a.who === state.player), d = spotOf(state, 'desk'); if (me && d) Object.assign(me, { x: d.x, z: d.z, face: 'left', head: headOf('left'), gait: 'idle' }); say(state, bus, { kind: 'note', text: early ? `${EXCUSE_LINES[Math.floor(now / DAY) % EXCUSE_LINES.length]} ${clockText(to)}: the safe locked, your coat off the back of the chair.` : 'Six o\'clock: the cables read, the safe locked, your coat off the back of the chair.' }); }
+      else if (E) { goTo(state, bus, c.posting.embassy, `${clockText(to)}, ${early ? `out early (${EXCUSES_DEEP_OF(now)})` : 'the day done'}: out of ${E}'s door onto ${streetName(townOf({ seed: c.posting.mapSeed, city: c.posting.city }), c.posting.embassy.row)}.`); outing(state, 'embassy'); }
       else { goTo(state, bus, c.posting.embassy, `${early ? `${clockText(to)}, out early (${EXCUSES[Math.floor(now / DAY) % EXCUSES.length]}, as the chief's assistant reminded you, for the section's ears),` : 'Six o\'clock, and out of the embassy'} onto ${streetName(townOf({ seed: c.posting.mapSeed, city: c.posting.city }), c.posting.embassy.row)}.`); outing(state, 'embassy'); }
     } else if (what === 'sleep') {                                  // (a night's sleep, and breakfast: sim/needs.js; you wake in the flat)
       until(rest(c, now), state.map.place === 'home' ? 'To bed.' : 'Home, and to bed.'); soothe(state.people.me, 60);   // (rested, calmer: not fed; sim/needs.js)
@@ -460,7 +464,7 @@ function use(state, bus, act, here = false) {
   if (!act || !me || state.fight) return;
   if (act === 'home') return enterHome(state, bus, 'door');
   if (act === 'unwindow') return backFromWindow(state, bus);
-  if (act === 'embassy') return enterEmbassy(state, bus);
+  if (act === 'embassy') return c.posting.embassy.door ? campaignHub.act(state, bus, 'desk:work') : enterEmbassy(state, bus);   // (a legend's workplace: no rooms of its own, the day's work at its door)
   if (String(act).startsWith('dial:collect:')) { const d = dropAt(state, me); if (d && `dial:collect:${d.id}` === act) say(state, bus, { kind: 'note', text: collect(state, bus, d) }); return; }   // (the agency's bench: sim/dial.js)
   if (act === 'clinic') {                                          // (the clandestine clinic's door: seen to, no names, nothing reported; out where you went in)
     const h = safeHere(state);
@@ -772,7 +776,8 @@ function instinct(state, c, now) {
     return L('home-door', 'calm', 'Your building. {instinct}: up to the flat.', 'home');
   } else if (me && state.map.kind === 'street' && state.map.row === p.embassy.row && p.embassy.x !== undefined && Math.abs(me.x - p.embassy.x) < 1.6 && me.z < (p.embassy.z ?? Z.front) + DOORSTEP_M) {
     // (at the embassy's door: in, to your desk on a working day not yet worked; any other time, in all the same)
-    const k0 = calendar(now);
+    const k0 = calendar(now), E = p.embassy.door ? cap(p.employer) : null;
+    if (E) return k0.weekday < 5 && !c.worked[Math.floor(now / DAY)] && k0.hour < WORK.to ? L('work-door', 'note', `${E}. {instinct}: in, the day's work till six${k0.hour < WORK.from ? ' (early)' : ''}.`, 'embassy') : L('work-shut', 'calm', `${E}: ${k0.weekday >= 5 ? 'shut for the weekend' : 'your day\'s done here'}.`);   // (a legend's employer: sim/legends.js)
     if (k0.weekday < 5 && !c.worked[Math.floor(now / DAY)] && k0.hour < WORK.to) return L('work-door', 'note', `The embassy. {instinct}: in, to your desk${k0.hour < WORK.from ? ' (early: the coffee\'s on)' : ''}.`, 'embassy');
     return L('work-shut', 'calm', `The embassy${k0.weekday >= 5 ? ': the weekend, the Marine and the flag' : ': your day\'s done here'}. {instinct}: in all the same.`, 'embassy');
   }
@@ -821,7 +826,7 @@ function instinct(state, c, now) {
   const fd = state.map.place === 'home' && me && state.$world?.sections.get(0)?.plan?.exits[0];
   if (fd && Math.hypot(me.x - (fd.x0 + fd.x1) / 2, me.z - fd.z0) < 1.8) return L('front-door', 'calm', 'The front door. Through it, down the stairs and out onto the street.');
   if (state.map.place === 'embassy') return k.weekday < 5 && !worked && k.hour < WORK.to ? L('work-in', 'note', 'The station: through the arch, behind the vault door off the corridor. Your desk\'s in there.') : null;
-  if (k.weekday < 5 && !worked && k.hour >= 7 && k.hour < WORK.to - 2) return L('work', 'note', `A working day: the embassy expects you${k.hour < WORK.from ? ' at nine' : ''}. ${state.map.place === 'home' ? 'Out by the front door in the hall, and to its door.' : 'The pointer has the way; at its door, {instinct}.'}`);
+  if (k.weekday < 5 && !worked && k.hour >= 7 && k.hour < WORK.to - 2) return L('work', 'note', `A working day: ${p.embassy.door ? p.employer : 'the embassy'} expects you${k.hour < WORK.from ? ' at nine' : ''}. ${state.map.place === 'home' ? 'Out by the front door in the hall, and to its door.' : 'The pointer has the way; at its door, {instinct}.'}`);
   if (k.hour >= 23 || k.hour < 5) return L('late', 'calm', `${clockText(now)}. ${state.map.place === 'home' ? 'Bed, sooner or later.' : 'Home to bed, sooner or later: the pointer has the way.'}`);
   return next ? L(`later-${next.a.id}`, 'calm', `Next: ${KINDS[next.a.kind].name.toLowerCase()}, ${dayWord(next.a.from, now)} at ${clockText(next.a.from)}.`) : null;   // (how hot you are is the officer's guess, the mind's: sim/belief.js)
 }
@@ -832,5 +837,6 @@ const BEGIN_LINE = {
   watch: (name, a) => `The café: ${name}, due between ${clockText(a.from)} and ${clockText(a.to)}. {instinct}: somewhere to watch it from.`,
 };
 const LATE_LINE = { lesson: 'Hale waited, and went home. Ring him for another evening.', tail: 'He\'s out of his door and away.', sdr: 'The bench is as good as empty.', watch: 'Whatever passed outside the café, you weren\'t there for it.' };
+const EXCUSES_DEEP_OF = (now) => EXCUSES_DEEP[Math.floor(now / DAY) % EXCUSES_DEEP.length];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const dayWord = (ms, now) => { const d = Math.floor(ms / DAY) - Math.floor(now / DAY); return d === 0 ? 'today' : d === 1 ? 'tomorrow' : DAYS[calendar(ms).weekday]; };

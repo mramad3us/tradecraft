@@ -67,11 +67,12 @@ import { CITIES, CITY_IDS, cityById, FIRST_TOUR_CITY } from './cities/index.js';
 import { missionXP, gain, level, progress } from './xp.js';
 import { fieldwork, practise } from './rust.js';
 import { SKILLS } from './skills.js';
-import { between, born } from './career.js';
+import { between, born, FLOORS } from './career.js';
 import { taskingAt } from './geopolitics.js';
 import { LANG_NAME } from './langs.js';
 import { POLICE_COOL_DAY } from './police.js';
 import { LESSON_BOOK, lessonBook, sceneOf } from './lessons.js';
+import { deepPosting, backstory, isDeep, DEEP_LEVELS, GOAL_DEEP, DEEP_CITIES } from './legends.js';   // (0.2's deep postings: docs/POSTINGS.md)
 export { LESSON_BOOK, lessonBook, sceneOf };
 export const LESSON_GAP_H = 2, LESSON_XP_K = 0.4;
 
@@ -110,10 +111,12 @@ export const WATCHED_MAX = 0.85, COVERT_MAX = 0.75;
 export const GOAL_INTEL = 10;                                  // (six or seven good operations: two or three weeks, done well)
 export const TRUSTED = 4;
 export const GOAL_JUNIOR = 6;                                      // (a first tour: four or five good evenings, a trip done well)
-// The career's rungs, lowest first (DESIGN.md, Next: the ladder to an illegal; built so far, these two).
+// The career's rungs, lowest first (DESIGN.md, Next: the ladder to an illegal; the deep two, 0.2's: sim/legends.js, docs/POSTINGS.md).
 export const LEVELS = [
   { id: 'junior', name: 'A first tour', rank: 'Junior officer', about: cityById(FIRST_TOUR_CITY).station.firstTour?.about },   // (its station's words: London's)
   { id: 'handler', name: 'A posting of your own', rank: 'Handler', about: 'A station of your choosing under official cover: a network to run, a man to watch, the heat to keep down.' },
+  { id: 'undercover', name: 'Under a legend', rank: 'Undercover officer', about: 'A job and a name not your own, in a city that would jail you: no embassy, no immunity, a thin line home.' },
+  { id: 'illegal', name: 'An illegal', rank: 'Illegal', about: 'A citizen of the country, years of a life lived for the day the Center calls: the last posting there is.' },
 ];
 export const levelOf = (id) => Math.max(0, LEVELS.findIndex(l => l.id === id));
 // (a first tour's trips: the cities whose stations have one, in CITIES' order, and what the team wants of you there; never the tour's own)
@@ -245,6 +248,7 @@ export function legendFile(seed, city = 'moscow', level = 'handler', n = 0) {
 
 /** Three officers to pick from, from the campaign's seed, at a level (LEVELS: a junior's younger, two points under on the street). */
 export function candidates(seed, city = 'moscow', level = 'handler') {
+  if (DEEP_LEVELS.has(level)) return deepCandidates(seed, city, level);
   const r = level === 'handler' ? stream('candidates', seed) : stream('candidates', seed, level), used = new Set(), junior = level === 'junior', core = junior ? 8 : 10;
   return [0, 1, 2].map(i => {
     const sex = i === 0 ? 'f' : i === 1 ? 'm' : chance(r, 0.5) ? 'f' : 'm';
@@ -267,11 +271,31 @@ export function candidates(seed, city = 'moscow', level = 'handler') {
 }
 
 /**
- * The posting: city, cover, goal, the network and the targets, the flat, the embassy, safe houses, gauges.
- * startMs: day one, morning. level: a Handler's (this), or a first tour's (juniorPosting(): at FIRST_TOUR_CITY, London).
+ * Officers who start under a legend (LEVELS' deep rungs: an undercover officer's, opened by a game that's carried one out; an
+ * illegal's, debug's only): a handler's file aged on, a posting behind them (sim/legends.js backstory()), the post's training
+ * done (sim/career.js FLOORS, the language to fluent or native), Tradecraft by the rung (DEEP_OS).
  */
-export function posting(seed, city = 'moscow', startMs = at(2026, 11, 2, WAKE_H), level = 'handler', world = seed) {
+export const DEEP_OS = { undercover: [55, 69], illegal: [80, 88] };
+function deepCandidates(seed, city, level) {
+  city = DEEP_CITIES.includes(city) ? city : DEEP_CITIES[0];         // (never London)
+  const r = stream('candidates', seed, level), lang = cityById(city).lang, F = FLOORS[level];
+  return candidates(seed, city, 'handler').map((p, i) => {
+    p.os = DEEP_OS[level][0] + int(r, DEEP_OS[level][1] - DEEP_OS[level][0] + 1);
+    p.age += level === 'illegal' ? 10 + int(r, 8) : 4 + int(r, 5);
+    for (const [k, f] of Object.entries(F)) { const v = p.skills[k] ?? [0, 0]; if (v[0] < f) p.skills[k] = [f, v[1]]; }
+    if (lang !== 'en') p.langs = { ...p.langs, [lang]: level === 'illegal' ? 'native' : 'fluent' };
+    return p;
+  });
+}
+
+/**
+ * The posting: city, cover, goal, the network and the targets, the flat, the embassy, safe houses, gauges.
+ * startMs: day one, morning. level: a Handler's (this), or a first tour's (juniorPosting(): at FIRST_TOUR_CITY, London), or a
+ * deep one's (undercover, an illegal's: a handler's from the same seed, made deep, sim/legends.js deepPosting(); character: theirs).
+ */
+export function posting(seed, city = 'moscow', startMs = at(2026, 11, 2, WAKE_H), level = 'handler', world = seed, character = null) {
   if (level === 'junior') return juniorPosting(seed, startMs);
+  if (DEEP_LEVELS.has(level)) return deepPosting(posting(seed, DEEP_CITIES.includes(city) ? city : DEEP_CITIES[0], startMs, 'handler', world), seed, level, world, character);
   const r = stream('posting', seed, city), K = cityById(city), C = K.station;
   const drawn = pick(r, C.subjects);                                // (drawn still, so the posting's other dice run as they did)
   const [subject, goal] = taskingAt(world, city, startMs) ?? drawn;  // (the station's business at the time: the career's world, sim/geopolitics.js)
@@ -325,14 +349,17 @@ function juniorPosting(seed, startMs) {
   };
 }
 export const SALARY_JUNIOR = 5400;                                 // ($ a month, after tax: a GS-10)
-export const goalOf = (p) => (p.level === 'junior' ? GOAL_JUNIOR : GOAL_INTEL);
+export const goalOf = (p) => (p.level === 'junior' ? GOAL_JUNIOR : isDeep(p) ? GOAL_DEEP[p.level] * (1 + (p.taskings ?? 0)) : GOAL_INTEL);   // (an illegal's: each of the Center's taskings in turn)
+/** The lowest a posting's heat goes: official cover's HEAT_FLOOR (embassy staff are watched); an unofficial cover's nothing, or 1 once it's ever risen past it. */
+export const heatFloor = (p) => (isDeep(p) ? (p.heatEver ? 1 : 0) : kindOf(p) === 'firstTour' || kindOf(p) === 'official' ? HEAT_FLOOR : p.heatEver ? 1 : 0);
 
 /** A new campaign: the chosen character, the posting (at a level: LEVELS), day one. */
 export function newCampaign(seed, character, city = 'moscow', level = 'handler', startMs = undefined, world = seed) {
-  const p = posting(seed, city, startMs, level, world);
+  const p = posting(seed, city, startMs, level, world, character);
   const c = { seed, world, character, posting: p, day: dayOf(p.startMs), assignments: [], done: [], plannedTo: dayOf(p.startMs) - 1, worked: {}, log: [], reviews: [], awake: p.startMs, next: { },
     calls: level === 'junior' ? [{ id: 'hale', at: p.startMs + CALL_S * 1000 }] : [], cabinet: { ...CABINET } };   // (Hale and his exercises: the first station's, London's first tour, only; the user, 2026-11-04, "no tutorials on stations past the first station London, no calls from Hale")   // (day one: Hale on the telephone, the exercises or straight in: src/main.js; the bathroom cabinet's few things, sim/medicine.js)
   born(character, p.startMs);                                      // (their birth, from the file's age: the years go by, sim/career.js)
+  if (isDeep(p)) c.career = backstory(seed, p, character);          // (a deep start: the handler's posting behind them, the training, the legend lived; a next posting's own replaces it, sim/postings.js)
   for (const t of p.targets) fileOf(c, t);                         // (the station's files on them: sim/dossier.js)
   for (const s of p.assets) assetFile(c, s);
   plan(c, p.startMs);
@@ -487,7 +514,7 @@ export function pass(c, from, to) {
   const p = c.posting, papers = [];
   for (let d = dayOf(from); d < dayOf(to); d++) {
     const dayMs = d * DAY;
-    if (isWorkday(dayMs) && !c.worked[d] && d >= Math.max(dayOf(p.startMs), p.deskFrom ?? 0)) { p.cover = Math.max(0, p.cover - COVER_MISSED); c.log.push({ ms: dayMs + 18 * HOUR, text: 'A working day missed at the embassy. Someone noticed.' }); }
+    if (isWorkday(dayMs) && !c.worked[d] && d >= Math.max(dayOf(p.startMs), p.deskFrom ?? 0)) { p.cover = Math.max(0, p.cover - COVER_MISSED); c.log.push({ ms: dayMs + 18 * HOUR, text: p.embassy.door ? `A working day missed at ${p.employer}, and no call to say why. Your boss noticed.` : 'A working day missed at the embassy. Someone noticed.' }); }
     const next = calendar((d + 1) * DAY);
     if (next.day === 1 && next.month !== p.money.paid) { p.money.paid = next.month; p.money.bank = (p.money.bank ?? 0) + p.money.salary; p.money.fundLeft = p.money.fund; papers.push({ kind: 'pay', title: 'PAY', lines: [`Salary in: $${p.money.salary}.`, `The operational fund topped up to $${p.money.fund}.`] }); }
     if (weekday(dayMs) === 6) papers.push(review(c, dayMs));
@@ -495,7 +522,7 @@ export function pass(c, from, to) {
     // staff are watched), an unofficial cover's 1 once it's ever risen past it, so your own phone's a watched line from then
     // on, as official cover's is: sim/dial.js watchedLine(); the user, 2026-11-04)
     if (p.heat > 1) p.heatEver = true;
-    p.heat = Math.max(kindOf(p) === 'firstTour' || kindOf(p) === 'official' ? HEAT_FLOOR : p.heatEver ? 1 : 0, p.heat - 1);
+    p.heat = Math.max(heatFloor(p), p.heat - 1);
     regen(c);                                                       // (the agency's support, its day's worth back: sim/support.js)
     if (p.police) p.police = Math.max(0, p.police - POLICE_COOL_DAY);   // (and the police's: sim/police.js)
     // (a safe house they saw you go into: the station hears by morning)
@@ -527,6 +554,8 @@ export function pass(c, from, to) {
 // (who gives it, and how: the chief's assistant, who knows what you are, says it for the section, who don't: the user,
 // 2026-11-03, "the exact texts you generate should roleplay the excuse the embassy senior staff who know who we are and
 // why we have to get out early give us"). The excuse itself, and the line it's given in.
+// (a legend's own excuses, with nobody at the desk who knows what you are: told to the boss yourself)
+export const EXCUSES_DEEP = ['the dentist, you tell your boss', 'a parcel at the post office before it shuts', 'the landlord, about the boiler', 'the residence permit office, again', 'a friend in from abroad'];
 export const EXCUSES = ['your dentist', 'the reception at the Canadians\'', 'the plumber at your flat', 'the landlord, again', 'the ministry, the meeting about the visas'];
 export const EXCUSE_LINES = [
   'The chief\'s assistant puts her head round the door: "Your dentist, don\'t forget. They won\'t hold it." Loud enough for the section.',
@@ -547,7 +576,9 @@ export function work(c, ms, end = null) {
   c.worked[d] = true;
   const share = Math.max(0.3, Math.min(1, (until - from) / ((WORK.to - WORK.from) * HOUR)));
   c.posting.cover = Math.min(100, c.posting.cover + Math.round(COVER_PER_DAY * share));
-  c.log.push({ ms: until, text: until < six ? `A day at the embassy, and out early: ${EXCUSES[d % EXCUSES.length]}, as the chief's assistant reminded you for the section's benefit.` : 'A day at the embassy: cables, a meeting about a meeting, the ambassador\'s mood.' });
+  const E = c.posting.embassy.door ? c.posting.employer : null;    // (a legend's employer: sim/legends.js)
+  c.log.push({ ms: until, text: E ? (until < six ? `A day at ${E}, and out early: ${EXCUSES_DEEP[d % EXCUSES_DEEP.length]}.` : `A day at ${E}: the work the legend's paid for, done well enough to be dull.`)
+    : until < six ? `A day at the embassy, and out early: ${EXCUSES[d % EXCUSES.length]}, as the chief's assistant reminded you for the section's benefit.` : 'A day at the embassy: cables, a meeting about a meeting, the ambassador\'s mood.' });
   return until;
 }
 
@@ -565,14 +596,15 @@ export const expected = (c, ms) => isWorkday(ms) && !c.worked[dayOf(ms)] && cale
 export const SICK_COVER = 2, SICK_FREE_DAYS = 30;
 /** Lie low for a day: heat down; on a working day, the section rung first (a sick day). Returns the time after (the next morning). */
 export function lieLow(c, ms, safe = false) {
-  c.posting.heat = Math.max(20, c.posting.heat - Math.round(HEAT_LOW_PER_DAY * (safe ? SAFE_LOW_K : 1)));
+  c.posting.heat = Math.max(heatFloor(c.posting), c.posting.heat - Math.round(HEAT_LOW_PER_DAY * (safe ? SAFE_LOW_K : 1)));
   if (expected(c, ms)) {
     const counted = c.sick !== undefined && ms - c.sick < SICK_FREE_DAYS * DAY;
     if (counted) c.posting.cover = Math.max(0, c.posting.cover - SICK_COVER);
     c.sick = ms; c.worked[dayOf(ms)] = 'sick';
-    c.log.push({ ms, text: counted ? 'Another sick day: the section\'s secretary says she hopes you feel better, and writes it down.' : 'You ring the section: a temperature, the flu that\'s going round. "Stay in bed," says the secretary.' });
+    const E = c.posting.embassy.door ? c.posting.employer : null;
+    c.log.push({ ms, text: E ? (counted ? `Another sick day: ${E} says it hopes you feel better, in a voice that's counting.` : `You ring ${E}: a temperature, the flu that's going round. "Stay in bed."`) : counted ? 'Another sick day: the section\'s secretary says she hopes you feel better, and writes it down.' : 'You ring the section: a temperature, the flu that\'s going round. "Stay in bed," says the secretary.' });
   }
-  c.log.push({ ms, text: 'A day of nothing: the flat, the embassy canteen, a walk that goes nowhere. Let them get bored.' });
+  c.log.push({ ms, text: c.posting.embassy.door ? 'A day of nothing: the flat, a walk that goes nowhere, the legend\'s own errands. Let them get bored, if anyone\'s looking.' : 'A day of nothing: the flat, the embassy canteen, a walk that goes nowhere. Let them get bored.' });
   return rest(c, ms + 12 * HOUR);
 }
 
@@ -698,7 +730,7 @@ export function fold(c, a, sc, player, endMs, heatNow) {
   const kept = keptLine(fieldwork(c.character, endMs));             // (out on it, however it went: the craft's core kept up, sim/rust.js; assignments not gone to never fold)
   if (kept) lines.push(kept);
   if (a.trip) return foldTrip(c, a, sc, endMs, heatNow, lines);
-  if (heatNow !== undefined) p.heat = Math.max(20, Math.min(100, heatNow));
+  if (heatNow !== undefined) p.heat = Math.max(heatFloor(p), Math.min(100, heatNow));
   if (a.kind === 'sdr') {
     const s = p.assets.find(x => x.id === a.who);
     // (being tailed's endings, sim/scenarios/sdr.js: clean, burned, right, needless, missed)
@@ -812,7 +844,8 @@ export function record(c, ms) {
   return {
     rank: p.rank, agency: p.agency, level: p.level, city: p.city, job: p.job, since: p.startMs, day: Math.max(1, dayOf(ms) - dayOf(p.startMs) + 1),
     subject: p.subject, intel: p.intelligence, goal: goalOf(p), network: p.assets.map(s => s.codename), over: c.over ? { why: c.over.why, ms: c.over.ms ?? null } : null,
-    past: (c.career ?? []).map(k => ({ rank: k.level === 'school' ? `${LANG_NAME[k.lang] ?? 'A language'} at the Foreign Service Institute` : LEVELS[levelOf(k.level)].rank, city: k.city, until: k.until ?? null })),
+    past: (c.career ?? []).map(k => ({ rank: k.level === 'school' ? `${LANG_NAME[k.lang] ?? 'A language'} at the Foreign Service Institute` : k.level === 'training' ? `Training for ${k.kind === 'illegal' ? 'an illegal\'s post' : 'a post under a legend'}` : k.level === 'incubation' ? `The legend lived, waiting${k.kind === 'illegal' ? ' for the Center' : ''}` : LEVELS[levelOf(k.level)].rank, city: k.city, until: k.until ?? null, how: k.how ?? null })),
+    ...(isDeep(p) ? { deep: { kind: p.level, alias: p.alias, papers: p.papers, employer: p.employer, target: p.target?.place ?? null, rivalry: p.rivalry?.the ?? null, life: p.life?.lines ?? [], since: p.incubation?.from ?? null } } : {}),
     done: c.done.map(a => ({ ms: a.ended ?? a.to, kind: a.kind, who: nameOf(c, a), trip: a.trip ?? null, missed: a.status === 'missed', word: a.status === 'missed' ? 'missed' : outcomeWord(a.kind, a.known ?? a.outcome), intel: a.intel ?? 0 })),
     reviews: c.reviews.map(r => r.grade),
   };

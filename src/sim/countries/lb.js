@@ -23,5 +23,9 @@ export const LB = {
   black: { ease: 0.95, models: ['canik', 'glock17', 'browning', 'tokarev', 'akm', 'ak74m', 'm16a4', 'uzi'] },
   // (its business over the years, sim/geopolitics.js)
   geo: { traits: ['routes', 'hostages', 'vaults', 'border'], the: 'Lebanon', patron: 'Iran', border: 'border war in the south' },
+  // (its counter-intelligence, 0 … 1, the state's thin, the party's security sharp: how hard a legend is to get in unseen, the deep postings' incubation, sim/incubation.js)
+  ci: 0.65,
+  // (the long rivalry the agency's country plays out here, decades of it: a deep posting's purpose, sim/geopolitics.js rivalryOf())
+  rivalry: { us: { since: 1983, the: 'the long war with Tehran, by way of the party', rival: 'Tehran', patron: 'Iran', threads: ['proxies', 'arsenal', 'hostages', 'influence'] } },
   range: { name: 'the ISF Shooting Club', what: ['glock17', 'browning', 'm16a4', 'akm'] },
 };

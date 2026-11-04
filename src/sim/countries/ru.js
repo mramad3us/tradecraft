@@ -22,5 +22,9 @@ export const RU = {
   black: { ease: 0.5, models: ['makarov', 'tokarev', 'traumatic', 'aks74u', 'pya'] },
   // (its business over the years, sim/geopolitics.js: the kinds it has, and the names they need)
   geo: { traits: ['sanctions', 'weapons', 'succession', 'proxies'], the: 'Russia', leader: 'the man in the Kremlin', leaderShort: 'man in the Kremlin' },
+  // (its counter-intelligence, 0 … 1, the FSB's: how hard a legend is to get in unseen, the deep postings' incubation, sim/incubation.js)
+  ci: 0.9,
+  // (the long rivalry the agency's country plays out here, decades of it: a deep posting's purpose, sim/geopolitics.js rivalryOf())
+  rivalry: { us: { since: 1947, the: 'the long war with Moscow', rival: 'Moscow', threads: ['command', 'programme', 'inner', 'illegals', 'influence'] } },
   range: { name: 'a DOSAAF shooting club', what: ['makarov', 'pya', 'ak74m', 'saiga12'] },
 };

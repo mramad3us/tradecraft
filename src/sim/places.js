@@ -37,23 +37,26 @@ export function settle(c) {
     choose(c, town);
   }
   const marks = [];
-  if (p.embassy.i !== undefined) marks.push({ kind: 'embassy', row: p.embassy.row, i: p.embassy.i, b: p.embassy.b });
-  for (const pl of [p.home, ...p.safehouses]) if (pl.i !== undefined) marks.push({ kind: 'door', row: pl.row, i: pl.i, x: pl.x, place: pl.id });
+  if (p.embassy.i !== undefined && !p.embassy.door) marks.push({ kind: 'embassy', row: p.embassy.row, i: p.embassy.i, b: p.embassy.b });
+  for (const pl of [p.home, ...p.safehouses, ...(p.embassy.door ? [p.embassy] : [])]) if (pl.i !== undefined) marks.push({ kind: 'door', row: pl.row, i: pl.i, x: pl.x, place: pl.id });
   if (setMarks(town, marks)) forgetSections(town);
 }
 
 function choose(c, town) {
   const p = c.posting;
-  // The embassy: the widest building on the front of its street's first two sections (no mosque, no church).
-  const lots = [0, 1].flatMap(i => sectionOf(town, p.embassy.row, i).buildings.map((B, b) => ({ i, b, B })))
-    .filter(o => o.B.z === Z.front && !o.B.minaret && !o.B.dome && !o.B.spire && o.B.style !== 'station');
-  const best = lots.sort((a, b) => (b.B.x1 - b.B.x0) - (a.B.x1 - a.B.x0))[0];
-  if (best) Object.assign(p.embassy, { i: best.i, b: best.b, x: (best.B.x0 + best.B.x1) / 2, z: best.B.z });
-  else p.embassy.x = 12;
+  // The embassy: the widest building on the front of its street's first two sections (no mosque, no church). A deep posting's
+  // workplace in its place (p.embassy.door: a legend's employer, sim/legends.js) is a plain front door, as the flat's is.
+  if (!p.embassy.door) {
+    const lots = [0, 1].flatMap(i => sectionOf(town, p.embassy.row, i).buildings.map((B, b) => ({ i, b, B })))
+      .filter(o => o.B.z === Z.front && !o.B.minaret && !o.B.dome && !o.B.spire && o.B.style !== 'station');
+    const best = lots.sort((a, b) => (b.B.x1 - b.B.x0) - (a.B.x1 - a.B.x0))[0];
+    if (best) Object.assign(p.embassy, { i: best.i, b: best.b, x: (best.B.x0 + best.B.x1) / 2, z: best.B.z });
+    else p.embassy.x = 12;
+  }
   // The flat, the safe houses: a block's front door each, never the same one twice, and a safe house
   // never a few doors from the flat (one tail to the flat, and they'd have both).
   const taken = new Set();
-  for (const pl of [p.home, ...p.safehouses]) {
+  for (const pl of [p.home, ...p.safehouses, ...(p.embassy.door ? [p.embassy] : [])]) {
     const near = (d) => pl !== p.home && p.home.row === pl.row && Math.abs(d.x - p.home.x) < SAFE_APART_M;
     // (the street's first two sections; a street of nothing but shops there, further out, both ways)
     let free = [];
@@ -70,7 +73,7 @@ function choose(c, town) {
 }
 
 /** What a place is called on the street, over its door. */
-export const signOf = (pl) => (pl.id === 'embassy' ? 'US Embassy' : pl.id === 'home' ? 'Home' : 'Safe house');
+export const signOf = (pl) => pl.sign ?? (pl.id === 'embassy' ? 'US Embassy' : pl.id === 'home' ? 'Home' : 'Safe house');   // (a legend's workplace: its employer's plate)
 
 export const MISSION_ROWS = 6;
 const CAFES = ['cafe', 'restaurant', 'bar', 'pub', 'juice'];

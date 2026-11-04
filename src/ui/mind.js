@@ -99,8 +99,9 @@ function standLeaf(state, { el }) {
   const c = state.campaign, p = c.posting, me = state.people.me, now = state.time.ms, rd = readOf(c, me, now), nw = needsWords(me, now), tired = fatigue(c, now);
   return [
     el('h3', {}, 'The street'), el('p', {}, rd.heat.text), el('p', { className: 'mind-sure' }, rd.heat.sure),
-    el('h3', {}, 'The embassy'), el('p', {}, rd.cover.text), el('p', { className: 'mind-sure' }, rd.cover.sure),
-    el('h3', {}, 'The station'), el('p', {}, `What they wanted on ${p.subject}: ${p.intelligence} of ${goalOf(p)}, by their own count.${c.reviews.length ? ` The last week, they said: ${c.reviews.at(-1).grade.toLowerCase()}.` : ''}`),
+    el('h3', {}, p.embassy?.door ? cap(p.employer) : 'The embassy'), el('p', {}, rd.cover.text), el('p', { className: 'mind-sure' }, rd.cover.sure),   // (a legend's employer: sim/legends.js)
+    ...(p.alias ? [el('h3', {}, 'Your legend'), el('p', {}, `${p.alias}, ${p.nationWord}: ${p.jobShort}.`)] : []),
+    el('h3', {}, p.level === 'illegal' ? 'The Center' : 'The station'), el('p', {}, `What they wanted on ${p.subject}: ${p.intelligence} of ${goalOf(p)}, by their own count.${c.reviews.length ? ` The last week, they said: ${c.reviews.at(-1).grade.toLowerCase()}.` : ''}`),
     el('h3', {}, 'Money'), el('p', {}, `${price(state, cashOf(me))} on you; ${price(state, p.money.bank ?? 0)} in the account${p.money.fund ? `; the operational fund, ${price(state, p.money.fundLeft ?? p.money.fund)}` : ''}.`),
     el('h3', {}, 'The agency\'s support'), el('p', {}, `${cap(supportWords(c))}.`),   // (sim/support.js: what the station will do for you, rung for from The phone)
     el('h3', {}, 'You'), el('p', {}, `${nw.fed.charAt(0).toUpperCase() + nw.fed.slice(1)}; ${nw.stress}; ${tired.word ?? 'rested enough'}.`),
