@@ -4,6 +4,11 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.37 (2026-11-04)
+
+- **Taken down mid-draw.** Stop motion now ends the moment you can't take its next step: taken down, cuffed, on the ground, in a fist fight, or in a car. Time runs again instead of staying frozen after an arrest.
+- **Drawing on an officer isn't "complying".** Go for your gun as he reaches you and the arrest paper says so: resisting, with a firearm, and it goes on the police's file.
+
 ## v0.1.36 (2026-11-04)
 
 - **Your own violence lights the logos.** After you shoot or knock people down in the street, you know someone will call it in, even with the caller out of sight. The police and ambulance logos light up, and the hunt's three icons appear with your Tradecraft's read of them. In 0.1.35, three shot and two knocked out showed nothing, because nobody had phoned in front of you.

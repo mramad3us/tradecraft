@@ -256,6 +256,7 @@ export function arrest(state, bus, me, how = 'submitted', because = null, { foun
   for (const c of cops(state)) { c.alert = null; if (c.ai) { c.ai.gunner = null; c.ai.closing = null; c.ai.pace = undefined; } }
   state.actors = state.actors.filter(a => !a.unit);
   delete state.$alarm; delete state.$response; delete state.$shotBy; delete state.hunt; state.$takedown = null;   // (and the hunt for you: they've had you, sim/hunt.js)
+  state.shoot = null; delete me.$aim;                               // (and any stop motion: cuffed, there's no more of it)
   me.gait = 'idle';
   const n = (k, one, many) => `${k === 1 ? one : `${k} ${many}`}`;
   const what = hunted || (H && tier === 'described') ? `${H.what}, and you the one they were looking for.` : {
@@ -267,7 +268,7 @@ export function arrest(state, bus, me, how = 'submitted', because = null, { foun
   }[tier];
   const lines = [
     `What they had you for: ${what.charAt(0).toLowerCase()}${what.slice(1)}`,
-    how === 'submitted' ? 'You went down when he came for you, and kept your hands where they could see them.' : how === 'searched' ? `You stood for the search, hands on the wall${found.length ? `, and they found ${found.join(', ')}` : why === 'the blood on you' ? ', and they saw the blood on you' : ''}.` : how === 'shove' ? 'You tried to shove him off. Resisting arrest is on the file too.' : how === 'ran' ? 'You ran when they told you to stop. Resisting arrest is on the file too.' : 'You fought them. Resisting arrest is on the file too.',
+    how === 'submitted' ? 'You went down when he came for you, and kept your hands where they could see them.' : how === 'drew' ? 'You went for your gun as he reached you, and he had you down before it was out: resisting, with a firearm.' : how === 'searched' ? `You stood for the search, hands on the wall${found.length ? `, and they found ${found.join(', ')}` : why === 'the blood on you' ? ', and they saw the blood on you' : ''}.` : how === 'shove' ? 'You tried to shove him off. Resisting arrest is on the file too.' : how === 'ran' ? 'You ran when they told you to stop. Resisting arrest is on the file too.' : 'You fought them. Resisting arrest is on the file too.',
     [...names, ...found].length ? `Taken, into evidence bags: ${[...names, ...found].join(', ')}.` : 'They took nothing: there was nothing on you to take.',
     ...(ward ? [ward.line] : []),
     `${T.h} hours at ${station}: a bench, a long wait; the diplomatic passport, and the calls it takes. A man from the embassy signs for you, and doesn't say a word in the car.`,
@@ -332,7 +333,10 @@ function takedown(state, bus, me) {
           ...(isArmed(mine) ? [{ key: 'draw', label: 'Your gun', do: 'draw' }] : []),
         ] })) return;
     }
-    return pin(state, bus, me, c, T.how ?? 'submitted');
+    // (going for your gun as he reaches you, in the stop motion or out of it: not "complied" on the paper; the user,
+    // 2026-11-04, drawing on him and "it's saying I complied")
+    const drawing = state.shoot?.doing?.what === 'draw' || me.busy?.what === 'draw' || (!!state.shoot && !isGun(mine?.hand));
+    return pin(state, bus, me, c, drawing ? 'drew' : T.how ?? 'submitted');
   }
   if (T.stage === 'pin') {                                          // (held there: you face down, him on one knee on your back)
     me.vx = me.vz = 0; me.gait = 'down'; me.face = T.face;
@@ -344,11 +348,15 @@ function takedown(state, bus, me) {
 export function pin(state, bus, me, c, how) {
   // (you fall away from him, face down, your middle PIN_BODY_M on from your feet as a body lying is drawn (src/render/crowd.js
   // DOWN); he kneels at your back, a little behind you up the picture, facing you, so you're seen under his hands)
+  // (the stop motion over: nothing of it you can do face down; the user, 2026-11-04, arrested mid-draw, "world is still frozen")
+  if (state.shoot) { state.shoot = null; delete me.$aim; }
+  if (me.busy?.what === 'draw') me.busy = null;
   const T = state.$takedown, side = Math.sign(c.x - me.x) || 1, mid = me.x - side * PIN_BODY_M;
   Object.assign(T, { stage: 'pin', how, until: state.time.ms + PIN_S * 1000, x: mid + side * PIN_AT_M, z: me.z - 0.3, face: side > 0 ? 'left' : 'right', cface: side > 0 ? 'left' : 'right' });
   if (c.ai) c.ai.pace = undefined;
   const his = state.people[c.who], he = his?.sex === 'f' ? 'she' : 'he';
   say(state, bus, { kind: 'note', text: how === 'submitted' ? `Down on your knees, and ${he} has you face down on the pavement before you're all the way there: a knee in your back, your arms behind you, the cuffs.`
+    : how === 'drew' ? `Your hand's still on the gun when ${he} hits you: the pavement, your arm wrenched up your back, the gun gone from your fingers, a knee between your shoulders, the cuffs.`
     : `${cap(he)} takes you down hard: your arm up your back, your face on the pavement, a knee between your shoulders, the cuffs.` });
 }
 

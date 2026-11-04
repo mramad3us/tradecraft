@@ -354,7 +354,10 @@ export function readyGun(state, bus, me, want = null) {
 export function tick(state, bus) {
   const sh = state.shoot, me = playerOf(state), p = me && state.people[me.who];
   if (!sh) { if (me?.$aim) delete me.$aim; return; }
-  if (!me || !p || p.dead || !canStand(p)) { state.shoot = null; if (me) delete me.$aim; return; }
+  // (over whenever you can't do the next of it at once: dead, down, held face down, in a fist fight, out of sight in a car; the
+  // user, 2026-11-04: "it should cancel all of the stop motion mode when I get arrested or otherwise am unable to immediately
+  // do the shooting steps")
+  if (!me || !p || p.dead || !canStand(p) || me.gait === 'down' || state.$takedown?.stage === 'pin' || state.fight || me.hidden || me.cab) { state.shoot = null; if (me) delete me.$aim; return; }
   const now = state.time.ms, d = sh.doing;
   me.vx = me.vz = 0;
   if (d?.what === 'fire' && d.rounds > 1) { const k = Math.floor((now - d.start) / (BURST_GAP_S * 1000)); if (k < d.rounds) me.$shot = d.start + k * BURST_GAP_S * 1000; }   // (a burst: a flash a round)

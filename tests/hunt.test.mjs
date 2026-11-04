@@ -357,6 +357,21 @@ export default [
     },
   },
   {
+    name: 'armed: drawing on him in the stop motion as he reaches you: taken down, the stop motion over (time runs), and on the paper you went for your gun, not "complied" (the user, 2026-11-04)',
+    fn() {
+      const w = scene('moscow'), p = w.p, me = w.me, c = officer(w, 0.9);
+      const gun = newGun(p, 'makarov'); p.items = [...(p.items ?? []), gun];
+      w.g.$reflexes = false;                                          // (no card: straight to it, as when the moment's not offered)
+      w.g.shoot = { phase: 'act', gun, pick: null, part: 'torso', aim: null, doing: { what: 'draw', start: w.g.time.ms, until: w.g.time.ms + 60000 } };
+      w.g.$takedown = { cop: c.id, since: w.g.time.ms, stage: 'closing', why: 'the shots' };
+      let pinned = false, shootAfter = 'not yet';
+      for (let t = 0; t < 20 * 30 && !w.papers.some(x => x.kind === 'arrest'); t++) { step(w.g, {}, w.bus); if (!pinned && w.g.$takedown?.stage === 'pin') { pinned = true; shootAfter = w.g.shoot; } }
+      const paper = w.papers.find(x => x.kind === 'arrest'), line = paper?.lines.find(l => /gun as he reached|complied|kept your hands/.test(l));
+      console.log(`      pinned ${pinned}, the stop motion then ${shootAfter === null ? 'over' : JSON.stringify(shootAfter)}; the paper: "${line}"`);
+      assert(pinned && shootAfter === null && /went for your gun/.test(line ?? ''), JSON.stringify({ pinned, line }));
+    },
+  },
+  {
     name: 'perception: down on the pavement, you see all round you each moment: whoever\'s behind you moving, not frozen where you last saw them (the user, 2026-11-04, "half frozen scenes")',
     fn() {
       const w = scene('london'), p = w.p, me = w.me;
