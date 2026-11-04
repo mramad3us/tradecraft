@@ -68,7 +68,7 @@ import { missionXP, gain, level, progress } from './xp.js';
 import { fieldwork, practise } from './rust.js';
 import { SKILLS } from './skills.js';
 import { between, born, FLOORS } from './career.js';
-import { taskingAt } from './geopolitics.js';
+import { taskingAt, purposeAt } from './geopolitics.js';
 import { LANG_NAME } from './langs.js';
 import { POLICE_COOL_DAY } from './police.js';
 import { LESSON_BOOK, lessonBook, sceneOf } from './lessons.js';
@@ -276,6 +276,7 @@ export function candidates(seed, city = 'moscow', level = 'handler') {
  * done (sim/career.js FLOORS, the language to fluent or native), Tradecraft by the rung (DEEP_OS).
  */
 export const DEEP_OS = { undercover: [55, 69], illegal: [80, 88] };
+export const ILLEGAL_REHIRED = 40;                                 // (an illegal's job lost: another, the standing this)
 function deepCandidates(seed, city, level) {
   city = DEEP_CITIES.includes(city) ? city : DEEP_CITIES[0];         // (never London)
   const r = stream('candidates', seed, level), lang = cityById(city).lang, F = FLOORS[level];
@@ -545,7 +546,11 @@ export function pass(c, from, to) {
       papers.push({ kind: 'over', title: 'PERSONA NON GRATA', lines: ['The Foreign Ministry summons the ambassador: you have forty-eight hours to leave the country.', 'Immunity keeps you out of a cell. It doesn\'t keep the posting. Whatever you built here, someone else will have to rebuild.'] });
     }
     // (the legend's job lost: the posting fails with it; DESIGN.md, Career: "losing it fails the posting")
-    if (isDeep(p) && p.cover <= 0 && !c.over && !c.blown) {
+    if (p.level === 'illegal' && p.cover <= 0 && !c.blown) {          // (a citizen, not a work permit: another job, and the legend lives on, a little thinner)
+      p.cover = ILLEGAL_REHIRED;
+      papers.push({ kind: 'over', title: 'ANOTHER JOB', lines: [`${p.employer} let ${p.alias} go. A month of looking, a cousin of a neighbour, and another job: worse paid, further out.`, 'A citizen can lose a job and stay. The Center will have noted the month.'] });
+    }
+    if (isDeep(p) && p.level !== 'illegal' && p.cover <= 0 && !c.over && !c.blown) {
       c.over = { ms: dayMs + 18 * HOUR, why: 'sacked' };
       papers.push({ kind: 'over', title: 'LET GO', lines: [`${p.employer} lets ${p.alias} go: the absences, the excuses, a month of the boss's face. A letter, and a handshake nobody means.`, 'Without the job there\'s no reason to be here, and a residence permit with a month left on it. The station pulls you out before anyone starts to wonder why you stay.'] });
     }
@@ -612,6 +617,20 @@ export function blow(c, ms) {
     'No embassy to run to, nobody who\'ll say you\'re ours. The flat is theirs now: don\'t go back. The safe houses they don\'t know, perhaps.',
     `The way out is yours to make: ${X.label}, far from the centre, by your own means. ${p.level === 'illegal' ? 'The Center has to be told first, and answer.' : 'Nobody is coming for you.'}`,
     `Taken now, and it's ${O.prison}.`] };
+}
+
+/**
+ * An illegal's tasking done (goalOf(): GOAL_DEEP.illegal each): the Center's next (p.taskings one more), the rivalry's thread open
+ * now, or the same one's next question (DEEPER), left at a drop as its signal (c.signals: sim/dial.js). { was, now }.
+ */
+export const DEEPER = ['who among them could be brought to us, and at what price', 'what they mean to do next, before they do it', 'the papers themselves, not what\'s said of them', 'the men who replace the men we know'];
+export function nextTasking(c, ms) {
+  const p = c.posting, was = p.subject, P = purposeAt(c.world ?? c.seed, p.city, ms), n = p.taskings = (p.taskings ?? 0) + 1;
+  if (P && P.thread !== p.thread) { Object.assign(p, { subject: P.subject, goal: P.goal, thread: P.thread, rivalry: P.rivalry ?? p.rivalry }); delete p.goal0; }
+  else p.goal = `${p.goal0 ??= p.goal}; and now, ${DEEPER[(n - 1) % DEEPER.length]}`;
+  (c.signals ??= []).push({ paper: { kind: 'tasking', title: 'THE CENTER: A NEW TASKING', lines: [`Received: what you sent on ${was}. ${n > 1 ? `The ${['', 'second', 'third', 'fourth', 'fifth'][n] ?? `${n}th`} time it's said so, in its way.` : 'It says so, in its way.'}`, `Now: ${p.goal}.`, p.rivalry ? `${p.rivalry.the.charAt(0).toUpperCase() + p.rivalry.the.slice(1)} goes on; so do you.` : 'It goes on; so do you.'] }, from: ms + DAY });
+  c.log.push({ ms, text: `The Center's tasking done: ${was}. The next: ${p.goal}.` });
+  return { was, now: p.goal };
 }
 
 /** Whether ms is a working day you're expected at the embassy, not yet worked: lying low then is calling in sick. */
@@ -807,6 +826,7 @@ function goalMet(c, ms, lines) {
   const p = c.posting;
   if (p.intelligence < goalOf(p) || c.over) return;
   if (p.level === 'junior') { c.over = { ms, why: 'promoted' }; lines.push('That\'s a first tour done well. The chief\'s cable to Langley has the word "ready" in it.'); }
+  else if (p.level === 'illegal') { const T = nextTasking(c, ms); lines.push(`That's what the Center wanted on ${T.was}. It doesn't say well done; it says what next, at the next drop.`); }   // (the last posting: it never ends in "done", sim/legends.js)
   else { c.over = { ms, why: 'completed' }; lines.push(`That's what the station needed on ${p.subject}. The cable home is a short one: done.`); }
 }
 

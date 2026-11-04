@@ -75,6 +75,7 @@ const handlerDone = (c) => (c.career ?? []).some(k => k.level === 'handler' && (
  */
 export function careerEnd(c, ms) {
   const p = c.character, how = c.over?.why;
+  if (!how) return null;                                             // (never mid-post)
   if (OVER.has(how) && how !== 'brought') return null;              // (lost, not retired: the next officer all the same, src/main.js)
   if (how === 'brought') return { retire: true, why: 'last', words: `${p.name} comes home, and the Agency gives them a medal nobody may see` };
   if (how === 'imprisoned' && c.posting.level === 'illegal') return { retire: true, why: 'last', words: `${p.name} comes home from a prison under another name, and the Center lets them stop` };
@@ -193,7 +194,7 @@ export function deepPaper(c, away = []) {
     ...away,
     p.assets.length ? `${ill ? 'Those the Center gives you to run' : 'Handed to you by the station'}, met by signal and never by phone: ${p.assets.map(s => `${s.codename}, ${s.role}, in it for ${s.motive}`).join('; ')}.` : 'Nobody to run yet.',
     `Watched: ${p.targets.map(t => `${t.name}, ${t.what}`).join('; ')}.`,
-    `${p.employer} expects you nine to six on weekdays: the work is the legend's, and losing the job loses the posting. ${ill ? 'The Center is a dead drop and a chalk mark: no embassy, nobody to ring.' : 'The station is a chalk mark and a dead drop, never the embassy\'s door.'}`,
+    ill ? `${p.employer} expects you nine to six on weekdays, as it has for years. The Center is a dead drop and a chalk mark: no embassy, nobody to ring.${p.handler ? ` Twice a year, by signal, ${p.handler.name}, a retired illegal ${p.handler.line}.` : ''}` : `${p.employer} expects you nine to six on weekdays: the work is the legend's, and losing the job loses the posting. The station is a chalk mark and a dead drop, never the embassy's door.`,
     `If it all goes wrong: ${p.exfil.label}, by your own means. Nobody is coming for you.${ill ? ' It\'s the last posting there is: it runs till they take you, or you die, or the Center brings you out, which it almost never can.' : ''}`,
   ] };
 }

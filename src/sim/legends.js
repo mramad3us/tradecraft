@@ -150,7 +150,15 @@ export function deepPosting(P, seed, kind, world, character = null) {
   });
   P.money.fund = Math.round(P.money.fund * (kind === 'illegal' ? 0.4 : 0.6));   // (an operational fund that can't be traced to anyone: smaller)
   P.life = life(seed, P, character, kind);                          // (the legend's history: a job since, a flat, a marriage perhaps: sim/incubation.js)
+  if (kind === 'illegal') P.handler = handlerOf(seed, city);         // (DESIGN.md, Career: "few contacts with a handler (a retired illegal, deep undercover too)")
   return P;
+}
+
+// An illegal's handler: one of the Center's own, a retired illegal living as a citizen too, met by signal twice a year (HANDLER_LINES).
+export const HANDLER_LINES = ['who ran a bakery for nineteen years and never once burnt the bread', 'who taught chemistry in a provincial school for twenty years, and still corrects people', 'who was a taxi driver for sixteen years and knows every back way there is', 'who sold insurance for a decade and can tell you exactly what anything is worth'];
+export function handlerOf(seed, city) {
+  const r = stream('deep-handler', seed, city), sex = chance(r, 0.5) ? 'f' : 'm', [given, family] = cityById(city).people.name(r, sex, 66);
+  return { name: `${given} ${family}`, sex, line: pick(r, HANDLER_LINES) };
 }
 
 /** Whether a posting is a deep one (undercover, an illegal's): no embassy, no immunity. */
