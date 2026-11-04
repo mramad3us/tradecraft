@@ -36,7 +36,7 @@
 // the joints). The plain finish is untouched: sample 006 draws as it did.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { PX_PER_M, GLOWS, COOL, mat, glow, paint, paintSteps, tile, box, roundedBox, ground, part, pool, rng, text, textWidth, finish, tone, noise, tnoise, fineBricks, emissiveOf } from './pixelart.js';
+import { PX_PER_M, GLOWS, COOL, mat, vmat, glow, paint, paintSteps, tile, box, roundedBox, ground, part, pool, rng, text, textWidth, finish, tone, noise, tnoise, fineBricks, emissiveOf } from './pixelart.js';
 
 const M = PX_PER_M;
 const INK = 0x14151c;
@@ -1849,8 +1849,8 @@ export function car(color = 0x3b6296, { taxi = false, seed = 5, kind = 'sedan', 
   const cab = kind === 'cab';
   if (cab) color = 0x23252f;
   const K = CARS[kind] ?? CARS.sedan;
-  const L = 4.2, Wd = 1.8, body = mat(color), dark = 0x23252f, key = `${kind}-${color}-${taxi}-${city}${ems ? `-${ems}-${Lv.stripe.join('.')}-${Lv.word}` : ''}`;
-  const side = keep(`car-side-${key}`, () => mat(0, paint(Math.round(L * M), Math.round(K.body * 16), (px, W, H) => {
+  const L = 4.2, Wd = 1.8, body = vmat(color), dark = 0x23252f, key = `${kind}-${color}-${taxi}-${city}${ems ? `-${ems}-${Lv.stripe.join('.')}-${Lv.word}` : ''}`;
+  const side = keep(`car-side-${key}`, () => vmat(0, paint(Math.round(L * M), Math.round(K.body * 16), (px, W, H) => {
     px(0, 0, W, H, color);
     px(0, 0, W, 1, 0xdfe2e8);                                    // the lit crease
     px(Math.floor(W * 0.32), 1, 1, H - 3, dark); px(Math.floor(W * 0.58), 1, 1, H - 3, dark);   // doors
@@ -1864,24 +1864,24 @@ export function car(color = 0x3b6296, { taxi = false, seed = 5, kind = 'sedan', 
     if (K.chrome) px(0, H - 4, W, 1, 0xb8bdc8);
     px(0, H - 3, W, 3, dark);                                    // the sill
   })));
-  const nose = keep(`car-nose-${key}`, () => mat(0, paint(Math.round(Wd * M), Math.round(K.body * 16), (px, W, H) => {
+  const nose = keep(`car-nose-${key}`, () => vmat(0, paint(Math.round(Wd * M), Math.round(K.body * 16), (px, W, H) => {
     px(0, 0, W, H, color); px(1, 3, 6, 3, 0xf8e08a); px(W - 7, 3, 6, 3, 0xf8e08a);              // headlights
     px(9, 4, W - 18, 4, dark); for (let i = 10; i < W - 9; i += 2) px(i, 5, 1, 2, 0x6a7182);   // grille
     if (K.chrome) px(0, H - 4, W, 2, 0xdfe2e8);
     px(0, H - 3, W, 3, dark);
   }, { glows: [0xf8e08a] })));
-  const tail = keep(`car-tail-${key}`, () => mat(0, paint(Math.round(Wd * M), Math.round(K.body * 16), (px, W, H) => {
+  const tail = keep(`car-tail-${key}`, () => vmat(0, paint(Math.round(Wd * M), Math.round(K.body * 16), (px, W, H) => {
     px(0, 0, W, H, color); px(1, 3, 5, 3, 0xc95c45); px(W - 6, 3, 5, 3, 0xc95c45);
     px(Math.floor(W / 2) - 4, 6, 8, 3, 0xe2dac6); px(Math.floor(W / 2) - 3, 7, 6, 1, dark);   // the plate
     if (K.chrome) px(0, H - 4, W, 2, 0xdfe2e8);
     px(0, H - 3, W, 3, dark);
   }, { glows: [0xc95c45] })));
-  const glass = keep(`car-glass-${key}`, () => mat(0, paint(Math.round(K.cab * M), Math.round(K.cabH * 16), (px, W, H) => {
+  const glass = keep(`car-glass-${key}`, () => vmat(0, paint(Math.round(K.cab * M), Math.round(K.cabH * 16), (px, W, H) => {
     px(0, 0, W, H, color); px(2, 1, W - 4, H - 2, 0x283f6b); px(3, 1, Math.floor(W * 0.4), 3, 0x5d8fc2);
     for (let k = 1; k < Math.round(K.cab / 1.15); k++) px(Math.floor(W * k / Math.round(K.cab / 1.15)), 1, 2, H - 2, color);
     px(4, 2, 2, 1, 0x95c1e3);
   })));
-  const screen = keep(`car-screen-${key}`, () => mat(0, paint(Math.round((Wd - 0.2) * M), Math.round(K.cabH * 16), (px, W, H) => { px(0, 0, W, H, color); px(1, 1, W - 2, H - 2, 0x283f6b); px(2, 1, 6, 3, 0x5d8fc2); })));
+  const screen = keep(`car-screen-${key}`, () => vmat(0, paint(Math.round((Wd - 0.2) * M), Math.round(K.cabH * 16), (px, W, H) => { px(0, 0, W, H, color); px(1, 1, W - 2, H - 2, 0x283f6b); px(2, 1, 6, 3, 0x5d8fc2); })));
   const g = new THREE.Group();
   // Built long in z (its nose +z), then turned so the nose points along +x.
   const lower = roundedBox(Wd, K.body, L, K.round, { left: side, right: side, front: nose, back: tail, sides: body, top: body });
@@ -1891,25 +1891,25 @@ export function car(color = 0x3b6296, { taxi = false, seed = 5, kind = 'sedan', 
   cabin.rotation.y = Math.PI / 2;
   cabin.position.set(K.at, K.ride + K.body - 0.03, 0);
   g.add(part(lower), part(cabin, lower.userData.part));
-  const wheelFace = keep('car-wheel', () => mat(0, paint(10, 10, (px) => { px(0, 0, 10, 10, 0x14151c); px(3, 3, 4, 4, 0x8f96a6); px(4, 4, 2, 2, 0x4c5262); })));
+  const wheelFace = keep('car-wheel', () => vmat(0, paint(10, 10, (px) => { px(0, 0, 10, 10, 0x14151c); px(3, 3, 4, 4, 0x8f96a6); px(4, 4, 2, 2, 0x4c5262); })));
   const wr = kind === 'suv' ? 0.72 : 0.62;
   for (const [sx, sz] of [[-1.3, 0.75], [1.3, 0.75], [-1.3, -0.75], [1.3, -0.75]]) {
-    const wheel = box(wr, wr, 0.26, { sides: mat(0x14151c), front: wheelFace, back: wheelFace });   // (a car turned to face the other way shows the back of its wheels)
+    const wheel = box(wr, wr, 0.26, { sides: vmat(0x14151c), front: wheelFace, back: wheelFace });   // (a car turned to face the other way shows the back of its wheels)
     wheel.position.set(sx, 0, sz);
     g.add(part(wheel));
   }
-  if (K.rack) for (const dx of [-0.9, 0.2]) { const bar = box(0.06, 0.06, Wd - 0.3, { sides: mat(0x23252f) }); bar.position.set(K.at + dx, K.ride + K.body + K.cabH - 0.03, 0); g.add(part(bar, cabin.userData.part)); }
-  if (K.spare) { const sp = box(0.2, 0.6, 0.6, { sides: mat(0x14151c), top: mat(0x23252f) }); sp.position.set(-2.2, K.ride + 0.1, 0); g.add(part(sp)); }
+  if (K.rack) for (const dx of [-0.9, 0.2]) { const bar = box(0.06, 0.06, Wd - 0.3, { sides: vmat(0x23252f) }); bar.position.set(K.at + dx, K.ride + K.body + K.cabH - 0.03, 0); g.add(part(bar, cabin.userData.part)); }
+  if (K.spare) { const sp = box(0.2, 0.6, 0.6, { sides: vmat(0x14151c), top: vmat(0x23252f) }); sp.position.set(-2.2, K.ride + 0.1, 0); g.add(part(sp)); }
   if (cab) {                                                     // the black cab's sign: amber, small, at the windscreen
-    const sign = keep('cab-sign', () => mat(0, paint(14, 6, (px) => { px(0, 0, 14, 6, 0xe7b84a); px(0, 0, 14, 1, 0xf8e08a); text(px, 0, 1, 'TAXI', INK); }, { glows: [0xe7b84a] })));
-    const t = box(0.75, 0.22, 0.24, { sides: mat(0xe7b84a), front: sign, back: sign });
+    const sign = keep('cab-sign', () => vmat(0, paint(14, 6, (px) => { px(0, 0, 14, 6, 0xe7b84a); px(0, 0, 14, 1, 0xf8e08a); text(px, 0, 1, 'TAXI', INK); }, { glows: [0xe7b84a] })));
+    const t = box(0.75, 0.22, 0.24, { sides: vmat(0xe7b84a), front: sign, back: sign });
     t.position.set(K.at + K.cab / 2 - 0.5, K.ride + K.body + K.cabH - 0.06, 0);
     t.rotation.y = Math.PI / 2;
     g.add(part(t));
   }
   if (ems) {                                                     // the light bar: blue (and red for an ambulance), lit and flashing while it's on a call (src/render/traffic.js)
-    const lit = keep(`ems-bar-${ems}`, () => mat(0, paint(14, 4, (px) => { px(0, 0, 7, 4, 0x5d8fc2); px(7, 0, 7, 4, ems === 'ambulance' ? 0xc95c45 : 0x5d8fc2); }, { glows: [0x5d8fc2, 0xc95c45] })));
-    const off = keep('ems-bar-off', () => mat(0x4c5262));
+    const lit = keep(`ems-bar-${ems}`, () => vmat(0, paint(14, 4, (px) => { px(0, 0, 7, 4, 0x5d8fc2); px(7, 0, 7, 4, ems === 'ambulance' ? 0xc95c45 : 0x5d8fc2); }, { glows: [0x5d8fc2, 0xc95c45] })));
+    const off = keep('ems-bar-off', () => vmat(0x4c5262));
     const top = K.ride + K.body + K.cabH - 0.03;
     for (const [m, on] of [[lit, true], [off, false]]) {
       const b = box(0.32, 0.14, 1.1, { sides: m, top: m, front: m, back: m });
@@ -1920,8 +1920,8 @@ export function car(color = 0x3b6296, { taxi = false, seed = 5, kind = 'sedan', 
   if (taxi) {
     const word = city === 'beirut' ? 'TAXI' : city === 'cairo' ? 'تاكسي' : 'TAXI';
     // (its light: lit when it's free, a glow after dark; dark when it's taken: sim/traffic.js)
-    const sign = keep(`taxi-sign-${city}-${free}`, () => mat(0, paint(city === 'cairo' ? 20 : 16, 7, (px, W) => { px(0, 0, W, 7, !free ? 0x8f8a80 : city === 'beirut' ? 0xf6f4ee : 0xf8e08a); text(px, Math.floor((W - textWidth(word)) / 2), 1, word, !free ? 0x5c5650 : city === 'beirut' ? 0x9e3c36 : INK); }, { glows: [0xf8e08a] })));
-    const t = box(1.0, 0.44, 0.3, { sides: mat(free ? 0xf8e08a : 0x8f8a80), front: sign, back: sign });
+    const sign = keep(`taxi-sign-${city}-${free}`, () => vmat(0, paint(city === 'cairo' ? 20 : 16, 7, (px, W) => { px(0, 0, W, 7, !free ? 0x8f8a80 : city === 'beirut' ? 0xf6f4ee : 0xf8e08a); text(px, Math.floor((W - textWidth(word)) / 2), 1, word, !free ? 0x5c5650 : city === 'beirut' ? 0x9e3c36 : INK); }, { glows: [0xf8e08a] })));
+    const t = box(1.0, 0.44, 0.3, { sides: vmat(free ? 0xf8e08a : 0x8f8a80), front: sign, back: sign });
     t.position.set(K.at, K.ride + K.body + K.cabH - 0.06, 0);
     g.add(part(t));
   }
@@ -1945,7 +1945,7 @@ export function busModel({ kind = 'single', body = 0xf4efe6, stripe = 0x24503a, 
     for (let x = 0; x < W; x += step) px(x, y0, 1, y1 - y0, body);          // (the pillars)
     for (let x = 3; x < W; x += step * 2) px(x, y0 + 3, 4, 1, shine);       // (light on the glass)
   };
-  const side = keep(`bus-side-${key}`, () => mat(0, paint(W, Hp, (px) => {
+  const side = keep(`bus-side-${key}`, () => vmat(0, paint(W, Hp, (px) => {
     px(0, 0, W, Hp, body); px(0, 0, W, 1, tone(body, 0.08));
     if (kind === 'double') {
       windows(px, 5, 17, 18); px(0, 19, W, 3, 0xe2dac6);                  // (upper deck; the cream band)
@@ -1957,7 +1957,7 @@ export function busModel({ kind = 'single', body = 0xf4efe6, stripe = 0x24503a, 
     }
     px(0, Hp - 4, W, 4, dark);                                       // (the skirt)
   }, { glows: [CEIL] })));
-  const nose = keep(`bus-nose-${key}-${line}`, () => mat(0, paint(Math.round(Wd * M), Hp, (px, w, h) => {
+  const nose = keep(`bus-nose-${key}-${line}`, () => vmat(0, paint(Math.round(Wd * M), Hp, (px, w, h) => {
     px(0, 0, w, h, body);
     const dest = (y) => { px(2, y, w - 4, 6, 0x14151c); const t = String(line || ''); text(px, Math.floor((w - textWidth(t)) / 2), y, t, amber); };
     if (kind === 'double') { px(2, 5, w - 4, 11, glassC); dest(18); px(2, 26, w - 4, 12, glassC); px(4, 27, 8, 2, shine); }
@@ -1966,24 +1966,24 @@ export function busModel({ kind = 'single', body = 0xf4efe6, stripe = 0x24503a, 
     px(Math.floor(w / 2) - 4, h - 7, 8, 3, 0xe2dac6);                 // (the plate)
     px(0, h - 4, w, 4, dark);
   }, { glows: [amber, 0xf8e08a] })));
-  const tail = keep(`bus-tail-${key}`, () => mat(0, paint(Math.round(Wd * M), Hp, (px, w, h) => {
+  const tail = keep(`bus-tail-${key}`, () => vmat(0, paint(Math.round(Wd * M), Hp, (px, w, h) => {
     px(0, 0, w, h, body); px(3, 6, w - 6, kind === 'double' ? 10 : 8, glassC);
     for (let y = h - 16; y < h - 8; y += 2) px(4, y, w - 8, 1, dark);  // (the engine's grille)
     px(1, h - 9, 4, 4, 0xc95c45); px(w - 5, h - 9, 4, 4, 0xc95c45);
     px(0, h - 4, w, 4, dark);
   }, { glows: [0xc95c45] })));
-  const roof = mat(kind === 'double' ? body : tone(body, -0.04));
+  const roof = vmat(kind === 'double' ? body : tone(body, -0.04));
   const g = new THREE.Group();
   // Built long in z (its nose +z), then turned so the nose points along +x.
   const shell = roundedBox(Wd, H, L, kind === 'van' ? 0.16 : 0.1, { left: side, right: side, front: nose, back: tail, sides: roof, top: roof });
   shell.rotation.y = Math.PI / 2;
   shell.position.y = ride;
   g.add(part(shell));
-  if (kind === 'single') { const ac = box(1.6, 0.25, 2.2, { sides: mat(0xb8bdc8), top: mat(0xdfe2e8) }); ac.position.set(-L / 2 + 2.2, ride + H, 0); g.add(part(ac, shell.userData.part)); }
-  const wheelFace = keep('car-wheel', () => mat(0, paint(10, 10, (px) => { px(0, 0, 10, 10, 0x14151c); px(3, 3, 4, 4, 0x8f96a6); px(4, 4, 2, 2, 0x4c5262); })));
+  if (kind === 'single') { const ac = box(1.6, 0.25, 2.2, { sides: vmat(0xb8bdc8), top: vmat(0xdfe2e8) }); ac.position.set(-L / 2 + 2.2, ride + H, 0); g.add(part(ac, shell.userData.part)); }
+  const wheelFace = keep('car-wheel', () => vmat(0, paint(10, 10, (px) => { px(0, 0, 10, 10, 0x14151c); px(3, 3, 4, 4, 0x8f96a6); px(4, 4, 2, 2, 0x4c5262); })));
   const axle = kind === 'van' ? L / 2 - 1.0 : L / 2 - 2.0;
   for (const sx of [-axle, axle]) for (const sz of [-Wd / 2 + 0.1, Wd / 2 - 0.1]) {
-    const wheel = box(0.9, 0.9, 0.3, { sides: mat(0x14151c), front: wheelFace, back: wheelFace });
+    const wheel = box(0.9, 0.9, 0.3, { sides: vmat(0x14151c), front: wheelFace, back: wheelFace });
     wheel.position.set(sx, 0, sz);
     g.add(part(wheel));
   }

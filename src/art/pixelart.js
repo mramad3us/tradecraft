@@ -589,7 +589,7 @@ export const WX_LAMPS = 10;
  */
 export const WX = {
   wxCover: { value: 0 }, wxDirt: { value: 0 }, wxRime: { value: 0 }, wxWet: { value: 0 }, wxPuddles: { value: 0 }, wxSky: { value: new THREE.Color(0, 0, 0) },
-  wxRoad: { value: new THREE.Vector4(1e9, 1e9, 1e9, 1e9) }, wxDry: { value: new THREE.Vector4(1e9, 1e9, -1e9, -1e9) }, wxLamps: { value: Array.from({ length: WX_LAMPS }, () => new THREE.Vector4()) },
+  wxRoad: { value: new THREE.Vector4(1e9, 1e9, 1e9, 1e9) }, wxTracksA: { value: new THREE.Vector4(1e9, 1e9, 1e9, 1e9) }, wxTracksB: { value: new THREE.Vector4(1e9, 1e9, 1e9, 1e9) }, wxDry: { value: new THREE.Vector4(1e9, 1e9, -1e9, -1e9) }, wxLamps: { value: Array.from({ length: WX_LAMPS }, () => new THREE.Vector4()) },
 };
 const WX_GLSL = /* glsl */`
   varying vec3 vWxPos;
@@ -597,12 +597,22 @@ const WX_GLSL = /* glsl */`
   uniform float wxCover, wxDirt, wxRime, wxWet, wxPuddles;
   uniform vec3 wxSky;
   uniform vec4 wxRoad;
+  uniform vec4 wxTracksA, wxTracksB;
   uniform vec4 wxDry;
   uniform vec4 wxLamps[${WX_LAMPS}];
   float wxHash(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
   float wxNoise(vec2 p) {
     vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     return mix(mix(wxHash(i), wxHash(i + vec2(1, 0)), f.x), mix(wxHash(i + vec2(0, 1)), wxHash(i + vec2(1, 1)), f.x), f.y);
+  }
+  // (how far from the nearest wheel track on the road, m: the lanes' wheels, wandering a little along the street)
+  float wxTrack(vec2 g) {
+    float d = 9.0;
+    for (int k = 0; k < 4; k++) {
+      float w = (wxNoise(vec2(g.x * 0.07, float(k) * 3.1)) - 0.5) * 0.3;
+      d = min(d, min(abs(g.y - wxTracksA[k] + w), abs(g.y - wxTracksB[k] + w)));
+    }
+    return d;
   }`;
 // Snow, by what it lies on (linear): fresh on roofs, pavements and lawns; churned on the roads.
 const SNOW = [0.8, 0.83, 0.88], SLUSH = [0.5, 0.48, 0.46];
@@ -627,10 +637,13 @@ const wxPatch = (shader) => {
       bool wxGround = vWxPos.y < 0.15 && vWxUp > 0.9 && !wxDryAt;
       bool wxOnRoad = wxGround && ((vWxPos.z > wxRoad.x && vWxPos.z < wxRoad.y) || (vWxPos.z > wxRoad.z && vWxPos.z < wxRoad.w));
       if (wxRime > 0.0 && vWxUp > 0.55 && !wxDryAt) {
-        // A frost: what faces up silvered (the roads, driven on, less), a glint here and there.
+        // A frost: what faces up silvered (the roads, driven on, less), a glint here and there; a car's evenly, no glint
+        // fixed in the street to slide over it as it goes.
         float k = wxRime * (wxOnRoad ? 0.45 : vWxPos.y > 0.3 ? 1.0 : 0.8);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.72, 0.78, 0.86), 0.4 * k);
+        #ifndef WX_VEHICLE
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.95, 0.97, 1.0), k * step(0.982, wxHash(floor(vWxPos.xz * 8.0) + 0.5)));
+        #endif
       }
       if (!wxDryAt && (wxCover > 0.0 || wxWet > 0.0)) {
         vec2 g = vWxPos.xz;
@@ -644,10 +657,16 @@ const wxPatch = (shader) => {
           wxRim = wxPuddle * (1.0 - step(th, wxNoise(gn * 0.8) * 0.7 + wxNoise(gn * 2.6) * 0.3));
           diffuseColor.rgb *= 1.0 - 0.55 * wxPuddle;
         }
-        // Snow lying on what faces up: roofs and ledges first, pavements in drifts, the roads churned.
+        // Snow lying on what faces up: roofs and ledges first, pavements in drifts, the roads churned, and on them the
+        // wheels' tracks melted through to the wet tarmac (the user, 2026-11-04). A car's: none of the street's drifts (they'd
+        // lie over it in the street's pattern, and slide as it drove), a roof white all over under fresh heavy snow.
+        #ifdef WX_VEHICLE
+        if (wxCover > 0.6 && vWxUp > 0.55) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${SNOW}), clamp((wxCover - 0.6) * 1.8, 0.0, 0.85) * (1.0 - 0.6 * wxDirt));
+        #else
         if (wxCover > 0.0 && vWxUp > 0.55) {
           bool road = wxOnRoad;
           float c = wxCover * (vWxPos.y > 0.3 ? 1.5 : road ? 0.9 : 1.0) * 1.3 - 0.12;
+          if (road) c -= 1.1 * (1.0 - smoothstep(0.14, 0.34, wxTrack(g)));
           float n = wxNoise(g * 1.3) * 0.6 + wxNoise(g * 4.7) * 0.4;
           float lie = smoothstep(n - 0.05, n + 0.05, c);
           // (old snow greyed and browned, the pavement's and the road's most, the roofs' least: sim/weather.js dirt)
@@ -655,6 +674,7 @@ const wxPatch = (shader) => {
           diffuseColor.rgb = mix(diffuseColor.rgb, sn, lie);
           wxPuddle *= 1.0 - lie; wxRim *= 1.0 - lie;
         }
+        #endif
       }`)
     .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
       if (wxGround && wxWet > 0.3) {
@@ -680,6 +700,15 @@ export function mat(color, map = null) {
   if (map) return toon({ color: 0xffffff, map, gradientMap: RAMP });
   if (!mats.has(color)) mats.set(color, toon({ color, gradientMap: RAMP }));
   return mats.get(color);
+}
+// (a vehicle's: the same, but no snow lying in the street's pattern on it, nor a frost's glints: WX_VEHICLE above)
+const vtoon = (opts) => { const m = new THREE.MeshToonMaterial(opts); m.defines = { WX_VEHICLE: '' }; m.onBeforeCompile = wxPatch; m.customProgramCacheKey = () => 'wx1v'; return m; };
+const vmats = new Map();
+/** A vehicle's toon material (a car, a bus, a van): as mat(), the weather on it its own. */
+export function vmat(color, map = null) {
+  if (map) return vtoon({ color: 0xffffff, map, gradientMap: RAMP });
+  if (!vmats.has(color)) vmats.set(color, vtoon({ color, gradientMap: RAMP }));
+  return vmats.get(color);
 }
 /** An unlit material (a lit window, a lamp), shown as painted. */
 export function glow(color, map = null) {

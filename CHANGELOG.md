@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.42 (2026-11-04)
+
+- **Snow no longer sits on cars in the street's pattern.** Patches of the road's snow used to appear on car roofs and slide across moving cars. Cars and buses now stay clean, apart from an evenly white roof under heavy fresh snow, and frost on them no longer glints.
+- **Wheel tracks.** On snowy roads, the snow is melted through along each lane's two wheel tracks.
+- **Footprints.** Where snow lies, you and the passers-by leave footprints. They fill back in over a couple of minutes, faster while it's snowing.
+
 ## v0.1.41 (2026-11-04)
 
 - **Police react to violence they see.** An officer who sees you fighting, or with your hands on someone on the ground, or standing by a downed colleague, raises the alarm at once ("Police! Get off him!"). There's no papers check and no Deception roll to talk your way past. An officer who sees someone down radios it in and goes to them.

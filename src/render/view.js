@@ -68,6 +68,8 @@ import { unitAt } from '../sim/interiors/use.js';
 import { createCrowd, gunPose, FLASH_LIT_M, FLASH_LIGHT } from './crowd.js';
 import { createBlood } from './blood.js';
 import { createTraffic } from './traffic.js';
+import { LANE_Z } from '../sim/traffic.js';
+import { createPrints } from './prints.js';
 import { createTape } from './tape.js';
 import { createItems } from './items.js';
 import { sky, indoors, lightAt, lightLevel, LAMP } from '../sim/light.js';
@@ -128,6 +130,7 @@ const LAMP_Y = 2.7;
 // The weather drawn: what falls by kind and level (rain's streaks, snow's flakes, dust's grit; sleet
 // is both, half each), splashes on wet ground, the haze's strength (by its far edge, the eye's reach
 // through it), the wind's slant (pixels across a pixel down, by its level; snow drifts further).
+export const TRACK_M = 0.8;                                        // (half a car's track: its wheels either side of the lane's middle)
 export const FALL = { rain: [0, 0.25, 0.6, 1], snow: [0, 0.3, 0.65, 1], dust: [0, 0, 0.5, 1] };
 export const SPLASH = [0, 0.15, 0.4, 0.7];
 export const HAZE = { rain: [0, 0, 0.18, 0.4], sleet: [0, 0.05, 0.22, 0.45], snow: [0, 0.08, 0.3, 0.55], fog: [0, 0.45, 0.7, 0.85], dust: [0, 0.35, 0.6, 0.8] };
@@ -150,6 +153,7 @@ export function createView({ parent, bus, month = () => 11 }) {
   const sections = new Map();
   const crowd = createCrowd(scene, stage.renderer);
   const blood = createBlood(scene);
+  const prints = createPrints(scene);
   const traffic = createTraffic(scene);
   const tape = createTape(scene);                                  // (the police tape round a place: sim/emergency.js)
   const items = createItems(scene);                                // (things lying about: src/render/items.js)
@@ -561,6 +565,7 @@ export function createView({ parent, bus, month = () => 11 }) {
     crowd.update(people, t);
     stats.crowd = performance.now() - tc;
     blood.update(state);
+    prints.update(state, state.time.ms, !!wx && (wx.kind === 'snow' || wx.kind === 'sleet') && (wx.level ?? 0) > 0);   // (footprints in the snow: src/render/prints.js)
     traffic.update(state, alpha, S.glow > 0.35, pc && !aware ? (x, z) => fogAt(x, z) > 0.5 : null);
     tape.update(state);   // (only those in sight: the fog, as for people)                   // (the cars on the road, their lights on after dark: src/render/traffic.js)
     items.update(state);
@@ -588,6 +593,9 @@ export function createView({ parent, bus, month = () => 11 }) {
     lin.setHex(S.sky, THREE.SRGBColorSpace).multiplyScalar(0.25 * S.skyK + 0.1 * S.sunK);
     WX.wxSky.value.copy(lin);
     WX.wxRoad.value.set(Z.kerbN, Z.kerbS, Z.roadN, Z.roadS);
+    // (the wheels' tracks, the snow melted along them: each lane's two, its centre ±TRACK_M; the far road's lanes the same)
+    { const a = LANE_Z.north, b = LANE_Z.south, f = (Z.roadN + Z.roadS) / 2, h = (Z.roadS - Z.roadN) / 4;
+      WX.wxTracksA.value.set(a - TRACK_M, a + TRACK_M, b - TRACK_M, b + TRACK_M); WX.wxTracksB.value.set(f - h - TRACK_M, f - h + TRACK_M, f + h - TRACK_M, f + h + TRACK_M); }
     WX.wxLamps.value.forEach((v, i) => { const l = near[i]?.[0]; v.set(l?.x ?? 0, l?.z ?? 0, l && w.wet > 0.3 ? S.glow : 0, LAMP_Y); });
     const hk = HAZE[w.kind]?.[L] ?? 0, far = Math.min(60, sightM(w));
     const slant = w.dir * (SLANT[w.kind === 'snow' ? 'snow' : 'rain'][w.wind] ?? 0);
