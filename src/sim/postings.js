@@ -30,6 +30,7 @@ import { DEEP_CITIES, DEEP_LEVELS, targetOf } from './legends.js';
 import { newCampaign, promote, dayOf, WAKE_H } from './campaign.js';
 import { DAY, calendar } from './clock.js';
 import { hash } from './rng.js';
+import { rivalryNews } from './geopolitics.js';
 
 export const WEEK = 7 * DAY, LEGEND_AFTER = 2;
 // (how a posting can end, and what the career makes of it: on to the next, the official kind only (a deep post gone wrong), or over)
@@ -184,14 +185,17 @@ export function afterPhases(c, city, kind, ms) {
     line: kind === 'illegal' ? 'a life, a real one, and nothing of the trade in it till the Center calls: the length of it by how hard the place is to get near, and how good their counter-intelligence is' : 'a job, a flat, a name, before the work begins: as long as it takes them to stop looking at a newcomer' }];
 }
 
-/** A deep posting's brief, its first day's paper (src/main.js postingPaper()): away, the news while you were (lines). */
+/** A deep posting's brief, its first day's paper (src/main.js postingPaper()): away, the station's news while you were (lines); the rivalry's own, since the last posting (or the legend's first day), at most two. */
 export function deepPaper(c, away = []) {
   const p = c.posting, me = c.character, K = cityById(p.city), I = p.incubation, ill = p.level === 'illegal', R = p.rivalry;
+  const last = (c.career ?? []).filter(k => !['school', 'training', 'incubation'].includes(k.level)).at(-1)?.until ?? I.from;
+  const long = rivalryNews(c.world ?? c.seed, p.city, last, p.startMs).slice(-2);
   return { stamp: ill ? 'THE SIGNAL' : 'UNDER A LEGEND', title: `${K.name.toUpperCase()}: ${String(p.alias).toUpperCase()}`, go: 'Begin the posting', lines: [
     `${me.name}, as ${p.alias}, ${p.nationWord}: ${p.jobShort}, at ${p.employer}. ${ill ? 'Every paper you carry is genuine, and every one is a lie.' : `${cap(p.papers)}.`} No diplomatic passport: caught, it's their prison, and nobody will say you were ours.`,
     ill ? `${lengthWords(I.ms)} lying low, and this morning on your way to work, the signal: a chalk mark on a lamp post where there's never been one. The Center wants you.` : `${lengthWords(I.ms)} of the legend lived before today: long enough, they reckon, for ${p.target?.short ?? 'them'} to stop looking at a newcomer.`,
     `${R ? `${cap(R.the)}, ${R.years} years of it. ` : ''}${ill ? 'The Center' : 'The station'} wants ${p.goal}. Your way in: ${p.target?.place ?? 'what your job puts you near'}.`,
     ...away,
+    ...(long.length ? [`The long war, meanwhile: ${long.join(' ')}`] : []),
     p.assets.length ? `${ill ? 'Those the Center gives you to run' : 'Handed to you by the station'}, met by signal and never by phone: ${p.assets.map(s => `${s.codename}, ${s.role}, in it for ${s.motive}`).join('; ')}.` : 'Nobody to run yet.',
     `Watched: ${p.targets.map(t => `${t.name}, ${t.what}`).join('; ')}.`,
     ill ? `${p.employer} expects you nine to six on weekdays, as it has for years. The Center is a dead drop and a chalk mark: no embassy, nobody to ring.${p.handler ? ` Twice a year, by signal, ${p.handler.name}, a retired illegal ${p.handler.line}.` : ''}` : `${p.employer} expects you nine to six on weekdays: the work is the legend's, and losing the job loses the posting. The station is a chalk mark and a dead drop, never the embassy's door.`,

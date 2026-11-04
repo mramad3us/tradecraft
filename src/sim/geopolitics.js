@@ -23,7 +23,7 @@
 // season (ISSUES above: a few years, a handler's tasking).
 import { stream, range, pick } from './rng.js';
 import { at } from './clock.js';
-import { countryOfCity, countryById } from './countries/index.js';
+import { countryOfCity, countryById, COUNTRIES } from './countries/index.js';
 import { cityById } from './cities/index.js';
 
 export const START_Y = 2025, END_Y = 2075, LAST_Y = [1.5, 4], OVERLAP_Y = 1;
@@ -107,6 +107,8 @@ export const THREADS = {
   patron: ['{rival} on the Nile', '{rival}\'s long courtship of {country}: the arms, the reactor, the officers it trains, and what it\'s promised', 'the reactor running, and the officers who trained in Moscow our friends'],
   regime: ['the army\'s grip', 'the generals who really run {country}: their companies, their quarrels, who comes after', 'a new man at the top, from the list we had'],
 };
+/** The long rivalries there are, from the countries' profiles: [{ country, agency, since, the, rival, threads }]. */
+export const RIVALRIES = Object.values(COUNTRIES).flatMap(K => Object.entries(K.rivalry ?? {}).map(([agency, R]) => ({ country: K.id, agency, ...R })));
 /** The rivalry played out at city, for the agency's country (us): { since, the, threads, words }, or null (none: no deep posting's purpose here). */
 export function rivalryOf(city, agency = 'us') {
   const K = countryOfCity(city), L = K?.rivalry?.[agency];
@@ -130,6 +132,16 @@ export function threads(w, city, agency = 'us') {
 export function threadAt(w, city, ms, agency = 'us') {
   return threads(w, city, agency).filter(I => I.from <= ms && ms < I.to).sort((a, b) => b.from - a.from)[0] ?? null;
 }
+/** What the rivalry at city did between two dates, a line each: threads done with, threads risen (a deep post's brief after time away). */
+export function rivalryNews(w, city, from, to, words = (ms) => String(new Date(Date.UTC(2026, 0, 1) + ms).getUTCFullYear()), agency = 'us') {
+  const out = [];
+  for (const I of threads(w, city, agency)) {
+    if (I.to > from && I.to <= to) out.push(`${cap(I.subject)}: ${I.ended}, ${words(I.to)}.`);
+    if (I.from > from && I.from <= to) out.push(`${cap(I.subject)}: the long work since ${words(I.from)}: ${I.goal}.`);
+  }
+  return out;
+}
+
 /**
  * A deep posting's purpose at city, decided at ms: the rivalry's thread then (or the one named, if it's this rivalry's): { subject,
  * goal, thread, rivalry: { the, since, years (how long it's run by ms) } }; a station without a rivalry, its tasking then.

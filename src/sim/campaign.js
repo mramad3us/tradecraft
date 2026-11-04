@@ -893,7 +893,7 @@ export function record(c, ms) {
     rank: p.rank, agency: p.agency, level: p.level, city: p.city, job: p.job, since: p.startMs, day: Math.max(1, dayOf(ms) - dayOf(p.startMs) + 1),
     subject: p.subject, intel: p.intelligence, goal: goalOf(p), network: p.assets.map(s => s.codename), over: c.over ? { why: c.over.why, ms: c.over.ms ?? null } : null,
     past: (c.career ?? []).map(k => ({ rank: k.level === 'school' ? `${LANG_NAME[k.lang] ?? 'A language'} at the Foreign Service Institute` : k.level === 'training' ? `Training for ${k.kind === 'illegal' ? 'an illegal\'s post' : 'a post under a legend'}` : k.level === 'incubation' ? `The legend lived, waiting${k.kind === 'illegal' ? ' for the Center' : ''}` : LEVELS[levelOf(k.level)].rank, city: k.city, until: k.until ?? null, how: k.how ?? null })),
-    ...(isDeep(p) ? { deep: { kind: p.level, alias: p.alias, papers: p.papers, employer: p.employer, target: p.target?.place ?? null, rivalry: p.rivalry?.the ?? null, life: p.life?.lines ?? [], since: p.incubation?.from ?? null } } : {}),
+    ...(isDeep(p) ? { deep: { kind: p.level, alias: p.alias, papers: p.papers, employer: p.employer, target: p.target?.place ?? null, rivalry: p.rivalry ? `${p.rivalry.the}, ${p.rivalry.years} years of it` : null, life: p.life?.lines ?? [], since: p.incubation?.from ?? null } } : {}),
     done: c.done.map(a => ({ ms: a.ended ?? a.to, kind: a.kind, who: nameOf(c, a), trip: a.trip ?? null, missed: a.status === 'missed', word: a.status === 'missed' ? 'missed' : outcomeWord(a.kind, a.known ?? a.outcome), intel: a.intel ?? 0 })),
     reviews: c.reviews.map(r => r.grade),
   };
