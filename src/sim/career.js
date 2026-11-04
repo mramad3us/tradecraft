@@ -64,11 +64,13 @@ export const ILLEGAL_OS = 80, ILLEGAL_AGE = 30;
 // as the language to fluent takes if that's longer; at its end every skill at FLOORS.illegal and Tradecraft at least ILLEGAL_OS, at
 // once, not a point at a time (sim/postings.js trained()); the last step to native lived in the years lying low among its speakers,
 // NATIVE_K of the language's weeks, inside the incubation's three years at least (sim/incubation.js lived()): native on day one)
-export const ILLEGAL_SCHOOL_Y = 2, SCHOOL_NEED = 'fluent';
-/** An illegal's school, in weeks: ILLEGAL_SCHOOL_Y, or the language to fluent if that's longer. */
-export function schoolWeeks(character, city) {
+// (an undercover officer's, the same shape (the lead's call, for consistency): UNDERCOVER_SCHOOL_Y, or the language to fluent if
+// that's longer, FLOORS.undercover at its end at once; never longer than the illegal's in the same city, the language the same)
+export const ILLEGAL_SCHOOL_Y = 2, UNDERCOVER_SCHOOL_Y = 1, SCHOOL_NEED = 'fluent';
+/** A deep post's school, in weeks (kind: 'illegal' | 'undercover'): its years, or the language to fluent if that's longer. */
+export function schoolWeeks(character, city, kind = 'illegal') {
   const lang = cityById(city).lang, lw = lang === 'en' ? 0 : langWeeks(lang, character?.langs?.[lang] ?? 'none', SCHOOL_NEED);
-  return Math.max(Math.round(ILLEGAL_SCHOOL_Y * 52), lw);
+  return Math.max(Math.round((kind === 'undercover' ? UNDERCOVER_SCHOOL_Y : ILLEGAL_SCHOOL_Y) * 52), lw);
 }
 // (who teaches what, for a post where nobody comes for you: the phase's name, its place, its line)
 const SCHOOLS = [
@@ -87,6 +89,12 @@ export function plan(character, city, cover = 'official') {
     const lang = cityById(city).lang, os = Math.max(character?.os ?? 0, ILLEGAL_OS);
     out.push({ what: `${lang === 'en' ? '' : `${LANG_NAME[lang] ?? lang} to fluent, `}every skill to the illegal's floors, Tradecraft to ${os}`, where: 'at the Center\'s own school, a farm in Virginia that isn\'t on any map', weeks: schoolWeeks(character, city),
       line: 'a year as somebody else in a city that isn\'t told, the language all day, and instructors who were illegals themselves' });
+    return out;
+  }
+  if (cover === 'undercover') {                                      // (a school too: the language, the floors)
+    const lang = cityById(city).lang;
+    out.push({ what: `${lang === 'en' ? '' : `${LANG_NAME[lang] ?? lang} to fluent, `}every skill to the undercover post's floors`, where: 'on the Farm\'s long course, the one that isn\'t on the syllabus', weeks: schoolWeeks(character, city, 'undercover'),
+      line: 'a year as somebody else in a city that isn\'t told, a team trying to catch you at it, and the language every waking hour' });
     return out;
   }
   const lang = cityById(city).lang, need = NEED[cover] ?? 'working', have = character?.langs?.[lang] ?? 'none';
@@ -115,7 +123,7 @@ export function planPaper(character, city, cover = 'official', after = []) {
   const deep = cover === 'illegal' || cover === 'undercover', os = Math.max(character?.os ?? 0, ILLEGAL_OS);
   // (an illegal's: Tradecraft at least ILLEGAL_OS when it's done, and no way back from what comes after it)
   const L = LANG_NAME[K.lang] ?? K.lang;
-  const end = cover === 'illegal' ? [`At its end, Tradecraft ${os} and every skill at the illegal's floors: as good as the Agency makes them.${K.lang === 'en' ? '' : ` The ${L} to native comes after, in the first years lying low among its speakers.`} Then the legend, and the life in it, for as long as it lasts. Nobody comes home from an illegal's post on a pension: you go knowing you won't.`] : [];
+  const end = cover === 'undercover' ? [`At its end, every skill at the undercover post's floors${K.lang === 'en' ? '' : `, the ${L} fluent`}: then the legend, and the job that's its cover.`] : cover === 'illegal' ? [`At its end, Tradecraft ${os} and every skill at the illegal's floors: as good as the Agency makes them.${K.lang === 'en' ? '' : ` The ${L} to native comes after, in the first years lying low among its speakers.`} Then the legend, and the life in it, for as long as it lasts. Nobody comes home from an illegal's post on a pension: you go knowing you won't.`] : [];
   return { stamp: deep ? 'TRAINING' : 'ORDERS', title: deep ? `BEFORE ${K.name.toUpperCase()}` : `TO STATION ${K.name.toUpperCase()}`,
     lines: [open, ...T.map(phase), ...end, ...after.map(phase), after.length ? `${cap(span(total))} in all, before day one.` : `${cap(span(total))} in all, before you're anywhere near ${K.name}.`] };
 }

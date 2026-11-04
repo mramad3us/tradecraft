@@ -46,7 +46,7 @@ export default [
     },
   },
   {
-    name: 'postings: an undercover post chosen: the training (the language to fluent, the skills to their floors), months of the legend lived, day one a Monday that much later, the officer older, no embassy, heat nothing, the legend\'s history on the file',
+    name: 'postings: an undercover post chosen: the school (a year, or the language to fluent if longer; the floors at its end), months of the legend lived, day one a Monday that much later, the officer older, no embassy, heat nothing, the legend\'s history on the file',
     fn() {
       const c = ended(newCampaign(11, candidates(11, 'moscow')[1], 'moscow'), 80), F = forecast(c, 'cairo', 'undercover', c.over.ms), n = nextPosting(c, 'cairo', 'undercover'), p = n.posting, R = record(n, p.startMs);
       const age0 = ageOf(c.character, c.over.ms), age1 = ageOf(n.character, p.startMs), months = p.incubation.months;

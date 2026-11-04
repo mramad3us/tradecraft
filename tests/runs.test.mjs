@@ -8,7 +8,7 @@
 // sums (sim/postings.js offers(), forecast(): the training, the incubation, day one) for every branch offered.
 import { candidates, newCampaign, plan, fold, agenda, legendFile } from '../src/sim/campaign.js';
 import { offers, forecast, nextPosting, careerEnd, LEGEND_DAY_ONE_MAX } from '../src/sim/postings.js';
-import { ageOf, ILLEGAL_AGE, ILLEGAL_OS, RETIRE_AGE } from '../src/sim/career.js';
+import { ageOf, ILLEGAL_AGE, ILLEGAL_OS, RETIRE_AGE, plan as trainingPlan } from '../src/sim/career.js';
 import { DEEP_CITIES } from '../src/sim/legends.js';
 import { CITY_IDS } from '../src/sim/cities/index.js';
 import { stream, chance } from '../src/sim/rng.js';
@@ -40,7 +40,7 @@ export default [
     name: 'runs: the illegal\'s branch, 80 careers from the picker\'s first tour: ages at the start, at the first tour\'s end, at a first handler\'s posting\'s end; who\'s under 30; for those who go, the training, the years lying low, the age on day one and Tradecraft; the undercover branch beside it',
     fn() {
       const S = { start: [], tourEnd: [], tourDays: [], h: {}, hDays: {}, hand: [], ill: { tour: {}, hand: {} }, uc: {} };
-      let under = 0, offered = 0, mismatch = 0, checked = 0;
+      let under = 0, offered = 0, mismatch = 0, checked = 0, longer = 0;
       for (let s = 1; s <= SEEDS; s++) {
         const ch = candidates(s, 'london', 'junior')[s % 3], J = newCampaign(s, ch, 'london', 'junior');
         S.start.push(ageOf(J.character, J.posting.startMs));
@@ -54,6 +54,8 @@ export default [
           const H = nextPosting(J, city, 'official'), endH = run(H); if (!endH) continue;
           const aH = ageOf(H.character, endH);
           (S.h[city] ??= []).push(aH); (S.hDays[city] ??= []).push((endH - H.posting.startMs) / DAY);
+          // (an undercover post never takes longer to train for than an illegal's in the same city: two schools, the same language)
+          for (const dc of DEEP_CITIES) { const w = (k) => trainingPlan(H.character, dc, k).reduce((t, x) => t + x.weeks, 0); if (w('undercover') > w('illegal')) longer++; }
           for (const o of offers(H, endH).filter(x => x.ok && x.kind !== 'official')) {
             const F = forecast(H, o.city, o.kind, endH), A = ageOf(H.character, F.start);
             if (o.kind === 'illegal') {
@@ -80,7 +82,7 @@ export default [
       for (const city of DEEP_CITIES) { const X = S.uc[city] ?? []; console.log(`      undercover, ${city}, after a first handler's posting (${X.length}): gone at ${row(q(X.map(x => x.went)))}; training ${row(q(X.map(x => x.trainY)), 1)} y; the legend lived ${row(q(X.map(x => x.incY * 12)))} months; age on day one ${row(q(X.map(x => x.age)))}`); }
       console.log(`      ${checked} illegal postings made for real: day one, Tradecraft and the language as forecast in ${checked - mismatch}`);
       const all = Object.values(S.ill.hand).flat();
-      assert(tq.min >= 24 && tq.max <= 29 && offered === 0 && mismatch === 0 && checked > 5 && all.length && all.every(x => x.os >= ILLEGAL_OS && x.went < ILLEGAL_AGE), 'the ages, the gate, the boost');
+      assert(longer === 0 && tq.min >= 24 && tq.max <= 29 && offered === 0 && mismatch === 0 && checked > 5 && all.length && all.every(x => x.os >= ILLEGAL_OS && x.went < ILLEGAL_AGE), 'the ages, the gate, the boost');
     },
   },
   {
