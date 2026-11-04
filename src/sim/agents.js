@@ -40,7 +40,7 @@ import { Z, SECTION_M, mouthOf, inLane as inLaneG, laneLine } from './map/street
 import { near, blocked } from './world.js';
 import { seesActor, headOf, gazeInto, openAir, reach } from './perception.js';
 import { weatherAt, footing } from './weather.js';
-import { staysDown, canRun, mobility, crawlMs } from './health.js';
+import { staysDown, canRun, mobility, crawlMs, woundsNow } from './health.js';
 import { step as hurtStep, crawling } from './wounded.js';
 import { see as lookAbout, step as lookStep, due as lookDue } from './onlookers.js';
 import { paneAt, seatTaken } from './acts.js';
@@ -196,6 +196,10 @@ export function stepAgent(state, a, scenario, bus) {
   if (ai.hurt && hurtStep(state, a, body)) return;                 // (shot: lying, getting up, sat, kept still; or its getaway walked below: sim/wounded.js)
   const crawl = crawling(a, body);                                 // (the legs gone, getting away all the same: a crawl)
   if (body && staysDown(body) && !crawl) { a.vx = a.vz = 0; a.gait = 'down'; return; }   // (and down for good while the body says so, whatever the clock: sim/health.js staysDown())
+  // (past what they can bear, or in shock, and not a shot passer-by's getaway: they stop where they are, sat, or down if
+  // it's worse: an officer too, out of it; the user, 2026-11-04, "over a certain pain threshold, people just lit up against
+  // a wall or lie down")
+  if (body && !ai.hurt && body.injuries?.length) { const fx = woundsNow(body, state.time.ms); if (fx.over || fx.shock) { a.vx = a.vz = 0; a.gait = fx.floored ? 'down' : 'slump'; if (ai.gunner) { ai.gunner = null; delete a.$aim; } return; } }
   if (ai.wait > 0) {
     a.vx = a.vz = 0;
     if (ai.visit) visitStep(a, ai.visit, ai.visit.ticks - ai.wait);

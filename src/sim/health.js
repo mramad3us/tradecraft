@@ -175,6 +175,7 @@ const has = (p, part, kind) => (p.injuries ?? []).some(i => i.part === part && i
  * the new injuries, kept on p.injuries (edge: a blade's, which cuts). r: the dice.
  */
 export function injure(p, part, force, r, ms, { edge = false, fracture = 0, bleedK = 1, crackK = 0, deep = false } = {}) {
+  surge(p, ms);                                                    // (hurt: the adrenaline, a while)
   const out = [];
   // (bleedK: a weapon's, how much what it cuts bleeds; crackK: a hammer's, how likely it cracks; deep: a blade that landed clean)
   const add = (kind) => {
@@ -292,6 +293,36 @@ export function knockS(p, part, r, trained = false) {
 export const EXERTION = { crawl: 1.25, walk: 1.5, run: 2.5 };
 const EXERTS = { walk: EXERTION.walk, stagger: EXERTION.walk, run: EXERTION.run, down: EXERTION.crawl };   // (moving 'down' is a crawl: sim/wounded.js)
 /** How much faster actor a bleeds for how they're moving now (× bleedRate): still, 1. */
+// Adrenaline (the user, 2026-11-04: "Adrenaline should be modelled as a short term pain reduction thing"): a surge on
+// being hurt (injure()), and for whoever's in danger for as long as it lasts (sim/wounded.js); ADRENALINE.k of the pain
+// off for holdS, fading to nothing over fadeS. p.$adrenaline, the last surge's time, and p.$adrenal, the share off the
+// pain now (kept once a second, sim/game.js bloodBeat(); read by sim/medicine.js painOf()): runtime, a save mid-surge
+// loses it.
+export const ADRENALINE = { k: 0.6, holdS: 40, fadeS: 80 };
+export const surge = (p, ms) => { if (p && !p.dead) p.$adrenaline = ms; };
+/** Adrenaline's level at ms, 0 … 1. */
+export const adrenalK = (p, ms) => { const t = p?.$adrenaline; if (t === undefined) return 0; const s = (ms - t) / 1000; return s < 0 ? 0 : s < ADRENALINE.holdS ? 1 : Math.max(0, 1 - (s - ADRENALINE.holdS) / ADRENALINE.fadeS); };
+/** Kept once a second: the share of the pain adrenaline takes off now. */
+export const adrenalTick = (p, ms) => { if (!p) return; const k = adrenalK(p, ms); if (k > 0) p.$adrenal = ADRENALINE.k * k; else { delete p.$adrenal; if (p.$adrenaline !== undefined && ms - p.$adrenaline > (ADRENALINE.holdS + ADRENALINE.fadeS) * 1000) delete p.$adrenaline; } };
+// What someone can bear (the user: "Pain resistance should be linked to fitness level, over a certain pain threshold,
+// people just lit up against a wall or lie down"): PAIN_LIMIT points of pain (sim/medicine.js PAIN: a bullet through the
+// arm or the leg is 28, a break in it 50, two in the body 50 or more), more with Fitness; past it they stop where they
+// are, sat against a wall or down; FLOOR_K past it, down.
+export const PAIN_LIMIT = { base: 30, perFit: 2 }, FLOOR_K = 1.4, DIZZY_HEAD_MIN = 10;
+export const painLimit = (p) => PAIN_LIMIT.base + PAIN_LIMIT.perFit * Math.max(0, skill(p, 'fitness'));
+/**
+ * What the wounds do to someone now (the user: "wounds should have effects (pain, blood loss, shock, dizziness) and these
+ * effects should trigger reactions"): { pain (as felt: adrenaline's off it), limit, over (past it), floored (far past it, or
+ * in shock: lying down), dizzy (pale from the blood lost, or a blow to the head in the last DIZZY_HEAD_MIN), shock }.
+ */
+export function woundsNow(p, ms) {
+  const pain = painOf(p, stateOf, Object.keys(PARTS)), limit = painLimit(p), b = bloodOf(p), shock = b < BLOOD.shock;
+  const head = (p.injuries ?? []).some(i => i.part === 'head' && ms - (i.ms ?? -Infinity) < DIZZY_HEAD_MIN * 60000);
+  return { pain, limit, over: pain >= limit, floored: shock || pain >= limit * FLOOR_K, dizzy: b < BLOOD.pale || head, shock };
+}
+/** Past what they can bear, or in shock: they've stopped, wherever they are (an officer drops out of it, sim/armed.js). */
+export const incapacitated = (p, ms) => !!p && (p.injuries?.length > 0 || bloodOf(p) < BLOOD.pale) && (bloodOf(p) < BLOOD.shock || painOf(p, stateOf, Object.keys(PARTS)) >= painLimit(p));
+
 export const exertion = (a) => (a && !a.hidden && Math.hypot(a.vx ?? 0, a.vz ?? 0) > 0.05 ? EXERTS[a.gait] ?? 1 : 1);
 
 /**

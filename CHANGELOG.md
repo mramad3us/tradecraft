@@ -4,6 +4,17 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.33 (2026-11-04)
+
+- **The wounded do what their wounds make them do.** Pain, blood loss, shock and dizziness decide, not a set distance. With you still there and a gun in your hand, a wounded passer-by runs for their life, and running makes them bleed faster: an opened artery puts them in shock and down in about a minute. With your hands empty, they walk away until you're out of sight, then stand and phone for help until dizziness or pain sits them down. Past what they can bear, they sit against the wall right there, or lie down; in shock they lie down.
+- **Adrenaline.** Being hurt, or being in danger, takes 60% off the pain for about 40 seconds, and it fades over the next minute and a half. It holds for you too, in every roll the pain affects. A wounded passer-by gets going on it, and sits down when it wears off.
+- **Pain tolerance comes with Fitness.** Someone can bear 30 points of pain, plus 2 for each point of Fitness. A bullet through the arm is 28, two in the body 50 or more. Police too: an officer past what he can bear stops shooting and sits or lies down.
+- **A bullet graze to the head bleeds like a scalp.** It bleeds a lot and looks bad, but slowly, and it stops by itself within 20 minutes. It used to bleed like a cut artery: "dead in 6 minutes". The look now says it looks worse than it is.
+- **No improvised splint.** Splinting needs a splint, sold at a chemist's. A stick and strips of shirt never ran out; they'll come back as items with crafting.
+- **You can bin the shop's bag.** The bag with your old clothes has a Bin button in the inventory, and everything in it goes. If you're searched with the bag, they look in it: the coat or hat they described gets you arrested, and so does a weapon in it.
+- **The emergency timer follows you.** Walk a few streets off after a call and the police's ETA stays by the clock, with the street it's on.
+- **First aid's Medicine line is short.** It just says "Medicine 5"; what Medicine does shows when you hover over it.
+
 ## v0.1.32 (2026-11-04)
 
 - **Hunted.** When the police are called on you, or an officer sees you with a gun, they hunt you. They know up to three things: your face, what you're wearing, and where they last had you. A caller nearly always has your clothes, and your face only if they were close and it was light. An officer who's seen you has everything.

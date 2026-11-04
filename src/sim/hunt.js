@@ -139,6 +139,7 @@ export function start(state, bus, { why, row = state.map.row ?? 0, x, who = fals
     search: Math.max(H0?.search ?? 0, now + S.searchH * HOUR), until: Math.max(H0?.until ?? 0, now + S.keepD * DAY),
     who: who ? { known: true, look: whoOf(p) } : H0?.who ?? { known: false },
     wearing: wearing ? { known: true, look: wearOf(p) } : H0?.wearing ?? { known: false },
+    wore: [...new Set([...(H0?.wore ?? []), ...(wearing && H0?.wearing?.known && H0.wearing.look !== wearOf(p) ? [H0.wearing.look] : [])])],   // (what they'd been told you wore before: still theirs, in a bag on you)
     seen: { who: whoOf(p), wearing: wearOf(p) },                   // (how you looked when they had you, as you know it: what the icons weigh you against)
     where: { row, x, ms: now },
     what: what ?? (H0 && w === H0.why ? H0.what : `${cap(S.what)} on ${streetName(townOf(state.map), row)}`),
@@ -525,8 +526,13 @@ export function guilty(state, bus, me, c, how = null) {
 /** Searched, against the wall: something on you they can hold you on (a weapon, blood), arrested; nothing, taken in for questioning. */
 export function searched(state, bus, me, c) {
   const p = state.people[me.who], them = state.people[c.who], he = them?.sex === 'f' ? 'she' : 'he';
-  const blood = shows(p).some(m => /blood/.test(m.why)), found = searchOf(state, them);
-  say(state, bus, { kind: 'note', text: `Hands on the wall. ${cap(he)} pats you down, coat, pockets, waistband, ankles, while the other one watches your hands.` });
+  const blood = shows(p).some(m => /blood/.test(m.why)), found = searchOf(state, them), coat = describedIn(huntOf(state), p.bag);
+  say(state, bus, { kind: 'note', text: `Hands on the wall. ${cap(he)} pats you down, coat, pockets, waistband, ankles, while the other one watches your hands${p.bag?.length ? ', and looks in the bag' : ''}.` });
+  if (coat) {                                                     // (the clothes they're looking for, in a shop's bag: the user, 2026-11-04)
+    say(state, bus, { kind: 'note', text: `In the shop's bag, folded: ${coat.name}. ${cap(he)} holds it up, and looks at you. "You're under arrest."` });
+    state.$takedown = null;
+    return arrest(state, bus, me, 'searched', 'the description', { found: [`${coat.name}, from the shop's bag`, ...found.filter(k => !isGun(k)).map(k => thingName(k))] });
+  }
   if (found.length || blood) {
     const words = found.filter(k => !isGun(k)).map(k => thingName(k));
     take(p, found.filter(k => !isGun(k)));                          // (a gun: arrest() takes it, into evidence)
@@ -535,6 +541,18 @@ export function searched(state, bus, me, c) {
     return arrest(state, bus, me, 'searched', found.length ? 'what they found' : 'the blood on you', { found: words });
   }
   questioned(state, bus, me);
+}
+
+/** The clothes they described, in a bag (a shop's, with what you took off in it): the piece, or null. */
+export function describedIn(H, bag) {
+  if (!bag?.length || !H) return null;
+  const looks = [...(H.wearing?.known ? [H.wearing.look] : []), ...(H.wore ?? [])];   // (as they have you now, and as they had you before)
+  for (const L of looks) {
+    const [top, topC, hat, hatC] = L.split('|');
+    const x = bag.find(y => y.look && ((y.slot === 'top' && y.look.kind === top && String(y.look.color) === topC) || (y.slot === 'hat' && hat !== 'bare' && y.look.kind === hat && String(y.look.color ?? '') === hatC)));
+    if (x) return x;
+  }
+  return null;
 }
 
 /** Taken in for questioning: the hours at the station (sim/game.js skips them; out on its steps: sim/armed.js released()), the costs, a paper. The hunt over. */

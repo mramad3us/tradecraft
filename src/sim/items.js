@@ -243,6 +243,14 @@ export function use(state, bus, a, cmd) {
     say(state, bus, { kind: 'note', text: `You drop ${weaponOf(kind)?.name ?? armName(kind) ?? 'it'}.` });
   } else if (verb === 'discard' && kind) {
     const n = Number(arg) || 1;
+    if (kind === 'bag') {                                            // (the shop's bag and all in it, into a bin: the old coat gone with it, the user, 2026-11-04)
+      if (!p.bag?.length) return;
+      const words = p.bag.map(x => (x.groceries ? `${x.groceries} meals' groceries` : x.supply ? supplyWord(x.supply, x.n) : x.item ? thingName(x.item) : x.book ? bookOf(x.book).title : x.name));   // (as sim/clothes.js bagWord() says them: not imported, clothes.js reads this module)
+      for (const x of p.bag) if (x.book) { const i = (p.books ?? []).findIndex(b => b.id === x.book); if (i >= 0) p.books.splice(i, 1); }
+      delete p.bag;
+      say(state, bus, { kind: 'note', text: `You push the shop's bag down into a bin: ${words.length > 1 ? `${words.slice(0, -1).join(', ')} and ${words.at(-1)}` : words[0]}, gone.` });
+      return;
+    }
     if (kind === 'book') {                                           // (not thrown: left, with what you'd read of it. 'discard:book:<id>')
       const i = (p.books ?? []).findIndex(b => b.id === arg);
       if (i >= 0) { p.books.splice(i, 1); say(state, bus, { kind: 'note', text: `You leave ${bookOf(arg).title} on a wall, for whoever wants it.` }); }

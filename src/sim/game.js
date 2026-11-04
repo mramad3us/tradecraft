@@ -37,7 +37,7 @@ import { populate, recycle, think, walk, facing, isPasserby, noticeAgent } from 
 import { look, headOf, faceOf, GLASS_MAX_DEG } from './perception.js';
 import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } from './agents.js';
 import { drift, asOfficer, uniformed } from './people.js';
-import { heal, bleeding, bloodTick, bandOf, canStand, canRun, mobility, kill, exertion, BLOOD, COME_ROUND_S } from './health.js';
+import { heal, bleeding, bloodTick, bandOf, canStand, canRun, mobility, kill, exertion, adrenalTick, BLOOD, COME_ROUND_S } from './health.js';
 import { PRESSURE_K, treat } from './aid.js';
 import { diagnose } from './diagnosis.js';
 import { atKerb, destinations, ride, cabFor, hailedBy, board, rideTick, chaseTick, WALK_OFF_M, BOARD_M } from './taxi.js';
@@ -501,6 +501,7 @@ export function changeMap(state, bus, way) {
  */
 export function bloodBeat(state, bus, a, s) {
   const p = state.people[a.who];
+  if (p && !p.dead) adrenalTick(p, state.time.ms);                 // (adrenaline's share off the pain, now: sim/health.js)
   if (!p || p.dead || (p.blood === undefined && !bleeding(p, state.time.ms))) return;
   const pressed = state.actors.some(o => o.busy?.what === 'pressure' && (o.busy.on ?? o.id) === a.id);   // (their own hand, or someone's on it: sim/aid.js)
   let band = bloodTick(p, s, state.time.ms, (pressed ? PRESSURE_K : 1) * exertion(a));   // (and faster on the move: sim/health.js exertion())

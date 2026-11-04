@@ -42,6 +42,7 @@ import { seesActor } from './perception.js';
 import { isPasserby } from './crowd.js';
 import { makeAgent, setRoute, rowOf } from './agents.js';
 import { routeFrom, LINE } from './city.js';
+import { streetName } from './map/street.js';
 import { townOf } from './cities/index.js';
 import { sheet } from './people.js';
 import { policeOf } from './countries/index.js';
@@ -115,7 +116,7 @@ function report(state, bus, me, now, row) {
     }
     const E = policeOf(state.map)?.ems ?? DEFAULT_EMS, r = stream('ems', state.map.seed, now);
     const V = state.$violent && now - state.$violent.ms < VIOLENT_S * 1000 ? state.$violent : null;
-    c = { id: `call${now}`, row, x: a.x, z: a.z, ms: now, who: [a.id], described: V?.look ?? null, known: false,
+    c = { id: `call${now}`, city: state.map.city ?? null, row, x: a.x, z: a.z, ms: now, who: [a.id], described: V?.look ?? null, known: false,
       at: { police: now + Math.round(range(r, ...E.police) * MIN), ambulance: now + Math.round(range(r, ...E.ambulance) * MIN) },
       err: { police: gauss(r), ambulance: gauss(r) }, police: { stage: 'coming' }, ambulance: { stage: 'coming' } };
     (state.calls ??= []).push(c);
@@ -150,7 +151,7 @@ function heard(state, bus, me, now, row) {
   Object.assign(caller, { gait: 'phone', vx: 0, vz: 0 }); caller.ai.wait = ON_PHONE_S * 20;
   const E = policeOf(state.map)?.ems ?? DEFAULT_EMS, r = stream('ems', state.map.seed, now), at = now + Math.round(range(r, ...E.police) * MIN);
   const V = state.$violent && now - state.$violent.ms < VIOLENT_S * 1000 ? state.$violent : null;
-  const c = { id: `call${now}`, row, x, z, ms: now, who: [], shots: true, described: V?.look ?? null, known: false, at: { police: at, ambulance: at },
+  const c = { id: `call${now}`, city: state.map.city ?? null, row, x, z, ms: now, who: [], shots: true, described: V?.look ?? null, known: false, at: { police: at, ambulance: at },
     err: { police: gauss(r), ambulance: 0 }, police: { stage: 'coming' }, ambulance: { stage: 'done' } };
   (state.calls ??= []).push(c);
   const w = stream('hunt-witness', state.map.seed, now);
@@ -177,11 +178,18 @@ export function etaOf(state, c, now = state.time.ms) {
   }
   return out;
 }
-/** The call you know of and are waiting on, its guesses: for the watch (src/ui/ui.js), or null. */
+/**
+ * The call you know of and are waiting on, its guesses: for the watch (src/ui/ui.js), or null. On whatever street it is (the
+ * user, 2026-11-04: "I moved up a few streets as police had been called and the 'timer' for emergency services dissapeared"):
+ * off yours, each guess says where ({ where: the street's name }).
+ */
 export function waiting(state) {
-  const c = (state.calls ?? []).filter(k => k.known && !k.done && k.row === (state.map.row ?? 0)).at(-1);
+  if (state.map?.kind !== 'street') return null;
+  const row = state.map.row ?? 0, mine = (state.calls ?? []).filter(k => k.known && !k.done && (!k.city || k.city === (state.map.city ?? null)));
+  const c = mine.filter(k => k.row === row).at(-1) ?? mine.at(-1);
   if (!c) return null;
-  const eta = etaOf(state, c).filter(e => e.text !== 'here');
+  const where = c.row !== row ? streetName(townOf(state.map), c.row) : null;
+  const eta = etaOf(state, c).filter(e => e.text !== 'here').map(e => (where ? { ...e, where } : e));
   return eta.length ? eta : null;
 }
 

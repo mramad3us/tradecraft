@@ -165,6 +165,7 @@ export function answer(state, bus, key) {
 export function searchOf(state, them) {
   const p = state.people[state.player], found = [];
   if (p.hand && suspicious(p.hand)) found.push(p.hand);             // (an umbrella's an umbrella: sim/weapons.js EVERYDAY)
+  for (const x of p.bag ?? []) if (x.item && suspicious(x.item)) found.push(x.item);   // (a shop's bag: looked in, always)
   for (const o of placed(p).out) {
     if (!suspicious(o.kind)) continue;
     if (o.shows) { found.push(o.kind); continue; }
@@ -175,7 +176,13 @@ export function searchOf(state, them) {
 }
 /** What they found, taken off p (from the hand, or the pockets). */
 export function take(p, found) {
-  for (const k of found) { if (p.hand === k) delete p.hand; else { const i = (p.items ?? []).indexOf(k); if (i >= 0) p.items.splice(i, 1); } }
+  for (const k of found) {
+    if (p.hand === k) { delete p.hand; continue; }
+    const i = (p.items ?? []).indexOf(k);
+    if (i >= 0) { p.items.splice(i, 1); continue; }
+    const b = (p.bag ?? []).findIndex(x => x.item === k);
+    if (b >= 0) { p.bag.splice(b, 1); if (!p.bag.length) delete p.bag; }
+  }
 }
 
 /** A search: what shows is found, what's in a pocket by their Awareness against your Deception. */

@@ -14,8 +14,9 @@
 //   - Tourniquet (an arm or a leg): the kit's (the user, 2026-11-04: "same comment about tourniquet without belt", a
 //     belt being nothing you carry yet: none without one), against TOURNIQUET_DC; made, it stops, but the limb's
 //     no use while it's on (sim/health.js mods(): as broken), until a hospital takes it off.
-//   - Splint it (a broken arm or leg, a fracture): something rigid (sim/weapons.js splint: a stick, a
-//     pipe, an umbrella, a crowbar) and a strip to tie it, against SPLINT_DC; made, the break costs
+//   - Splint it (a broken arm or leg, a fracture): the kit's splint, and only that (the user, 2026-11-04: "don't keep the
+//     splint if it uses a non consumed item (shirt strips are not an item)": a stick and strips of shirt were a splint for
+//     ever; they'll be made, as bandages will, when there's crafting), against SPLINT_DC; made, the break costs
 //     half (sim/health.js mods()).
 // With supplies (sim/medicine.js; the user, 2026-10-28: "bandage a bleeding wound, disinfect wide wound,
 // apply poultry to bruises etc, set broken limbs etc."), each where it fits:
@@ -29,7 +30,7 @@
 //   - A tourniquet: what stops an artery in a limb (above). Loosened, what's under it bleeds again, unless the
 //     artery's tied off; left on past two hours, the limb starves (sim/health.js).
 //   - Set the bone (a broken arm or leg; SET_DC; it hurts): set, it knits straight; not, crooked, for
-//     good (sim/medicine.js scarOf()). A splint (the kit's, for something rigid and strips of shirt).
+//     good (sim/medicine.js scarOf()). A splint: the kit's (above).
 //   - An arnica poultice on a part bruised, hurt or wounded: the pain halved and the mending faster for a
 //     day (sim/medicine.js POULTICE_H).
 //   - Painkillers (no sooner than DOSE_AGAIN_H after the last), a course of antibiotics (an infection, or
@@ -59,7 +60,6 @@ import { SUPPLIES, kitOf, useSupply, supplyWord, isOpen, depthOf, bandageOf, bro
 import { DAY, HOUR, calendar } from './clock.js';
 import { addHeat } from './heat.js';
 import { range } from './rng.js';
-import { weaponOf } from './weapons.js';
 import { eat, needsWords } from './needs.js';
 import { seenName, finds } from './diagnosis.js';
 import { admit } from './services.js';
@@ -69,7 +69,7 @@ export const PRESS_S = 60;
 export const DRESS_DC = { shallow: 8, deep: 12, artery: 16 };
 export const TOURNIQUET_DC = 10;
 export const SPLINT_DC = 12;
-export const IMPROVISED = -2;
+export const IMPROVISED = -2;                                       // (nothing improvised left: no strip of shirt, no belt, no stick; kept for the crafting to come)
 export const SELF_MOD = -2;
 export const ONE_HAND_MOD = -4;
 export const ARTERY_HELD = 0.3;
@@ -89,8 +89,6 @@ const DEEP_BLEED_H = 6;
 const SIDE = { armL: 'left arm', armR: 'right arm', legL: 'left leg', legR: 'right leg' };
 
 const depth = (i) => (i.artery ? 'artery' : i.deep ? 'deep' : 'shallow');
-/** Something rigid to splint with, in the hand or carried. */
-const rigid = (p) => [p.hand, ...(p.items ?? [])].find(k => weaponOf(k)?.splint) ?? null;
 const oneHanded = (p) => ['armL', 'armR'].some(k => ['wounded', 'out'].includes(stateOf(p, k)) || p.tourniquets?.[k]);
 
 const ORD = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'];
@@ -134,8 +132,7 @@ export function options(state, medic, patient) {
     const brk = broken(patient, k, stateOf), crack = (patient.injuries ?? []).some(i => i.part === k && i.kind === 'crack');
     if (brk && !patient.set?.[k]) out.push({ key: `set:${k}`, label: `Set the bone in the ${SIDE[k]}`, ok: true, why: `Medicine against ${SET_DC}, and it hurts; set, it knits straight` });
     if ((brk || crack) && !patient.splints?.[k]) {
-      const r = rigid(medic);
-      out.push({ key: `splint:${k}`, label: `Splint the ${SIDE[k]}`, ok: !!(has('splint') || r), why: has('splint') ? left('splint') : r ? `with ${weaponOf(r).name} and strips of shirt (${IMPROVISED})` : 'a splint, or something rigid: a stick, a pipe, an umbrella' });
+      out.push({ key: `splint:${k}`, label: `Splint the ${SIDE[k]}`, ok: has('splint') > 0, why: has('splint') ? left('splint') : 'no splint on you: a chemist\'s sells them' });
     }
   }
   // (bruises and worse: a poultice; then the pills)
@@ -259,13 +256,13 @@ export function treat(state, bus, medicActor, patientActor, key) {
     return say_(r.ok ? `A pull, a grind, a sound you won't forget, and ${whose} ${SIDE[k]} is straight. It'll knit true.` : `You pull, and it grates and won't go back: not straight. Try again, or it knits as it lies.`, r);
   }
   if (method === 'splint') {
-    const k = arg, kit = kitOf(medic, 'splint') > 0, with_ = kit ? null : rigid(medic);
-    if (!kit && !with_) return null;
-    if (kit) useSupply(medic, 'splint');
-    const r = roll(SPLINT_DC, kit ? [] : [{ why: 'a strip of your shirt to tie it', v: IMPROVISED }]);
+    const k = arg;
+    if (!(kitOf(medic, 'splint') > 0)) return null;                // (the kit's, and only that: strips of shirt aren't a thing you carry, the user, 2026-11-04)
+    useSupply(medic, 'splint');
+    const r = roll(SPLINT_DC, []);
     stoop(SECONDS.splint, 'splint'); tend(k);
     if (r.ok) (patient.splints ??= {})[k] = { ms };
-    return say_(r.ok ? `You splint ${whose} ${SIDE[k]} with ${kit ? 'the splint and its straps' : `${weaponOf(with_).name} and strips of shirt`}. It'll hold, and hurt less used.` : `You try to splint ${whose} ${SIDE[k]}; it won't sit straight, and the knots slip.`, r);
+    return say_(r.ok ? `You splint ${whose} ${SIDE[k]} with the splint and its straps. It'll hold, and hurt less used.` : `You try to splint ${whose} ${SIDE[k]}; it won't sit straight, and the straps slip.`, r);
   }
   if (method === 'poultice') {
     if (!PARTS[arg] || !useSupply(medic, 'poultice')) return null;
@@ -319,7 +316,7 @@ export function bodyLine(state) {
   const gash = (p.injuries ?? []).find(i => i.kind === 'cut' && (i.deep || i.artery) && !i.stitched && !i.bandage);
   if (gash) return { id: 'body-gash', tone: 'warn', text: `${gash.name.charAt(0).toUpperCase() + gash.name.slice(1)}, open to the air: it won't close on its own. Stitch it, or bandage it at least: {aid}.` };
   const brk = LIMBS.find(k => needsCare(p, k, stateOf) === 'a break, unsplinted');
-  if (brk) return { id: 'body-break', tone: 'warn', text: `Your ${SIDE[brk]}'s broken, and nothing holds it. Set it, splint it ({aid}): a splint, or something rigid.` };
+  if (brk) return { id: 'body-break', tone: 'warn', text: `Your ${SIDE[brk]}'s broken, and nothing holds it. Set it, splint it ({aid}): a splint, from a chemist's.` };
   const dirty = (p.injuries ?? []).find(i => isOpen(i) && bandageOf(i, ms) === 'dirty');
   if (dirty) return { id: 'body-dressing', tone: 'note', text: `The dressing on ${dirty.name} wants changing: ${dirty.rag ? 'a strip of shirt isn\'t clean' : 'a day old'}. {aid}, with a bandage.` };
   const pain = painBand(painOf(p, stateOf, Object.keys(PARTS)));

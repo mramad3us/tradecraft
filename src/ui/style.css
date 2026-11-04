@@ -322,6 +322,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .pk-btns kbd { margin-right: 2px; }
 .pk-none { color: #6a7182; font-size: calc(12px * var(--ui, 1)); margin: 2px 0; }
 .pk-btns button.pk-bin { color: #8f96a6; border-color: #353947; background: none; }
+.pk-bag { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }   /* the shop's bag, and its Bin (the user, 2026-11-04) */
 .pk-icon { flex: none; }
 #frame .pockets canvas { position: static; inset: auto; image-rendering: pixelated; }
 /* The glass cards (first aid, the choices: src/ui/ui.js): the mind's glass, rows not tables. */

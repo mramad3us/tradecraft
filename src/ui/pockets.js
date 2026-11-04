@@ -84,7 +84,7 @@ export function openPockets(host, state, deps) {
     nowhere.length ? el('h3', {}, 'Nowhere to put it') : null, ...row(nowhere),
     p.armour ? el('h3', {}, 'Worn') : null, p.armour ? el('p', {}, armourLine(p, true)) : null,   // (body armour: sim/armour.js)
     p.bag?.length ? el('h3', {}, 'The shop\'s bag, for home') : null,
-    p.bag?.length ? el('p', {}, cap(p.bag.map(bagWord).join(', ')) + '.') : null,
+    p.bag?.length ? el('p', { className: 'pk-bag' }, cap(p.bag.map(bagWord).join(', ')) + '.', ' ', el('span', { className: 'pk-btns' }, el('button', { className: 'pk-bin', title: 'Into a bin, and all in it: the old clothes gone with it', onclick: go('discard:bag') }, 'Bin'))) : null,   // (the user, 2026-11-04: "we should be able to drop the bag with old clothes")
     Object.keys(p.kit ?? {}).length || p.bag?.some(x => x.supply) ? el('p', { className: 'mind-note' }, `${deps.label('aid')} tends your wounds with what you have on you.`) : null);
   const title = el('div', { className: 'mind-head' }, pixCanvas(plaque({ text: 'WHAT YOU CARRY', sub: (top?.name ?? 'your clothes').replace(/^the /, '').toUpperCase(), style: 'way', icon: 'key', notch: false })));
   host.replaceChildren(el('div', { className: 'mind pockets' }, title,

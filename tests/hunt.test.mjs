@@ -9,6 +9,8 @@ import { start, know, badges, mods, perimeterM, routeInto, HUNTS, PERIM0_M, PERI
 import { makeAgent } from '../src/sim/agents.js';
 import { sheet } from '../src/sim/people.js';
 import { opposed } from '../src/sim/checks.js';
+import { use } from '../src/sim/items.js';
+import { waiting } from '../src/sim/emergency.js';
 import { eyes } from '../src/sim/perception.js';
 import { newGun, isGun } from '../src/sim/firearms.js';
 import { bloodOf, hurt, takes } from '../src/sim/health.js';
@@ -223,6 +225,36 @@ export default [
       assert(pinned !== null && pinned < 30, `came in and took you down at ${pinned} s`);
       assert(sees.cone >= Math.PI - 1e-9, `on the ground you see all round: cone ${sees.cone}`);
       console.log(`      down with a Makarov in hand: an officer in on you and the cuffs on at ${fmt(pinned, 1)} s, the gun ${taken ? 'taken' : 'still in hand (arrest takes it)'}; the card on the ground: ${card.join(', ')}; your eyes all round`);
+    },
+  },
+  {
+    name: 'hunt: the coat they described, in your shop\'s bag, found when they search you: arrested; the bag binned first, and it\'s questions only (the user, 2026-11-04)',
+    fn() {
+      const out = {};
+      for (const binned of [false, true]) {
+        const w = scene(), p = w.p;
+        p.items = []; p.hand = null; p.skills.deception = [-30, 0];
+        start(w.g, w.bus, { why: 'shots', x: w.me.x, who: false, wearing: true });
+        const old = { slot: 'top', look: structuredClone(p.look.top), name: 'the old coat' };
+        otherCoat(p);
+        p.bag = [old];
+        if (binned) use(w.g, w.bus, w.me, 'discard:bag');
+        officer(w, 5);
+        for (let t = 0; t < 40 && !w.papers.length; t++) seconds(w, 1);
+        out[binned ? 'binned' : 'kept'] = { paper: w.papers[0]?.kind, bag: !!p.bag, line: w.papers[0]?.lines.find(l => /stood for the search/.test(l)) ?? w.papers[0]?.lines[1] };
+      }
+      console.log(`      the old coat in the bag: ${out.kept.paper} ("${out.kept.line}"); the bag binned first: ${out.binned.paper}`);
+      assert(out.kept.paper === 'arrest' && out.binned.paper === 'questioned' && !out.binned.bag, JSON.stringify(out));
+    },
+  },
+  {
+    name: 'emergency: the call you know of, a few streets off: its timer stays on the watch, the street named (the user, 2026-11-04)',
+    fn() {
+      const w = scene(), now = w.g.time.ms, row = w.g.map.row ?? 0;
+      w.g.calls = [{ id: 'callT', city: w.g.map.city ?? null, row: row + 3, x: w.me.x, z: w.me.z, ms: now, who: [], known: true, at: { police: now + 6 * MIN, ambulance: now + 6 * MIN }, err: { police: 0, ambulance: 0 }, police: { stage: 'coming' }, ambulance: { stage: 'done' } }];
+      const W = waiting(w.g);
+      assert(W?.length && W[0].where && W[0].kind === 'police', JSON.stringify(W));
+      console.log(`      three streets off: "${W[0].where}: police: ${W[0].text}"`);
     },
   },
   {

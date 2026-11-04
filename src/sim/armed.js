@@ -49,7 +49,7 @@ import { routeFrom, LINE } from './city.js';
 import { townOf } from './cities/index.js';
 import { sheet } from './people.js';
 import { addHeat } from './heat.js';
-import { canStand, staysDown } from './health.js';
+import { canStand, staysDown, incapacitated } from './health.js';
 import { stream, chance, pick, range } from './rng.js';
 import { issue } from './armour.js';
 import { say } from './log.js';
@@ -86,7 +86,7 @@ const copsHere = (state) => { const row = state.map.row ?? 0; return state.actor
 /** Whether officer c can act: alive, on their feet, not knocked flat, out on the street. */
 export function able(state, c) {
   const q = state.people[c.who];
-  return !!q && !q.dead && canStand(q) && !staysDown(q) && c.gait !== 'down' && !((c.ai?.downUntil ?? 0) > state.time.ms) && !c.hidden;
+  return !!q && !q.dead && canStand(q) && !staysDown(q) && !incapacitated(q, state.time.ms) && c.gait !== 'down' && c.gait !== 'slump' && !((c.ai?.downUntil ?? 0) > state.time.ms) && !c.hidden;   // (past what they can bear, in shock: out of it, sim/health.js)
 }
 
 /**
@@ -232,9 +232,10 @@ function standDown(state, bus) {
  */
 export function arrest(state, bus, me, how = 'submitted', because = null, { found = [] } = {}) {
   const p = state.people[me.who], taken = [], now = state.time.ms;
-  for (const k of [p.hand, ...(p.items ?? [])]) if (isGun(k)) taken.push(k);
+  for (const k of [p.hand, ...(p.items ?? []), ...(p.bag ?? []).map(x => x.item)]) if (isGun(k)) taken.push(k);   // (a shop's bag looked in too: a gun bought on the black market goes into it, sim/market.js)
   const names = taken.map(k => modelOf(k)?.short ?? 'the gun');
   p.hand = isGun(p.hand) ? null : p.hand; p.items = (p.items ?? []).filter(k => !isGun(k));
+  if (p.bag) { p.bag = p.bag.filter(x => !isGun(x.item)); if (!p.bag.length) delete p.bag; }
   for (const k of taken) delete p.arms?.[k];
   const near = (state.items?.dropped ?? []).filter(it => isGun(it.kind) && Math.hypot(it.x - me.x, it.z - me.z) < 4);
   state.items && (state.items.dropped = state.items.dropped.filter(it => !near.includes(it)));
@@ -392,6 +393,7 @@ function gunner(state, bus, a, me) {
   // (down themselves, shot or knocked flat: nothing from them till they're up; the user's save, 2026-11-03: two
   // officers shot down went on firing from the ground)
   if (a.gait === 'down' || (a.ai.downUntil ?? 0) > now || staysDown(p)) { G.aimed = null; delete a.$aim; return; }
+  if (incapacitated(p, now)) { a.ai.gunner = null; delete a.$aim; a.gait = 'slump'; return; }   // (past what they can bear, or in shock: out of the fight, sim/agents.js keeps them there)
   // (you down, or your hands empty: they keep you covered and shout, and don't fire)
   const mine = state.people[me.who];
   if (!mine || mine.dead || !canStand(mine) || me.gait === 'down' || !isGun(mine.hand)) G.hold = true;

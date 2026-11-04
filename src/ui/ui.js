@@ -257,7 +257,7 @@ export function createUI({ input, cb }) {
     put(watch.querySelector('.hand'), held ? `in hand: ${bare(held)}` : '');
     // (a call you know of: your instinct's guess at how long they'll be, by your Tradecraft: sim/emergency.js)
     const sirens = waitingFor(state);
-    put(watch.querySelector('.sirens'), sirens ? sirens.map(e => `${e.kind === 'police' ? 'police' : 'ambulance'}: ${e.text}`).join(' · ') : '');
+    put(watch.querySelector('.sirens'), sirens ? `${sirens[0].where ? `${sirens[0].where}: ` : ''}${sirens.map(e => `${e.kind === 'police' ? 'police' : 'ambulance'}: ${e.text}`).join(' · ')}` : '');   // (a call off your street: where it is, first)
     if (me && state.map?.kind === 'street') put(watch.querySelector('.place'), placeName(townOf(state.map), state.map.row ?? 0, me.x, me.z));
     else put(watch.querySelector('.place'), SCENARIOS[state.scenario.kind]?.place?.(state) ?? '');
     { const w = weatherAt(state); put(watch.querySelector('.sky'), w.indoors || w.temp === undefined ? w.words : `${w.words}, ${Math.round(w.temp)}°`); }   // (the weather, in a few words, and the temperature: sim/weather.js)
@@ -799,12 +799,13 @@ export function createUI({ input, cb }) {
     const list = aidOptions(state, medic, p), f = findings(state, p, { actor: a, self });
     const name = self ? 'YOUR WOUNDS' : (p.known === false ? p.seen : p.name).toUpperCase();
     // (your own blood you know to the per cent, as the sheet does (C): it's in the look's lines; someone else's, as far as your look goes)
-    const note = self ? `${bodyWords(p) ? `${cap(bodyWords(p).slice(2))}. ` : ''}Medicine ${skill(medic, 'medicine')}: it decides what you make of it and how well it's done; on yourself, harder.`
-      : `Medicine ${skill(medic, 'medicine')}: it decides what your look finds, and how well it's done.`;
+    // (the skill, plainly; what it does on hover: the user, 2026-11-04, "this line is clunky")
+    const note = `${self && bodyWords(p) ? `${cap(bodyWords(p).slice(2))}. ` : ''}Medicine ${skill(medic, 'medicine')}${self ? ', on yourself' : ''}.`;
+    const noteTip = self ? 'Medicine: what you make of your wounds, how well and how fast you tend them; harder on yourself.' : 'Medicine: what your look finds, how well and how fast you tend them.';
     // (the mind's dark glass, its heading a plaque: src/ui/mind.js; the user, 2026-10-28: "most menus need revamping")
     card.replaceChildren(el('div', { className: 'mind glass aid' },
       el('div', { className: 'mind-head' }, glassHead('FIRST AID', name, 'cross')),
-      el('p', { className: 'mind-note' }, note),
+      el('p', { className: 'mind-note', title: noteTip }, note),
       el('div', { className: 'bp' }, el('div', { className: 'bp-fig' }, figure(p, f)),
         el('div', { className: 'bp-side' }, words(el, f, { self }), el('p', { className: 'aid-kit' }, `On you: ${kitWords(onYou(medic)) || 'nothing from a chemist\'s'}.`))),
       list.length ? el('div', { className: 'glass-rows' }, ...numbered(list, o => o.ok).map(([o, n]) => el('div', { className: `glass-row${o.ok ? '' : ' none'}` },

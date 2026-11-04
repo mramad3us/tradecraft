@@ -194,7 +194,7 @@ export function findings(state, p, { actor = null, self = false } = {}) {
     const detail = [];
     if (inside) detail.push('the belly hard, the breath short: nothing hands can do for it');
     else if (i.internal) detail.push(find('inside', i) ? 'it went in, and it\'s bleeding inside the skull: a hospital, within the hour' : find('through', i) ? 'no exit: it\'s still in there' : 'blood, and hair matted in it');
-    if (!i.internal && lv) detail.push(find('rate', i) ? rateWord(i.rate ?? 0.2) : (i.rate ?? 0.2) >= 3 ? 'bleeding badly' : 'bleeding');
+    if (!i.internal && lv) detail.push(i.scalp ? 'bleeding a lot, as a scalp does: it looks worse than it is' : find('rate', i) ? rateWord(i.rate ?? 0.2) : (i.rate ?? 0.2) >= 3 ? 'bleeding badly' : 'bleeding');   // (a graze on the skull: sim/shooting.js GRAZE_RATE)
     else if (!i.internal && i.kind !== 'crack' && i.kind !== 'fracture' && (i.bleed ?? 0) > 0 && !lv && !i.stitched && !i.dressed) detail.push('not bleeding now');
     if (i.artery && find('artery', i) && lv) detail.push('an artery: bright, spurting');
     if (gun && !i.internal && !isGraze(i) && find('through', i)) detail.push(throughOf(i) ? 'the entry, and an exit behind it: through and through' : 'the entry; no exit: the bullet\'s still in');

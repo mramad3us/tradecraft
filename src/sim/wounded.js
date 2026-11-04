@@ -10,17 +10,23 @@
 //   - out cold, or the chest gone (sim/health.js staysDown(), and not canCrawl()): they lie where they fell;
 //   - the legs gone, awake: they crawl, CRAWL_AWAY_M along and to the wall (on their back, pushing with the arms,
 //     drawn lying: gait 'down', moving, at sim/health.js crawlMs());
-//   - otherwise up, a moment on a knee first (GET_UP_S, longer the worse they move, at most GET_UP_MAX_S), and away
-//     from whoever shot them along their own pavement, as fast as the body lets them (AWAY_PACE × their walk ×
-//     sim/health.js mobility(); a limp, a hobble; no running past canRun()): AWAY_M a leg, by the street's own
-//     ways (sim/city.js routeFrom()), never off their street.
-// Once they can't see the shooter any more (a look back over the shoulder: sim/perception.js sees(), so the dark and
-// the distance hide them as a wall does, and someone who can see the shooter under a lamp thinks he's seen) and are
-// AWAY_MIN_M along from where they got up; or after AWAY_S of it; or in shock from the blood lost: they make for the
-// wall right there (wallSpot(): the building line on the far pavement, the boulevard's railing on the near one, the
-// path's edge, the hedge on the south walk; never in a doorway or a lane's mouth), sit against it (gait 'slump': on
-// the ground, drawn as a crouch is: src/render/crowd.js), and stay. A leg walked out still in the shooter's sight,
-// they go on another. Moving bleeds them faster as it goes (sim/health.js exertion()).
+//   - otherwise up, a moment on a knee first (GET_UP_S, longer the worse they move, at most GET_UP_MAX_S), and then what
+//     the wounds do to them decides, each second (choose(); the user, 2026-11-04: "wounds should have effects (pain,
+//     blood loss, shock, dizziness) and these effects should trigger reactions like sitting down when dizzy and feeling
+//     safe rather than running away. If we're still there with a gun out, they would run for their lives"; sim/health.js
+//     woundsNow(): the pain as felt, adrenaline's share off it; what they can bear, by Fitness; the blood lost):
+//       - in shock, or far past what they can bear: down where they are, lying;
+//       - past what they can bear: against the wall right there (SIT_WALL_M at most: wallSpot()), or down;
+//       - whoever shot them still in their sight with a gun out (danger(): within DANGER_M): away for their lives, along
+//         their pavement, as fast as the body lets them (FLEE_PACE × their walk × mobility(); no running past canRun()),
+//         the fear keeping the adrenaline up (sim/health.js surge()), and running bleeding them the faster;
+//       - hands on them, or help on its way: sat where they are, waiting;
+//       - dizzy (pale from the blood lost, a blow to the head), and safe: sat at the wall right there;
+//       - none of it, and whoever shot them still in their sight: walking away from it, LEG_M at a time, at a walk;
+//       - out of his sight (they're safe, as far as they can tell): stood where they are, on the phone for help, till
+//         the blood lost or the pain sits them down.
+//     The legs gone, awake: crawling, to the wall, CRAWL_AWAY_M. Sat, they stay sat unless the danger's back and they can
+//     still go; down, they stay down. A leg walked, another the same way.
 // Hands on them (first aid: a busy plan on them, sim/aid.js), or help on its way for them (their call's police or
 // ambulance past 'coming': the siren, sim/emergency.js), and they sit down where they are and wait. They're casualties
 // all the while (sim/health.js casualty()): whoever sees them may call it in; and while nobody's yet on the way, a call
@@ -30,10 +36,11 @@ import { townOf } from './cities/index.js';
 import { routeFrom, sectionOf, clearAt, LINE } from './city.js';
 import { Z, SECTION_M, mouthOf } from './map/street.js';
 import { eyes, sees, headOf } from './perception.js';
-import { staysDown, canCrawl, bandOf, mobility } from './health.js';
+import { staysDown, canCrawl, mobility, woundsNow, surge } from './health.js';
+import { isGun } from './firearms.js';
 import { TICK_MS } from './clock.js';
 
-export const AWAY_M = 30, CRAWL_AWAY_M = 5, AWAY_MIN_M = 6, AWAY_S = 60, AWAY_PACE = 1.6, GET_UP_S = 2, GET_UP_MAX_S = 6;
+export const LEG_M = 25, CRAWL_AWAY_M = 5, SIT_WALL_M = 3, DANGER_M = 40, FLEE_PACE = 2.4, WALK_PACE = 1, GET_UP_S = 2, GET_UP_MAX_S = 6, STUCK_S = 3;
 const TPS = 1000 / TICK_MS;
 // (each pavement's wall, the z its middle comes to sitting against it, and the way they face sat there)
 export const WALL = { F: { z: Z.front + 0.3, face: 'down' }, N: { z: Z.fence - 0.3, face: 'up' }, P: { z: Z.pathS - 0.3, face: 'up' }, S: { z: Z.south - 0.3, face: 'up' } };
@@ -57,24 +64,48 @@ export const crawling = (a, body) => !!a.ai?.hurt && !!body && staysDown(body);
  * kept still); false, and it walks its route as any agent does (the getaway, or a crawl: crawling()).
  */
 export function step(state, a, body) {
-  const ai = a.ai, H = ai.hurt, now = state.time.ms;
-  if (state.tick % TPS === 0) follow(state, a);
+  const ai = a.ai, H = ai.hurt, now = state.time.ms, second = state.tick % TPS === 0;
+  if (second) follow(state, a);
   if (!body || (staysDown(body) && !canCrawl(body))) return still(a, 'down');   // (out cold, the chest gone: where they fell)
-  if (H.sat) return still(a, 'slump');
-  if (keptStill(state, a)) return sit(a, H);                       // (hands on them, a siren coming: they wait)
   const crawl = staysDown(body);
+  if (second || !H.mode) choose(state, a, body, H, now, crawl);
+  if (H.mode === 'lie') return still(a, 'down');
+  if (H.mode === 'sat') return still(a, 'slump', H.face);
+  if (H.mode === 'wait') return sit(a, H);
+  if (H.mode === 'stand') { Object.assign(ai, { route: null, $route: null }); H.to = null; return still(a, 'phone'); }   // (out of his sight: stood there, on the phone for help)
   if (!crawl) { H.up ??= now; if (now - H.up < getUpMs(body, now)) return still(a, 'crouch'); }   // (getting up: a moment on a knee)
   H.up ??= now;
   const R = ai.$route ?? ai.route, there = H.to && ((R && ai.s >= R.length - 1e-6) || Math.hypot(a.x - H.to.x, a.z - H.to.z) < 0.15);
-  if (!H.to) { if (!plan(state, a, H, crawl ? CRAWL_AWAY_M : AWAY_M)) return sit(a, H); }
-  else if (there) {
-    // (a leg walked, and still in the shooter's sight, still in time: another; otherwise down against the wall)
-    if (crawl || H.settle || now - H.up >= AWAY_S * 1000 || !seen(state, a, H) || !plan(state, a, H, AWAY_M)) return sit(a, H);
-  } else if (!H.settle && state.tick % TPS === 0 && (now - H.up >= AWAY_S * 1000 || bandOf(body) === 'shock' || (Math.abs(a.x - H.x0) >= AWAY_MIN_M && !seen(state, a, H)))) {
-    H.settle = true;                                              // (out of sight, enough of it, or too weak: the wall right here)
-    if (!plan(state, a, H, 1)) return sit(a, H);
+  // (stuck, someone stood in the way or the way shut: STUCK_S of no headway, and they sit where they are, or try another way)
+  if (second && H.to && !there) { H.stuck = Math.abs((ai.s ?? 0) - (H.lastS ?? -1)) < 0.05 ? (H.stuck ?? 0) + 1 : 0; H.lastS = ai.s ?? 0; }
+  if ((H.stuck ?? 0) >= STUCK_S) { H.stuck = 0; if (H.mode === 'sit' || H.mode === 'crawl' || H.tried) return sit(a, H); H.tried = true; H.to = null; }
+  if (H.mode === 'sit') {                                          // (to the wall right there, and down against it)
+    if (!H.to && !plan(state, a, H, 0, SIT_WALL_M)) return sit(a, H);
+    return there ? sit(a, H) : false;
   }
+  // (flee, walk, crawl: a leg along their pavement, away from it; another when it's walked, or the pace changes)
+  if (!H.to || there || H.leg !== H.mode) { if (!plan(state, a, H, crawl ? CRAWL_AWAY_M : LEG_M)) return sit(a, H); }
   return false;
+}
+
+/** What they do now, by what the wounds do to them and whether whoever shot them is still there with a gun (the header). */
+function choose(state, a, body, H, now, crawl) {
+  const fx = woundsNow(body, now), threat = danger(state, a, H);
+  if (threat) surge(body, now);                                    // (afraid for their life: the adrenaline kept up)
+  // (safe: he can't see them, as far as they can tell; there, not dizzy, not past it: they stop and call for help)
+  const m = fx.floored ? 'lie' : fx.over ? 'sit' : threat ? 'flee' : keptStill(state, a) ? 'wait' : fx.dizzy || (crawl && H.leg === 'crawl') ? 'sit' : crawl ? 'crawl' : seen(state, a, H) ? 'walk' : 'stand';
+  H.fx = { pain: Math.round(fx.pain), limit: fx.limit, dizzy: fx.dizzy, shock: fx.shock };   // (for a look, and the tests)
+  if (H.mode === 'lie') return;                                    // (down, they stay down)
+  if (H.mode === 'sat' && !(m === 'flee' && !crawl) && m !== 'lie') return;   // (sat, unless the danger's back and they can go)
+  if (m === H.mode || (H.mode === 'sit' && m === 'wait')) return;
+  if (m === 'lie') { Object.assign(a.ai, { plan: null, route: null, $route: null, s: 0 }); H.to = null; }
+  H.mode = m; H.to = null;
+}
+
+/** Whether whoever shot them is still there and dangerous to them: in their sight, within DANGER_M, a gun in his hand. */
+function danger(state, a, H) {
+  const by = H.by && state.actors.find(o => o.id === H.by), q = by && state.people[by.who];
+  return !!by && !!q && !q.dead && isGun(q.hand) && Math.hypot(by.x - a.x, by.z - a.z) < DANGER_M && seen(state, a, H);
 }
 
 // (still, in a gait; sat, facing the way they sit)
@@ -85,7 +116,7 @@ function still(a, gait, face = null) {
 }
 function sit(a, H) {
   const W = WALL[lineNear(a.z)], wall = H.to && Math.hypot(a.x - H.to.x, a.z - H.to.z) < 0.4 ? H.to.face : Math.abs(a.z - W.z) < 0.4 ? W.face : null;
-  Object.assign(H, { sat: true, to: null, face: wall ?? a.face });
+  Object.assign(H, { sat: true, mode: 'sat', to: null, face: wall ?? a.face });
   Object.assign(a.ai, { plan: null, route: null, $route: null, s: 0 });
   return still(a, 'slump', H.face);
 }
@@ -114,17 +145,16 @@ function seen(state, a, H) {
  * The way on (their plan: sim/agents.js PLANNERS 'way', so it's planned again on load): alongM along their pavement,
  * away from the shooter (the way set once, from where he is as they get up), and to the wall there. False: no way.
  */
-function plan(state, a, H, alongM) {
+function plan(state, a, H, alongM, nearM = Infinity) {
   const seed = townOf(state.map), row = a.row ?? state.map.row ?? 0;
-  if (H.dir === undefined) {
-    const by = H.by && state.actors.find(o => o.id === H.by), sx = by && (by.row ?? state.map.row) === row ? by.x : H.x;
-    H.dir = Math.sign(a.x - sx) || 1; H.x0 = a.x;
-  }
+  const by = H.by && state.actors.find(o => o.id === H.by), sx = by && (by.row ?? state.map.row) === row ? by.x : H.x;
+  if (H.dir === undefined || H.mode === 'flee') { H.dir = Math.sign(a.x - sx) || H.dir || 1; H.x0 ??= a.x; }   // (away from him: where he is now, if they're running from him)
   const to = wallSpot(seed, row, a.x + H.dir * alongM, lineNear(a.z), H.dir), from = { row, x: a.x, z: a.z };
+  if (Math.abs(to.x - a.x) > Math.max(alongM, 0) + nearM) return false;   // (no wall near enough: sat, or down, where they are)
   let route;
   try { route = routeFrom(seed, from, { row, x: to.x, z: to.z }); } catch { return false; }
-  H.to = to;
-  Object.assign(a.ai, { plan: { kind: 'way', from, to: { row, x: to.x, z: to.z } }, route: null, $route: route, s: 0, stop: 0, wait: 0, pace: AWAY_PACE, detour: null });
+  H.to = to; H.leg = H.mode;
+  Object.assign(a.ai, { plan: { kind: 'way', from, to: { row, x: to.x, z: to.z } }, route: null, $route: route, s: 0, stop: 0, wait: 0, pace: H.mode === 'flee' ? FLEE_PACE : WALK_PACE, detour: null });
   return true;
 }
 

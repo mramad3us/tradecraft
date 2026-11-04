@@ -91,7 +91,7 @@ export default [
       const s = { rng: seedRng(2), people: {}, time: { ms: 0 }, log: [] }, m = person(30), q = person();
       q.injuries = [{ part: 'legL', kind: 'cut', name: 'a cut artery', bleed: 1e9, rate: 12, deep: true, artery: true }, { part: 'armR', kind: 'cut', name: 'a stab', bleed: 1e9, rate: 3, deep: true }];
       hurt(q, 'armL', takes(q, 'armL') + 1);
-      s.people.m = m; s.people.q = q; m.kit = { bandage: 2, tourniquet: 1 };
+      s.people.m = m; s.people.q = q; m.kit = { bandage: 2, tourniquet: 1, splint: 1 };
       m.hand = 'stick';
       const A = { id: 'A', who: 'm', face: 'right' }, B = { id: 'B', who: 'q', face: 'left' };
       const keys = options(s, m, q).map(o => o.key);

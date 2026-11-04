@@ -1,16 +1,24 @@
 // The wounded, after the shot (sim/health.js knockS(), staysDown(), canCrawl(), exertion(), casualty(); sim/wounded.js):
 // a bullet knocks them down for seconds to a couple of minutes by the wound, the pain and the blood, the trained
-// quicker; out cold stays down; the legs gone, they crawl; otherwise up and away from the shooter along their pavement,
-// and sat against the wall where they think he can't see them, or after a while; moving bleeds faster; and they're
-// casualties all the while: called in, and the ambulance comes to where they sit.
+// quicker; out cold stays down; the legs gone, they crawl; otherwise what the wounds do decides (sim/health.js woundsNow():
+// the pain as felt, adrenaline off it, against what their Fitness bears; the blood lost; dizziness): walking off, sat at the
+// wall when dizzy and safe, running for their lives with you there and a gun in your hand, down past what they can bear or in
+// shock; moving bleeds faster; an officer past it drops out of the fight; a graze along the skull bleeds a lot, slowly; and
+// they're casualties all the while: called in, and the ambulance comes to where they sit.
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
 import { bullet } from '../src/sim/shooting.js';
 import { MODELS } from '../src/sim/firearms.js';
 import { person } from '../src/sim/interact.js';
 import { sheet } from '../src/sim/people.js';
 import { makeAgent } from '../src/sim/agents.js';
-import { hurt, takes, bloodOf, staysDown, canCrawl, casualty, exertion, KNOCK_MAX_S, CRAWL_MS, EXERTION } from '../src/sim/health.js';
-import { WALL, AWAY_S } from '../src/sim/wounded.js';
+import { hurt, takes, bloodOf, staysDown, canCrawl, casualty, exertion, woundsNow, painLimit, adrenalK, surge, ADRENALINE, KNOCK_MAX_S, CRAWL_MS, EXERTION } from '../src/sim/health.js';
+import { painOf } from '../src/sim/medicine.js';
+import { stateOf, PARTS } from '../src/sim/health.js';
+import { newGun } from '../src/sim/firearms.js';
+import { armCop } from '../src/sim/armed.js';
+import { stream } from '../src/sim/rng.js';
+import { GRAZE_RATE } from '../src/sim/shooting.js';
+import { WALL } from '../src/sim/wounded.js';
 import { eyes, sees } from '../src/sim/perception.js';
 import { LINE } from '../src/sim/city.js';
 import { at } from '../src/sim/clock.js';
@@ -68,49 +76,101 @@ export default [
     },
   },
   {
-    name: 'wounded: shot in the arm, up in seconds and away from you along the pavement; sat against the wall after it, facing the street, and staying there',
+    name: 'wounded: shot in the arm, your hands empty: up in seconds, walking off; sat against the wall once the blood lost makes them dizzy, or the pain\'s past what they bear, and staying there',
     fn() {
       const rows = [];
       for (const seed of [4, 5, 6]) {
-        const w = scene({ seed }), o = watch(w, 'armL', 240), a = w.a;
-        rows.push(`seed ${seed}: down ${fmt(o.knock, 0)} s, moving at ${fmt(o.up, 0)} s, sat at ${fmt(o.sat, 0)} s, ${fmt(o.along, 1)} m away, z ${fmt(a.z, 2)} (the wall's ${fmt(WALL.F.z, 2)}), facing ${a.face}, ${a.gait}; blood ${fmt(o.blood, 0)}%`);
+        const w = scene({ seed }), o = watch(w, 'armL', 600), a = w.a, H = a.ai.hurt;
+        rows.push(`seed ${seed}: down ${fmt(o.knock, 0)} s, moving at ${fmt(o.up, 0)} s, sat at ${fmt(o.sat, 0)} s, ${fmt(o.along, 1)} m off, ${a.gait}; blood ${fmt(o.blood, 0)}%, pain ${H?.fx?.pain} of ${H?.fx?.limit}${H?.fx?.dizzy ? ', dizzy' : ''}`);
         if (w.g.people[a.who].dead || bloodOf(w.g.people[a.who]) < 55) continue;   // (an artery: down in the street, as it should be)
-        assert(o.up !== null && o.up < 40 && o.along > 10 && o.sat !== null, `seed ${seed}: up, away, sat (${rows.at(-1)})`);
-        assert(a.gait === 'slump' && Math.abs(a.z - WALL.F.z) < 0.4 && a.face === 'down', `seed ${seed}: against the wall, facing out (${a.gait}, z ${a.z})`);
-        const x = a.x; secs(w.g, 60);
-        assert(a.x === x && a.gait === 'slump', 'and stays there');
+        assert(o.up !== null && o.up < 40 && o.along > 3, `seed ${seed}: up and walking off (${rows.at(-1)})`);
+        assert(o.sat === null || H.fx.dizzy || H.fx.pain >= H.fx.limit, `seed ${seed}: sat only for a reason (${rows.at(-1)})`);
+        if (o.sat !== null) { const x = a.x; secs(w.g, 30); assert(a.x === x && (a.gait === 'slump' || a.gait === 'down'), 'and stays there'); }
       }
       console.log(`      ${rows.join('\n      ')}`);
     },
   },
   {
-    name: 'wounded: both legs gone, they crawl (lying, slowly) to the wall; a bullet in the skull and they lie where they fell',
+    name: 'wounded: adrenaline takes the pain off for a while (60% for 40 s, gone by two minutes); what they bear by Fitness; past it they stop',
+    fn() {
+      const p = sheet({ id: 'q', name: 'Q', cls: 'civilian', skills: { fitness: [5, 0] } });
+      hurt(p, 'torso', takes(p, 'torso') * 0.75);
+      p.injuries = [{ part: 'torso', kind: 'cut', name: 'a gunshot wound in the body', ms: 0, until: 1e12, bleed: 0, rate: 0, deep: true, gunshot: true }];
+      const raw = painOf(p, stateOf, Object.keys(PARTS));
+      surge(p, 0);
+      const felt = (s) => { p.$adrenal = ADRENALINE.k * adrenalK(p, s * 1000); return Math.round(woundsNow(p, s * 1000).pain); };
+      const t = { 0: felt(0), 30: felt(30), 80: felt(80), 120: felt(120), 200: felt(200) };
+      const limits = [0, 5, 10, 20].map(f => painLimit(sheet({ id: 'f', skills: { fitness: [f, 0] } })));
+      console.log(`      a bullet in the body: ${Math.round(raw)} points of pain; felt with the adrenaline: ${Object.entries(t).map(([k, v]) => `${k} s ${v}`).join(', ')}; what Fitness 0, 5, 10, 20 bear: ${limits.join(', ')}`);
+      assert(t[0] < raw * 0.45 && t[30] === t[0] && t[80] > t[30] && t[200] === Math.round(raw) && limits[3] > limits[0], JSON.stringify(t));
+    },
+  },
+  {
+    name: 'wounded: you still there with a gun in your hand: they run for their lives (faster than a walk); your hands empty, they walk off',
+    fn() {
+      const out = {};
+      for (const armed of [true, false]) {
+        const w = scene({ seed: 4 }), p = w.g.people[w.me.who];
+        if (armed) p.hand = newGun(p, 'makarov');
+        const o = watch(w, 'armL', 40);
+        out[armed ? 'armed' : 'empty'] = { vmax: o.vmax, mode: w.a.ai.hurt?.mode, along: o.along };
+      }
+      console.log(`      a gun in your hand: ${out.armed.mode}, at most ${fmt(out.armed.vmax, 2)} m/s, ${fmt(out.armed.along, 1)} m in 40 s; your hands empty: ${out.empty.mode}, ${fmt(out.empty.vmax, 2)} m/s, ${fmt(out.empty.along, 1)} m`);
+      assert(out.armed.vmax > out.empty.vmax * 1.3 && out.armed.along > out.empty.along, JSON.stringify(out));
+    },
+  },
+  {
+    name: 'wounded: an artery opened, running from your gun: in shock within a minute or so, and down; an officer past what he bears drops out of the fight',
+    fn() {
+      const w = scene({ seed: 5 }), p0 = w.g.people[w.me.who];
+      p0.hand = newGun(p0, 'makarov');
+      const o = watch(w, 'legL', 1, (p) => { p.injuries.push({ part: 'legL', kind: 'cut', name: 'a bullet through an artery in the left thigh', ms: w.g.time.ms, until: w.g.time.ms + 1e9, bleed: w.g.time.ms + 3600000, rate: 12, deep: true, artery: true, gunshot: true }); });
+      let downAt = null;
+      for (let t = 0; t < 20 * 180 && downAt === null; t++) { step(w.g, {}, null); if (w.a.ai.hurt?.mode === 'lie' || w.g.people[w.a.who].dead) downAt = t / 20; }
+      const left = bloodOf(o.p);
+      // (an officer, two in the body: out of it, gun or no gun)
+      w.g.people.copW = sheet({ id: 'copW', name: 'a police officer', cls: 'cop', skills: { awareness: [10, 0], fitness: [5, 0] } });
+      armCop(w.g, w.g.people.copW, 'patrol', stream('t', 2));
+      const c = makeAgent(w.g, { who: 'copW', row: w.g.map.row ?? 0, x: w.me.x + 8, z: w.me.z, speed: 1.1, face: 'left' });
+      c.cop = true; c.alert = w.g.time.ms; c.ai.gunner = { gun: w.g.people.copW.items[0], until: w.g.time.ms, aimed: null };
+      const q = w.g.people.copW;
+      hurt(q, 'torso', takes(q, 'torso') * 1.0);
+      q.injuries = [{ part: 'torso', kind: 'cut', name: 'a gunshot wound', ms: w.g.time.ms, until: 1e13, bleed: 0, rate: 0, deep: true, gunshot: true }, { part: 'torso', kind: 'cut', name: 'a gunshot wound', ms: w.g.time.ms, until: 1e13, bleed: 0, rate: 0, deep: true, gunshot: true }];
+      secs(w.g, 3);
+      console.log(`      the artery, running: down at ${fmt(downAt, 0)} s, ${fmt(left, 0)}% of the blood left; the officer, two in the body: pain ${Math.round(woundsNow(q, w.g.time.ms).pain)} of ${painLimit(q)}, ${c.gait}, a gunner ${!!c.ai.gunner}`);
+      assert(downAt !== null && downAt < 120, `the artery: down at ${downAt}`);
+      assert(!c.ai.gunner && (c.gait === 'slump' || c.gait === 'down'), `the officer: ${c.gait}, gunner ${!!c.ai.gunner}`);
+    },
+  },
+  {
+    name: 'wounded: a bullet graze along the skull bleeds a lot, but slowly for the blood it is, and stops by itself; it reads so',
+    fn() {
+      let graze = null, tries = 0;
+      while (!graze && tries++ < 200) {
+        const w = scene({ seed: 3 + tries }), p = person(w.g, w.a);
+        Object.assign(p, { body: {}, injuries: [] }); delete p.dead;
+        bullet(w.g, null, w.a, 'head', MODELS.makarov, w.me);
+        const i = p.injuries.find(j => j.scalp);
+        if (i && !p.dead) graze = { i, p, ms: w.g.time.ms };
+      }
+      assert(graze, 'a graze, in 200 head shots');
+      const { i } = graze;
+      console.log(`      a graze: ${i.rate}%/min, stopping by itself after ${fmt((i.bleed - graze.ms) / 60000, 0)} min (at most ${fmt(i.rate * (i.bleed - graze.ms) / 60000, 0)}% of the blood); an artery ${!!i.artery}`);
+      assert(i.rate <= GRAZE_RATE && !i.artery && i.bleed - graze.ms <= 20 * 60000 + 1, JSON.stringify(i));
+    },
+  },
+  {
+    name: 'wounded: both legs gone, they crawl (lying, slowly) while the adrenaline holds the pain off, then sit or lie; a bullet in the skull and they lie where they fell',
     fn() {
       const w = scene(), legs = watch(w, 'legs', 180, (p) => { hurt(p, 'legL', takes(p, 'legL') * 1.05); hurt(p, 'legR', takes(p, 'legR') * 1.05); }), a = w.a;
       console.log(`      both legs: staysDown ${staysDown(legs.p)}, canCrawl ${canCrawl(legs.p)}; moving at ${fmt(legs.up, 0)} s as ${legs.gaits.join('/')}, at most ${fmt(legs.vmax, 2)} m/s (a crawl's ${CRAWL_MS}); sat at ${fmt(legs.sat, 0)} s, ${fmt(legs.along, 1)} m on, z ${fmt(a.z, 2)}, ${a.gait}`);
-      assert(canCrawl(legs.p) && legs.gaits.every(gt => gt === 'down') && legs.vmax <= CRAWL_MS + 0.01 && legs.along > 2 && a.gait === 'slump', 'a crawl, then sat at the wall');
+      assert(canCrawl(legs.p) && legs.gaits.every(gt => gt === 'down') && legs.vmax <= CRAWL_MS + 0.01 && Math.hypot(legs.along, a.z - LINE.F) > 1 && (a.gait === 'slump' || a.gait === 'down'), 'a crawl while the adrenaline lasts (to the wall, or along), then sat at the wall or down');
       const v = scene({ seed: 5 }), skull = watch(v, 'torso', 300, (p) => {
         hurt(p, 'head', takes(p, 'head'));
         p.injuries.push({ part: 'head', kind: 'cut', name: 'a bullet in the skull', ms: v.g.time.ms, until: v.g.time.ms + 60 * 86400000, bleed: v.g.time.ms + 12 * 3600000, rate: 1.2, deep: true, gunshot: true, internal: true });
       });
       console.log(`      a bullet in the skull: after 5 minutes ${v.a.gait}, moved ${fmt(Math.abs(skull.along), 2)} m, never up: ${skull.up === null}`);
       assert(skull.up === null && v.a.gait === 'down' && staysDown(skull.p) && !canCrawl(skull.p), 'out cold: down where they fell');
-    },
-  },
-  {
-    name: 'wounded: they sit where they can\'t see you any more, or after a while: at night sooner, by day further on',
-    fn() {
-      const rows = [], along = {};
-      for (const night of [false, true]) {
-        const w = scene({ seed: 6, night }), o = watch(w, 'legs', 300), a = w.a, e = eyes(w.g, a);
-        e.head = Math.atan2(w.me.z - a.z, w.me.x - a.x);
-        const sight = sees(w.g, e, w.me.x, w.me.z), walked = o.sat - o.up;
-        along[night ? 'night' : 'day'] = o.along;
-        rows.push(`${night ? 'at 11 at night' : 'by day'}: ${fmt(o.along, 1)} m away in ${fmt(walked, 0)} s, sat; can they see you from there: ${sight}`);
-        assert(o.sat !== null && (!sight || walked >= AWAY_S - 2), `${night ? 'night' : 'day'}: out of your sight, or ${AWAY_S} s of it`);
-      }
-      console.log(`      ${rows.join('; ')}`);
-      assert(along.night < along.day, 'the dark hides them sooner');
     },
   },
   {
@@ -133,11 +193,11 @@ export default [
     },
   },
   {
-    name: 'wounded: sat against the wall, still a casualty: called in, and the ambulance comes to where they sit, not where they fell',
+    name: 'wounded: sat against the wall (or stood calling for help), still a casualty: called in, and the ambulance comes to where they are, not where they fell',
     fn() {
       const w = scene({ seed: 5 }), { g, a } = w, fell = { x: a.x + 0 };
-      const o = watch(w, 'torso', 200), p = o.p;
-      assert(a.ai.hurt?.sat && casualty(p, a), `sat (${a.gait}), a casualty`);
+      const o = watch(w, 'torso', 600), p = o.p;
+      assert((a.ai.hurt?.sat || a.ai.hurt?.mode === 'lie' || a.ai.hurt?.mode === 'stand') && casualty(p, a), `sat, down or stood waiting (${a.gait}, ${a.ai.hurt?.mode}), a casualty`);
       for (let s = 0; s < 300 && !(g.calls ?? []).some(c => c.who.includes(a.id)); s++) secs(g, 1);
       const c = (g.calls ?? []).find(k => k.who.includes(a.id));
       assert(c, 'called in');

@@ -199,7 +199,7 @@ export function painOf(p, stateOf, parts) {
     const w = (i.kind === 'cut' ? PAIN[depthOf(i)] : PAIN[i.kind]) ?? 0;
     pts += ((i.kind === 'fracture' || i.kind === 'crack') && p.splints?.[i.part] ? w / 2 : w) + (i.infection ?? 0) / 6;
   }
-  return p.dosed ? pts * 0.4 : pts;
+  return (p.dosed ? pts * 0.4 : pts) * (1 - (p.$adrenal ?? 0));     // (adrenaline's share off it, for now: sim/health.js adrenalK())
 }
 /** Pain's cost, by its points: { word, v } or null. */
 export const painBand = (pts) => { const b = PAIN_BANDS.find(([at]) => pts >= at); return b ? { word: b[1], v: b[2] } : null; };

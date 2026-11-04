@@ -87,6 +87,9 @@ export const PARTS = ['head', 'torso', 'legs'];
 export const MAX_M = 60;
 export const FRAME_M = [20, 11];                                   // (the picture round you, half its width and height in m, when the page hasn't said: src/ui/ui.js frameBox())
 export const BULLET = 7, HEAD_KILL = 0.6, HEAD_GRAZE = 0.3, BRAIN_BLEED = 1.2;   // (a bullet in the skull: % of the blood a minute, inside, past first aid)
+// (a graze along the skull: the scalp bleeds a lot and looks it, but slowly for the blood it is, and it clots by itself; no
+// artery in it: the user, 2026-11-04, "it looks bad without being that bad, definetly not minutes away from death")
+export const GRAZE_RATE = 0.8, GRAZE_BLEED_MIN = 20;
 // Shot, and down (the user, 2026-11-04: "being knocked down is a logical result of getting shot. Staying down should be
 // justified"): the knock of it, seconds to a couple of minutes by the wound, the pain and the blood (sim/health.js
 // knockS(): the trained quicker), then the body's say (staysDown()); a bullet in the chest bleeds inside too,
@@ -517,7 +520,8 @@ export function bullet(state, bus, a, part, M, from, { margin = 0 } = {}) {
     // (a head shot that didn't kill: a graze along the skull, dazed and bleeding; or in, out cold and bleeding inside,
     // which no first aid reaches: a hospital's, or dead within the hour; the user, 2026-11-03: "shot in the head should mean something")
     if (chance(r, HEAD_GRAZE)) {                                    // (dazed: the knock's, below)
-      const i = p.injuries.at(-1); if (i?.gunshot) { i.name = 'a bullet graze along the skull'; i.through = false; }
+      const i = [...(p.injuries ?? [])].reverse().find(j => j.part === 'head' && j.gunshot && !j.internal && j.ms === ms);   // (the bullet's own wound, whatever else it cracked)
+      if (i) Object.assign(i, { name: 'a bullet graze along the skull', through: false, artery: false, scalp: true, rate: Math.min(i.rate ?? GRAZE_RATE, GRAZE_RATE), bleed: Math.min(i.bleed ?? ms, ms + GRAZE_BLEED_MIN * 60000) });
     } else {
       hurt(p, 'head', takes(p, 'head'));
       (p.injuries ??= []).push({ part: 'head', kind: 'cut', name: 'a bullet in the skull', ms, until: ms + 60 * 86400000, bleed: ms + 12 * 3600000, rate: BRAIN_BLEED, deep: true, gunshot: true, internal: true });
