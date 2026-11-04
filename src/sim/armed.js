@@ -34,6 +34,7 @@
 // round chambered, a stoppage cleared, the aim (sim/shooting.js aimMs()), the shot (sim/shooting.js npcShot(),
 // the same odds as yours), the recovery. They stand while they do it (sim/agents.js: ai.gunner).
 import { whereFrom, heardFrom } from './sense.js';
+import { coverOf, postureOf } from './cover.js';
 const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 import { policeHeat, POLICE_ARREST } from './police.js';
 import { isGun, armOf, modelOf, newGun, act as gunAct, ready, canDo, MODELS, KINDS } from './firearms.js';
@@ -63,6 +64,7 @@ export const COMPLY_S = 3, ORDER_EVERY_S = 6, LOST_S = 60;
 export const CALL_P = 0.12, RESPONDERS = 3;
 export const GUN_SEEN_DC = 8, HELD_H = 3, ARREST_HEAT = 25, ARREST_COVER = 30;
 // (the takedown: how close he has to be, how long he holds you down, a shove's odds against him, a second shove's, a shove's stagger)
+export const CHASE_MS = 4.2, FLEE_MS = 2.4;                        // (an officer running you down, m/s: a sprint, past your run; you fleeing, at more than a walk)
 export const GRAB_M = 1.3, PIN_S = 6, PIN_BODY_M = 0.9, PIN_AT_M = 0.35, SHOVE_DC = 4, SHOVE_AGAIN_DC = 6, SHOVED_S = 2.5, CLOSE_PACE = 1.8, RESIST_POLICE = 20;
 // (what they had you for: the hours held, heat, the ambassador's view of you lost; the worst of what's true)
 export const TIERS = {
@@ -162,10 +164,19 @@ export function second(state, bus, me) {
       // (said by one of them who has you in sight: where from, if you can't see them; and heard, the fog lifted round them: sim/sense.js heardFrom())
       // (a gun in your hand: drop it; your hands empty: stand still, show them)
       A2.ordered = now; if (armed) A2.since ??= now;
-      const K = policeOf(state.map), order = held ? K.order ?? '"Police! Drop it!"' : K.halt ?? '"Police! Stand still! Hands where we can see them!"', unseen = !inView(state, shouter.id);
+      // (who's shouting it: an armed officer's "Armed police!", one without a gun his own (a London patrol's: the user,
+      // 2026-11-04, "regular police shouts 'armed police' in London"), the country's unarmed order)
+      const K = policeOf(state.map), sq = state.people[shouter.who], gunned = isGun(sq?.hand) || (sq?.items ?? []).some(isGun);
+      const order = held ? (gunned ? K.order : K.unarmedOrder ?? K.order) ?? '"Police! Drop it!"' : K.halt ?? '"Police! Stand still! Hands where we can see them!"', unseen = !inView(state, shouter.id);
       say(state, bus, { kind: 'note', text: unseen ? `${cap(whereFrom(me, shouter))}, ${Math.round(Math.hypot(shouter.x - me.x, shouter.z - me.z))} m off, a shout: ${order}` : order });
       heardFrom(state, shouter, 'Police');
     }
+    // (running from them, wanted for blood or with a gun on you: the armed ones aim, and fire; the user, 2026-11-04, "or take
+    // us in aim and shoot if we flee"; where the rules are tighter (London's), only if you've a gun in your hand)
+    const K = policeOf(state.map), H = state.hunt && state.hunt.until > now ? state.hunt : null;
+    const flees = Math.hypot(me.vx ?? 0, me.vz ?? 0) > FLEE_MS && me.gait !== 'down';
+    const dangerous = held || !!shot || A2.resisted === 'drew' || ['shots', 'wounded', 'killed'].includes(H?.why);
+    const fire = flees && dangerous && (K.shootFleeing === 'armed' ? held : K.shootFleeing !== false);
     // (hands empty: the nearest of them able comes in to cuff you, the others covering; after you, if you go: the takedown, tick())
     if (!armed) {
       A2.empty = A2.empty ?? now;
@@ -173,10 +184,19 @@ export function second(state, bus, me) {
         const up = on.filter(c => c.ai).sort((a, b) => Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z))[0];
         if (up) state.$takedown = { cop: up.id, since: now, stage: 'closing', why: A2.why ?? null, ...(A2.resisted ? { how: A2.resisted } : {}) };   // (resisted before: still on the file)
       }
-      const c = T?.stage === 'closing' && state.actors.find(a => a.id === T.cop);
+      const c0 = T?.stage === 'closing' && state.actors.find(a => a.id === T.cop), q0 = c0 && state.people[c0.who];
+      // (running, and the kind they'd fire on: an armed one coming for you stops, and aims instead)
+      if (fire && c0 && (isGun(q0?.hand) || (q0?.items ?? []).some(isGun))) state.$takedown = null;
+      const c = state.$takedown && c0;
       if (c?.ai) {                                                   // (each second, to where you are now)
-        c.ai.closing = now; if (c.ai.gunner) { c.ai.gunner = null; delete c.$aim; } c.ai.wait = 0; c.ai.pace = CLOSE_PACE;
-        closeIn(state, c, me.x + Math.sign(c.x - me.x || 1) * 0.9, me.z);
+        // (you not stopping for him: he runs you down, at a sprint, and takes you down at a run, tick(); the user, 2026-11-04:
+        // "police struggles to arrest us when we're not stopping, they should either run and intercept us forcefully")
+        const going = Math.hypot(me.vx ?? 0, me.vz ?? 0) > 0.3;
+        if (going) T.ran ??= now;
+        c.ai.closing = now; if (c.ai.gunner) { c.ai.gunner = null; delete c.$aim; } c.ai.wait = 0; c.ai.pace = going || T.ran ? CHASE_MS / (c.ai.speed ?? 1.1) : CLOSE_PACE;
+        // (after you, he runs for where you'll be, not where you were: your way ahead of you by how far he has to go)
+        const lead = going ? Math.min(2, Math.max(0.6, Math.hypot(c.x - me.x, c.z - me.z) / CHASE_MS)) : 0;
+        closeIn(state, c, me.x + (me.vx ?? 0) * lead + (going ? 0 : Math.sign(c.x - me.x || 1) * 0.9), me.z + (me.vz ?? 0) * lead);
       }
     }
     else { delete A2.empty; if (T?.stage === 'closing') state.$takedown = null; }   // (a gun back in your hand: it's the order again)
@@ -185,10 +205,13 @@ export function second(state, bus, me) {
     for (const c of on) {
       if (c.ai?.closing === now) continue;                           // (the one coming to cuff you walks: not a gunner again the same second, the user's, 2026-11-04: "stuck aiming/not aiming")
       const q = state.people[c.who], gun = isGun(q?.hand) ? q.hand : (q?.items ?? []).find(isGun);
-      if (gun && (defiant || shot)) c.ai.gunner ??= { gun, until: now, aimed: null };
+      if (gun && (defiant || shot || fire)) c.ai.gunner ??= { gun, until: now, aimed: null };
       else if (!gun && armed) c.ai.wait = Math.max(c.ai.wait ?? 0, 200);   // (unarmed: they hold back, and radio it in)
-      if (!defiant && !shot && c.ai.gunner) c.ai.gunner.hold = true; else if (c.ai.gunner) c.ai.gunner.hold = false;
+      if (!defiant && !shot && !fire && c.ai.gunner) c.ai.gunner.hold = true; else if (c.ai.gunner) c.ai.gunner.hold = false;
+      if (c.ai.gunner) c.ai.gunner.flee = fire;                      // (running, the kind they fire on: your hands empty or not, tick())
     }
+    if (fire && !A2.fled) { A2.fled = now; say(state, bus, { kind: 'note', text: K.stopOrShoot ?? '"Stop or I shoot!"' }); }
+    if (!flees) delete A2.fled;
   }
   // (the armed response, come; and gone again, when they've lost you)
   const R = state.$response;
@@ -268,7 +291,7 @@ export function arrest(state, bus, me, how = 'submitted', because = null, { foun
   }[tier];
   const lines = [
     `What they had you for: ${what.charAt(0).toLowerCase()}${what.slice(1)}`,
-    how === 'submitted' ? 'You went down when he came for you, and kept your hands where they could see them.' : how === 'drew' ? 'You went for your gun as he reached you, and he had you down before it was out: resisting, with a firearm.' : how === 'searched' ? `You stood for the search, hands on the wall${found.length ? `, and they found ${found.join(', ')}` : why === 'the blood on you' ? ', and they saw the blood on you' : ''}.` : how === 'shove' ? 'You tried to shove him off. Resisting arrest is on the file too.' : how === 'ran' ? 'You ran when they told you to stop. Resisting arrest is on the file too.' : 'You fought them. Resisting arrest is on the file too.',
+    how === 'submitted' ? 'You went down when he came for you, and kept your hands where they could see them.' : how === 'drew' ? 'You went for your gun as he reached you, and he had you down before it was out: resisting, with a firearm.' : how === 'ran' ? 'You didn\'t stop for him, and he ran you down: resisting arrest.' : how === 'searched' ? `You stood for the search, hands on the wall${found.length ? `, and they found ${found.join(', ')}` : why === 'the blood on you' ? ', and they saw the blood on you' : ''}.` : how === 'shove' ? 'You tried to shove him off. Resisting arrest is on the file too.' : how === 'ran' ? 'You ran when they told you to stop. Resisting arrest is on the file too.' : 'You fought them. Resisting arrest is on the file too.',
     [...names, ...found].length ? `Taken, into evidence bags: ${[...names, ...found].join(', ')}.` : 'They took nothing: there was nothing on you to take.',
     ...(ward ? [ward.line] : []),
     `${T.h} hours at ${station}: a bench, a long wait; the diplomatic passport, and the calls it takes. A man from the embassy signs for you, and doesn't say a word in the car.`,
@@ -320,6 +343,8 @@ function takedown(state, bus, me) {
   if (!able(state, c)) return;                                      // (staggered by a shove, knocked flat a moment: he gets up and comes on)
   if (T.stage === 'closing') {
     if (state.$reflex || state.fight || Math.hypot(c.x - me.x, c.z - me.z) > GRAB_M) return;
+    // (run down: at a run, no moment to choose, he takes you down; walked off and caught, the same)
+    if (T.ran && Math.hypot(me.vx ?? 0, me.vz ?? 0) > 0.3) { me.vx = me.vz = 0; return pin(state, bus, me, c, 'ran'); }
     const down = me.gait === 'down' || !canStand(mine);
     if (isGun(mine?.hand) && !down) { state.$takedown = null; return; }   // (on your feet with it: the order again; down with it, he comes on and takes it)
     if (!down && state.$reflexes && !T.offered) {
@@ -336,7 +361,7 @@ function takedown(state, bus, me) {
     // (going for your gun as he reaches you, in the stop motion or out of it: not "complied" on the paper; the user,
     // 2026-11-04, drawing on him and "it's saying I complied")
     const drawing = state.shoot?.doing?.what === 'draw' || me.busy?.what === 'draw' || (!!state.shoot && !isGun(mine?.hand));
-    return pin(state, bus, me, c, drawing ? 'drew' : T.how ?? 'submitted');
+    return pin(state, bus, me, c, drawing ? 'drew' : T.ran ? 'ran' : T.how ?? 'submitted');
   }
   if (T.stage === 'pin') {                                          // (held there: you face down, him on one knee on your back)
     me.vx = me.vz = 0; me.gait = 'down'; me.face = T.face;
@@ -356,6 +381,7 @@ export function pin(state, bus, me, c, how) {
   if (c.ai) c.ai.pace = undefined;
   const his = state.people[c.who], he = his?.sex === 'f' ? 'she' : 'he';
   say(state, bus, { kind: 'note', text: how === 'submitted' ? `Down on your knees, and ${he} has you face down on the pavement before you're all the way there: a knee in your back, your arms behind you, the cuffs.`
+    : how === 'ran' ? `${cap(he)} catches you at a run: a shoulder into your back, the pavement coming up, a knee between your shoulders, the cuffs.`
     : how === 'drew' ? `Your hand's still on the gun when ${he} hits you: the pavement, your arm wrenched up your back, the gun gone from your fingers, a knee between your shoulders, the cuffs.`
     : `${cap(he)} takes you down hard: your arm up your back, your face on the pavement, a knee between your shoulders, the cuffs.` });
 }
@@ -405,7 +431,7 @@ function gunner(state, bus, a, me) {
   if (incapacitated(p, now)) { a.ai.gunner = null; delete a.$aim; a.gait = 'slump'; return; }   // (past what they can bear, or in shock: out of the fight, sim/agents.js keeps them there)
   // (you down, or your hands empty: they keep you covered and shout, and don't fire)
   const mine = state.people[me.who];
-  if (!mine || mine.dead || !canStand(mine) || me.gait === 'down' || !isGun(mine.hand)) G.hold = true;
+  if (!mine || mine.dead || !canStand(mine) || me.gait === 'down' || (!isGun(mine.hand) && !G.flee)) G.hold = true;
   const to = Math.atan2(me.z - a.z, me.x - a.x);
   if (now < G.until) return;
   const id = G.gun, g = armOf(p, id), M = modelOf(id);
@@ -432,6 +458,9 @@ function gunner(state, bus, a, me) {
   const face = () => { a.head = to; a.face = Math.abs(Math.cos(to)) > Math.abs(Math.sin(to)) ? (Math.cos(to) > 0 ? 'right' : 'left') : (Math.sin(to) > 0 ? 'down' : 'up'); };   // (turned to you, body and all: the user, 2026-11-04, "not even looking our way")
   if (!seesActor(state, a, me)) { face(); G.aimed = null; G.until = now + 250; delete a.$aim; return; }
   if (G.hold) { face(); a.$aim = { x: me.x, z: me.z, ms: now }; G.aimed = null; G.until = now + 250; return; }   // (covering you: aimed, the finger off the trigger)
+  // (you down behind something that hides all of you from him: covered, the sights on where you'll come up, no shot to take;
+  // the user's cover, 2026-11-04: sim/cover.js)
+  if (me.cover && (coverOf(state, a, me, 'head', postureOf(state, me))?.share ?? 0) >= 1) { face(); a.$aim = { x: me.x, z: me.z, ms: now }; G.until = now + 250; return; }
   a.$aim = { x: me.x, z: me.z, ms: G.aimed ?? now };                // (where the gun points, for the figure's pose: src/art)
   if (G.aimed === null || G.aimed === undefined) { G.aimed = now + aimMs(p, a, me.x, me.z, id); a.head = to; a.face = Math.abs(Math.cos(to)) > Math.abs(Math.sin(to)) ? (Math.cos(to) > 0 ? 'right' : 'left') : (Math.sin(to) > 0 ? 'down' : 'up'); G.until = G.aimed; return; }
   a.head = to;

@@ -64,6 +64,7 @@ import * as fight from './fight.js';
 import * as shooting from './shooting.js';
 import * as armed from './armed.js';
 import * as emergency from './emergency.js';
+import { postureOf } from './cover.js';
 import * as hunt from './hunt.js';
 import * as reflex from './reflex.js';
 import { onFoot, rollWeeks } from './fitness.js';
@@ -292,6 +293,8 @@ export function step(state, input = {}, bus) {
     }
     // A slip on snow or ice (step 6): a moment's stagger, skidding on, the feet nobody's.
     if (me.skid > 0) { me.skid--; me.vx *= 0.35; me.vz *= 0.35; me.gait = 'stagger'; }
+    // (down behind cover: you stay down till you move, up over it while an aim's held: sim/cover.js)
+    if (me.cover) { if (me.vx || me.vz) delete me.cover; else me.gait = postureOf(state, me) === 'crouch' ? 'kneel' : 'idle'; }
     // (down, or held face down: down now, before you look (step 3), not only after; the input above had you 'idle', and the
     // look went by a standing man's cone while the picture drew a lying one's all round: everyone behind you frozen where
     // last seen, the user, 2026-11-04, "half frozen scenes")

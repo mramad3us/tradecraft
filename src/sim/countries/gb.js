@@ -6,7 +6,9 @@ export const GB = {
     patrolP: 0.12, stopBase: 0.004, awareness: 10, skin: ['light', 'tan', 'brown', 'dark'],
     look: { top: { kind: 'uniform', color: 0x23252f, trim: 0xd6e04a }, legs: 0x23252f, hat: { kind: 'peaked', color: 0x14151c, band: 0xf6f4ee } },
     ask: '"Excuse me. Can I see some identification, please?"',
-    order: '"Armed police! Drop the weapon! Drop it now!"',                         // (the order to drop it: sim/armed.js)
+    order: '"Armed police! Drop the weapon! Drop it now!"',                         // (the order to drop it: sim/armed.js; the armed response's)
+    shootFleeing: 'armed',                                                          // (an AFO fires on a man running only if he's armed: the threat, not the flight)
+    unarmedOrder: '"Police! Put the weapon down! Put it on the ground, now!"',       // (a patrol's, unarmed: from behind a car, a Taser if they have one)
     halt: '"Police! Stand still! Show me your hands!"',     // (and to stand still, your hands empty: sim/armed.js)
     stay: '"Police. Stay where you are for me, please."',     // (a suspect told to wait where they are, to be searched: sim/hunt.js)
     // (patrols unarmed; the Met's armed response vehicles: three officers, a Glock and a SIG MCX; rifles in the open at Parliament, Downing Street, embassies, airports)

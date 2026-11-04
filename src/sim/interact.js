@@ -202,6 +202,9 @@ owners.street = {
   onExchange(state, bus, out) {
     const f = state.fight, p = state.people[f.b];
     if (f.ended) return;
+    // (an officer, a soldier: they don't run from the man they're arresting, they fight on till they're down; the user,
+    // 2026-11-04, an officer dazed in a fight at the cuffs who "had enough, and goes, fast" up a lane, "hit into oblivion")
+    if (p.cls === 'cop' || p.cls === 'soldier') return;
     // (nerve: a civilian hurt, or outclassed, or both, runs; a trained one rarely)
     const hurt = out.dmg && out.by === 'a', outclassed = skill(state.people[state.player], 'cqc') - skill(p, 'cqc');
     const flee = ((p.cls === 'civilian' ? 0.25 : 0.05) + (hurt ? 0.3 : 0) + Math.max(0, outclassed) * 0.03 + (out.status.b ? 0.15 : 0)) * (p.hand ? 0.35 : 1);   // (a blade in the hand: they fight)
@@ -215,6 +218,10 @@ owners.street = {
     else if (them && (stateOf(p, 'head') === 'out' || stateOf(p, 'torso') === 'out' || !canStand(p))) {
       if (them?.ai) them.ai.downUntil = state.time.ms + DOWN_S * 1000;
       say(state, bus, { kind: 'note', text: `${cap(name)} lies where ${p.sex === 'f' ? 'she' : 'he'} fell.` });
+    } else if (them?.cop && !p.dead) {
+      // (an officer on his feet after it: still after you, the alarm up and the resisting on the file, sim/armed.js)
+      them.alert ??= state.time.ms; if (them.ai) { them.ai.fled = null; them.ai.wait = 0; }
+      if (state.$alarm) state.$alarm.resisted = 'fought';
     } else if ((f.ended.why === 'fled' || f.ended.why === 'broken') && them) {
       run(state, them);
       say(state, bus, { kind: 'note', text: pick(state.rng, [`${cap(name)} backs off, then runs.`, `${cap(name)} has had enough, and goes, fast.`, `${cap(name)} turns and runs.`]) });

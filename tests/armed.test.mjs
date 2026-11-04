@@ -44,6 +44,67 @@ export default [
     },
   },
   {
+    name: 'armed: running from the officer coming to cuff you: he sprints, runs you down and takes you down at a run, "you didn\'t stop for him" on the paper; wanted for a shooting, the armed ones fire as you run (London\'s only at a gun) (the user, 2026-11-04)',
+    fn() {
+      const w = scene('moscow');
+      w.g.$reflexes = false;
+      w.g.$alarm = { why: 'the description', ms: w.g.time.ms, x: w.me.x }; w.g.$takedown = { cop: w.c.id, since: w.g.time.ms, stage: 'closing', why: 'the description' };
+      w.c.alert = w.g.time.ms; w.c.ai.wait = 0; w.c.stopping = false;
+      const dir = Math.sign(w.me.x - w.c.x) || 1;
+      let caught = null;
+      for (let t = 0; t < 20 * 30 && caught === null; t++) { step(w.g, { mx: dir, run: true }, w.bus); if (w.g.$takedown?.stage === 'pin') caught = t / 20; }
+      for (let t = 0; t < 20 * 10 && !w.papers.some(x => x.kind === 'arrest'); t++) step(w.g, {}, w.bus);
+      const line = w.papers.find(x => x.kind === 'arrest')?.lines.find(l => /stop for him|kept your hands/.test(l));
+      // (wanted for someone shot, running from an armed officer: he fires; in London, unarmed, he doesn't)
+      const fired = (city, hand) => {
+        const v = scene(city), q = v.g.people.cop1;
+        if (!q.hand) q.hand = (q.items ?? []).find(isGun) ?? newGun(q, 'makarov');
+        q.items = (q.items ?? []).filter(k => k !== q.hand);
+        v.g.hunt = { id: 'h', why: 'wounded', until: v.g.time.ms + 864e5, search: v.g.time.ms + 864e5, ms: v.g.time.ms, who: { known: true }, wearing: { known: true }, where: { row: 0, x: v.me.x, ms: v.g.time.ms }, origin: { row: 0, x: v.me.x }, units: {}, next: Infinity, deploy: 0, read: null, seen: {} };
+        if (hand) v.p.hand = newGun(v.p, 'glock17');
+        v.g.$alarm = { why: 'the description', ms: v.g.time.ms, x: v.me.x }; v.c.alert = v.g.time.ms; v.c.stopping = false;
+        const d = Math.sign(v.me.x - v.c.x) || 1;
+        for (let t = 0; t < 20 * 8; t++) step(v.g, { mx: d, run: true }, v.bus);
+        return v.log.some(l => /fires/.test(l));
+      };
+      const moscow = fired('moscow', false), london = fired('london', false), londonArmed = fired('london', true);
+      console.log(`      run down after ${fmt(caught ?? -1, 1)} s; the paper: "${line}"; wanted for a shooting and running: Moscow's officer fires ${moscow}; London's, your hands empty ${london}, a gun in your hand ${londonArmed}`);
+      assert(caught !== null && /stop for him/.test(line ?? '') && moscow && !london && londonArmed, JSON.stringify({ caught, line, moscow, london, londonArmed }));
+    },
+  },
+  {
+    name: 'armed: an officer you\'re fighting at the cuffs never runs from it: hurt, outclassed, dazed, he fights on; on his feet after it, still after you, the resisting on the file (the user\'s "cop hit into oblivion", 2026-11-04)',
+    async fn() {
+      const w = scene('london'), { owners } = await import('../src/sim/fight.js');
+      await import('../src/sim/interact.js');                         // (its owners.street)
+      let fled = 0;
+      for (let k = 0; k < 400; k++) {
+        w.g.fight = { a: w.g.player, b: 'cop1' };
+        owners.street.onExchange(w.g, w.bus, { dmg: 3, by: 'a', status: { b: 'dazed' } });
+        if (w.g.fight.ended?.why === 'fled') fled++;
+      }
+      w.g.$alarm = { why: 'the description', ms: w.g.time.ms, x: w.me.x }; w.c.alert = null;
+      owners.street.onFightEnd(w.g, w.bus, { a: w.g.player, b: 'cop1', ended: { by: 'a', why: 'broken' } });
+      w.g.fight = null;
+      console.log(`      400 bad exchanges for him: ran from it ${fled}; after it, on his feet: alert ${!!w.c.alert}, the alarm's resisting "${w.g.$alarm.resisted}", running ${!!w.c.ai.fled}`);
+      assert(fled === 0 && w.c.alert && w.g.$alarm.resisted === 'fought' && !w.c.ai.fled, JSON.stringify({ fled }));
+    },
+  },
+  {
+    name: 'armed: in London, a patrol (unarmed) orders the gun down as police, not "armed police"; the armed response does (the user, 2026-11-04)',
+    fn() {
+      const w = scene('london');
+      w.p.hand = newGun(w.p, 'glock17');
+      seconds(w, 2);
+      const patrol = w.log.find(l => /Police|police!/.test(l) && /weapon/i.test(l));
+      w.g.people.cop1.hand = newGun(w.g.people.cop1, 'mcx'); w.g.$alarm.ordered = 0;
+      seconds(w, 4);
+      const armedLine = w.log.filter(l => /Armed police/.test(l)).at(-1);
+      console.log(`      the patrol: ${patrol}; with a carbine: ${armedLine}`);
+      assert(patrol && !/Armed police/.test(patrol) && armedLine, JSON.stringify({ patrol, armedLine }));
+    },
+  },
+  {
     name: 'armed: a gun in your hand seen: the order; kept in your hand, they draw, aim and fire in real time; you\'re shot at',
     fn() {
       const w = scene('moscow');

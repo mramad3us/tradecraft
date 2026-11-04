@@ -70,6 +70,7 @@ import { heardFrom } from './sense.js';
 import { isGun } from './firearms.js';
 import { thingName } from './items.js';
 import { disguiseOf } from './disguise.js';
+import { SCREEN_HALF_M } from './crowd.js';
 
 export const ORDER = ['fight', 'gun', 'shots', 'wounded', 'killed'];
 const CITY = Infinity;
@@ -379,6 +380,8 @@ function officerSheet(state, who, K, r, armed = false) {
 function posts(state, me, H, n, K, row, armed) {
   if (!n) return;
   const here = state.actors.filter(a => a.huntPost && (a.row ?? row) === row);
+  // (one come in from out of the picture, at its corner: stood there, facing the street)
+  for (const a of here) if (a.ai?.route && !a.alert && a.ai.s >= a.ai.route.length - 0.05 && Math.hypot(a.x - a.huntPost.x, a.z - a.huntPost.z) < 1) { a.ai.route = null; a.ai.pace = undefined; a.face = 'down'; a.head = Math.PI / 2; }
   if (here.length >= n) return;
   const town = townOf(state.map), i0 = Math.floor(me.x / SECTION_M), corners = [];
   for (let i = i0 - 2; i <= i0 + 2; i++) for (const g of sectionOf(town, row, i).gapsN) { const m = mouthOf(g); corners.push({ x: m.x1 + 0.6, z: LINE.F - 0.4, face: 'down' }, { x: m.x0 - 0.6, z: LINE.F - 0.4, face: 'down' }); }
@@ -387,9 +390,19 @@ function posts(state, me, H, n, K, row, armed) {
   if (!c) return;
   const id = `${H.id}p${row}:${Math.round(c.x)}`, who = `${id}o`, r = stream('hunt-post', id);
   officerSheet(state, who, K, r, armed);
-  const a = makeAgent(state, { who, row, x: c.x, z: c.z, speed: 1.1, face: c.face });
+  const a = postAt(state, me, who, row, c.x, c.z, armed);
   Object.assign(a, { cop: true, hunt: id, huntPost: { x: c.x, z: c.z } });
-  a.ai.route = null; a.head = Math.PI / 2;
+}
+// (someone posted at x, z: there already if it's out of the picture; in it, from out of it, at a run if armed, to their place,
+// facing the street once there; the user, 2026-11-04: "police tends to spawn on top of us if we're close to their corners")
+function postAt(state, me, who, row, x, z, armed = false) {
+  const seen = Math.abs(x - me.x) < SCREEN_HALF_M[0] && Math.abs(z - me.z) < SCREEN_HALF_M[1];
+  if (!seen) { const a = makeAgent(state, { who, row, x, z, speed: 1.1, face: 'down' }); a.ai.route = null; a.head = Math.PI / 2; return a; }
+  const side = x >= me.x ? 1 : -1, from = me.x + side * (SCREEN_HALF_M[0] + 4), town = townOf(state.map);
+  const a = makeAgent(state, { who, row, x: from, z: LINE.F, speed: 1.1, face: side > 0 ? 'left' : 'right' });
+  try { setRoute(state, a, routeFrom(town, { row, x: a.x, z: a.z }, { row, x, z })); } catch { a.ai.route = null; a.x = x; a.z = z; }
+  if (armed) a.ai.pace = JOG_PACE;
+  return a;
 }
 // Officers at a police station's door, always (the user, 2026-11-04: "at least one (can be more when high alert) armed police
 // officer in front of the police stations"): the armed response's (soldiers where it's the army), stood by the door facing
@@ -417,9 +430,8 @@ function guards(state, me, now) {
       const x = d.x + [1.4, -1.4, 2.8][k], z = d.z + 0.7, who = `${id}o`;   // (a step out from its door: on a square's or a crescent's front too)
       K ??= policeOf(state.map);
       if (!state.people[who]) officerSheet(state, who, K, stream('station-guard', id), true);
-      const a = makeAgent(state, { who, row, x, z, speed: 1.1, face: 'down' });
+      const a = postAt(state, me, who, row, x, z, false);           // (out of the picture at the door; in it, from out of it, walking to it)
       Object.assign(a, { cop: true, guard: { id, x, z }, squad: id });
-      a.ai.route = null; a.head = Math.PI / 2;
       return;                                                       // (one a second, as you come)
     }
   }

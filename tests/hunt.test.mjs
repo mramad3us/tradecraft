@@ -5,6 +5,7 @@
 // walks, into a shop after you; and a reflex's answer kept a while (sim/reflex.js).
 import { newGame, start as begin, step, playerActor, loadRow } from '../src/sim/game.js';
 import { nearestDoor } from '../src/sim/services.js';
+import { SCREEN_HALF_M } from '../src/sim/crowd.js';
 import { townOf } from '../src/sim/cities/index.js';
 import { sectionOf } from '../src/sim/city.js';
 import { SECTION_M } from '../src/sim/map/street.js';
@@ -307,6 +308,28 @@ export default [
       const own = (v.g.hunt.deploy - v.g.time.ms) / MIN;              // (no call: an officer's own sighting, called in)
       console.log(`      before the call's police (3 min): ${before.posts} at the corners, ${before.units} units; after: ${after.posts} at the corners, ${after.units} units; an officer's own sighting: deployed ${own} min on`);
       assert(before.posts === 0 && before.units === 0 && after.posts >= 1 && own === DEPLOY_MIN, JSON.stringify({ before, after, own }));
+    },
+  },
+  {
+    name: 'hunt: a corner\'s officer never appears in the picture: out of it, at the corner; in it, from out of it at a run, to stand there (the user, 2026-11-04)',
+    fn() {
+      const w = scene('moscow'), p = w.p, town = townOf(w.g.map), row = w.g.map.row ?? 0;
+      p.skills.deception = [60, 0];
+      // (you a few steps from a lane's mouth: its corners in the picture)
+      let gap = null;
+      for (let k = 0; k < 6 && !gap; k++) for (const i of [Math.floor(w.me.x / SECTION_M) + k, Math.floor(w.me.x / SECTION_M) - k]) gap ??= sectionOf(town, row, i).gapsN[0];
+      Object.assign(w.me, { x: gap.x1 + 4, z: LINE.F });
+      for (let t = 0; t < 20; t++) step(w.g, {}, w.bus);
+      start(w.g, w.bus, { why: 'killed', x: w.me.x, who: false, wearing: true }); w.g.hunt.deploy = w.g.time.ms; w.g.hunt.next = w.g.time.ms + 10 * HOUR;
+      const first = new Map();
+      for (let t = 0; t < 90; t++) {
+        seconds(w, 1);
+        for (const a of w.g.actors) if (a.huntPost && !first.has(a.id)) first.set(a.id, { dx: Math.abs(a.x - w.me.x), post: Math.abs(a.huntPost.x - w.me.x), at: Math.hypot(a.x - a.huntPost.x, a.z - a.huntPost.z) });
+      }
+      const all = [...first.values()], inPicture = all.filter(f => f.dx < SCREEN_HALF_M[0] && f.at > 0.1 ? false : f.dx < SCREEN_HALF_M[0]);
+      const walkedIn = all.filter(f => f.post < SCREEN_HALF_M[0]), arrived = w.g.actors.filter(a => a.huntPost && Math.abs(a.huntPost.x - w.me.x) < SCREEN_HALF_M[0] && Math.hypot(a.x - a.huntPost.x, a.z - a.huntPost.z) < 1);
+      console.log(`      ${all.length} posted: ${all.map(f => `${Math.round(f.dx)} m off on arrival (its corner ${Math.round(f.post)} m)`).join(', ')}; appeared in the picture ${inPicture.length}; in the picture's corners, walked in ${walkedIn.length}, at them now ${arrived.length}`);
+      assert(all.length >= 2 && inPicture.length === 0 && (!walkedIn.length || arrived.length >= 1), JSON.stringify(all));
     },
   },
   {

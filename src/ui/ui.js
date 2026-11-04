@@ -491,7 +491,7 @@ export function createUI({ input, cb }) {
       const at = tS.key.startsWith('item:') ? [tS.x, tS.z] : view.posOf(tS.key) ?? [tS.x, tS.z], o = shootOdds(state, meS, pS);
       const part = tS.key.startsWith('item:') ? (tS.name ?? 'it') : { head: 'head', torso: 'body', legs: 'legs' }[sh.part];
       const aimed = sh.aim?.key === tS.key, item = tS.key.startsWith('item:');
-      place(reticle, plaque({ text: aimed ? `${part} ${o ? Math.round(o.p * 100) : 0}%` : part, sub: `${Math.round(tS.d)} m · ${aimed ? 'click: fire' : `click: aim, ${(aimMs(pS, meS, tS.x, tS.z, sh.gun) / 1000).toFixed(1)} s`}`, style: aimed ? 'tail' : 'seen', icon: 'aim' }), RES[0] / 2 + (at[0] - view.camera.x) * 16, RES[1] / 2 + (at[1] - view.camera.z) * 16 - 2.6 * 16, fw / RES[0]);
+      place(reticle, plaque({ text: aimed ? `${part} ${o ? Math.round(o.p * 100) : 0}%` : part, sub: `${Math.round(tS.d)} m${o?.cover ? ` · behind ${o.cover.word.replace(/^the /, '')}` : ''} · ${aimed ? 'click: fire' : `click: aim, ${(aimMs(pS, meS, tS.x, tS.z, sh.gun) / 1000).toFixed(1)} s`}`, style: aimed ? 'tail' : 'seen', icon: 'aim' }), RES[0] / 2 + (at[0] - view.camera.x) * 16, RES[1] / 2 + (at[1] - view.camera.z) * 16 - 2.6 * 16, fw / RES[0]);
       // (the brackets round them: what the gun's on, plain to see)
       place(frameT, bracket(item ? { w: 10, h: 7, style: aimed ? 'tail' : 'seen' } : { w: 18, h: 34, style: aimed ? 'tail' : 'seen' }), RES[0] / 2 + (at[0] - view.camera.x) * 16, RES[1] / 2 + (at[1] - view.camera.z) * 16 + 3, fw / RES[0]);
     }

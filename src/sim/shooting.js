@@ -65,6 +65,8 @@ import { addHeat } from './heat.js';
 import { markViolent } from './emergency.js';
 import { TICK_MS } from './clock.js';
 import { isPaper, paperDC, shotAt, onRange } from './paper.js';
+import { into, coverOf, postureOf, hideSpot } from './cover.js';
+import { blocked } from './world.js';
 
 export const AIM = { sight: 0.6, turn: { base: 90, per: 6 }, arc: { base: 30, per: 2, max: 100 }, feet: 0.4 };
 export const HELD = 3, HELD_MAX = 4;                              // (DC off a second the aim's held, at most)
@@ -174,7 +176,9 @@ export function odds(state, me, p, key = state.shoot?.pick, part = state.shoot?.
   if ((state.$shotAtMs ?? -1e9) > state.time.ms - 5000) mods.push({ why: 'being shot at', v: -4 });
   const o = shotOf(state, M, K, d, T, part, mods);
   const need = o.dc - skill(p, 'weapons') - o.mods.reduce((s, m) => s + m.v, 0);
-  return { d, dc: o.dc, mods: o.mods, p: Math.max(0.05, Math.min(0.95, (21 - need) / 20)) };
+  // (behind cover: what of the hits it keeps off, the part behind it by how they stand, sim/cover.js)
+  const cover = T.a ? coverOf(state, me, T.a, part, postureOf(state, T.a)) : null;
+  return { d, dc: o.dc, mods: o.mods, cover, p: Math.max(0.05, Math.min(0.95, (21 - need) / 20)) * (1 - (cover?.keeps ?? 0)) };
 }
 
 /** A shot's DC and the moment's modifiers at a target T ({ x, z, a?, item? }) d away: its movement, the light on it, a shotgun's spread close, the part; mods: the shooter's own (the aim). */
@@ -195,7 +199,7 @@ function shotOf(state, M, K, d, T, part, mods = []) {
  */
 export function npcShot(state, bus, a, p, id, target, heldS = 0) {
   const M = modelOf(id), K = kindOf(id), g = armOf(p, id), n = roundsOf(g, M), d = Math.hypot(target.x - a.x, target.z - a.z);
-  let fired = 0, hits = 0, last = null, f = null;
+  let fired = 0, hits = 0, last = null, f = null, kept = null;
   for (let k = 0; k < n; k++) {
     f = fire(state.rng, p, id);
     if (!f.fired) break;
@@ -203,14 +207,16 @@ export function npcShot(state, bus, a, p, id, target, heldS = 0) {
     fired++;
     const o = shotOf(state, M, K, d, { x: target.x, z: target.z, a: target }, 'torso', [{ why: 'the aim held', v: Math.round(Math.min(HELD_MAX, Math.max(0, heldS) * HELD)) }, k ? { why: 'the muzzle climbing', v: -Math.round(BURST_K * k * M.recoil) } : { v: 0 }]);
     const roll = check(state.rng, { skill: 'weapons', value: skill(p, 'weapons'), dc: o.dc, mods: o.mods, body: p });
-    if (roll.ok) { hits++; last = bullet(state, bus, target, 'torso', M, a, { margin: roll.margin }); }
+    const cv = roll.ok ? into(state, state.rng, a, target, 'torso') : null;   // (behind cover: into it, or through it: sim/cover.js)
+    if (cv?.stopped) kept = cv.word;
+    else if (roll.ok) { hits++; last = `${cv ? `Through ${cv.word}: ` : ''}${bullet(state, bus, target, 'torso', M, a, { margin: cv ? 0 : roll.margin })}`; }
     if (f.stoppage || f.empty || state.people[target.who]?.dead) break;
   }
   if (target.who === state.player) state.$shotAtMs = state.time.ms;
   const who = cap(p.known === false ? p.seen ?? p.name ?? 'someone' : p.name ?? 'someone');
   const unseen = target.who === state.player && !inView(state, a.id);   // (shot at from out of your sight: where from, and the muzzle's flash felt there: sim/sense.js)
   if (fired && unseen) heardFrom(state, a, p.cls === 'cop' ? 'Police' : 'A gun');
-  if (fired) say(state, bus, { kind: 'note', text: `${unseen ? `${cap(whereFrom(target, a))}, ${Math.round(d)} m off: ` : ''}${who} fires${fired > 1 ? `, ${fired} rounds` : ''}. ${hits ? last : 'Wide.'}` });
+  if (fired) say(state, bus, { kind: 'note', text: `${unseen ? `${cap(whereFrom(target, a))}, ${Math.round(d)} m off: ` : ''}${who} fires${fired > 1 ? `, ${fired} rounds` : ''}. ${hits ? last : kept ? `It goes into ${kept}${target.who === state.player ? ', in front of you' : ''}.` : 'Wide.'}` });
   return fired ? fireMs(p, M, fired) : 400;
 }
 
@@ -224,7 +230,11 @@ export function options(state) {
   const g = gunsOf(p).find(o => o.id === sh.gun) ?? gunsOf(p)[0];
   if (!g) return [];
   const eta = (a, from) => stepMs(p, g.id, a, from);
-  if (g.where !== 'hand') return [{ key: 'draw', label: `Draw ${modelOf(g.id).short}`, ms: eta('draw', g.where) }];
+  // (down behind cover, near enough: the side of it away from the threat; up over it with an aim, down again: sim/cover.js)
+  const hide = [];
+  if (me.cover && postureOf(state, me) === 'rise') hide.push({ key: 'cover', label: `Down behind ${me.cover.word}`, ms: COVER_DOWN_MS });
+  else if (!me.cover) { const spot = hideSpot(state, me, threatOf(state, me), (x, z) => !blocked(state, x, z)); if (spot) hide.push({ key: 'cover', label: `Get down behind ${spot.word}`, ms: Math.round(COVER_DOWN_MS + spot.d / COVER_MS * 1000), spot }); }
+  if (g.where !== 'hand') return [{ key: 'draw', label: `Draw ${modelOf(g.id).short}`, ms: eta('draw', g.where) }, ...hide];
   // (the aim: at whoever the brackets are on, picked by the mouse or the arrows, in the picture; the user, 2026-11-03:
   // "there should be a 'aim' action before shoot, which should take time"; "Make aiming more natural … but no list")
   const out = [];
@@ -234,7 +244,15 @@ export function options(state) {
   if (P && sh.aim?.key !== P.key) out.push({ key: 'aim', label: `Aim at ${nameOf(state, P)}`, ms: aimMs(p, me, P.x, P.z, g.id) });
   else if (!P && !A) out.push({ key: 'aim', label: 'Aim', ms: null, off: 'nothing in the picture to aim at' });
   for (const a of canDo(p, g.id, 'hand')) out.push({ key: a, label: a === 'safety' ? (gun.safety ? 'Safety off' : 'Safety on') : a === 'selector' ? `Selector to ${nextMode(gun, M)}` : labelOf(g.id, a), ms: eta(a) });
-  return out;
+  return [...out, ...hide];
+}
+// (getting down behind cover: the crouch, and a step or two to it at a crouching run)
+export const COVER_DOWN_MS = 450, COVER_MS = 2.5;
+/** Who you'd get down behind something from: the nearest officer after you in sight, else the one you've picked. { x, z } or null. */
+function threatOf(state, me) {
+  const row = state.map.row ?? 0, cops = state.actors.filter(a => a.cop && a.alert && !a.hidden && rowOf(state, a) === row && inView(state, a.id));
+  if (cops.length) return cops.reduce((b, a) => (Math.hypot(a.x - me.x, a.z - me.z) < Math.hypot(b.x - me.x, b.z - me.z) ? a : b));
+  return targetOf(state, state.shoot?.aim?.key ?? state.shoot?.pick) ?? null;
 }
 /** What a target's called, as you see them: their name if you know it, their look if not, a thing's name. */
 export function nameOf(state, T) {
@@ -290,6 +308,10 @@ export function choose(state, bus, key) {
     sh.doing.to = Math.atan2(T.z - me.z, T.x - me.x); sh.doing.key = sh.pick;
     sh.aim = null;
     text = `You bring ${modelOf(g.id).short} round onto ${T.a ? 'them' : 'it'}.`;
+  } else if (k === 'cover') {
+    if (o.spot) { Object.assign(sh.doing, { spot: o.spot, x0: me.x, z0: me.z }); text = `Down, and behind ${o.spot.word}.`; }
+    else { sh.aim = null; text = `Back down behind ${me.cover.word}.`; }
+    say(state, bus, { kind: 'note', text });
   } else if (k === 'fire') {
     sh.doing.taps = 1;                                              // (a double tap's, a triple's, still to come: tap())
     shot(state, bus, me, p, g.id);
@@ -361,7 +383,12 @@ export function tick(state, bus) {
   const now = state.time.ms, d = sh.doing;
   me.vx = me.vz = 0;
   if (d?.what === 'fire' && d.rounds > 1) { const k = Math.floor((now - d.start) / (BURST_GAP_S * 1000)); if (k < d.rounds) me.$shot = d.start + k * BURST_GAP_S * 1000; }   // (a burst: a flash a round)
+  if (me.cover) me.gait = postureOf(state, me) === 'crouch' ? 'kneel' : 'idle';   // (down behind it, or up over it: sim/cover.js)
   if (sh.phase === 'act' && d) {
+    if (d.what === 'cover' && d.spot) {                             // (over to it, crouched, as the step takes its time)
+      const k = Math.min(1, (now - d.start) / Math.max(1, d.until - d.start));
+      me.x = d.x0 + (d.spot.x - d.x0) * k; me.z = d.z0 + (d.spot.z - d.z0) * k; me.gait = 'kneel';
+    }
     if (d.what === 'aim' && d.to !== undefined) {                  // (the turn, as it takes its time)
       const k = Math.min(1, (now - d.start) / Math.max(1, d.until - d.start));
       setHead(me, d.head0 + wrap(d.to - d.head0) * k);
@@ -398,6 +425,9 @@ function finish(state, bus, me, p) {
   } else if (d.what === 'aim') {
     setHead(me, d.to);
     sh.aim = { key: d.key, settled: state.time.ms };
+  } else if (d.what === 'cover') {
+    if (d.spot) { me.x = d.spot.x; me.z = d.spot.z; me.cover = { word: d.spot.word, what: d.spot.what, x: d.spot.x, z: d.spot.z }; }
+    sh.aim = null; me.gait = 'kneel';
   } else if (r?.mishap === 'dropped') drop(state, p, me, sh.gun);
   if (d.what === 'dropMag' && r?.mag) drop(state, p, me, r.mag);
   if (d.what === 'stowMag' && r?.mag) (p.items ??= []).push(r.mag);
@@ -413,7 +443,7 @@ const stowHand = (state, p, me) => { const k = p.hand; p.hand = null; (p.items ?
 export function shot(state, bus, me, p, id, { follow = 0 } = {}) {
   const sh = state.shoot, M = modelOf(id), T = targetOf(state, sh?.aim?.key ?? sh?.pick), g = armOf(p, id), n = roundsOf(g, M), da = M.decocker && !g?.cocked;
   const aimedAt = T && sh.aim?.key === T.key ? T : null;             // (no aim, no shot at anything: the user, 2026-11-03, "if you're not aiming you can't shoot")
-  let f = null, fired = 0, hits = 0, first = null, words = [], last = null;
+  let f = null, fired = 0, hits = 0, first = null, words = [], last = null, cv = null;
   for (let k = 0; k < n; k++) {                                      // (a burst: each round its own roll, the muzzle climbing)
     f = fire(state.rng, p, id);
     if (!f.fired) break;
@@ -426,7 +456,8 @@ export function shot(state, bus, me, p, id, { follow = 0 } = {}) {
       const climb = k + follow, roll = check(state.rng, { skill: 'weapons', value: skill(p, 'weapons'), dc: o.dc, mods: climb ? [...o.mods, { why: follow ? 'the muzzle still up from the last' : 'the muzzle climbing', v: -Math.round(BURST_K * climb * M.recoil * climbOf(p)) }] : o.mods, body: p });   // (a tap's or a burst's after the first: the climb, less in a good hand)
       first ??= roll;
       if (aimedAt.a && isPaper(state, aimedAt.a)) { const hole = shotAt(state, aimedAt.a, sh.part, roll); if (roll.ok) hits++; words.push(hole.words); }   // (a paper's: a hole by the roll, or the trap; sim/paper.js)
-      else if (roll.ok) { hits++; last = aimedAt.item ? hitThing(state, aimedAt.item) : bullet(state, bus, aimedAt.a, sh.part, M, me, { margin: roll.margin }); }   // (a burst's hits on them: the last one's words say how they are)
+      else if (roll.ok && aimedAt.a && (cv = into(state, state.rng, me, aimedAt.a, sh.part))?.stopped) words.push(`It goes into ${cv.word}.`);   // (behind cover, and it took the round: sim/cover.js)
+      else if (roll.ok) { hits++; last = aimedAt.item ? hitThing(state, aimedAt.item) : `${cv ? `Through ${cv.word}: ` : ''}${bullet(state, bus, aimedAt.a, sh.part, M, me, { margin: cv ? 0 : roll.margin })}`; }   // (a burst's hits on them: the last one's words say how they are)
       else { const w = stray(state, bus, me, aimedAt, M); if (w) words.push(w); }
     }
     if (f.stoppage || f.empty) break;

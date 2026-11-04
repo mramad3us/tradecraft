@@ -4,6 +4,22 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.38 (2026-11-04)
+
+- **Cover.** Every shot, yours and theirs, now checks what's on the line of fire in the last 3 m before the target. Kept off, as a share of the rounds:
+  - **A building's corner:** all of them, best of all.
+  - **A parked car:** 0.6. The engine block and wheels stop rounds; the doors don't.
+  - **A pillar box:** all, though it's narrow.
+  - **A bin or a phone box:** a third. A bench, a quarter.
+  - **Glass and hedges:** nothing; they only hide you.
+
+  How much of you is behind it depends on how you stand. Standing behind a car, you're hidden to the chest. Crouched behind it, you're hidden entirely. Rising over it to fire, mostly your head shows. At a wall's corner, leaning out, about a third of you shows; tucked round it, none. The odds on the brackets include your target's cover and name it.
+- **"Get down behind…"** In stop motion near cover, a new step takes you at a crouching run to the side away from the nearest officer after you. Aiming from there puts you up over it until you take the step again. You stay down until you move. Hidden completely, officers hold their fire and wait for you to come up.
+- **No running from the cuffs.** Walk or run off as an officer closes in and he sprints to where you're going, faster than you can run, and tackles you. The paper says you didn't stop for him. Running while they'd fire on you, and their armed officers fire: you have a gun in hand, you've fired, you drew on them, or the search is for shots, a shooting or a killing. London's armed police fire only if you hold a gun.
+- **Officers don't flee a fist fight.** An officer you fight at the cuffs fights on until he's down. If he's still standing afterwards, he's still after you and the resisting goes on your file. Your save showed one dazed officer running off up a lane.
+- **London's patrols aren't "armed police".** Unarmed, they shout "Police! Put the weapon down!"; only the armed response shouts "Armed police!".
+- **No more officers popping up at corners next to you.** A corner officer whose post is in view now arrives from off screen at a run and takes his place; one out of view is just there. The station guards come the same way, walking.
+
 ## v0.1.37 (2026-11-04)
 
 - **Taken down mid-draw.** Stop motion now ends the moment you can't take its next step: taken down, cuffed, on the ground, in a fist fight, or in a car. Time runs again instead of staying frozen after an arrest.
