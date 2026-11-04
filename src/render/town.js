@@ -1,12 +1,14 @@
 // TRADECRAFT render: a street section, drawn from its data (src/sim/map/street.js) with the art's
 // painters (src/art/pixeltown.js, townsprites.js), in the fine finish.
 //
-// buildSection(S, { month }) is a generator: it yields between its costly parts (the ground, each
-// building, the furniture a few pieces at a time), so the view can spread a section over a few
-// frames (sections arrive 70 m ahead of the camera, so there's time), and returns { group, fronts,
+// buildSection(S, { month, night }) is a generator: it yields between its costly parts (the street's ground a
+// layer at a time, each building's front a few of its ops at a time, the furniture a few pieces at a time: no
+// step over ~6 ms on a machine six times slower than an ordinary one, 2026-11-04), so the view can spread a
+// section over frames (sections arrive 70 m ahead of the camera, so there's time), and returns { group, fronts,
 // heads, sprites, dispose }:
 //   - fronts: each building's box and its front face, painted for day; its night face (some rooms
-//     lit) is painted when dusk first needs it, one a frame (src/render/view.js), so a street doesn't
+//     lit) is painted when dusk first needs it, a step at a time within NIGHT_MS a frame (src/render/view.js),
+//     or as it's built if it's built after dark (night(): the view's say), so a street doesn't
 //     stall the frame it arrives in. Each building has its own moment (dusk) to switch, so the lights
 //     come on along the street one house at a time.
 //   - heads: the lamps' heads, lit as the lamps come on (their light is the view's: a few pools of
@@ -33,7 +35,7 @@
 // Textures are shared by make and kept (pixeltown.js keep()); a section frees only its own.
 import * as THREE from 'three';
 import { ground, tile, mat, glow, box, roundedBox, paint, part, tone, PX_PER_M } from '../art/pixelart.js';
-import { street, building, facade, lamp, bench, bin, car, railing, awning, hangingSign, hedgeLeaves, keep, phonebox, shelter, noticeBoard, beacon, pubSign, cart, stall, soukStall, minaret, generator, cablesMesh, cell } from '../art/pixeltown.js';
+import { street, streetSteps, building, facade, facadeSteps, lamp, bench, bin, car, railing, awning, hangingSign, hedgeLeaves, keep, phonebox, shelter, noticeBoard, beacon, pubSign, cart, stall, soukStall, minaret, generator, cablesMesh, cell } from '../art/pixeltown.js';
 import { treeCard, propCard } from '../art/townsprites.js';
 import { spritePerson, frame, card } from '../art/sprites.js';
 import { Z, laneRects } from '../sim/map/street.js';
@@ -63,6 +65,16 @@ const run = (ops, night) => (f) => {
   for (const [op, ...args] of ops) {
     if (op === 'shopfront') f.shopfront(args[0], args[1], args[2], { ...args[3], lit: night });
     else f[op](...args);
+  }
+};
+// (the same, a few ops a step: a night face painted over frames, src/render/view.js)
+const OPS_PER_STEP = 6;
+const runSteps = (ops, night) => function* (f) {
+  let n = 0;
+  for (const [op, ...args] of ops) {
+    if (op === 'shopfront') f.shopfront(args[0], args[1], args[2], { ...args[3], lit: night });
+    else f[op](...args);
+    if (++n % OPS_PER_STEP === 0) yield;
   }
 };
 
@@ -254,7 +266,7 @@ function lotOf(g, lot, sprites, C, month = 11) {
   }
 }
 
-export function* buildSection(S, { month = 11 } = {}) {
+export function* buildSection(S, { month = 11, night = () => false } = {}) {
   const g = new THREE.Group();
   const fronts = [], heads = [], sprites = [], flipping = [];
   const at = (m, x, z) => { m.position.set(snap(x), 0, snap(z)); g.add(m); return m; };
@@ -268,8 +280,9 @@ export function* buildSection(S, { month = 11 } = {}) {
   // glimpse of the street beyond; the south band (a boulevard and its far road, or a park); the strip
   // behind the hedge, and the lanes going on south through it.
   const c = S.crossings[0], cs = S.crossingsS[0];
-  g.add(street({ x0: S.x0, x1: S.x1, zB: Z.front, zK1: Z.kerbN, zK2: Z.kerbS, z1: Z.fence, zebra: c ? [c.x0, c.x1] : null, seed: S.seed % 100000, ox: Math.round(S.x0 * PX_PER_M), calm: true,
+  g.add(yield* streetSteps({ x0: S.x0, x1: S.x1, zB: Z.front, zK1: Z.kerbN, zK2: Z.kerbS, z1: Z.fence, zebra: c ? [c.x0, c.x1] : null, seed: S.seed % 100000, ox: Math.round(S.x0 * PX_PER_M), calm: true,
     look: { a: L.a, b: L.b, breakX: L.breakN }, zebraKind: L.zebra, rowSeed: L.rowSeed, leaves, city: S.city ?? null, areas, bays }));
+  yield;                                                            // (the street's own painting, the costliest: a frame of its own; a run caught a whole first step in one, 2026-11-04's performance pass)
   const lane = (gp, look, za, zb, y = 0) => {                       // a side street (pavements and a road) or an alley
     if (gp.kind === 'side') g.add(ground(gp.x0, za, gp.x0 + 2, zb, paveT(look.walks), y), ground(gp.x1 - 2, za, gp.x1, zb, paveT(look.walks), y), ground(gp.x0 + 2, za, gp.x1 - 2, zb, laneT(look.ground), y));
     else if (gp.kind === 'stairs') {                                // the steps, their handrails down both sides
@@ -283,12 +296,13 @@ export function* buildSection(S, { month = 11 } = {}) {
     else lane(gp, L.lanesN[k], Z.north - 4.5, Z.front);
     g.add(ground(gp.x0 - 3, Z.north - 8, gp.x1 + 3, Z.north - 4.5, T('cobble', 1)), ground(gp.x0 - 3, Z.north - 16, gp.x1 + 3, Z.north - 8, T('asphalt', 3)));
   });
+  yield;
   if (S.band === 'boulevard') {
     g.add(ground(S.x0, Z.fence, S.x1, Z.pathN, T('grass', 3)), ground(S.x0, Z.pathN, S.x1, Z.pathS, T('gravel', 3)), ground(S.x0, Z.pathS, S.x1, Z.fenceS, T('grass', 3)));
     if (c) g.add(ground(c.x0, Z.fence, c.x1, Z.pathN, T('gravel', 3), 0.005));     // worn ways across the lawns, from the crossings
     if (cs) g.add(ground(cs.x0, Z.pathS, cs.x1, Z.fenceS, T('gravel', 3), 0.005));
     const fa = far(L.a), fb = L.a === L.b ? fa : far(L.b);
-    g.add(street({ x0: S.x0, x1: S.x1, zB: Z.fenceS, zK1: Z.roadN, zK2: Z.roadS, z1: Z.south, zebra: cs ? [cs.x0, cs.x1] : null, seed: (S.seed >>> 3) % 100000, ox: Math.round(S.x0 * PX_PER_M), calm: true,
+    g.add(yield* streetSteps({ x0: S.x0, x1: S.x1, zB: Z.fenceS, zK1: Z.roadN, zK2: Z.roadS, z1: Z.south, zebra: cs ? [cs.x0, cs.x1] : null, seed: (S.seed >>> 3) % 100000, ox: Math.round(S.x0 * PX_PER_M), calm: true,
       look: { a: fa, b: fb, breakX: L.breakS }, zebraKind: L.zebraS, rowSeed: L.rowSeed + 1, leaves: leaves * 0.6, city: S.city ?? null }));
   } else {
     g.add(ground(S.x0, Z.fence, S.x1, Z.roadS, T('grass', 3)), ground(S.x0, Z.pathN, S.x1, Z.pathS, T('gravel', 3), 0.004), ground(S.x0, Z.roadS, S.x1, Z.south, T('gravel', 3)));
@@ -297,6 +311,7 @@ export function* buildSection(S, { month = 11 } = {}) {
     if (f) feature(g, f, sprites, C);
   }
   g.add(ground(S.x0, Z.south, S.x1, Z.edge + 12, T('grass', 3)));
+  yield;
   // Off the street, north of the building line: a square's or a crescent's pavement before the fronts set
   // back, a court's setts to the house at its end, and what stands in the square.
   for (const B of S.buildings) if (!B.back && B.z < Z.front - 0.01) g.add(ground(B.x0, B.z, B.x1, Z.front, paveT(L.b.paveN), 0.002));
@@ -312,8 +327,11 @@ export function* buildSection(S, { month = 11 } = {}) {
   for (const B of S.buildings) {
     const before = g.children.length;
     const spec = { x0: B.x0, x1: B.x1, z: B.z, h: B.h, d: B.d, wall: B.wall, wallColor: B.wallColor, roof: B.roof, roofColor: B.roofColor, kit: B.look?.roofKit, draw: run(B.ops, false), seed: B.seed, split: true, stacks: B.look?.party ? [0.4, ...B.look.party, B.x1 - B.x0 - 0.4] : null };
-    const b = building(spec);
+    const painted = yield* facadeSteps({ w: spec.x1 - spec.x0, h: spec.h, wall: spec.wall, wallColor: spec.wallColor, draw: runSteps(B.ops, false), seed: spec.seed, night: false, split: spec.split ?? false });
+    yield;
+    const b = building({ ...spec, painted });
     g.add(b);
+    yield;                                                          // (then what's on it: a minaret, awnings, signs)
     if (B.look?.pubSign) g.add(pubSign(B.x0 + (B.x1 - B.x0 > 9 ? 1.0 : 0.7), 4.0, B.z, B.look.pubSign.sign));
     if (B.look?.minaret) {                                         // a mosque's minaret, and its dome
       const m = B.look.minaret, d = B.look.dome;
@@ -331,11 +349,15 @@ export function* buildSection(S, { month = 11 } = {}) {
     for (const [op, x, y, w, h, words, o] of B.ops) if (op === 'sign' && o?.kind) flipping.push({ x: B.x0 + x, y, w, h, words, opts: o, z: B.z, seed: B.seed, building: byBuilding.length - 1, mesh: null, wall: { w: B.x1 - B.x0, h: B.h, kind: B.wall, color: B.wallColor, seed: B.seed, x, y } });
     const body = b.userData.body;
     fronts.push({ body, day: body.material[4], night: null, spec, dusk: range(r, 0.08, 0.7),
-      paintNight() { this.night = mat(0, facade({ w: B.x1 - B.x0, h: B.h, wall: B.wall, wallColor: B.wallColor, draw: run(B.ops, true), seed: B.seed, night: true, split: true })); } });
+      paintNight() { const g = this.nightSteps(); while (!g.next().done); },
+      // (its night face a step at a time: the view's, within its frame's budget; the section's build, when it's built after dark)
+      *nightSteps() { this.night = mat(0, yield* facadeSteps({ w: B.x1 - B.x0, h: B.h, wall: B.wall, wallColor: B.wallColor, draw: runSteps(B.ops, true), seed: B.seed, night: true, split: true })); } });
+    if (night()) { yield* fronts[fronts.length - 1].nightSteps(); yield; }   // (built after dark, and not wanted on screen this frame: its night face too)
     yield;
   }
 
-  // The furniture, a few pieces at a time (a tree is the costliest).
+  // The furniture, a few pieces at a time (a tree is the costliest: a step its own; twelve's worth a step was 6 ms on its
+  // own on an ordinary machine, 2026-11-04's performance pass).
   let cost = 0;
   for (const p of S.props) {
     switch (p.kind) {
@@ -386,7 +408,8 @@ export function* buildSection(S, { month = 11 } = {}) {
       }
       case 'shrub': sprites.push(seeThrough(at(propCard('shrub', { seed: p.seed }), p.x, p.z))); break;
     }
-    if (cost >= 12) { cost = 0; yield; }
+    cost += p.kind === 'tree' ? 0 : 0.5;                          // (the rest, a little each)
+    if (cost >= 4) { cost = 0; yield; }
   }
 
   // Cables (Beirut's): along the fronts, tacked to the walls on a grid of the world (so they run on from

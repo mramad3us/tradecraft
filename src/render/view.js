@@ -112,7 +112,7 @@ import { dayBand } from '../sim/thermal.js';
 
 export const RES = [640, 360];
 export const LAMP_SLOTS = 10;
-export const BUILD_MS = 6;
+export const BUILD_MS = 6, NIGHT_MS = 2;
 export const AHEAD_M = 15;                                          // up a lane this near its far end, the next street's built ahead
 export const FOG_CELL_M = 0.5;
 export const SHAKE_TICKS = 4;
@@ -166,7 +166,7 @@ export function createView({ parent, bus, month = () => 11 }) {
       const k = `${S.row}|${S.i}`, a = ahead.get(k)?.S.seed === S.seed && ahead.get(k).month === month() ? ahead.get(k) : null;
       if (a) ahead.delete(k);                                     // (built ahead: in the scene now, or the rest of it to build)
       if (a?.built) { sections.set(S.i, a.built); scene.add(a.built.group); warm(a.built.group); shadows(); return; }
-      building.set(S.i, { gen: a ? a.gen : S.kind === 'dojo' ? buildDojo(S) : S.kind === 'interior' ? buildInterior(S) : buildSection(S, { month: month() }), x0: S.x0, x1: S.x1 });
+      building.set(S.i, { gen: a ? a.gen : S.kind === 'dojo' ? buildDojo(S) : S.kind === 'interior' ? buildInterior(S) : buildSection(S, { month: month(), night: nightBuild }), x0: S.x0, x1: S.x1 });
     }),
     bus.on('map', () => { for (const k of [...ahead.keys()]) drop(k); cut = true; }),   // (what was built ahead and not wanted after all)
     bus.on('section-', (S) => {
@@ -176,16 +176,27 @@ export function createView({ parent, bus, month = () => 11 }) {
     }),
   ];
   /** Build what's queued: one within m metres of x (on screen) whole, the rest for `budget` ms (Infinity: everything). */
+  // (a section built after dark paints its night faces as it's built, unless it's wanted on screen this frame: the
+  // frame's then the façades' only, the night ones a step at a time after; src/render/town.js buildSection())
+  let glowNow = 0, building0 = false;
+  const nightBuild = () => glowNow > 0 && !building0;
   function build(budget = BUILD_MS, x = null, m = 0) {
     const t0 = performance.now();
     for (const [i, b] of building) {
       const now = x !== null && b.x1 > x - m && b.x0 < x + m;
+      building0 = now;
       for (;;) {
         if (!now && performance.now() - t0 > budget) break;
-        const r = b.gen.next();
-        if (r.done) { building.delete(i); sections.set(i, r.value); scene.add(r.value.group); warm(r.value.group); shadows(); break; }
+        const ts = performance.now(), r = b.gen.next();
+        b.steps = (b.steps ?? 0) + 1;
+        let tw = 0;
+        if (r.done) { building.delete(i); sections.set(i, r.value); scene.add(r.value.group); const t1 = performance.now(); warm(r.value.group); tw = performance.now() - t1; shadows(); }
+        const dt = performance.now() - ts;
+        if (dt > (stats.slow?.ms ?? 0)) stats.slow = { ms: dt, step: r.done ? 'done' : b.steps, warm: tw, now };   // (the slowest step since read: a performance pass's)
+        if (r.done) break;
       }
     }
+    building0 = false;
   }
 
   // The next street's sections, built ahead (see the header): `row|i` → { S, gen, built, month }. One
@@ -208,7 +219,7 @@ export function createView({ parent, bus, month = () => 11 }) {
       for (let i = a; i <= b; i++) {
         const k = `${next}|${i}`;
         want.add(k);
-        if (!ahead.has(k)) { const S = sectionFor({ ...m, row: next }, i); ahead.set(k, { S, gen: buildSection(S, { month: month() }), built: null, month: month() }); }
+        if (!ahead.has(k)) { const S = sectionFor({ ...m, row: next }, i); ahead.set(k, { S, gen: buildSection(S, { month: month(), night: nightBuild }), built: null, month: month() }); }
       }
     }
     for (const k of [...ahead.keys()]) if (!want.has(k)) drop(k);
@@ -255,7 +266,7 @@ export function createView({ parent, bus, month = () => 11 }) {
     for (const m of hidden) m.visible = false;
     const group = buildCut(at.S, at.u.building, at.u, body);
     scene.add(group);
-    opened = { key, hidden, group, units: [at.u] };
+    opened = { key, hidden, group, units: [at.u], all };
     shadows();
   }
   shadows();
@@ -385,7 +396,11 @@ export function createView({ parent, bus, month = () => 11 }) {
   const sceneSprites = () => [...sections.values()].flatMap(s => s.sprites);
 
   /** Draw the state. prev: id → [x, z, stride] at the last tick; alpha: how far into this one. */
+  // (what a frame cost, by part: the last frame's, and the worst since read; window.__tradecraft.view.stats, for a performance pass)
+  let night = null;                                              // (the night face being painted: { s, fr, gen })
+  const stats = { frame: 0, build: 0, night: 0, fog: 0, crowd: 0, render: 0, n: 0, max: {} };
   function frame(state, prev, alpha, t) {
+    const tFrame = performance.now();
     city = state.map.city; band = dayBand(state);                   // (passers-by dress as their city does, and for the day)
     cutaway(state);
     const ms = state.time.ms, wx = weatherAt(state), S = state.map.kind === 'interior' ? indoors(sky(ms, geoOf(state.map), wx), state.$world?.sections.get(0)?.plan?.mood) : sky(ms, geoOf(state.map), wx), W = state.$world;
@@ -423,22 +438,36 @@ export function createView({ parent, bus, month = () => 11 }) {
       look(x + jolt, Math.max(cz[0], Math.min(Math.max(cz[0], cz[1]), fz + lead[1])) + Math.abs(jolt) * 0.5);
     }
     const t0 = performance.now();
+    const tb = t0;
     build(cut ? 0 : BUILD_MS, cam.x, halfW + 1);                   // (what's on screen whole: the next street's, the frame it comes)
     cut = false;
     if (!building.size) buildAhead(state, f, t0);
+    stats.build = performance.now() - tb;
     // The light.
     hemi.color.setHex(S.sky); hemi.groundColor.setHex(S.ground); hemi.intensity = S.skyK * Math.PI;
     sun.color.setHex(S.sun); sun.intensity = S.sunK * Math.PI;
     sun.shadow.intensity = S.shadow;
-    let painted = false;
+    glowNow = S.glow; flipsMade = 0;
+    const tn = performance.now();
+    // Dusk coming: the night faces not painted yet, one at a time, a step at a time, for NIGHT_MS a frame (a whole one
+    // in a frame was the worst hitch left, 2026-11-04's performance pass: 54 ms on a machine six times slower).
+    if (night && ![...sections.values()].includes(night.s)) night = null;   // (its section freed meanwhile: nothing made on the GPU yet)
+    if (!night && S.glow > 0) for (const s of sections.values()) { const fr = s.fronts.find(x => !x.night); if (fr) { night = { s, fr, gen: fr.nightSteps() }; break; } }
+    for (const t1 = performance.now(); night && performance.now() - t1 < NIGHT_MS;) {
+      const ts = performance.now(); night.n = (night.n ?? 0) + 1;
+      const done = night.gen.next().done, dt = performance.now() - ts;
+      if (dt > (stats.nightSlow?.ms ?? 0)) stats.nightSlow = { ms: dt, step: night.n, done };
+      if (done) night = null;
+    }
     for (const s of sections.values()) {
       for (const fr of s.fronts) {
         const lit = S.glow > fr.dusk;
-        if (S.glow > 0 && !fr.night && !painted) {                  // dusk is coming: paint one night face a frame
-          fr.paintNight();
+        if (fr.night && !fr.glowing) {                             // (a night face just painted: its windows' glow)
+          const te = performance.now();
           const e = emissiveOf(fr.night.map);
           if (e) { fr.night.emissiveMap = e; fr.night.emissive.set(0xffffff); }
-          painted = true;
+          fr.glowing = true;
+          stats.emissive = Math.max(stats.emissive ?? 0, performance.now() - te);
         }
         const want = lit && fr.night ? fr.night : fr.day;
         if (fr.body.material[4] !== want) { fr.body.material[4] = want; }
@@ -447,6 +476,7 @@ export function createView({ parent, bus, month = () => 11 }) {
       for (const h of s.heads) h.head.material = S.glow > 0.35 ? h.night : h.day;
       if (s.flipping?.length) flipSigns(s, state, S);           // (signs in a language you read, turning into English now and then)
     }
+    stats.night = performance.now() - tn;
     // (a shop's lights behind its façade light nothing you can see: only the shop you're in has its own; sim/interiors/shop.js)
     const near = lamps.filter(l => l.shop === undefined || l.shop === opened?.units[0].door).map(l => [l, (l.x - cam.x) ** 2 + (l.z - cam.z) ** 2]).sort((a, b) => a[1] - b[1]);
     slots.forEach((pair, i) => {
@@ -478,7 +508,9 @@ export function createView({ parent, bus, month = () => 11 }) {
     const pc = playerActor(state), seen = state.mind?.seen ?? {}, now = state.mind?.at;
     // (a scenario whose character takes in all of a small lit room shows it whole: aware)
     const aware = SCENARIOS[state.scenario.kind]?.aware?.(state);
+    const tf = performance.now();
     if (pc && !aware) fog(state, pc, S); else stage.setFog(null);
+    stats.fog = performance.now() - tf;
     const people = [];
     drawn.clear();
     const lookFor = (key) => (typeof key === 'string' ? state.people[key]?.look : lookOf(key));
@@ -523,12 +555,17 @@ export function createView({ parent, bus, month = () => 11 }) {
       const plates = typeof r[6] === 'string' ? armourPicture(state.people[r[6]]) : null;   // (a carrier's still on them as remembered)
       people.push({ key: plates ? `${r[6]}~${plates.color}${plates.patch ? 'p' : ''}` : r[6], look: plates ? { ...look, armour: plates } : look, x: r[0], z: r[1], face: r[2], gait: r[3], stride: r[4], phase: 0, t: r[5] / 1000, tint: lightAt(lamps, r[0], r[1], ms, S) });
     }
+    const tc = performance.now();
     crowd.update(people, t);
+    stats.crowd = performance.now() - tc;
     blood.update(state);
     traffic.update(state, alpha, S.glow > 0.35, pc && !aware ? (x, z) => fogAt(x, z) > 0.5 : null);
     tape.update(state);   // (only those in sight: the fog, as for people)                   // (the cars on the road, their lights on after dark: src/render/traffic.js)
     items.update(state);
+    const tr = performance.now();
     stage.render();
+    stats.render = performance.now() - tr; stats.frame = performance.now() - tFrame; stats.n++;
+    for (const k of ['frame', 'build', 'night', 'fog', 'crowd', 'render']) stats.max[k] = Math.max(stats.max[k] ?? 0, stats[k]);
     for (const s of dying) s.dispose();                            // (the last street's, now the next's have their shaders)
     dying.length = 0;
   }
@@ -582,6 +619,7 @@ export function createView({ parent, bus, month = () => 11 }) {
   // front, and goes with its building (a shop opened up hides it: the cutaway's byBuilding).
   const FLIP_HOLD_MS = 9000, FLIP_WIPE_MS = 450, FLIP_EN_MS = 3400, FLIP_CYCLE_MS = FLIP_HOLD_MS + 2 * FLIP_WIPE_MS + FLIP_EN_MS;
   const READS = new Set(['native', 'fluent', 'working']);
+  let flipsMade = 0;
   function flipSigns(s, state, S) {
     const P = state.people?.[state.player], city = state.map?.city ?? 'moscow', who = `${state.player}|${JSON.stringify(P?.langs ?? {})}`;
     const reads = (lang) => lang === 'en' || READS.has(P?.langs?.[lang]);
@@ -598,15 +636,18 @@ export function createView({ parent, bus, month = () => 11 }) {
       }
       if (!f.english) continue;
       if (!f.mesh) {
+        if (flipsMade++) continue;                                 // (a new board's frames a frame: a street's signs came all at once, 2026-11-04)
         const fl = signFlips(f.w, f.h, f.words, f.english, f.opts, { rtl: f.rtl, seed: f.seed, wall: f.wall });
         f.frames = fl.frames;
         f.mesh = new THREE.Mesh(new THREE.PlaneGeometry(fl.w, fl.h), fl.frames[0].day);
         f.mesh.position.set(f.x + f.w / 2, f.y + fl.h / 2, f.z + 0.012);
         f.mesh.userData.noId = true;                               // (no ink line round the board: it's the facade's own)
         s.group.add(f.mesh); s.byBuilding?.[f.building]?.push(f.mesh);
+        if (opened?.all === s.byBuilding?.[f.building] && over(f.mesh, opened.units[0])) opened.hidden.push(f.mesh);   // (made over the shop you're in: hidden with its front)
       }
       if (!f.mesh.parent) continue;
-      f.mesh.visible = true;
+      // (over the shop you're in, it goes with the front it's on: the user, 2026-11-04, a bookshop's board over its own inside)
+      f.mesh.visible = !opened?.hidden.includes(f.mesh);
       const t = (state.time.ms + (Math.round(f.x * 977) + f.seed * 131) % FLIP_CYCLE_MS) % FLIP_CYCLE_MS, N = f.frames.length - 1;
       const k = t < FLIP_HOLD_MS ? 0 : t < FLIP_HOLD_MS + FLIP_WIPE_MS ? Math.ceil((t - FLIP_HOLD_MS) / FLIP_WIPE_MS * N)
         : t < FLIP_HOLD_MS + FLIP_WIPE_MS + FLIP_EN_MS ? N : N - Math.ceil((t - FLIP_HOLD_MS - FLIP_WIPE_MS - FLIP_EN_MS) / FLIP_WIPE_MS * N);
@@ -654,6 +695,6 @@ export function createView({ parent, bus, month = () => 11 }) {
   /** Done with the view (a new game makes its own): its GPU context given back, not left for the browser to cap. */
   function dispose() { traffic.dispose(); tape.dispose(); clear(); for (const s of dying.splice(0)) s.dispose(); off.forEach(f => f()); fogTex.dispose(); crowd.atlas.dispose(); crowd.dispose(); stage.dispose(); }
 
-  return { stage, frame, resize, clear, dispose, flush: () => build(Infinity), canvas: stage.renderer.domElement, get camera() { return cam; }, posOf: (id) => drawn.get(id),
+  return { stage, frame, resize, clear, dispose, stats, flush: () => build(Infinity), canvas: stage.renderer.domElement, get camera() { return cam; }, posOf: (id) => drawn.get(id),
     fogAt };
 }

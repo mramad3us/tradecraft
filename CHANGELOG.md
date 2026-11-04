@@ -4,6 +4,13 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.29 (2026-11-04)
+
+- **Smoother on a slow machine, and when you run.** A performance pass on the heaviest street (Moscow at rush hour in the rain, running, the machine slowed six times over to stand in for a slow one). The sim was never the cost: 0.13 to 0.36 ms a tick. The hitches were the view's, painting the next street whole in a frame. Now the street's ground is painted a layer a frame, a building's front a few of its parts a frame, the furniture a few pieces a frame. The night faces come in as dusk falls, a step at a time, 2 ms a frame (one whole façade in a frame was 54 ms at that speed). A street built after dark paints its night faces as it's built. New faces in the crowd come in one a frame on a slow machine, more on a fast one, and a sign turning into English is painted one a frame. The worst frame running in Moscow went from 133 ms to 50, in Beirut from 133 to 83; walking holds 60 fps, the 99th percentile 16.8 ms. The view keeps what each part of its frame cost (`window.__tradecraft.view.stats`), for the next pass.
+- **A voice you can't see says where it is.** An officer out of the picture who shouts at you to drop it, or fires at you, is placed: "Right behind you, 7 m off, a shout: …", and the plaque at the picture's edge points to them for a few seconds (POLICE). If a patrol is already on the street when someone calls the police, the call's line says it won't wait for the call.
+- **A shop's board stays out of the shop.** In a city whose signs turn into English for you, the board over a shop you'd walked into (a Moscow bookshop's BOOKS) was drawn over its inside. It goes with the front now.
+- Tests: armed (an officer out of sight is placed by the shout).
+
 ## v0.1.28 (2026-11-04)
 
 - **No more streaks.** Someone put somewhere new in a tick (a passer-by brought back in at the street's edge, someone out of a door) used to be drawn gliding from where they'd been, a streak up or down the screen. Anyone who moves further than 1.5 m in a tick, more than anyone can run, is now drawn where they are.

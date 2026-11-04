@@ -36,7 +36,7 @@
 // the joints). The plain finish is untouched: sample 006 draws as it did.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { PX_PER_M, GLOWS, mat, glow, paint, tile, box, roundedBox, ground, part, pool, rng, text, textWidth, finish, tone, noise, tnoise, fineBricks, emissiveOf } from './pixelart.js';
+import { PX_PER_M, GLOWS, mat, glow, paint, paintSteps, tile, box, roundedBox, ground, part, pool, rng, text, textWidth, finish, tone, noise, tnoise, fineBricks, emissiveOf } from './pixelart.js';
 
 const M = PX_PER_M;
 const INK = 0x14151c;
@@ -862,10 +862,12 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
  * street's, for detail placed by where it is, so it matches across sections) and `leaves`, how much
  * of the autumn lies on the ground (0 … 1).
  */
-export function street({ x0, x1, zB, zK1, zK2, z1, zebra = null, pits = [], seed = 7, ox = 0, calm = false, look = null, zebraKind = 'white', rowSeed = 0, leaves = 0, city = null, areas = [], bays = [] }) {
+export function street(o) { const g = streetSteps(o); for (;;) { const r = g.next(); if (r.done) return r.value; } }
+/** street(), a step at a time (its painting's layers: fineStreet()): the section's build spreads it over frames (src/render/town.js). */
+export function* streetSteps({ x0, x1, zB, zK1, zK2, z1, zebra = null, pits = [], seed = 7, ox = 0, calm = false, look = null, zebraKind = 'white', rowSeed = 0, leaves = 0, city = null, areas = [], bays = [] }) {
   const W = Math.round((x1 - x0) * M), H = Math.round((z1 - zB) * M);
   const X = (x) => Math.round((x - x0) * M), Z = (z) => Math.round((z - zB) * M);
-  const tex = paint(W, H, (px) => {
+  const tex = yield* paintSteps(W, H, (px) => {
     if (finish.fine) return fineStreet(px, W, X, Z, { x0, x1, zB, zK1, zK2, z1, zebra, pits, seed, ox, calm, look, zebraKind, rowSeed, leaves, city, areas, bays });
     const r = rng(seed);
     const slabs = (za, zb) => {                                  // paving: 0.75 × 0.6 m slabs, a few odd ones
@@ -939,7 +941,7 @@ export function cell(i, j, s = 0) {
 // comes from its world place (cell(), rowSeed), so sections join without a seam; a change of make
 // comes only at breakX (a crossing's line). Clutter (puddles, manholes, litter, leaves) is placed by
 // the section's own dice, inside it.
-function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox = 0, calm = false, look = null, zebraKind = 'white', rowSeed = 0, leaves = 0, city = null, areas = [], bays = [] }) {
+function* fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox = 0, calm = false, look = null, zebraKind = 'white', rowSeed = 0, leaves = 0, city = null, areas = [], bays = [] }) {
   const r = rng(seed);
   const london = city === 'london', wet = 0;                         // (London's pavements were painted rain-dark, wet in a dry week: the weather darkens them now, by the ground's wet: src/render/view.js)
   const dust = city === 'cairo' ? 1 : city === 'beirut' ? 0.45 : 0;    // (sand in the gutters, on the kerbs)
@@ -1084,13 +1086,18 @@ function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox =
   };
 
   for (const [xa, xb, s] of spans) road(xa, xb, s.road);
-  for (const [xa, xb, s] of spans) { pave(Z(zB), Z(zK1), xa, xb, s.paveN); pave(Z(zK2), Z(z1), xa, xb, s.paveS); }
+  yield;                                                            // (between its layers: a frame each, built ahead: src/render/town.js)
+  for (const [xa, xb, s] of spans) pave(Z(zB), Z(zK1), xa, xb, s.paveN);
+  yield;
+  for (const [xa, xb, s] of spans) pave(Z(zK2), Z(z1), xa, xb, s.paveS);
+  yield;
   px(0, 0, W, 2, tone(0x7d756c, -0.04));                         // the foot of the buildings
   for (const [xa, xb, s] of spans) kerb(Z(zK1) - 2, true, xa, xb, s.kerb);
   px(0, Z(zK1) + 2, W, 1, 0x23252f);                             // the gutter
   for (let i = 0; i < W; i++) if (r() < 0.06) px(i, Z(zK1) + 2 + Math.floor(r() * 2), 1, 1, [0x8f6345, 0xb9862e, 0xc95c45, 0xdfe2e8][Math.floor(r() * 4)]);
   px(0, Z(zK2) - 1, W, 1, tone(AS, -0.1));
   for (const [xa, xb, s] of spans) kerb(Z(zK2), false, xa, xb, s.kerb);
+  yield;
   // The line down the middle and the zebra, the paint worn through in places.
   const worn = (x, y, w, h, c, wear = 0.22, s = 6) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) if (noise((x + i + ox) / 2, (y + j) / 2, seed + s) > wear) px(x + i, y + j, 1, 1, i === 0 || j === 0 ? tone(c, 0.02) : c); };
   const mid = Z((zK1 + zK2) / 2), zx = zebra ? [X(zebra[0]) - 10, X(zebra[1]) + 10] : [-1, -1];
@@ -1133,6 +1140,7 @@ function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox =
   }
   for (let i = ((24 - ox) % 128 + 128) % 128; i < W; i += 128) { px(i - 1, Z(zK1) + 2, 9, 5, tone(AS, -0.12)); px(i, Z(zK1) + 3, 7, 3, 0x23252f); for (let k = 1; k < 7; k += 2) px(i + k, Z(zK1) + 4, 1, 1, 0x6a7182); }   // drains
   // Manholes on the road, one or two, round or a square hatch; a utility hatch on a pavement now and then.
+  yield;
   for (let n = 0, count = 1 + (r() < 0.45 ? 1 : 0); n < count; n++) {
     const mx = 10 + Math.floor(r() * (W - 20)), mz = Z(zK1) + 10 + Math.floor(r() * Math.max(1, Z(zK2) - Z(zK1) - 20));
     if (zebra && mx > zx[0] - 6 && mx < zx[1] + 6) continue;
@@ -1172,6 +1180,7 @@ function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox =
     }
   }
   // Sand: drifted against the kerbs and along the walls' foot, a skin of it on the road's edges (Cairo's, Beirut's).
+  yield;
   if (dust) {
     const drift = (y0, dir, depth) => { for (let x = 0; x < W; x++) { const d = Math.max(0, Math.round((noise((x + ox) / 9, y0, seed + 17) - 0.35) * depth * 2 * dust)); for (let j = 0; j < d; j++) if (noise((x + ox) / 1.7, (y0 + j * dir) / 1.7, seed + 18) > 0.25 + j / (depth * 2)) px(x, y0 + j * dir, 1, 1, tone(DUST, (noise(x, j, seed + 19) - 0.5) * 0.08 - j * 0.01)); } };
     drift(Z(zK1) + 3, 1, 6); drift(Z(zK2) - 2, -1, 5); drift(2, 1, 4); drift(Z(z1) - 1, -1, 3);
@@ -1233,10 +1242,14 @@ function fineStreet(px, W, X, Z, { x0, zB, zK1, zK2, z1, zebra, pits, seed, ox =
 }
 
 /** A building's painted front, w × h metres: the wall ('brick', 'plaster' or 'concrete'), then draw(f) with painter() (see building()). */
-export function facade({ w, h, wall = 'brick', wallColor, draw, seed = 1, night = false, split = false }) {
-  return paint(Math.round(w * M), Math.round(h * M), (px) => {
+export function facade(o) { const g = facadeSteps(o); for (;;) { const r = g.next(); if (r.done) return r.value; } }
+/** facade(), a step at a time: the wall, then what's on it (a draw that's a generator yields between its parts: src/render/town.js runSteps()). */
+export function* facadeSteps({ w, h, wall = 'brick', wallColor, draw, seed = 1, night = false, split = false }) {
+  return yield* paintSteps(Math.round(w * M), Math.round(h * M), function* (px) {
     const f = wallOf(px, w, h, wall, wallColor, seed, night, split);
-    draw?.(f);
+    yield;
+    const it = draw?.(f);
+    if (it && typeof it.next === 'function') yield* it;
   }, { glows: GLOWS });
 }
 
@@ -1272,10 +1285,10 @@ export function keep(key, make) {
  * `kit`, what stands on a flat roof: 'ac' (an air-conditioning plant), 'chimneys', 'hut' (the stair's
  * head house), 'antenna', 'none'; placed by `seed` (none given: the plant, where it always stood).
  */
-export function building({ x0, x1, z, h, d = 8, wall = 'brick', wallColor, roof = 'flat', roofColor = 0x6a7182, kit = null, draw, seed = 1, night = false, split = false, stacks = null }) {
+export function building({ x0, x1, z, h, d = 8, wall = 'brick', wallColor, roof = 'flat', roofColor = 0x6a7182, kit = null, draw, seed = 1, night = false, split = false, stacks = null, painted = null }) {
   const w = x1 - x0;
   const g = new THREE.Group();
-  const front = facade({ w, h, wall, wallColor, draw, seed, night, split });
+  const front = painted ?? facade({ w, h, wall, wallColor, draw, seed, night, split });   // (painted: its front painted already, a step at a time: src/render/town.js)
   const sides = keep(`side-${wall === 'stucco' || wall === 'stone' ? 'plaster' : wall}`, () => mat(0, wall === 'brick' ? tile('brick', 1) : tile('plaster', 1)));
   const body = box(w, h, d, { front: mat(0, front), sides, top: mat(roofColor) });
   body.position.set((x0 + x1) / 2, 0, z - d / 2);

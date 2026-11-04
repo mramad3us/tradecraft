@@ -61,11 +61,20 @@ const modsOf = (p) => (CLASSES[p.cls]?.overskill && tradecraftMod(p.os) ? [{ why
 export const feltOf = (state, id) => { const f = state.mind?.felt?.[id]; return f && f.until >= state.time.ms ? f : null; };
 
 /** What's felt now, for the HUD: [{ id, why, grade, k, x, z, row, a }]. */
+// (a voice, a shot, heard from somewhere you can't see: where it came from, felt a few seconds, the fog lifted round it and
+// a plaque at the picture's edge if it's off it; the user, 2026-11-04, "who shouts to drop it ? I don't see any police near me")
+export const HEARD_S = 5;
+/** Actor a heard (a shout, a shot): a felt patch round them for HEARD_S, labelled (the plaque's word: 'Police'). */
+export function heardFrom(state, a, label = 'A voice') {
+  if (!a || !state.mind) return;
+  (state.mind.felt ??= {})[a.id] = { ox: 0, oz: 0, r: 3.5, k: 0.85, until: state.time.ms + HEARD_S * 1000, why: 'heard', grade: 1, ms: state.time.ms, path: [], label };
+}
+
 export function feltList(state) {
   const out = [];
   for (const id in state.mind?.felt ?? {}) {
     const f = feltOf(state, id), a = f && state.actors.find(o => o.id === id);
-    if (a) out.push({ id, why: f.why, grade: f.grade, k: f.k, x: a.x + f.ox, z: a.z + f.oz, row: a.row ?? state.map.row ?? 0, hidden: !!a.hidden, a });
+    if (a) out.push({ id, why: f.why, label: f.label, grade: f.grade, k: f.k, x: a.x + f.ox, z: a.z + f.oz, row: a.row ?? state.map.row ?? 0, hidden: !!a.hidden, a });
   }
   return out;
 }
@@ -74,7 +83,7 @@ export function feltList(state) {
 const inOwnEyes = (state, me, a) => !a.hidden && (a.row ?? state.map.row) === (state.map.row ?? 0) && visibility(state, { ...eyes(state, me), felt: null }, a.x, a.z) >= SEEN;
 
 /** Where someone is from you, in words, by the way you're facing. */
-function whereFrom(me, a) {
+export function whereFrom(me, a) {
   const off = Math.abs(wrap(Math.atan2(a.z - me.z, a.x - me.x) - (me.head ?? 0))), side = wrap(Math.atan2(a.z - me.z, a.x - me.x) - (me.head ?? 0)) > 0 ? 'right' : 'left';
   return off > 2.4 ? 'right behind you' : off > 1.4 ? `behind you, to your ${side}` : off > 0.7 ? `off to your ${side}` : 'ahead of you';
 }

@@ -47,6 +47,7 @@ import { check } from './checks.js';
 import { range, chance, pick, stream } from './rng.js';
 import { say } from './log.js';
 import { inView, eyes, sees, wrap, faceOf, lightHere } from './perception.js';
+import { whereFrom, heardFrom } from './sense.js';
 import { lightBand } from './light.js';
 import { hurt, injure, takes, kill, canStand, stateOf, addInjury } from './health.js';
 import { armourOf, bullet as armourBullet, dice as armourDice, stoppedInjury, helmetBullet } from './armour.js';
@@ -200,7 +201,9 @@ export function npcShot(state, bus, a, p, id, target, heldS = 0) {
   }
   if (target.who === state.player) state.$shotAtMs = state.time.ms;
   const who = cap(p.known === false ? p.seen ?? p.name ?? 'someone' : p.name ?? 'someone');
-  if (fired) say(state, bus, { kind: 'note', text: `${who} fires${fired > 1 ? `, ${fired} rounds` : ''}. ${hits ? last : 'Wide.'}` });
+  const unseen = target.who === state.player && !inView(state, a.id);   // (shot at from out of your sight: where from, and the muzzle's flash felt there: sim/sense.js)
+  if (fired && unseen) heardFrom(state, a, p.cls === 'cop' ? 'Police' : 'A gun');
+  if (fired) say(state, bus, { kind: 'note', text: `${unseen ? `${cap(whereFrom(target, a))}, ${Math.round(d)} m off: ` : ''}${who} fires${fired > 1 ? `, ${fired} rounds` : ''}. ${hits ? last : 'Wide.'}` });
   return fired ? fireMs(p, M, fired) : 400;
 }
 

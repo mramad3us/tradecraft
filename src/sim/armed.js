@@ -25,6 +25,8 @@
 // by their Weapon handling, its roll), one after another in real time: the draw, the safety or the selector, a
 // round chambered, a stoppage cleared, the aim (sim/shooting.js aimMs()), the shot (sim/shooting.js npcShot(),
 // the same odds as yours), the recovery. They stand while they do it (sim/agents.js: ai.gunner).
+import { whereFrom, heardFrom } from './sense.js';
+const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 import { policeHeat, POLICE_ARREST } from './police.js';
 import { isGun, armOf, modelOf, newGun, act as gunAct, ready, canDo, MODELS, KINDS } from './firearms.js';
 import { policeOf } from './countries/index.js';
@@ -99,7 +101,14 @@ export function second(state, bus, me) {
   }
   const on = cops(state).filter(c => c.alert), A2 = state.$alarm;
   if (on.length && A2) {
-    if (now - (A2.ordered ?? 0) >= ORDER_EVERY_S * 1000 && on.some(c => seesActor(state, c, me))) { A2.ordered = now; say(state, bus, { kind: 'note', text: policeOf(state.map).order ?? '"Police! Drop it!"' }); A2.since ??= now; }
+    const shouter = on.find(c => seesActor(state, c, me));
+    if (now - (A2.ordered ?? 0) >= ORDER_EVERY_S * 1000 && shouter) {
+      // (said by one of them who has you in sight: where from, if you can't see them; and heard, the fog lifted round them: sim/sense.js heardFrom())
+      A2.ordered = now; A2.since ??= now;
+      const order = policeOf(state.map).order ?? '"Police! Drop it!"', unseen = !inView(state, shouter.id);
+      say(state, bus, { kind: 'note', text: unseen ? `${cap(whereFrom(me, shouter))}, ${Math.round(Math.hypot(shouter.x - me.x, shouter.z - me.z))} m off, a shout: ${order}` : order });
+      heardFrom(state, shouter, 'Police');
+    }
     // (hands empty, and one of them close: taken in)
     if (!armed) {
       A2.empty = A2.empty ?? now;

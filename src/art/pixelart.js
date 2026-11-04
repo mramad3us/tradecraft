@@ -701,12 +701,21 @@ export function rng(seed) { let s = (seed >>> 0) || 1; return () => ((s = (s * 1
  * glowing pixels are found in that array as it's finished (glowRuns), so emissiveOf() never has to
  * read the canvas back from the GPU.
  */
-export function paint(w, h, draw, { repeat = false, glows = null } = {}) {
+export function paint(w, h, draw, opts = {}) {
+  const g = paintSteps(w, h, draw, opts);
+  for (;;) { const r = g.next(); if (r.done) return r.value; }
+}
+/**
+ * paint(), a step at a time: a draw that's a generator (yielding between its layers: a street's, pixeltown.js
+ * fineStreet()) yields here too, so the one who builds (src/render/town.js buildSection()) can spread a big
+ * painting over frames; its return, the texture. A plain draw runs at once.
+ */
+export function* paintSteps(w, h, draw, { repeat = false, glows = null } = {}) {
   const cv = document.createElement('canvas');
   cv.width = w; cv.height = h;
   const img = new ImageData(w, h), u32 = new Uint32Array(img.data.buffer);
   let lastC = null, lastV = 0;
-  draw((x, y, ww = 1, hh = 1, c = 0x14151c) => {
+  const it = draw((x, y, ww = 1, hh = 1, c = 0x14151c) => {
     if (ww < 0) { x += ww; ww = -ww; }
     if (hh < 0) { y += hh; hh = -hh; }
     const x0 = Math.max(0, x), x1 = Math.min(w, x + ww), y0 = Math.max(0, y), y1 = Math.min(h, y + hh);
@@ -714,6 +723,7 @@ export function paint(w, h, draw, { repeat = false, glows = null } = {}) {
     if (c !== lastC) { lastC = c; lastV = rgba(c); }
     for (let yy = y0; yy < y1; yy++) u32.fill(lastV, yy * w + x0, yy * w + x1);
   }, w, h);
+  if (it && typeof it.next === 'function') yield* it;
   cv.getContext('2d').putImageData(img, 0, 0);
   const t = new THREE.CanvasTexture(cv);
   t.magFilter = t.minFilter = THREE.NearestFilter;

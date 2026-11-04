@@ -101,7 +101,7 @@ function report(state, bus, me, now, row) {
     if (Math.hypot(caller.x - me.x, caller.z - me.z) < KNOW_M || seesActor(state, me, caller)) {
       c.known = true;
       const eta = etaOf(state, c);
-      say(state, bus, { kind: 'instinct', text: `Someone's on the phone, looking at ${a === me ? 'you' : shortName(state, a.who)}: police, an ambulance.${c.described ? ' And they\'re describing you as they talk.' : ''} ${eta.map(e => `${e.word}: ${e.text}`).join(', ')}.` });
+      say(state, bus, { kind: 'instinct', text: `Someone's on the phone, looking at ${a === me ? 'you' : shortName(state, a.who)}: police, an ambulance.${c.described ? ' And they\'re describing you as they talk.' : ''} ${cap(eta.map(e => `${e.word}: ${e.text}`).join(', '))}.${state.actors.some(o => o.cop && !o.unit && !o.hidden) ? ' A patrol\'s already on the street, though: they won\'t wait for the call.' : ''}` });   // (the call's squad and the patrol here: not the same men)
     }
   }
 }

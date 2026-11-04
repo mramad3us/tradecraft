@@ -40,7 +40,7 @@ import { frames, CELL, FRAMES, DIRS, FIGHT_FRAMES, GUN_FRAMES, flashOf } from '.
 import { PX_PER_M } from '../art/pixelart.js';
 
 export const ATLAS_PX = 4096;                                       // (110 people's sheets of 37 frames, in three bands)
-export const SHEETS_PER_FRAME = 2;
+export const SHEETS_PER_FRAME = 2, SHEET_MS = 1.5;              // (new faces a frame: one at least, a second only while the first took under SHEET_MS; a slow machine paints one)
 // (the frames of the street, painted with a new face; a fight's, the first time they fight; a gun's with a gun in hand)
 export const STREET = ['idle0', 'idle1', 'walk0', 'walk1', 'walk2', 'walk3', 'run0', 'run1', 'run2', 'run3', 'sit', 'reel', 'hail', 'phone'];
 const ON_STREET = new Set(STREET);                                  // (new faces painted a frame: a turn brings several into sight at once; the rest a frame or two on, still coming out of the dark)
@@ -106,13 +106,14 @@ export function createCrowd(scene, renderer) {
 
   // Slots: look key → { slot, seen }.
   const slots = new Map(), free = Array.from({ length: COLS * ROWS }, (_, i) => i);
-  let frameNo = 0, fresh = 0;
+  let frameNo = 0, fresh = 0, sheetMs = 0;
   /** A look's slot ({ slot, full }; painted now if it's new), or null: too many new this frame (own: yours, never put off). */
   function slotOf(key, look, own = false) {
     let s = slots.get(key);
     if (!s) {
-      if (fresh >= SHEETS_PER_FRAME && !own) return null;
+      if ((fresh >= SHEETS_PER_FRAME || (fresh && sheetMs > SHEET_MS)) && !own) return null;
       fresh++;
+      const t0 = performance.now();
       let i = free.pop();
       if (i === undefined) {                                       // full: reuse the longest unseen
         let worst = null;
@@ -123,6 +124,7 @@ export function createCrowd(scene, renderer) {
       drawSheet(i, look, GUNS.has(look.hand) ? ARMED : STREET);
       s = { slot: i, seen: 0, full: false };
       slots.set(key, s);
+      sheetMs += performance.now() - t0;
     }
     s.seen = frameNo;
     return s;
@@ -244,7 +246,7 @@ export function createCrowd(scene, renderer) {
    * draw (the view interpolates between ticks). frame: a gun's (gunPose()), over the gait's; flash: its muzzle alight.
    */
   function update(people, t) {
-    frameNo++; fresh = 0;
+    frameNo++; fresh = 0; sheetMs = 0;
     let i = 0, nf = 0;
     for (const p of people) {
       if (i >= MAX_PEOPLE) break;

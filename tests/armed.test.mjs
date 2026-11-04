@@ -105,4 +105,20 @@ export default [
       console.log(`      shot down, 20 s: ${fires() - f0} shots from him; your gun away, 15 s: ${g1 - g0} at you; ${v.log.some(l => /cuffs/.test(l)) ? 'cuffed' : 'covered'}`);
     },
   },
+  {
+    name: 'armed: an officer behind you, out of your sight, gives the order: the log says where from and how far, his voice felt (the plaque\'s "Police"); his shot too',
+    fn() {
+      const w = scene('beirut');
+      Object.assign(w.me, { head: 0, face: 'right' });                // (you facing away from him: he's 7 m behind you)
+      Object.assign(w.c, { x: w.me.x - 7, head: 0, face: 'right' });   // (and he facing you)
+      w.p.hand = newGun(w.p, 'makarov');
+      seconds(w, 2);
+      const said = w.log.find(l => /a shout:/.test(l)), felt = w.g.mind.felt?.[w.c.id];
+      assert(said && /behind you/.test(said) && felt?.why === 'heard' && felt.label === 'Police', `the order from behind: ${said ?? w.log.filter(l => /Drop|olice/.test(l)).join(' / ')}; felt ${felt?.why}`);
+      let shot = null;
+      for (let t = 0; t < 20 * 12 && !shot; t++) { step(w.g, {}, w.bus); shot = w.log.find(l => /fires/.test(l)); }
+      assert(!shot || /behind you/.test(shot), `his shot: ${shot}`);
+      console.log(`      "${said}"; ${shot ? `"${shot.slice(0, 90)}"` : 'no shot yet'}`);
+    },
+  },
 ];

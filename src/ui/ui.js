@@ -337,7 +337,7 @@ export function createUI({ input, cb }) {
       const rows = f.row - (state.map.row ?? 0), meF = state.actors.find(a => a.who === state.player);
       let fx = RES[0] / 2 + (f.x - cam0.x) * 16, fy = RES[1] / 2 + (f.z - cam0.z) * 16;
       if (rows) fy = rows < 0 ? -1e3 : 1e3;
-      const name = f.why === 'quarry' ? String(state.people[f.a.who]?.name ?? 'him').split(' ').at(-1) : 'Eyes', m = Math.round(Math.hypot(f.x - meF.x, f.z - meF.z));
+      const name = f.why === 'quarry' ? String(state.people[f.a.who]?.name ?? 'him').split(' ').at(-1) : f.why === 'heard' ? f.label ?? 'A voice' : 'Eyes', m = Math.round(Math.hypot(f.x - meF.x, f.z - meF.z));
       if (!rows && fx > 20 && fx < RES[0] - 20 && fy > 34 && fy < RES[1] - 20) {
         if (marked?.[f.id] >= 2) { t.hidden = true; return; }      // (a tail's: its own plaque's over him already)
         place(t, plaque({ text: name, style: 'felt', icon: 'eye' }), fx, fy - 2.5 * 16, k0); return;
