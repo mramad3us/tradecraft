@@ -54,6 +54,8 @@
 // weeks' work done well; c.over = { why: 'completed' }. **Leads** (DESIGN.md, Intelligence and leads): a
 // tail that sees the meeting identifies the contact, who becomes a target of his own (CONTACTS), the
 // next step; an asset trusted enough (TRUSTED) brings more (yield 2).
+// **The file** (record()): the career as the character sheet (C) shows it: the posting now, the postings before
+// it (c.career: promote()), every assignment done or missed and how it went as the officer knows it, the reviews.
 import { stream, int, pick, chance, range, weighted, hash } from './rng.js';
 import { sheet, streetLook } from './people.js';
 import { at, DAY, HOUR, MIN, calendar } from './clock.js';
@@ -62,6 +64,7 @@ import { fileOf, assetFile, targetName, briefOf, CRAFT, assetRolesOf } from './d
 import { outcomeWord } from './outcomes.js';
 import { CITIES, CITY_IDS, cityById, FIRST_TOUR_CITY } from './cities/index.js';
 import { missionXP, gain, level, progress } from './xp.js';
+import { fieldwork } from './rust.js';
 
 export const KINDS = {
   sdr: { name: 'An asset meeting', scenario: 'sdr', about: 'Meet the asset clean: a surveillance detection run to the bench, and only sit down if nobody\'s on you.' },
@@ -395,7 +398,9 @@ function miss(c, a) {
   c.log.push({ ms: a.to, text: a.kind === 'sdr' ? `Missed: ${who(c, a)} waited on the bench for nothing. Trust down.` : `Missed: ${who(c, a)}'s evening, unwatched.` });
   c.done.push(a);
 }
-const who = (c, a) => { const T = a.trip && c.posting.trips?.find(t => t.id === a.who); return (T ? T.asset?.codename ?? T.target?.name : a.kind === 'sdr' ? c.posting.assets.find(x => x.id === a.who)?.codename : c.posting.targets.find(x => x.id === a.who)?.name) ?? 'someone'; };
+/** Whom an assignment was about (an asset's codename, a target's name), or null (an asset arrested since: gone from the network). */
+const nameOf = (c, a) => { const T = a.trip && c.posting.trips?.find(t => t.id === a.who); return (T ? T.asset?.codename ?? T.target?.name : a.kind === 'sdr' ? c.posting.assets.find(x => x.id === a.who)?.codename : c.posting.targets.find(x => x.id === a.who)?.name) ?? null; };
+const who = (c, a) => nameOf(c, a) ?? 'someone';
 
 /**
  * Time passes in the campaign, from `from` to `to` (ms): the working days missed or worked (worked:
@@ -559,16 +564,19 @@ export function watched(c, door, ms, heat = c.posting.heat) {
 export function fold(c, a, sc, player, endMs, heatNow) {
   const p = c.posting;
   a.status = 'done'; a.ended = endMs; a.outcome = sc.outcome;
+  a.known = sc.outcome === 'made' && sc.madeSeen === false ? 'spooked' : sc.outcome;   // (as the officer knows it: made, but not seen made, is only "he was spooked"; the file says that: record())
   c.done.push(a);
   c.character = { ...structuredClone(player), id: 'me' };
   const lines = [];
   // (Tradecraft comes of doing it, slowly and slower as it climbs: the assignment's XP, by its kind, how it went, how hard and how risky; sim/xp.js)
   const T0 = a.trip ? p.trips?.find(t => t.id === a.who) : null, target = a.kind !== 'sdr' ? (T0?.target ?? p.targets.find(t => t.id === a.who)) : null;
-  const xp = missionXP({ kind: a.kind, outcome: sc.outcome === 'made' && sc.madeSeen === false ? 'spooked' : sc.outcome, craft: target?.craft ?? null, team: a.kind === 'sdr' ? sc.team ?? 'none' : 'none',
+  const xp = missionXP({ kind: a.kind, outcome: a.known, craft: target?.craft ?? null, team: a.kind === 'sdr' ? sc.team ?? 'none' : 'none',
     risk: cityById(T0?.city ?? p.city).station?.risk ?? 1, heat: heatNow ?? p.heat, trip: !!a.trip });
   gain(c.character, xp);
   const ups = level(c.character), pr = progress(c.character);
   lines.push(ups ? `Tradecraft ${pr.os}: you do this a little better now, and it shows on the street. (${xp} XP; ${pr.have} of ${pr.need} toward ${pr.os + 1}.)` : `${xp} XP from it: ${pr.words}.`);
+  const unrusted = fieldwork(c.character, endMs);                  // (out on it, however it went: the craft's core kept up, sim/rust.js; assignments not gone to never fold)
+  if (unrusted.length) lines.push(`${unrusted.length > 1 ? `${unrusted.slice(0, -1).join(', ')} and ${unrusted.at(-1)}` : unrusted[0]}: a day of it for real, and ${unrusted.length > 1 ? 'they\'re' : 'it\'s'} back to what ${unrusted.length > 1 ? 'they were' : 'it was'}.`);
   if (a.trip) return foldTrip(c, a, sc, endMs, heatNow, lines);
   if (heatNow !== undefined) p.heat = Math.max(20, Math.min(100, heatNow));
   if (a.kind === 'sdr') {
@@ -614,7 +622,7 @@ export function fold(c, a, sc, player, endMs, heatNow) {
   }
   goalMet(c, endMs, lines);
   plan(c, endMs);
-  return { title: `${KINDS[a.kind].name.toUpperCase()}: ${outcomeWord(a.kind, sc.outcome === 'made' && sc.madeSeen === false ? 'spooked' : sc.outcome).toUpperCase()}`, lines };   // (its words: sim/outcomes.js)
+  return { title: `${KINDS[a.kind].name.toUpperCase()}: ${outcomeWord(a.kind, a.known).toUpperCase()}`, lines };   // (its words: sim/outcomes.js)
 }
 
 
@@ -660,4 +668,23 @@ export function promote(c, city) {
   next.career = [...(c.career ?? []), { level: c.posting.level, city: c.posting.city, until: c.over?.ms ?? c.now }];
   next.posting.money.bank += c.posting.money.bank ?? 0;              // (the account goes with you: the new posting's first month on top)
   return next;
+}
+
+/**
+ * The career as the personnel file has it (the character sheet, C: src/ui/ui.js; the user, 2026-11-03: "show more
+ * information like character CV (including what is being written like current station and past stations, age
+ * etc)"). Plain data at game time ms, for the sheet to word: the posting now (the rank, the station, the cover,
+ * since when and the day of it, what the station wants and how much of it it has, the network, how it ended if it
+ * has), the postings before it (c.career: a first tour, say), every assignment done or missed, oldest first, each
+ * as the officer knows how it went (a.known: fold()), and the week's reviews.
+ */
+export function record(c, ms) {
+  const p = c.posting;
+  return {
+    rank: p.rank, agency: p.agency, level: p.level, city: p.city, job: p.job, since: p.startMs, day: Math.max(1, dayOf(ms) - dayOf(p.startMs) + 1),
+    subject: p.subject, intel: p.intelligence, goal: goalOf(p), network: p.assets.map(s => s.codename), over: c.over ? { why: c.over.why, ms: c.over.ms ?? null } : null,
+    past: (c.career ?? []).map(k => ({ rank: LEVELS[levelOf(k.level)].rank, city: k.city, until: k.until ?? null })),
+    done: c.done.map(a => ({ ms: a.ended ?? a.to, kind: a.kind, who: nameOf(c, a), trip: a.trip ?? null, missed: a.status === 'missed', word: a.status === 'missed' ? 'missed' : outcomeWord(a.kind, a.known ?? a.outcome), intel: a.intel ?? 0 })),
+    reviews: c.reviews.map(r => r.grade),
+  };
 }

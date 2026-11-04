@@ -778,6 +778,8 @@ function armFront(x0, kind, reach, side) {
     const up = ['......ss', '......ss', '.....tt.', '....tt..', '...tt...', '..tt....', '.tt.....', 'tt......', 'tt......', 't.......'];
     return side > 0 ? [x0, 10, up] : [x0 - 6, 10, up.map(r => [...r].reverse().join(''))];
   }
+  // (an umbrella up, from behind: the upper arm only, going forward, the hand out of sight before the chest)
+  if (reach === 'umbBack') return [side > 0 ? x0 : x0 + 0, 19, ['tt', 'tt', '.t']];
   // (an umbrella up: the forearm in, the fist before the chest, under the shaft)
   if (reach === 'umb') {
     const bent = ['tt.....', 'tt.....', '.tt....', '..ttt..', '....ss.'];
@@ -965,7 +967,7 @@ function compose(spec, dir, frame) {
       // (the umbrella's in the camera's left hand from the front, the right from behind: the same hand)
       if (l !== 'up') draw(armFront(5, kind, brolly && view === 'down' ? 'umb' : l, -1), 0, bob);
       hand = part;
-      if (r !== 'up') draw(armFront(16, kind, brolly && view === 'up' ? 'umb' : r, 1), 0, bob);
+      if (r !== 'up') draw(armFront(16, kind, brolly && view === 'up' ? 'umbBack' : r, 1), 0, bob);
       other = part;
       if (brolly && view === 'up') [hand, other] = [other, hand];
     }

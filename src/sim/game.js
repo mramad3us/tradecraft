@@ -40,7 +40,7 @@ import { drift, asOfficer, uniformed } from './people.js';
 import { heal, bleeding, bloodTick, bandOf, canStand, canRun, mobility, kill, BLOOD, COME_ROUND_S } from './health.js';
 import { PRESSURE_K, treat } from './aid.js';
 import { diagnose } from './diagnosis.js';
-import { atKerb, destinations, ride, cabFor, hailedBy, board, rideTick, chaseTick, WALK_OFF_M } from './taxi.js';
+import { atKerb, destinations, ride, cabFor, hailedBy, board, rideTick, chaseTick, WALK_OFF_M, BOARD_M } from './taxi.js';
 import { doWay, insideTick, withinTick, LIVED } from './shops.js';
 import * as buses from './buses.js';
 import * as metro from './metro.js';
@@ -251,9 +251,9 @@ export function step(state, input = {}, bus) {
     if (m) say(state, bus, { kind: 'note', text: `${Math.round(m)} minutes later, ${placeName(townOf(state.map), state.map.row ?? 0, me.x, 0)}: you pay, and get out.` });
   } else if (me) {
     const cab = cabFor(state, me), h = !cab && hailedBy(state, me);
-    if (cab && !cab.taxi.offered) { cab.taxi.offered = state.time.ms; if (me.busy?.what === 'hail') me.busy = null; bus?.emit('taxi', destinations(state, scenario)); }
+    if (cab && !cab.taxi.offered && Math.abs(cab.x - me.x) < BOARD_M) { cab.taxi.offered = state.time.ms; if (me.busy?.what === 'hail') me.busy = null; bus?.emit('taxi', destinations(state, scenario)); }
     if (h && me.busy?.what === 'hail' && Math.abs(h.x - me.x) > 18) me.busy.wait = 0;   // (the arm stays up till it's close)
-    if ((cab ?? h) && Math.abs((cab ?? h).taxi.hail.x - me.x) > WALK_OFF_M) { (cab ?? h).taxi.hail = null; (cab ?? h).taxi.stopped = 0; }
+    if ((cab ?? h) && Math.abs(((cab ?? h).taxi.hail.at ?? (cab ?? h).taxi.hail.x) - me.x) > WALK_OFF_M + Math.abs((cab ?? h).taxi.hail.x - ((cab ?? h).taxi.hail.at ?? (cab ?? h).taxi.hail.x))) { (cab ?? h).taxi.hail = null; (cab ?? h).taxi.stopped = 0; }   // (walked off from where you hailed it, past where it's stopping)
   }
   buses.waitTick(state, bus, me);                                  // (sat at a stop: the bus comes, waits, goes: sim/buses.js)
   const mine = me && state.people[me.who], fallen = mine && (mine.dead || !canStand(mine));

@@ -1,7 +1,7 @@
 // TRADECRAFT sim: a look at a body (the user, 2026-11-03: "woman shot twice in torso: reading them should give
 // us MUCH more information about what we can see, like them bleeding, entry wounds etc"; "medicine skill should
 // lead to us rolling for diagnosis"). What anyone can see of someone hurt, and what a Medicine roll finds
-// besides. Your read of someone (F, Read) and first aid (F, First aid; H on yourself) both show it
+// besides. Your read of someone (F, Read), first aid (F, First aid; H on yourself) and your sheet (C) show it
 // (src/ui/body.js: the figure, the wounds marked where they are, and the words); the body itself is
 // sim/health.js, its care sim/medicine.js and sim/aid.js.
 //

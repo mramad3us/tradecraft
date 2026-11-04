@@ -55,10 +55,22 @@ export const SHOP_EN = {
   pharmacy: ['PHARMACY'], grocery: ['GROCERY', 'FOOD'], cafe: ['CAFE'], flowers: ['FLOWERS'], bakery: ['BAKERY', 'BREAD'], books: ['BOOKS'],
   optician: ['OPTICIAN', 'GLASSES'], bank: ['BANK'], tobacco: ['TOBACCO', 'KIOSK'], exchange: ['EXCHANGE'], bar: ['BAR'], clothes: ['CLOTHES'],
   shoes: ['SHOES'], watches: ['WATCHES'], phones: ['PHONES'], shawarma: ['SHAWARMA'], beer: ['BEER'], deli: ['DELI'], restaurant: ['RESTAURANT', 'FOOD'],
-  gym: ['GYM'], club: ['KARATE CLUB', 'KARATE'], school: ['LANGUAGES'], manakish: ['FLATBREADS', 'BREAD'], sweets: ['SWEETS'], vegetables: ['VEGETABLES', 'GREENGROCER'],
+  gym: ['GYM'], club: ['KARATE CLUB', 'KARATE'], school: ['LANGUAGES'], culture: ['COMMUNITY CENTRE', 'CENTRE'], manakish: ['FLATBREADS', 'BREAD'], sweets: ['SWEETS'], vegetables: ['VEGETABLES', 'GREENGROCER'],
   butcher: ['BUTCHER'], barber: ['BARBER'], laundry: ['LAUNDRY'], juice: ['JUICE BAR', 'JUICE'], koshary: ['KOSHARY'], foul: ['BEANS & FALAFEL', 'FALAFEL'], spices: ['SPICES'],
 };
-export const SHOP_EN_CITY = { moscow: { club: ['SAMBO CLUB', 'SAMBO'] } };
+/**
+ * A park's kiosk (its feature: look, seed; sim/map/street.js) as its city has it: [sign, colour, sells]. A newsstand (look
+ * 'news') is signed its city's news; the rest one of the city's other kiosks, by the seed (the user, 2026-11-04: "why do
+ * newspaper booths read teas or cafe ?": the sign, the goods behind the glass, and what you buy at it agree).
+ */
+export function kioskOf(city, f) {
+  const K = cityById(city), news = K.kiosks.find(k => k[2] === 'news') ?? [K.news, 0x283f6b, 'news'];
+  if (f?.look === 'news') return [K.news ?? news[0], news[1], 'news'];
+  const sold = K.kiosks.filter(k => k[2] !== 'news');
+  const [sign, colour, sells = 'cafe'] = sold[(f?.seed ?? 0) % sold.length];
+  return [sign, colour, sells];
+}
+export const SHOP_EN_CITY = { moscow: { club: ['SAMBO CLUB', 'SAMBO'], culture: ['HOUSE OF CULTURE', 'CULTURE'] }, beirut: { culture: ['CULTURAL CENTRE', 'CULTURE'] }, cairo: { culture: ['PALACE OF CULTURE', 'CULTURE'] } };
 /** The language a sign's part is in, by its script and the city: Cyrillic Russian, Arabic Arabic, Latin French in Beirut, else English. */
 export const scriptLang = (part, city) => (/[\u0400-\u04FF]/.test(part) ? 'ru' : /[\u0600-\u06FF]/.test(part) ? 'ar' : city === 'beirut' ? 'fr' : 'en');
 
@@ -92,6 +104,8 @@ export const cityById = (id) => CITIES[id] ?? MOSCOW;
 
 /** The language a city's schools and grammars teach (an id): its station's learn, or the city's own (London's: Russian, the opposition's). */
 export const taughtIn = (city) => { const K = cityById(city); return K.station.learn ?? K.lang; };
+/** Every language a city's schools teach: the station's target's, the city's own, and its others (its profile's schoolLangs), not English (the user, 2026-11-04: "Beirut and Cairo don't speak russian"). */
+export const schoolLangs = (city) => { const K = cityById(city); return [...new Set([K.station.learn, K.lang, ...(K.schoolLangs ?? [])].filter(l => l && l !== 'en'))]; };
 
 /** A city's opposition as a brief names them at the head of a sentence (a profile): "The FSB", "The residency". */
 export const serviceOf = (K) => cap(K.station.opposition.short ?? K.station.opposition.the);

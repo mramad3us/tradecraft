@@ -34,16 +34,16 @@ import { Z } from './map/street.js';
 import { int, range, stream, chance } from './rng.js';
 import { place, onStreet } from './instinct.js';
 import { pay } from './money.js';
-import { LANE_Z, laneOf, dropTaxi, freeShare, sendFare, DROP_S } from './traffic.js';
+import { LANE_Z, laneOf, dropTaxi, freeShare, sendFare, DROP_S, BRAKE_MS2 } from './traffic.js';
 import { say } from './log.js';
 import { opposed } from './checks.js';
 import { skill } from './skills.js';
 import { seesActor } from './perception.js';
 import { RUSH_H } from './metro.js';
 
-export const KERB_M = 1.2;
-export const HAIL_NEAR_M = 12, HAIL_FAR_M = 90;                 // (a free taxi this far off up the lane: in sight, and room to stop)
-export const HAIL_HOLD_S = 5, RIDE_SHOW_S = 3.5, WALK_OFF_M = 6;
+export const KERB_M = 2.0;                                         // (at the kerb: this close to its edge, most of a pavement's near half)
+export const HAIL_NEAR_M = 12, HAIL_FAR_M = 90, HAIL_PAST_M = 6;   // (a free taxi alongside or just past you: it pulls in ahead, where it can stop: the user, 2026-11-04, "I'm on a curb, the taxi is right next to me")                 // (a free taxi this far off up the lane: in sight, and room to stop)
+export const HAIL_HOLD_S = 5, RIDE_SHOW_S = 3.5, WALK_OFF_M = 6, BOARD_M = 4;   // (BOARD_M: at its door, to be asked where to: a cab that pulled in ahead is walked to)
 export const HAIL_MIN = [1, 4];                                  // (waiting for one to stop)
 export const PER_ROW_MIN = 2.5;
 export const OFFSETS = [[-2, 'two streets north'], [-4, 'four streets north'], [2, 'two streets south'], [4, 'four streets south']];
@@ -63,8 +63,8 @@ export function taxiComing(state, a) {
   let best = null;
   for (const c of state.traffic?.cars ?? []) {
     if (!c.taxi?.free || c.taxi.hail || c.taxi.drop || Math.abs(c.z - lane) > 1.2) continue;
-    const d = (a.x - c.x) * c.dir;                                 // (how far up the lane from you: its way is toward you)
-    if (d >= HAIL_NEAR_M && d <= HAIL_FAR_M && (!best || d < best.d)) best = { c, d };
+    const d = (a.x - c.x) * c.dir;                                 // (how far up the lane from you: its way is toward you; alongside, or just past, it can still pull in ahead)
+    if (d >= -HAIL_PAST_M && d <= HAIL_FAR_M && (!best || Math.abs(d) < Math.abs(best.d))) best = { c, d };
   }
   return best?.c ?? null;
 }
@@ -73,7 +73,9 @@ export function taxiComing(state, a) {
 export function hail(state, bus, me) {
   const c = taxiComing(state, me);
   if (!c) { say(state, bus, { kind: 'instinct', text: 'No taxi coming with its light on.' }); return false; }
-  c.taxi.hail = { x: me.x, by: me.id };
+  // (where it can stop: by you, or as near ahead of you as its brakes allow; you walk the few steps to its door)
+  const need = (c.v * c.v) / (2 * BRAKE_MS2) + c.len / 2 + 1.5, stopX = (me.x - c.x) * c.dir < need ? c.x + c.dir * need : me.x;
+  c.taxi.hail = { x: stopX, by: me.id, at: me.x };
   const face = Math.abs(me.z - Z.kerbN) < KERB_M ? 'down' : 'up';
   me.busy = { what: 'hail', steps: [['wait', Math.round(HAIL_HOLD_S * 1000 / TICK_MS), face, 'hail']], wait: 0 };
   say(state, bus, { kind: 'note', text: 'An arm up at the kerb. The taxi\'s indicator blinks.' });

@@ -83,11 +83,11 @@ const SHOPS = {
   shoes: ['SHOES', 'SHOE REPAIRS'], watches: ['JEWELLER'], phones: ['MOBILE'], kebab: ['KEBAB'], beer: ['OFF LICENCE', 'WINES'],
   deli: ['DELI'], restaurant: ['TANDOORI', 'TRATTORIA', 'BISTRO'], chips: ['FISH & CHIPS'], laundry: ['LAUNDERETTE', 'DRY CLEANERS'],
   estate: ['ESTATE AGENTS'], barber: ['BARBER'], bookie: ['BETTING'],
-  gym: ['GYM', 'FITNESS'], club: ['JUDO CLUB', 'BOXING CLUB', 'KARATE'], school: ['LANGUAGES', 'LANGUAGE SCHOOL'],
+  gym: ['GYM', 'FITNESS'], club: ['JUDO CLUB', 'BOXING CLUB', 'KARATE'], school: ['LANGUAGES', 'LANGUAGE SCHOOL'], culture: ['COMMUNITY CENTRE', 'COMMUNITY HALL', 'INSTITUTE'],   // (INSTITUTE as wide as LANGUAGES: a school's board fits a centre's words, so the streets' draws are as they were)
 };
 const SHOP_WEIGHTS = [['grocery', 3], ['cafe', 3.5], ['pharmacy', 1.5], ['estate', 2], ['clothes', 1.5], ['flowers', 1], ['bakery', 1.2],
   ['books', 0.8], ['optician', 0.8], ['bank', 0.8], ['tobacco', 1.5], ['exchange', 0.5], ['shoes', 0.6], ['watches', 0.5], ['phones', 1],
-  ['kebab', 0.8], ['beer', 1], ['deli', 1], ['restaurant', 1.5], ['chips', 0.8], ['laundry', 1], ['barber', 1], ['bookie', 0.6], ['gym', 0.6], ['club', 0.4], ['school', 0.4]];
+  ['kebab', 0.8], ['beer', 1], ['deli', 1], ['restaurant', 1.5], ['chips', 0.8], ['laundry', 1], ['barber', 1], ['bookie', 0.6], ['gym', 0.6], ['club', 0.4], ['school', 0.25], ['culture', 0.15]];   // (culture: a community centre and its clubs, sim/clubs.js; the school's weight split, so every other shop is where it was)
 // Fascias: [ground, letters, border] — London's: dark grounds and gold, black and white, cream.
 const FASCIAS = [[0x173327, 0xe7b84a, 0x0e1f18], [0x23252f, 0xf6f4ee, 0x14151c], [0x1b2541, 0xf8e08a, 0x14151c], [0x6e2a2e, 0xf8e08a, 0x3f1a22],
   [0xf4efe6, 0x23252f, 0x8f96a6], [0x283f6b, 0xf6f4ee, 0x1b2541], [0x4c5262, 0xf6f4ee, 0x23252f], [0x9e3c36, 0xf6f4ee, 0x6e2a2e]];
@@ -375,6 +375,7 @@ const LOOKS = {
 
 export const LONDON = {
   id: 'london', name: 'London', country: 'gb', lang: 'en', geo: { lat: 51.51, lon: -0.19, tz: 0 }, drive: 'left',
+  schoolLangs: ['ar', 'fr', 'de', 'es', 'zh', 'fa'],                  // (what else its language schools teach, and its bookshops' grammars: sim/shops.js)
   // The station (DESIGN.md, Stations and countries): risk (sim/xp.js), watched (sim/campaign.js watched()); the opposition's the Russians'.
   station: {
     risk: 0.8, watched: 0.25, embassy: 'US Embassy', cover: 'First Secretary, Economic Section, US Embassy',
@@ -417,7 +418,7 @@ export const LONDON = {
   terrace: { court: 0.14, square: 0.05, crescent: 0.22, jog: 0.35 },
   courtName: (seed, row, i) => at(['Ledbury Court', 'Pember Yard', 'Archer Court', 'Rede Yard', 'Talbot Court', 'Elgin Yard', 'Basing Court', 'Hayden Court', 'Vernon Court'], seed, row, i, 'court'),
   squareName: (seed, row, i) => at(['Ladbroke Place', 'Pembridge Place', 'Clarendon Place', 'Lansdowne Place', 'Chepstow Place'], seed, row, i, 'square'),
-  kiosks: [['CAFE', 0x173327], ['TEAS', 0x6e2a2e], ['NEWS', 0x1b2541], ['ICES', 0x283f6b]], news: 'NEWS', stop: { frame: 0x23252f, roof: 0x23252f, sign: ['BUS STOP', 0x9e3c36, 0xf4efe6] }, bus: { kind: 'double', body: 0x9e3c36, stripe: 0x23252f, len: 10.5 },
+  kiosks: [['CAFE', 0x173327, 'cafe'], ['TEAS', 0x6e2a2e, 'tea'], ['NEWS', 0x1b2541, 'news'], ['ICES', 0x283f6b, 'ices']], news: 'NEWS', stop: { frame: 0x23252f, roof: 0x23252f, sign: ['BUS STOP', 0x9e3c36, 0xf4efe6] }, bus: { kind: 'double', body: 0x9e3c36, stripe: 0x23252f, len: 10.5 },
   people: {
     name: (r, sex) => londonName(r, sex),
     langs: (r) => ({ en: 'native', ...(chance(r, 0.25) ? { [pick(r, ['fr', 'es', 'pl', 'ar', 'hi', 'pt'])]: pick(r, ['working', 'fluent', 'native']) } : {}) }),

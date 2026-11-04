@@ -6,9 +6,11 @@
 // The streets are rows (row 0; −1 north, +1 south) and along each, sections of SECTION_M; the network
 // covers the middle of the city, AREA rows each way and AREA_I sections each way.
 //   - **Bus lines** (BUS_LINES of them, numbered as the city numbers its buses): each a route of stops,
-//     a stop a section of a street. It runs along a street two to four stops at a time, a section or
-//     two apart, then turns up or down a side street to the next street but one, and on along that.
-//     Both ways. A section a line stops in has a shelter (sim/map/street.js amenities() puts it, its
+//     a stop a section of a street. It runs along a street two to four stops at a time, then turns up
+//     or down a side street to the next street but one, and on along that. Both ways. On a street, no
+//     two stops are closer than STOP_GAP_I sections (thinned(): a line's stop that would be is moved to the
+//     one already there, the lines sharing it, as stops in a city are; the user, 2026-11-04: "bus stops
+//     should never be this close together"). A section a line stops in has a shelter (sim/map/street.js amenities() puts it, its
 //     exact x the street's), the lines on its sign. A bus goes only to the stops of its own line.
 //   - **The metro**, where the city has one (its profile's transit.metro, sim/cities/: London's
 //     Underground, Moscow's metro, Cairo's; Beirut's buses and service taxis are all it has): two or
@@ -24,6 +26,7 @@ import { stream, int, pick, chance, hash } from './rng.js';
 import { cityOf } from './cities/index.js';
 
 export const AREA = 6, AREA_I = 14, BUS_LINES = 6;
+export const STOP_GAP_I = 7;                                       // (sections between a street's stops at the least: 315 m, a city's spacing)
 export const STOP_MIN = 1.6, STATION_MIN = 2.2, CHANGE_MIN = 4, WAIT_MIN = 3;   // (a bus between stops; a train between stations; a change; the wait on the platform)
 
 const nets = new Map();
@@ -73,11 +76,32 @@ export function network(town) {
       lines.push({ id: 'm2', kind: 'metro', name: M.lines[2][0], colour: M.lines[2][1], stops: c });
     }
   }
+  thinned(lines.filter(L => L.kind === 'bus'));                    // (after every draw, so the metro's are as they were)
   const at = new Map(), stations = new Map();
   for (const L of lines) for (const s of L.stops) { const m = L.kind === 'bus' ? at : stations; m.set(key(s.row, s.i), [...(m.get(key(s.row, s.i)) ?? []), L.id]); }
   const net = { city, lines, at, stations, metro: M ?? null };
   nets.set(town, net);
   return net;
+}
+// (a street's stops STOP_GAP_I apart at the least: along it west to east, a stop too close to the last one kept is that
+// one; each line's stops moved to the kept ones, and the same stop twice running, or again later, dropped)
+function thinned(bus) {
+  const rows = new Map();
+  for (const L of bus) for (const s of L.stops) (rows.get(s.row) ?? rows.set(s.row, new Set()).get(s.row)).add(s.i);
+  const keep = new Map();
+  for (const [row, set] of rows) {
+    const kept = [];
+    for (const i of [...set].sort((a, b) => a - b)) if (!kept.length || i - kept.at(-1) >= STOP_GAP_I) kept.push(i);
+    keep.set(row, kept);
+  }
+  for (const L of bus) {
+    const seen = new Set(), out = [];
+    for (const s of L.stops) {
+      const i = nearestI(keep.get(s.row).map(k => ({ i: k })), s.i), k = key(s.row, i);
+      if (!seen.has(k)) { seen.add(k); out.push({ row: s.row, i }); }
+    }
+    L.stops = out;
+  }
 }
 const nearestI = (stops, i) => stops.reduce((best, s) => (Math.abs(s.i - i) < Math.abs(best - i) ? s.i : best), stops[0].i);
 

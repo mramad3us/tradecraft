@@ -4,6 +4,33 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.19 (2026-11-04)
+
+- **Hailing a taxi from either kerb, with one alongside.** You count as at the kerb within 2 m of its edge (it was 1.2), on the south pavement as on the north. A free taxi right next to you or just past you can be hailed now. Before, it had to be 12 to 90 m off. It pulls in a little ahead, where it can stop, and you're asked where to once you've walked to its door.
+- **Language schools teach more than one language.** Moscow's and London's teach Russian, Arabic, French, German, Spanish, Chinese and Persian; Beirut's and Cairo's Arabic, French, Russian, German and Spanish. A bookshop keeps grammars of three of them: the city's own, and two others. A grammar bought before is still the city's language.
+- **Community centres and their clubs.** Some of the language schools are community centres now: Moscow's House of Culture, London's community centre, Beirut's centre culturel, Cairo's Palace of Culture. Nothing else on the streets moved. At the desk is the week's timetable:
+  - the amateur dramatics (Deception and Social; Tue and Thu 19:00);
+  - the chess club (Analysis; Mon and Fri 18:30);
+  - the radio club (Tech; Wed 18:00);
+  - the first-aid course (Medicine; Tue and Fri 18:00);
+  - the dance class (Social; Wed and Sat 19:30);
+  - the walking club (Pathfinding; Sat 09:00);
+  - the photography club (Awareness and Tracking; Sun 10:00).
+
+  A club is open from an hour before it starts to 15 minutes after; you wait for the start, then sit it out. A session keeps its skill from rusting (two a month do it, and each takes a level of rust off) and trains it a little, up to 12. The dance class and the walking club count toward your fitness too. When a skill rusts, the note now says what keeps it up.
+- **Any assignment keeps the core four.** Going on an assignment, however it goes, takes all the rust off Deception, Tracking, Pathfinding and Awareness, and counts as that month's practice for them. Before, only the skills you rolled were kept up.
+- **Bus stops are at least 300 m apart on a street.** A line's stop that would be closer joins the one already there, and the lines share it. Parked cars and notice boards move with them; nothing else does.
+- **Park kiosks sell what their signs say.** A newsstand is signed as one; the others are coffee, tea, ice cream, flowers, ka'ak or cold drinks, with matching goods behind the glass, and that's what you buy there.
+- **The umbrella from behind:** the hand holding it no longer shows through your back.
+- Tests: `tests/clubs.test.mjs` (a centre's week, a session, a club not meeting, in four cities); fitness (fieldwork clears the core four); taxi (the south kerb, a taxi alongside); the cities golden hashes re-set on purpose (a centre where a school was; the stops apart).
+
+- **The character sheet (C), redone.** It's dark now, like your read of someone and the first-aid card, and in four columns:
+  - **On you:** your figure as you look right now, with your wounds drawn on it and numbered, and a line for each, as on the read. Below that, your blood and how long it gives you, pain, cold or heat, tiredness, hunger, how fit you are and this week's training, and what you're carrying. A crack or bleeding inside only shows once you've had a look at yourself (H), as with anyone else.
+  - **What you are:** Tradecraft, with the XP to the next point and what it lets you feel, then the skills table: level, practice, the × Tradecraft column, the value, and the rusty and kept-up/let-go marks.
+  - **The file:** age, sex, languages, background, and for a legend why they came back. In the campaign it also has the posting (rank, station, since when and which day it is, the cover, the tasking and how much you've delivered, the network, how the heat and the embassy look to you), the postings before it, the assignments done and missed (the last four, each ending as you know it, so a target you spooked without seeing it shows as "he was spooked"), and the weekly reviews. In the free walk it's you and your cover.
+  - It fits a 1280×720 window. On a smaller one the file moves under the rest, in three columns.
+- Tests: `tests/campaign.test.mjs` (the file's record: postings before, assignments done and missed, a spooked target as the officer knows it, the reviews).
+
 ## v0.1.18 (2026-11-03)
 
 - **The coat off at the door.** Coming into the flat, your coat goes on the hook by the door (its pockets still yours while you're in) and the umbrella in the stand. You wear what you wear indoors: the last top you had on inside, else a jumper from the wardrobe. Going out, the door asks which coat (the one on the hook, any in the wardrobe, or none) and whether you take the umbrella. The coat you leave behind goes in the wardrobe. Step away from the door to stay in.

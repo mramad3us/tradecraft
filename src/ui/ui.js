@@ -1,8 +1,9 @@
 // TRADECRAFT ui: the screens. The title sheet, the frame the picture sits in, the HUD over it (the
 // watch, where you are and the weather, the log's lines as they come, the keys, a scenario's marker over its target and the
-// instinct's line), and the sheets laid over it: the menu (Esc), the log (J), the character sheet (C:
-// the over-skill, the skills, health part by part), a test's brief before it starts and its result
-// when it ends; F's menu over whoever's within reach (Talk, Violence and its openings, Read, First aid:
+// instinct's line), and the sheets laid over it: the menu (Esc), the log (J), the character sheet (C,
+// on the read's glass: your body as you know it (the figure, your wounds marked, src/ui/body.js), the
+// over-skill and the skills, and the file: who you are, the posting, the record, sim/campaign.js record()),
+// a test's brief before it starts and its result when it ends; F's menu over whoever's within reach (Talk, Violence and its openings, Read, First aid:
 // sim/interact.js); your read of them, their body as a look shows it (src/ui/body.js, sim/diagnosis.js: the
 // figure, the wounds marked, as they are this moment) beside their sheet as you guess it (sim/know.js),
 // and first aid from it (the aid key) if they're in reach; first aid's card, the same body over what can be
@@ -21,7 +22,7 @@ import { LANG_NAME } from '../sim/langs.js';
 import { shopWord } from '../sim/shops.js';
 import { needsWords } from '../sim/needs.js';
 import { price, cashOf } from '../sim/money.js';
-import { clockText, stampText, dateText } from '../sim/clock.js';
+import { clockText, stampText, dateText, MONTHS } from '../sim/clock.js';
 import { checkText, checkShort, won as rollWon } from '../sim/checks.js';
 import { SCENARIOS } from '../sim/scenarios/index.js';
 import { placeName } from '../sim/map/street.js';
@@ -30,8 +31,11 @@ import { SCREEN_HALF_M } from '../sim/crowd.js';
 import { SKILLS, CLASSES, TRAINED, skill, rawSkill } from '../sim/skills.js';
 import { feelWords, feltList } from '../sim/sense.js';
 import { sharpM } from '../sim/perception.js';
-import { PARTS, stateOf, stateText, injuriesOn, FITNESS_K } from '../sim/health.js';
+import { PARTS, stateOf, FITNESS_K } from '../sim/health.js';
 import { weekWords } from '../sim/fitness.js';
+import { record } from '../sim/campaign.js';
+import { progress } from '../sim/xp.js';
+import { readOf } from '../sim/belief.js';
 import { rustOff } from '../sim/rust.js';
 import { atHand, options as interactOptions } from '../sim/interact.js';
 import { allowed, cqcOf, BREAK_CQC } from '../sim/cqc.js';
@@ -43,7 +47,7 @@ import { options as aidOptions, bodyLine } from '../sim/aid.js';
 import { findings, hurtAtAll } from '../sim/diagnosis.js';
 import { figure, words, optionTag } from './body.js';
 import { calendar as calendarOf, DAY as DAY_MS } from '../sim/clock.js';
-import { bleedRate, bloodOf, bandOf, BLOOD } from '../sim/health.js';
+import { bloodOf, BLOOD } from '../sim/health.js';
 import { openTubeMap } from './tubemap.js';
 import { openPockets } from './pockets.js';
 import { kitWords, onYou, painOf, painBand, feverOf } from '../sim/medicine.js';
@@ -51,7 +55,6 @@ import { RANK as RANKS } from '../sim/instinct.js';
 import { weatherAt } from '../sim/weather.js';
 
 const AID_REACH_M = 2.5;                                           // (first aid from your read: as near as it has to be to be given, sim/game.js)
-const BAND_WORDS = { steady: 'steady', pale: 'pale, light-headed', shock: 'in shock', collapsed: 'collapsed', dead: 'gone' };
 /** Pain and fever, as '; in pain, feverish', or '' (sim/medicine.js). */
 const bodyWords = (p) => { const w = [painBand(painOf(p, stateOf, Object.keys(PARTS)))?.word, feverOf(p)?.word, p.sick?.kind === 'cold' && 'a heavy cold', p.shiver ? 'shivering, wet through' : (p.wet ?? 0) >= 60 ? 'wet through' : (p.wet ?? 0) >= 30 ? 'damp' : null, p.dosed && 'on painkillers'].filter(Boolean); return w.length ? `; ${w.join(', ')}` : ''; };
 
@@ -641,46 +644,100 @@ export function createUI({ input, cb }) {
     menu.hidden = true;
   }
   // ---------- the character sheet (C) ----------
+  // (the read's dark glass, and its body: your figure as you are this moment, your wounds marked and numbered, the
+  // words under the same plaques (src/ui/body.js; on yourself you know your own: sim/diagnosis.js); what you are, the
+  // over-skill and the skills; and the file, who you are and the career, as the station keeps it (sim/campaign.js record()))
   const LEVEL = Object.fromEntries(Object.entries(TRAINED).map(([k, v]) => [v, k]));
+  const STAGE_WORDS = { shivering: 'shivering', hypothermia: 'hypothermia', severe: 'hypothermia, badly', collapse: 'collapsed with the cold', hot: 'too hot', exhaustion: 'heat exhaustion', stroke: 'heat stroke' };
+  const OVER_WORDS = { expelled: 'Declared persona non grata', completed: 'Done: the station has what it wanted', promoted: 'Promoted: a posting of your own to come' };
+  // (a date as a file writes it: "2 Nov 2026"; in the year it's written in, "16 Nov"; a month: "Oct 2025")
+  const fileDate = (ms, now = null) => { const k = calendarOf(ms); return `${k.day} ${MONTHS[k.month - 1].slice(0, 3)}${now !== null && calendarOf(now).year === k.year ? '' : ` ${k.year}`}`; };
+  const fileMonth = (ms) => { const k = calendarOf(ms); return `${MONTHS[k.month - 1].slice(0, 3)} ${k.year}`; };
+  /** An assignment in the file's words: "A tail on Orlov", "A photograph of …, in Beirut". */
+  const opWords = (d) => {
+    const what = d.who ? ({ sdr: `a meeting with ${d.who}`, tail: `a tail on ${d.who}`, watch: `a photograph of ${d.who}` })[d.kind] : ({ sdr: 'an asset meeting', tail: 'a tail', watch: 'a photograph' })[d.kind] ?? 'an assignment';
+    return `${cap(what)}${d.trip ? `, in ${cityById(d.trip).name}` : ''}`;
+  };
   function openSheet(state) {
-    const p = state.people[state.player], cls = CLASSES[p.cls], os = p.os ?? 0;
-    const rows = Object.entries(SKILLS).map(([k, sk]) => {
-      const [base = 0, practice = 0] = p.skills?.[k] ?? [], w = cls?.weights[k] ?? 0, bg = Math.min(practice, p.bg?.points?.[k] ?? 0);
+    const p = state.people[state.player], cls = CLASSES[p.cls], os = p.os ?? 0, now = state.time.ms, c = state.campaign;
+    // (who they are: the sheet's own, or, in an assignment's scene (whose officer is the scene's copy), the campaign's)
+    const cv = (k) => p[k] ?? c?.character?.[k];
+    const me = state.actors.find(a => a.who === state.player), f = findings(state, p, { actor: me, self: true });
+    const row = (k, ...v) => el('p', { className: 'cs-row' }, el('span', { className: 'cs-k' }, k), ' ', ...v);
+    // (the file: who (the cover, in the free walk), the posting, the record; three sections, side by side where the file's laid under the rest)
+    const R = c ? record(c, now) : null, rd = c ? readOf(c, p, now) : null;
+    const langs = Object.entries(cv('langs') ?? {}).map(([k, l]) => `${LANG_NAME[k] ?? k} (${l})`).join(', ');
+    const sexWord = cv('sex') === 'f' ? 'female' : 'male';
+    const sec = (...kids) => el('div', { className: 'cs-sec' }, ...kids);
+    const file = [
+      sec(el('h3', {}, 'The file'),
+        row(cv('age') ? 'Age' : 'Sex', cv('age') ? `${cv('age')}, ${sexWord}` : cap(sexWord)),
+        langs ? row('Languages', langs) : null,
+        cv('background') ? row('Background', cv('background')) : null,
+        cv('anew') ? row('Back', cv('anew')) : null,                   // (a legend's reason for starting again)
+        !R && state.legend?.name ? row('Cover', state.legend.name) : null),
+      ...(R ? [
+        sec(el('h3', {}, 'The posting'),
+          row('Post', `${R.rank}, ${R.agency}, Station ${cityById(R.city).name}`),
+          row('Since', `${fileDate(R.since)}: day ${R.day}`),
+          row('Cover', R.job),
+          row('Tasking', `${cap(R.subject)}. Delivered: ${R.intel} of ${R.goal}`),
+          row('Network', R.network.length ? R.network.join(', ') : R.level === 'junior' ? 'none of your own on a first tour' : 'nobody left'),
+          row('Heat', rd.heat.text), row('Embassy', rd.cover.text),
+          R.over ? row('Ended', `${OVER_WORDS[R.over.why] ?? R.over.why}${R.over.ms ? `, ${fileDate(R.over.ms, now)}` : ''}.`) : null),
+        sec(el('h3', {}, 'The record'),
+          ...R.past.map(k => row('Before', `${k.rank}, Station ${cityById(k.city).name}${k.until ? `, to ${fileMonth(k.until)}` : ''}`)),
+          row('Assignments', R.done.length ? `${R.done.filter(d => !d.missed).length} done${R.done.some(d => d.missed) ? `, ${R.done.filter(d => d.missed).length} missed` : ''}${R.done.length > 4 ? '; the last four:' : ':'}` : 'none yet'),
+          R.done.length ? el('ul', { className: 'cs-ops' }, ...R.done.slice(-4).map(d => el('li', { className: d.missed ? 'missed' : '' }, el('time', {}, fileDate(d.ms, now)), el('span', {}, `${opWords(d)}: ${d.word}`)))) : null,
+          R.reviews.length ? row('Reviews', `${R.reviews.slice(-6).join(', ')}${R.reviews.length > 6 ? ` (the last six of ${R.reviews.length})` : ''}`) : null),
+      ] : []),
+    ];
+    // (what you are: the over-skill, its XP, its feel; the skills)
+    const skillRow = ([k, sk]) => {
+      const [base = 0, practice = 0] = p.skills?.[k] ?? [], w = cls?.weights[k] ?? 0, bg = Math.min(practice, p.bg?.points?.[k] ?? 0), rust = p.rust?.[k] ? rustOff(p, k, rawSkill(p, k)) : 0;
       return el('tr', { className: base ? '' : 'none' },
-        el('td', { textContent: sk.name, title: sk.about }),
-        el('td', { className: 'lvl', textContent: `${LEVEL[base] ?? `base ${base}`}${practice ? ` ${'◆'.repeat(bg)}${'•'.repeat(practice - bg)}` : ''}${p.rust?.[k] && rustOff(p, k, rawSkill(p, k)) ? ` · rusty −${rustOff(p, k, rawSkill(p, k))}` : ''}${k === 'fitness' && p.fit?.off ? ` · ${p.fit.off > 0 ? 'kept up' : 'let go'} ${p.fit.off > 0 ? '+' : ''}${p.fit.off}` : ''}`, title: [bg ? `${bg} from your background` : '', p.rust?.[k] ? 'Rusty: unpractised a month or more. Two sessions a month keep it; each one takes a step of rust away.' : ''].filter(Boolean).join(' · ') }),
+        el('td', { className: 'name', textContent: sk.name, title: sk.about }),
+        el('td', { className: 'lvl', title: [bg ? `${bg} from your background` : '', rust ? 'Rusty: unpractised a month or more. Two sessions a month keep it; each one takes a step of rust away.' : ''].filter(Boolean).join(' · ') },
+          LEVEL[base] ?? `base ${base}`, practice ? el('span', { className: 'dots' }, ` ${'◆'.repeat(bg)}${'•'.repeat(practice - bg)}`) : null,
+          rust ? el('span', { className: 'off' }, ` rusty −${rust}`) : null,
+          k === 'fitness' && p.fit?.off ? el('span', { className: p.fit.off > 0 ? 'up' : 'off' }, ` ${p.fit.off > 0 ? 'kept up +' : 'let go '}${p.fit.off}`) : null),
         el('td', { className: 'mult', textContent: w && os ? `× ${(1 + w * os / 100).toFixed(2)}` : '' }),
         el('td', { className: 'val', textContent: String(skill(p, k)) }));
-    });
-    const part = (k) => el('div', { className: `part ${k} ${stateOf(p, k)}`, title: `${PARTS[k].name}: ${stateText(p, k)}` });
-    const fit = skill(p, 'fitness');
-    card.replaceChildren(el('div', { className: 'sheet charsheet' },
-      el('span', { className: 'stamp', textContent: 'PERSONNEL' }),
-      el('h2', { textContent: p.name.toUpperCase() }),
-      el('p', { className: 'note', textContent: [state.legend?.name, cls?.name].filter(Boolean).join(' · ') }), el('hr'),
-      cls?.overskill ? el('div', { className: 'os' }, el('span', { textContent: cls.overskill }), el('span', { className: 'bar' }, el('i', { style: `width: ${os}%` })), el('b', { textContent: `${os} / 100` })) : null,
-      cls?.overskill ? el('p', { className: 'note', textContent: `The over-skill: it multiplies the skills that matter to a ${cls.name.toLowerCase()} (the × column).` }) : null,
-      cls?.overskill ? (() => { const f = feelWords(p); return el('p', { className: 'note', textContent: `And it's a feel: eyes on you out to ${f.eyesM} m (an overt pair ${f.overt}, a good team ${f.covert}); whoever you're after, out of your sight, out to ${f.quarryM} m (at 60 m, ${f.quarry}). What you feel, you see.${sharpM(os) >= 0.5 ? ` The edge of your eye reaches ${Math.round(sharpM(os))} m further.` : ''}` }); })() : null,
-      el('div', { className: 'cols' },
-        el('div', {},
-          el('table', { className: 'skills' }, el('tbody', {}, rows)),
-          el('p', { className: 'note', textContent: `The level is the training you had (a course, advanced…); each • is practice since, ${p.bg ? 'each ◆ what your background brought, ' : ''}a point each.` }),
-          (() => { const nw = needsWords(p, state.time.ms); return el('p', { className: 'langs', textContent: `${nw.fed[0].toUpperCase()}${nw.fed.slice(1)} · ${nw.stress}${nw.hungry || nw.edgy ? ' (it costs: see a roll\'s modifiers)' : ''} · ${price(state, cashOf(p))} on you` }); })(),
-          el('p', { className: 'langs', textContent: Object.entries(p.langs ?? {}).map(([c, l]) => `${LANG_NAME[c] ?? c}: ${l}`).join(' · ') }),
-          el('p', { className: 'langs', textContent: `Carrying: ${[p.hand && `${thingName(p.hand)}, in hand`, ...(p.items ?? []).map(k => thingName(k))].filter(Boolean).join('; ') || 'nothing to fight with'}. (${input.label('inventory')})` })),
-        el('div', { className: 'body' },
-          el('div', { className: 'figure' }, part('head'), part('armR'), part('torso'), part('armL'), part('legR'), part('legL')),
-          el('ul', {}, Object.keys(PARTS).map(k => el('li', { className: `${stateOf(p, k)}${injuriesOn(p, k) ? ' injured' : ''}` }, el('span', { textContent: PARTS[k].name }), el('span', { textContent: stateText(p, k) }),
-            injuriesOn(p, k, state.time.ms) ? el('small', { textContent: injuriesOn(p, k, state.time.ms) }) : null))),
-          bodyWords(p) ? el('p', { className: 'blood pale', textContent: `${bodyWords(p).slice(2).replace(/^./, c => c.toUpperCase())}. What it costs shows in a roll's modifiers.` }) : null,
-          p.strain ? el('p', { className: 'blood pale', textContent: `Tired: ${p.strain} to every skill, until you sleep.` }) : null,
-          stageOf(p) ? el('p', { className: 'blood shock', textContent: `${Math.round((p.core ?? 37) * 10) / 10} °C: ${({ shivering: 'shivering', hypothermia: 'hypothermia', severe: 'hypothermia, badly', collapse: 'collapsed with the cold', hot: 'too hot', exhaustion: 'heat exhaustion', stroke: 'heat stroke' })[stageOf(p).id] ?? stageOf(p).id}: get ${p.core < 37 ? 'warm' : 'cool'}, and soon.` }) : null,   // (the cold or the heat in you: sim/thermal.js)
-          el('p', { className: `blood ${bandOf(p)}`, textContent: `Blood ${Math.round(bloodOf(p))}%: ${BAND_WORDS[bandOf(p)]}${bleedRate(p, state.time.ms) ? `; bleeding ${bleedRate(p, state.time.ms) >= 8 ? 'fast' : bleedRate(p, state.time.ms) >= 0.8 ? 'steadily' : 'a little'} (${input.label('aid')}: first aid)` : ''}.` }),
-          el('p', { className: 'note', textContent: `Fitness ${fit}: the body takes ${fit ? `${Math.round(100 * fit / FITNESS_K)}% more` : 'only what it takes'} before it gives.` }),
-          // (how fit you're keeping: this week's training against what your base asks: sim/fitness.js)
-          state.campaign ? (() => { const W = weekWords(p, state.time.ms); return el('p', { className: 'note', textContent: `Your base is ${W.base}${W.off ? `, and you're ${W.off > 0 ? `${W.off} above it` : `${-W.off} below it`}` : ''}. This week's training: ${W.load}; ${W.hold} keeps you as you are${W.up ? `, ${W.up} makes you fitter` : W.cap === 0 ? '; at the top, nothing takes you above it' : ''}.` }); })() : null)),
-      el('p', { className: 'note', textContent: `${input.label('sheet')} or ${input.label('menu')} to close.` }),
-    ));
+    };
+    const pr = progress(p), feel = cls?.overskill ? feelWords(p) : null;
+    const what = [
+      el('h3', {}, 'What you are'),
+      cls?.overskill ? el('div', { className: 'cs-os' }, el('span', {}, cls.overskill), el('span', { className: 'read-bar' }, el('i', { style: `left: 0; width: ${os}%` })), el('b', {}, `${os} / 100`)) : null,
+      cls?.overskill ? el('p', { className: 'mind-note' }, `${os >= 100 ? '' : `${pr.have} of ${pr.need} XP toward ${os + 1}. `}It multiplies the skills that matter to a ${cls.name.toLowerCase()} (×). And it's a feel: eyes on you to ${feel.eyesM} m (an overt pair ${feel.overt}, a good team ${feel.covert}); whoever you're after, out of sight, to ${feel.quarryM} m (at 60 m, ${feel.quarry}).${sharpM(os) >= 0.5 ? ` The edge of your eye reaches ${Math.round(sharpM(os))} m further.` : ''}`) : null,
+      el('table', { className: 'cs-skills' }, el('tbody', {}, Object.entries(SKILLS).map(skillRow))),
+      el('p', { className: 'mind-note' }, `The level's your training; • a point of practice since${p.bg ? ', ◆ one your background brought' : ''}.`),
+    ];
+    // (on you: the body as you know it, then what else it's going through: the pain, the cold, the hours awake, the stomach; how fit; what's on you)
+    const fit = skill(p, 'fitness'), nw = needsWords(p, now), W = c ? weekWords(p, now) : null;
+    const more = [
+      bodyWords(p) && { text: `${cap(bodyWords(p).slice(2))}. It shows in a roll's modifiers.`, tone: 'mid' },
+      p.strain && { text: `Tired: ${p.strain} to every skill, until you sleep.`, tone: 'mid' },
+      stageOf(p) && { text: `${Math.round((p.core ?? 37) * 10) / 10} °C: ${STAGE_WORDS[stageOf(p).id] ?? stageOf(p).id}. Get ${p.core < 37 ? 'warm' : 'cool'}, and soon.`, tone: 'bad' },   // (the cold or the heat in you: sim/thermal.js)
+      { text: `${cap(nw.fed)}; ${nw.stress}${nw.hungry || nw.edgy ? ' (it costs: see a roll\'s modifiers)' : ''}.`, tone: nw.hungry || nw.edgy ? 'mid' : 'calm' },
+    ].filter(Boolean);
+    const body = [
+      el('h3', {}, 'On you'), words(el, f, { self: true, more }),
+      el('h3', {}, 'Fitness'),
+      el('p', { className: 'cs-line' }, `Fitness ${fit}: the body takes ${fit ? `${Math.round(100 * fit / FITNESS_K)}% more` : 'only what it takes'} before it gives.`),
+      // (how fit you're keeping: this week's training against what your base asks: sim/fitness.js)
+      W ? el('p', { className: 'cs-line' }, `Your base is ${W.base}${W.off ? `, and you're ${W.off > 0 ? `${W.off} above it` : `${-W.off} below it`}` : ''}. This week's training: ${W.load}; ${W.hold} keeps you as you are${W.up ? `, ${W.up} makes you fitter` : W.cap === 0 ? '; at the top, nothing takes you above it' : ''}.`) : null,
+      el('h3', {}, 'Carrying'),
+      el('p', { className: 'cs-line' }, `${price(state, cashOf(p))}; ${[p.hand && `${thingName(p.hand)}, in hand`, ...(p.items ?? []).map(k => thingName(k))].filter(Boolean).join('; ') || 'nothing to fight with'}. (${input.label('inventory')})`),
+    ];
+    const hurt = hurtAtAll(p) && !p.dead;
+    card.replaceChildren(el('div', { className: 'mind glass charsheet' },
+      el('div', { className: 'mind-head' }, glassHead('PERSONNEL', p.name, 'book')),
+      el('div', { className: 'cs-grid' },
+        el('div', { className: 'bp-fig cs-fig' }, figure(p, f, { big: true })),
+        el('div', { className: 'cs-body' }, ...body),
+        el('div', { className: 'cs-what' }, ...what),
+        el('div', { className: 'cs-file' }, ...file)),
+      el('p', { className: 'mind-foot' }, `${hurt ? `${input.label('aid')}: first aid · ` : ''}${input.label('sheet')} or ${input.label('menu')} to close.`)));
     card.hidden = false;
     card.dataset.kind = '';
     menu.hidden = log.hidden = true;

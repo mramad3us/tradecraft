@@ -73,11 +73,11 @@ const SHOPS = {
   exchange: ['صرافة|EXCHANGE'], bank: ['بنك|BANK'], restaurant: ['مطعم', 'مطعم|RESTAURANT'], spices: ['عطارة'], barber: ['حلاق', 'صالون|SALON'],
   butcher: ['جزارة', 'لحوم'], laundry: ['مكوجي', 'دراي كلين'], books: ['مكتبة', 'مكتبة|BOOKS'], optician: ['نظارات', 'نظارات|OPTICS'],
   watches: ['ساعات'], tobacco: ['سجائر', 'كشك'],
-  gym: ['جيم|GYM', 'جيم'], club: ['كاراتيه|KARATE', 'كاراتيه'], school: ['لغات|LANGUAGES', 'مدرسة لغات'],
+  gym: ['جيم|GYM', 'جيم'], club: ['كاراتيه|KARATE', 'كاراتيه'], school: ['لغات|LANGUAGES', 'مدرسة لغات'], culture: ['قصر ثقافة|PALACE OF CULTURE', 'قصر ثقافة', 'فنون|ARTS'],
 };
 const SHOP_WEIGHTS = [['grocery', 3], ['cafe', 3], ['juice', 2], ['koshary', 1.2], ['foul', 1.5], ['pharmacy', 2], ['bakery', 1.5], ['sweets', 1.2],
   ['phones', 2.5], ['clothes', 2.5], ['shoes', 1.5], ['exchange', 0.6], ['bank', 0.6], ['restaurant', 1.2], ['spices', 0.8], ['barber', 1.2],
-  ['butcher', 0.8], ['laundry', 1], ['books', 0.6], ['optician', 0.8], ['watches', 0.6], ['tobacco', 1], ['gym', 0.6], ['club', 0.4], ['school', 0.4]];
+  ['butcher', 0.8], ['laundry', 1], ['books', 0.6], ['optician', 0.8], ['watches', 0.6], ['tobacco', 1], ['gym', 0.6], ['club', 0.4], ['school', 0.25], ['culture', 0.15]];   // (culture: a community centre and its clubs, sim/clubs.js; the school's weight split, so every other shop is where it was)
 // Boards: [ground, letters, border]; banners: [ground, letters, band].
 const BOARDS = [[0x24503a, 0xf6f4ee, 0x173327], [0x1b2541, 0xf8e08a, 0x14151c], [0xf6f4ee, 0x9e3c36, 0x6a7182], [0x6e2a2e, 0xf8e08a, 0x3f1a22], [0x23252f, 0xe7b84a, 0x14151c]];
 const BANNERS = [[0x9e3c36, 0xf6f4ee, 0xe7b84a], [0xe7b84a, 0x9e3c36, 0x24503a], [0x3b6296, 0xf6f4ee, 0xe7b84a], [0x356f42, 0xf6f4ee, 0xe7b84a], [0xf6f4ee, 0x283f6b, 0x9e3c36], [0xc95c45, 0xf8e08a, 0x23252f]];
@@ -316,6 +316,7 @@ const LOOKS = {
 
 export const CAIRO = {
   id: 'cairo', name: 'Cairo', country: 'eg', lang: 'ar', geo: { lat: 30.05, lon: 31.24, tz: 2 }, drive: 'right',
+  schoolLangs: ['fr', 'de', 'ru', 'es'],                  // (what else its language schools teach, and its bookshops' grammars: sim/shops.js)
   // The station (DESIGN.md, Stations and countries): risk (sim/xp.js), watched (sim/campaign.js watched()).
   station: {
     risk: 1.2, watched: 0.8, embassy: 'US Embassy', cover: 'Second Secretary, Political Section, US Embassy',
@@ -344,7 +345,7 @@ export const CAIRO = {
   terrace: { court: 0.32, square: 0.14, jog: 0.42 },
   courtName: (seed, row, i) => at(['Atfet el-Mesk', 'Atfet el-Kahwa', 'Atfet el-Fawwala', 'Atfet el-Sabbagh', 'Atfet el-Hammam', 'Atfet el-Nahhas', 'Atfet Abu Taleb', 'Atfet el-Shorbagi'], seed, row, i, 'court'),
   squareName: (seed, row, i) => at(['Midan Bab el-Khalq', 'Midan el-Gamaliya', 'Midan Abdin', 'Midan el-Sayeda Aisha', 'Midan el-Hilmiya', 'Midan el-Daher'], seed, row, i, 'square'),
-  kiosks: [['مرطبات', 0x24503a], ['جرائد', 0x6e2a2e], ['كشك', 0x283f6b], ['شاي', 0x9e3c36]], news: 'جرائد', stop: { frame: 0x8f6345, roof: 0x9e3c36, sign: ['موقف', 0x283f6b, 0xf4efe6] }, bus: { kind: 'single', body: 0xf4efe6, stripe: 0x283f6b, len: 11 },
+  kiosks: [['مرطبات', 0x24503a, 'drinks'], ['جرائد', 0x6e2a2e, 'news'], ['كشك', 0x283f6b, 'general'], ['شاي', 0x9e3c36, 'tea']], news: 'جرائد', stop: { frame: 0x8f6345, roof: 0x9e3c36, sign: ['موقف', 0x283f6b, 0xf4efe6] }, bus: { kind: 'single', body: 0xf4efe6, stripe: 0x283f6b, len: 11 },
   litter: 0,                                                       // (no autumn on the ground; the dust in the gutters is the ground painter's: src/art/pixeltown.js)
   people: {
     name: (r, sex) => cairoName(r, sex),

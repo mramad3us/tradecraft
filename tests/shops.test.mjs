@@ -16,6 +16,7 @@ import { at } from '../src/sim/clock.js';
 import { cashOf, price } from '../src/sim/money.js';
 import { RAIL } from '../src/sim/clothes.js';
 import { Z } from '../src/sim/map/street.js';
+import { taughtIn } from '../src/sim/cities/index.js';
 import { assert, fmt } from './helpers.mjs';
 
 
@@ -65,8 +66,9 @@ export default [
       const c = spotOf(b, 'counter');
       walk(g, c.x, c.z);
       const t0 = g.time.ms, tick0 = g.tick;
-      step(g, { act: ['shop:book:grammar'] }, null);
-      const book = { mins: (g.time.ms - t0) / 60000, ticks: g.tick - tick0, free: !me.inside, got: p.books?.some(x => x.id === 'grammar') };
+      const gid = `grammar-${taughtIn(g.map.city)}`;                  // (the city's own language's grammar: every bookshop keeps it)
+      step(g, { act: [`shop:book:${gid}`] }, null);
+      const book = { mins: (g.time.ms - t0) / 60000, ticks: g.tick - tick0, free: !me.inside, got: p.books?.some(x => x.id === gid) };
       walk(g, b.door, Z.front + 0.8);
       const u = atDoor(g, (o) => o.spots.some(s => s.kind === 'sit'));
       walkIn(g, u);

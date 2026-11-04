@@ -27,7 +27,7 @@ import { MIN, hourOfDay } from './clock.js';
 import { hash } from './rng.js';
 import { sectionAt } from './world.js';
 import { section, SECTION_M, streetName } from './map/street.js';
-import { lineOf as routeOf, busOnward, STOP_MIN } from './transit.js';
+import { lineOf as routeOf, busOnward, STOP_MIN, STOP_GAP_I } from './transit.js';
 import { townOf } from './cities/index.js';
 import { pay } from './money.js';
 import { say } from './log.js';
@@ -105,7 +105,7 @@ function stopOn(state, row, x, i = null) {
   const seed = townOf(state.map), i0 = i ?? Math.floor(x / SECTION_M);
   let best = null;
   if (i !== null) best = section(seed, i, row).props.find(p => p.kind === 'stop') ?? null;
-  if (!best) for (let k = i0 - 8; k <= i0 + 8; k++) for (const p of section(seed, k, row).props) if (p.kind === 'stop' && (!best || Math.abs(p.x - x) < Math.abs(best.x - x))) best = p;
+  if (!best) for (let k = i0 - STOP_GAP_I; k <= i0 + STOP_GAP_I; k++) for (const p of section(seed, k, row).props) if (p.kind === 'stop' && (!best || Math.abs(p.x - x) < Math.abs(best.x - x))) best = p;
   return best ? { x: best.x, z: OFF_Z } : { x, z: OFF_Z };
 }
 

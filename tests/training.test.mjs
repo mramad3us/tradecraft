@@ -51,7 +51,7 @@ export default [
             if (!d) continue;
             const p = g.people[g.player], me = playerActor(g);
             p.cash = 2000;
-            const w = ways(g, d, 'counter').map(o => o.id), way = { gym: 'train', club: 'class', school: 'lesson' }[kind] ?? w.find(x => x.startsWith('book:'));
+            const w = ways(g, d, 'counter').map(o => o.id), way = { gym: 'train', club: 'class' }[kind] ?? (kind === 'school' ? w.find(x => x.startsWith('lesson:')) : w.find(x => x.startsWith('book:')));
             assert(w.includes(way), `${city} ${kind}: offered (${w.join(', ')})`);
             const t0 = g.time.ms, cash0 = cashOf(p), before = JSON.stringify([p.skills, p.langs, p.training, p.fit]);
             step(g, { act: [`shop:${way}`] }, null);

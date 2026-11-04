@@ -1,11 +1,13 @@
 // TRADECRAFT ui: a body, as a look at it shows it (the user, 2026-11-03: "should include graphical representations
 // (high quality based on inventory screen), same thing with the reading people screen"). Your read of someone (F,
-// Read) and first aid (F, First aid; H) both show it, from sim/diagnosis.js findings(): the person, close to, in
+// Read), first aid (F, First aid; H) and your own sheet (C: "the char sheet should also be refactored to match the
+// 'read' sheet for health representation") all show it, from sim/diagnosis.js findings(): the person, close to, in
 // what they're wearing (the inventory's figure, src/art/doll.js), every wound drawn on them where it is (the hole,
 // the stain, the drips as fast as it bleeds, a dressing, a tourniquet, a splint, a ring round what bleeds inside),
 // and beside it each one's number on a small plaque of the picture's (src/ui/plaque.js: red what's bad, gold what
 // wants care, pale what's tended or minor), a leader line from it to the wound; then the words, row by row under the
-// same plaques: what you see, and what your look found (the Medicine roll, at the top), and what it'll take.
+// same plaques: what you see, and what your look found (the Medicine roll, at the top), and what it'll take; the
+// sheet adds its own lines (more: the pain, the cold, the hours awake) to the ones everyone sees.
 // optionTag() puts a wound's plaque on first aid's options, so "Press on the first …" carries its number too.
 import { plaque, STYLES } from './plaque.js';
 import { doll, backdropAt, W as DOLL_W, H as DOLL_H } from '../art/doll.js';
@@ -61,15 +63,18 @@ export function figure(p, f, { big = false } = {}) {
   return cv;
 }
 
-/** The words: the look (its roll), the lines everyone sees, each wound's row under its plaque, what it'll take. el: ui.js's maker. */
-export function words(el, f, { self = false } = {}) {
+/**
+ * The words: the look (its roll), the lines everyone sees, each wound's row under its plaque, what it'll take. el: ui.js's maker.
+ * more: lines of the body's besides ({ text, tone }: the pain, the cold, the hours awake; the character sheet's), after the lines everyone sees.
+ */
+export function words(el, f, { self = false, more = [] } = {}) {
   const look = f.look ? el('p', { className: `bp-look ${f.look.ok ? 'made' : 'fail'}` }, f.look.ok ? `Your look: ${lookWord(f.look.margin)}.` : 'Your look: you can\'t make sense of it.', el('span', { className: 'num' }, ` ${checkShort(f.look.roll)}`))
-    : f.rows.length || f.status.length > 1 ? el('p', { className: 'bp-look' }, self ? 'What you can see and feel; a closer look takes Medicine.' : 'What anyone can see; a closer look takes Medicine.') : null;
+    : f.rows.length || f.status.some(s => s.tone !== 'calm') ? el('p', { className: 'bp-look' }, self ? 'What you can see and feel; a closer look takes Medicine.' : 'What anyone can see; a closer look takes Medicine.') : null;
   return el('div', { className: 'bp-words' }, look,
-    el('ul', { className: 'bp-status' }, ...f.status.map(s => el('li', { className: s.tone }, s.text))),
+    el('ul', { className: 'bp-status' }, ...[...f.status, ...more].map(s => el('li', { className: s.tone }, s.text))),
     f.rows.length ? el('ul', { className: 'bp-rows' }, ...f.rows.map(r => el('li', { className: r.tone },
       tagCanvas(r.n, r.tone), el('span', { className: 'bp-text' }, el('b', {}, r.words), r.detail ? el('span', { className: 'bp-detail' }, `: ${r.detail}`) : null, r.care ? el('span', { className: 'bp-care' }, ` (${r.care})`) : null))))
-      : el('p', { className: 'bp-none' }, f.dead ? '' : self ? 'Nothing wrong with you that shows.' : 'Nothing wrong that shows.'),
+      : el('p', { className: 'bp-none' }, f.dead ? '' : self ? 'Not a mark on you.' : 'Nothing wrong that shows.'),
     f.needs.length ? el('div', { className: 'bp-needs' }, el('h3', {}, 'What it\'ll take'), el('ul', {}, ...f.needs.map(n => el('li', { className: n.tone }, n.text)))) : null);
 }
 /** What a look found, by its margin, in brief. */

@@ -37,7 +37,7 @@ import { street, building, facade, lamp, bench, bin, car, railing, awning, hangi
 import { treeCard, propCard } from '../art/townsprites.js';
 import { spritePerson, frame, card } from '../art/sprites.js';
 import { Z, laneRects } from '../sim/map/street.js';
-import { cityById } from '../sim/cities/index.js';
+import { cityById, kioskOf } from '../sim/cities/index.js';
 import { stream, range, pick, chance } from '../sim/rng.js';
 
 const tiles = new Map();
@@ -96,7 +96,12 @@ const STONE = 0xa0978a;
 const BRONZE = { skin: 'dark', hair: { style: 'short', color: 0x47302a }, top: { kind: 'coat', color: 0x47302a, trim: 0x2a1c18 }, legs: 0x47302a, shoes: 0x2a1c18 };
 const PATINA = { skin: 0x2f6b62, hair: { style: 'long', color: 0x2f6b62 }, beard: 0x2f6b62, top: { kind: 'coat', color: 0x2f6b62, trim: 0x173327 }, legs: 0x2f6b62, shoes: 0x173327 };
 const SOLDIER = { skin: 'dark', hair: { style: 'short', color: 0x47302a }, hat: { kind: 'peaked', color: 0x47302a }, top: { kind: 'uniform', color: 0x47302a, trim: 0x2a1c18 }, legs: 0x47302a, shoes: 0x2a1c18 };
-// (a kiosk's sign and colour are its city's: sim/cities/ kiosks)
+// (a kiosk's sign and colour are its city's: sim/cities/ kiosks, each with what it sells; the goods behind its glass are those:
+// the user, 2026-11-04, "why do newspaper booths read teas or cafe ?": white goods read as papers under a café's sign)
+const KIOSK_GOODS = {
+  cafe: [0x6b4636, 0xc48a62, 0xe7b84a], tea: [0x6b4636, 0xf6f4ee, 0xe7b84a], ices: [0xf2b8c6, 0x8fc0e0, 0xf6f4ee], flowers: [0x9e3c36, 0xe7b84a, 0x4f7a3a, 0xc85a8a],
+  bakery: [0xc48a62, 0xe7b84a, 0x8a5a3a], drinks: [0x9e3c36, 0xe7b84a, 0x24503a], general: [0xf6f4ee, 0x9e3c36, 0xe7b84a],
+};
 
 /** A bust: a bronze person's head and shoulders (the top of their sprite), as a card. */
 function bustCard(spec) {
@@ -186,20 +191,20 @@ export function feature(g, f, sprites, city = cityById(null)) {
     return;
   }
   if (f.kind === 'kiosk') {
-    const [sign, colour] = KIOSKS[f.seed % KIOSKS.length];
+    const [sign, colour, sells] = kioskOf(city.id, f), goods = KIOSK_GOODS[sells] ?? KIOSK_GOODS.cafe;   // (a newsstand is its own look, signed city.news: sim/cities/ kioskOf())
     const spec = { x0: f.x0, x1: f.x1, z: f.z1, h: 2.6, d: 2, wall: 'plaster', wallColor: colour, seed: f.seed, kit: 'none' };
     if (look === 'news') {                                       // a newsstand: glass all round, papers in it, a blue roof
       g.add(building({ ...spec, wallColor: 0x8f96a6, roofColor: 0x3b6296,
         draw: (fc) => { fc.shopfront(0.1, 2.8, 2.0, { frame: 0x6a7182, goods: [0xf6f4ee, 0xe2dac6, 0x9e3c36, 0x3b6296], lit: false }); fc.sign(0.1, 2.1, 2.8, 0.45, city.news, { bg: 0x3b6296, fg: 0xf6f4ee, border: 0x283f6b }); } }));
     } else if (look === 'glass') {                               // a pavilion: a white frame, its counter behind glass
       g.add(building({ ...spec, wallColor: 0xdfe2e8, roofColor: 0x6a7182,
-        draw: (fc) => { fc.shopfront(0.15, 1.9, 1.9, { frame: 0xb8bdc8, goods: [0x6b4636, 0xf6f4ee, 0xe7b84a], lit: false }); fc.door(2.2, 0.65, 1.9, { color: 0xb8bdc8, frame: 0xb8bdc8, style: 'shop' }); fc.sign(0.1, 2.05, 2.8, 0.45, sign, { bg: 0xf6f4ee, fg: colour, border: 0xb8bdc8, style: 'lightbox' }); } }));
+        draw: (fc) => { fc.shopfront(0.15, 1.9, 1.9, { frame: 0xb8bdc8, goods, lit: false }); fc.door(2.2, 0.65, 1.9, { color: 0xb8bdc8, frame: 0xb8bdc8, style: 'shop' }); fc.sign(0.1, 2.05, 2.8, 0.45, sign, { bg: 0xf6f4ee, fg: colour, border: 0xb8bdc8, style: 'lightbox' }); } }));
     } else if (look === 'cabin') {                               // a metal cabin with a serving hatch
       g.add(building({ ...spec, wall: 'plaster', wallColor: 0xb8bdc8, roofColor: 0x8f96a6,
-        draw: (fc) => { fc.rect(0, 0, 3, 2.6, 0xc8ccd2); for (let x = 0.2; x < 3; x += 0.25) fc.rect(x, 0.1, 0.0625, 2.4, 0xa8adb8); fc.shopfront(0.6, 1.4, 1.0, { frame: 0x4c5262, goods: [0xe7b84a, 0x9e3c36], lit: false }); fc.rect(0.5, 1.0, 1.6, 0.08, 0x6a7182); fc.sign(0.2, 2.05, 2.6, 0.45, sign, { bg: colour, fg: 0xf6f4ee, border: 0x23252f }); } }));
+        draw: (fc) => { fc.rect(0, 0, 3, 2.6, 0xc8ccd2); for (let x = 0.2; x < 3; x += 0.25) fc.rect(x, 0.1, 0.0625, 2.4, 0xa8adb8); fc.shopfront(0.6, 1.4, 1.0, { frame: 0x4c5262, goods: goods.slice(0, 2), lit: false }); fc.rect(0.5, 1.0, 1.6, 0.08, 0x6a7182); fc.sign(0.2, 2.05, 2.6, 0.45, sign, { bg: colour, fg: 0xf6f4ee, border: 0x23252f }); } }));
     } else {
       g.add(building({ ...spec,
-        draw: (fc) => { fc.shopfront(0.2, 2.6 - 0.2, 1.4, { goods: [0xf6f4ee, 0xe7b84a, 0x9e3c36], lit: false }); fc.sign(0.1, 1.75, 2.8, 0.6, sign, { bg: 0xf6f4ee, fg: colour, border: 0x23252f }); } }));
+        draw: (fc) => { fc.shopfront(0.2, 2.6 - 0.2, 1.4, { goods, lit: false }); fc.sign(0.1, 1.75, 2.8, 0.6, sign, { bg: 0xf6f4ee, fg: colour, border: 0x23252f }); } }));
     }
     return;
   }

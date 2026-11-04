@@ -2,7 +2,7 @@
 // against what the base asks, the effective a point either way to ±3, the base itself moved by two weeks at the edge;
 // the top of the scale held only by hard work; a legend's close combat rusting unpractised, and back at the club.
 import { exercise, onFoot, rollWeeks, baseOf, upNeed, holdNeed, capOf, SESSION_PTS, FIT_MAX } from '../src/sim/fitness.js';
-import { practise, rustRoll, PERIOD_DAYS } from '../src/sim/rust.js';
+import { practise, rustRoll, fieldwork, PERIOD_DAYS, CORE } from '../src/sim/rust.js';
 import { skill } from '../src/sim/skills.js';
 import { sheet } from '../src/sim/people.js';
 import { DAY } from '../src/sim/clock.js';
@@ -63,6 +63,19 @@ export default [
       practise(g, null, p, 'cqc', 1, MONDAY + 3 * M + 9 * DAY); const twice = skill(p, 'cqc');
       assert(at[0] === 30 && at[3] <= 23 && at[1] < at[0] && twice > at[3] && kept === fresh, `CQC by the month: ${at.join(' → ')}; the club once ${once}, twice ${twice}; tracking, used: ${kept} of ${fresh}`);
       console.log(`      CQC 30 unpractised, by the month: ${at.join(' → ')}; a class at the club: ${once}, another: ${twice}; tracking, eight rolls a month: ${kept}, as it was (${fresh})`);
+    },
+  },
+  {
+    name: 'rust: an assignment carried out takes all the rust off the craft\'s core (deception, tracking, pathfinding, awareness) and keeps it for the month; CQC stays rusty',
+    fn() {
+      const sk = { deception: [18, 2], tracking: [18, 2], pathfinding: [18, 2], awareness: [18, 2], cqc: [18, 2] };
+      const p = sheet({ id: 'me', cls: 'spook', os: 95, skills: sk }), g = world(p), M = PERIOD_DAYS * DAY;
+      rustRoll(g, null, p, MONDAY); const fresh = CORE.map(k => skill(p, k)), cqc0 = skill(p, 'cqc');
+      rustRoll(g, null, p, MONDAY + 3 * M + 1); const rusty = CORE.map(k => skill(p, k)), cqc = skill(p, 'cqc');
+      const back = fieldwork(p, MONDAY + 3 * M + 2 * DAY), after = CORE.map(k => skill(p, k));
+      rustRoll(g, null, p, MONDAY + 4 * M + 1); const kept = CORE.map(k => skill(p, k));
+      assert(back.length === 4 && after.join() === fresh.join() && kept.join() === fresh.join() && cqc < cqc0 && skill(p, 'cqc') === cqc, `rusty ${rusty.join('/')}, after the assignment ${after.join('/')} of ${fresh.join('/')}, a month on ${kept.join('/')}; CQC ${cqc} → ${skill(p, 'cqc')}`);
+      console.log(`      three months off: the core ${rusty.join('/')} of ${fresh.join('/')}; one assignment: ${after.join('/')} (${back.join(', ')}); a month later, nothing else: ${kept.join('/')}; CQC still ${skill(p, 'cqc')}`);
     },
   },
 ];

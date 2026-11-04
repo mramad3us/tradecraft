@@ -3,7 +3,7 @@
 // week's review), and assignments run with the campaign's context and folded back: a meeting by way of
 // a detection run, a tail; the character's body carried through.
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
-import { candidates, newCampaign, plan, pass, context, fold, agenda, lieLow, promote, KINDS, CADENCE, WORK } from '../src/sim/campaign.js';
+import { candidates, newCampaign, plan, pass, context, fold, agenda, lieLow, promote, record, KINDS, CADENCE, WORK } from '../src/sim/campaign.js';
 import { windowOf } from '../src/sim/scenarios/campaign.js';
 import { DAY, HOUR, calendar } from '../src/sim/clock.js';
 import { injure, bloodOf } from '../src/sim/health.js';
@@ -276,6 +276,31 @@ export default [
         out.push(`${js[0].name}, ${js[0].age}: trips ${p.trips.map(t => `${t.city} (${t.kind}, day ${t.day - Math.floor(p.startMs / DAY)})`).join(', ')}; ${T.city}: "${paper.lines[0].slice(0, 70)}…"; promoted to Moscow from ${calendar(n.posting.startMs).day}/${calendar(n.posting.startMs).month}`);
       }
       for (const o of out) console.log(`      ${o}`);
+    },
+  },
+  {
+    name: 'campaign: the file (the character sheet, C): the posting and its day, every assignment done or missed as the officer knows it ended (made unseen: "he was spooked"), the reviews; promoted, the first tour among the postings before',
+    fn() {
+      const js = candidates(31, 'london', 'junior'), c = newCampaign(31, js[0], 'london', 'junior'), p = c.posting;
+      plan(c, p.startMs + 21 * DAY);
+      const local = c.assignments.filter(a => !a.trip && a.status === 'open').slice(0, 3);
+      assert(local.length === 3 && local.every(a => a.kind === 'tail' || a.kind === 'watch'), 'three of the residency to follow or photograph');
+      fold(c, local[0], { outcome: 'seen' }, c.character, local[0].to + 600000, 25);
+      fold(c, local[1], { outcome: 'made', madeSeen: false }, c.character, local[1].to + 600000, 25);
+      agenda(c, local[2].to + 60000);                              // (the third let pass: missed)
+      c.reviews.push({ ms: p.startMs + 6 * DAY, grade: 'Good', intel: 1 });
+      const R = record(c, p.startMs + 9 * DAY + 10 * HOUR);
+      assert(R.rank === 'Junior officer' && R.city === 'london' && R.day === 10 && !R.network.length && R.goal === 6, `the posting: a junior's, London, day 10 (${R.rank}, ${R.city}, day ${R.day})`);
+      const [d0, d1] = R.done.filter(d => d.who && (d.ms === local[0].ended || d.ms === local[1].ended)), dm = R.done.find(d => d.missed);
+      assert(d0?.word === 'meeting observed' && d1?.word === 'he was spooked' && d1.who === p.targets.find(t => t.id === local[1].who).name, `as known: ${d0?.word}, ${d1?.word}`);
+      assert(dm && dm.word === 'missed' && R.done.indexOf(dm) > R.done.indexOf(d1), 'the one let pass: missed, after');
+      assert(R.reviews.join() === 'Good' && !R.past.length, 'the week reviewed; no posting before a first tour');
+      // (promoted: the first tour is a posting before)
+      p.intelligence = 6; c.over = { ms: p.startMs + 12 * DAY, why: 'promoted' };
+      const n = promote(c, 'beirut'), N = record(n, n.posting.startMs + 2 * HOUR);
+      assert(N.rank === 'Handler' && N.city === 'beirut' && N.day === 1 && N.past.length === 1 && N.past[0].rank === 'Junior officer' && N.past[0].city === 'london' && !N.done.length && N.network.length >= 1, `promoted: ${N.rank}, ${N.city}, day ${N.day}; before: ${N.past.map(k => `${k.rank}, ${k.city}`).join('; ')}`);
+      console.log(`      ${R.rank}, ${R.city}, day ${R.day}: ${R.done.map(d => `${d.kind} on ${d.who ?? '?'}: ${d.word}`).join('; ')}; reviews ${R.reviews.join(', ')}`);
+      console.log(`      promoted: ${N.rank}, ${N.city}, day ${N.day}, network ${N.network.join(', ')}; before: ${N.past.map(k => `${k.rank}, ${k.city}, to ${calendar(k.until).day}/${calendar(k.until).month}`).join('; ')}`);
     },
   },
 ];

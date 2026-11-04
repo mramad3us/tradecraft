@@ -152,39 +152,6 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .plaque[hidden] { display: none; }
 .sheet .truth { background: var(--paper-2); padding: 6px 8px; font-size: calc(13px * var(--ui, 1)); }
 
-/* The character sheet (C): a personnel file. Skills in a table, the over-skill a bar, the body a figure. */
-.charsheet { width: min(calc(780px * var(--ui, 1)), 94%) !important; }
-.charsheet .cols { display: grid; grid-template-columns: 1fr 210px; gap: 26px; align-items: start; }
-.charsheet .os { display: flex; align-items: center; gap: 10px; margin: 2px 0 4px; font-size: calc(15px * var(--ui, 1)); }
-.charsheet .os .bar { flex: 1; height: 8px; border: 1px solid var(--ink); background: var(--paper-2); }
-.charsheet .os .bar i { display: block; height: 100%; background: var(--ink); }
-.charsheet table.skills { width: 100%; border-collapse: collapse; font-size: calc(14px * var(--ui, 1)); margin-top: 6px; }
-.charsheet table.skills td { padding: 3px 4px; border-bottom: 1px dashed var(--paper-2); }
-.charsheet table.skills td.lvl { color: #6a7182; font-size: calc(12px * var(--ui, 1)); }
-.charsheet table.skills td.mult { color: #6a7182; font-size: calc(12px * var(--ui, 1)); text-align: right; }
-.charsheet table.skills td.val { text-align: right; font-weight: bold; width: 3em; }
-.charsheet table.skills tr.none td { color: #a0978a; }
-.charsheet .langs { font-size: calc(13px * var(--ui, 1)); margin: 8px 0 0; }
-.charsheet .body { display: flex; flex-direction: column; gap: 12px; align-items: stretch; margin-top: 6px; }
-.charsheet .body .figure { align-self: center; }
-.charsheet .figure { display: grid; grid-template-columns: 16px 34px 16px; grid-template-rows: 26px 46px 52px; gap: 3px; justify-items: center; }
-.charsheet .figure .part { border: 1px solid var(--ink); background: var(--paper); }
-.charsheet .figure .head { grid-column: 2; grid-row: 1; width: 22px; height: 24px; border-radius: 50%; }
-.charsheet .figure .armR { grid-column: 1; grid-row: 2; width: 14px; height: 46px; }
-.charsheet .figure .torso { grid-column: 2; grid-row: 2; width: 34px; height: 46px; }
-.charsheet .figure .armL { grid-column: 3; grid-row: 2; width: 14px; height: 46px; }
-.charsheet .figure .legR { grid-column: 2; grid-row: 3; width: 15px; height: 52px; justify-self: start; }
-.charsheet .figure .legL { grid-column: 2; grid-row: 3; width: 15px; height: 52px; justify-self: end; }
-.charsheet .figure .bruised { background: #f8e08a; }
-.charsheet .figure .hurt { background: var(--brass); }
-.charsheet .figure .wounded { background: #c95c45; }
-.charsheet .figure .out { background: var(--red); background-image: repeating-linear-gradient(45deg, transparent 0 4px, rgba(0, 0, 0, 0.35) 4px 6px); }
-.charsheet .body ul { list-style: none; margin: 0; padding: 0; font-size: calc(13px * var(--ui, 1)); }
-.charsheet .body li { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--paper-2); padding: 2px 0; }
-.charsheet .body li span:last-child { color: #6a7182; }
-.charsheet .body li.hurt span:last-child, .charsheet .body li.bruised span:last-child { color: #8f6345; }
-.charsheet .body li.wounded span:last-child, .charsheet .body li.out span:last-child { color: var(--red); font-weight: bold; }
-
 /* A fight: what we read the other is about to do, over their head (brass when read, a '?' when not);
    the two of them at the top, a bout's score between, the edges each holds as diamonds. */
 .intent { position: absolute; left: 0; top: 0; transform-origin: 0 0; translate: -50% -100%; padding: 1px 6px; font: bold calc(11px * var(--ui, 1)) var(--type);
@@ -217,8 +184,6 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 #hud > canvas.plaque.reticle { z-index: 6; }   /* the target picked, over the steps and the instinct's line */
 .moves .move { display: flex; align-items: center; gap: 5px; background: var(--hud); border: 1px solid #4c5262; border-radius: 3px; padding: 3px 9px 3px 5px; font: calc(12px * var(--ui, 1)) var(--type); color: var(--paper); }
 .moves .move.spend { color: var(--brass); border-color: var(--brass); white-space: nowrap; }
-.charsheet .body li.injured { flex-wrap: wrap; }
-.charsheet .body li small { flex-basis: 100%; color: var(--red); font-size: calc(11px * var(--ui, 1)); text-align: right; }
 
 /* F: a key over whoever's within reach; the menu over them (numbers or a click; greyed with why). */
 /* (a keycap of paper, outlined in ink with a hard shadow under it, and a point down to whoever it's over: it reads on any ground) */
@@ -256,9 +221,6 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .inventory td.where { color: #6a7182; font-size: calc(12px * var(--ui, 1)); }
 .inventory button.small { font: calc(12px * var(--ui, 1)) var(--mono); margin-left: 6px; padding: 2px 8px; cursor: pointer; pointer-events: auto; }
 .bloodveil { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(40, 0, 0, 0) 35%, rgba(46, 6, 8, 0.55) 70%, rgba(20, 2, 4, 0.92) 100%); transition: opacity 1s; }
-.charsheet p.blood { font-size: calc(12px * var(--ui, 1)); margin: 6px 0 0; color: var(--ink); }
-.charsheet p.blood.pale { color: #9e3c36; }
-.charsheet p.blood.shock, .charsheet p.blood.collapsed { color: #6e2a2e; font-weight: bold; }
 .aid td.where { color: #6a7182; font-size: calc(12px * var(--ui, 1)); }
 .aid button.small { font: calc(12px * var(--ui, 1)) var(--mono); margin-left: 6px; padding: 2px 8px; cursor: pointer; pointer-events: auto; }
 .aid ul.wounds { list-style: none; margin: 4px 0; padding: 0; font-size: calc(13px * var(--ui, 1)); }
@@ -426,6 +388,51 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .read-bar { position: relative; height: 6px; background: #23252f; border: 1px solid #353947; }
 .read-bar i { position: absolute; top: 0; bottom: 0; background: #95c1e3; }
 .read-row .why { color: #6a7182; font-size: calc(11px * var(--ui, 1)); }
+/* The character sheet (C, src/ui/ui.js): your read's glass, and its body (your figure, your wounds), what you are (the
+   over-skill, the skills) and the file (who you are, the posting, the record). Four columns where the card's wide
+   enough (a window 1280 wide and up); below that the file goes under the rest, its three sections side by side; on a
+   narrow window, the skills under the body too. */
+.overlay .mind.glass.charsheet { width: min(calc(1240px * var(--ui, 1)), 97%); container-type: inline-size; }
+.cs-grid { display: grid; grid-template-columns: auto minmax(0, 1fr) fit-content(calc(350px * var(--ui, 1))) minmax(0, 1.3fr); grid-template-areas: 'fig body what file'; gap: 16px; align-items: start; margin: 4px 0 0; }
+.cs-fig { grid-area: fig; }
+.cs-body { grid-area: body; font-size: calc(13px * var(--ui, 1)); line-height: 1.4; }
+.cs-what { grid-area: what; }
+.cs-file { grid-area: file; font-size: calc(12.5px * var(--ui, 1)); line-height: 1.4; }
+.cs-grid h3 { font-size: calc(11px * var(--ui, 1)); letter-spacing: 0.08em; color: #e7b84a; font-weight: normal; margin: 10px 0 4px; text-transform: uppercase; }
+.cs-grid > div > h3:first-child, .cs-file > .cs-sec:first-child > h3 { margin-top: 0; }
+.cs-body .bp-status { margin-bottom: 4px; }
+.cs-line { color: #b8bdc8; font-size: calc(12px * var(--ui, 1)); margin: 2px 0 4px; }
+.cs-os { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; color: #f6f4ee; margin: 0 0 4px; }
+.cs-os .read-bar { height: 8px; }
+.cs-os b { font-weight: normal; }
+.cs-what .mind-note { margin: 2px 0 4px; line-height: 1.4; }
+.cs-skills { border-collapse: collapse; font-size: calc(13px * var(--ui, 1)); margin: 4px 0 2px; width: 100%; }
+.cs-skills td { padding: 2px 6px; border-bottom: 1px solid #23252f; color: #dfe2e8; white-space: nowrap; }
+.cs-skills td.name { padding-left: 0; }
+.cs-skills td.lvl { color: #8f96a6; font-size: calc(11px * var(--ui, 1)); }
+.cs-skills .dots { color: #b8bdc8; letter-spacing: 0.04em; }
+.cs-skills .off { color: #e8896a; }
+.cs-skills .up { color: #76ad4c; }
+.cs-skills td.mult { color: #6a7182; font-size: calc(11px * var(--ui, 1)); text-align: right; }
+.cs-skills td.val { text-align: right; color: #f6f4ee; font-weight: bold; padding-right: 0; }
+.cs-skills tr.none td { color: #6a7182; }
+.cs-row { margin: 0 0 4px; color: #dfe2e8; }
+.cs-k { color: #8f96a6; font-size: calc(10.5px * var(--ui, 1)); letter-spacing: 0.08em; text-transform: uppercase; }
+.cs-ops { list-style: none; margin: 0 0 5px; padding: 0 0 0 9px; border-left: 2px solid #353947; }
+.cs-ops li { display: grid; grid-template-columns: 4em 1fr; gap: 6px; color: #b8bdc8; }
+.cs-ops time { color: #6a7182; }
+.cs-ops li.missed span { color: #e8896a; }
+@container (max-width: 1120px) {
+  .cs-grid { grid-template-columns: auto minmax(0, 1fr) fit-content(calc(350px * var(--ui, 1))); grid-template-areas: 'fig body what' 'file file file'; row-gap: 10px; }
+  .cs-file { columns: 3 calc(210px * var(--ui, 1)); column-gap: 22px; border-top: 1px solid #23252f; padding-top: 8px; }
+  .cs-row { margin-bottom: 3px; }
+  .cs-skills td { padding-top: 1px; padding-bottom: 1px; }
+  .cs-file .cs-row, .cs-file .cs-ops { break-inside: avoid; }
+  .cs-file h3 { break-after: avoid; }
+}
+@container (max-width: 760px) {
+  .cs-grid { grid-template-columns: auto 1fr; grid-template-areas: 'fig body' 'what what' 'file file'; }
+}
 /* A call (the mind's People: src/ui/mind.js, sim/phone.js). */
 .mind-asset { border-bottom: 1px solid #23252f; padding: 3px 0; }
 .mind-asset > .mind-acts .what { flex: 1; }

@@ -42,11 +42,11 @@ const SHOPS = {
   pharmacy: 'АПТЕКА', grocery: 'ПРОДУКТЫ', cafe: 'КАФЕ', flowers: 'ЦВЕТЫ', bakery: 'ХЛЕБ', books: 'КНИГИ',
   optician: 'ОПТИКА', bank: 'БАНК', tobacco: 'ТАБАК', exchange: 'ОБМЕН ВАЛЮТ', bar: 'БАР', clothes: 'ОДЕЖДА',
   shoes: 'ОБУВЬ', watches: 'ЧАСЫ', phones: 'СВЯЗЬ', shawarma: 'ШАУРМА', beer: 'ПИВО', deli: 'ГАСТРОНОМ', restaurant: 'РЕСТОРАН',
-  gym: 'ФИТНЕС', club: 'САМБО', school: 'ЯЗЫКИ',
+  gym: 'ФИТНЕС', club: 'САМБО', school: 'ЯЗЫКИ', culture: 'ДОМ КУЛЬТУРЫ',
 };
 const SHOP_WEIGHTS = [['grocery', 3], ['pharmacy', 2.5], ['cafe', 3], ['clothes', 2], ['flowers', 1.5], ['bakery', 1.5],
   ['books', 1], ['optician', 1], ['bank', 1.2], ['tobacco', 1], ['exchange', 1], ['bar', 1.2], ['shoes', 1], ['watches', 0.6],
-  ['phones', 1.2], ['shawarma', 1], ['beer', 0.8], ['deli', 1], ['restaurant', 1], ['gym', 0.6], ['club', 0.4], ['school', 0.4]];
+  ['phones', 1.2], ['shawarma', 1], ['beer', 0.8], ['deli', 1], ['restaurant', 1], ['gym', 0.6], ['club', 0.4], ['school', 0.25], ['culture', 0.15]];   // (culture: a community centre and its clubs, sim/clubs.js; the school's weight split, so every other shop is where it was)
 // Sign boards: [background, letters, border].
 const SIGN_COLOURS = [[0x1b2541, 0xf6f4ee, 0x8f96a6], [0x24503a, 0xf6f4ee, 0x173327], [0x6e2a2e, 0xf8e08a, 0x23252f],
   [0x23252f, 0xe7b84a, 0x6a7182], [0xf6f4ee, 0x9e3c36, 0x6a7182], [0x283f6b, 0xf8e08a, 0xb9862e], [0x4a2a52, 0xf6f4ee, 0x23252f]];
@@ -269,6 +269,7 @@ function posterOf(L) { const [words, bg, fg, art] = pick(L, POSTERS); return { w
 
 export const MOSCOW = {
   id: 'moscow', name: 'Moscow', country: 'ru', lang: 'ru', geo: { lat: 55.75, lon: 37.62, tz: 3 }, drive: 'right',
+  schoolLangs: ['ar', 'fr', 'de', 'es', 'zh', 'fa'],                  // (what else its language schools teach, and its bookshops' grammars: sim/shops.js)
   // The station (DESIGN.md, Stations and countries): the work here. risk: how dangerous the trade is here (sim/xp.js);
   // watched: how closely the opposition follows a diplomat in their own hours (sim/campaign.js watched()).
   station: {
@@ -296,7 +297,7 @@ export const MOSCOW = {
   boulevardName: (seed, row) => `${at(BOULEVARDS, seed, row, 'boulevard')} Boulevard`,
   parkName: (seed, row, i) => at(PARKS, seed, row, Math.floor(i / STRETCH), 'park'),
   gaps, parkShare: 0.35, building, dress: dressBuilding, LOOKS, SHOPS, carColours: CAR_COLOURS, postbox: 'wall', taxi: 'taxi',
-  kiosks: [['ПЕЧАТЬ', 0x24503a], ['КОФЕ', 0x6e2a2e], ['ЦВЕТЫ', 0x283f6b], ['МОРОЖЕНОЕ', 0x3b6296]], news: 'ПЕЧАТЬ', stop: { frame: 0x6a7182, roof: 0x3b6296, sign: ['ОСТАНОВКА', 0x3b6296, 0xf4efe6] }, bus: { kind: 'single', body: 0xf4efe6, stripe: 0x24503a, len: 11 },
+  kiosks: [['ПЕЧАТЬ', 0x24503a, 'news'], ['КОФЕ', 0x6e2a2e, 'cafe'], ['ЦВЕТЫ', 0x283f6b, 'flowers'], ['МОРОЖЕНОЕ', 0x3b6296, 'ices']], news: 'ПЕЧАТЬ', stop: { frame: 0x6a7182, roof: 0x3b6296, sign: ['ОСТАНОВКА', 0x3b6296, 0xf4efe6] }, bus: { kind: 'single', body: 0xf4efe6, stripe: 0x24503a, len: 11 },
   // Passers-by: Russian names, Moscow's November dress (sim/people.js).
   people: {
     name: (r, sex) => russianName(r, sex),

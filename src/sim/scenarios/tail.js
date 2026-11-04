@@ -69,6 +69,7 @@ import { makeAgent, setRoute, follow as followTarget, rowOf, onMap } from '../ag
 import { isPasserby } from '../crowd.js';
 import { lightBand } from '../light.js';
 import { eyes, sees, seesActor, inView, lightHere, openAir, wrap } from '../perception.js';
+import { AREA_I } from '../transit.js';
 
 export const KEEP_M = 22;
 export const KEEP_EVERY_S = 6;
@@ -1046,7 +1047,7 @@ function umbrellaMods(state) {
 /** The shelter on that street nearest x. */
 function stopNear(seed, row, x) {
   const i0 = Math.floor(x / SECTION_M);
-  for (let k = 0; k < 14; k++) for (const i of [i0 + k, i0 - k]) {
+  for (let k = 0; k < 2 * AREA_I + 2; k++) for (const i of [i0 + k, i0 - k]) {             // (a street's stops STOP_GAP_I sections apart: sim/transit.js)
     const s = sectionOf(seed, row, i).props.find(p => p.kind === 'stop');
     if (s) return s;
   }

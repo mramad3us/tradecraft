@@ -115,7 +115,7 @@ export function act(state, bus, me, key, scenario, skip) {
   const ms = READ_MIN * MIN;
   if (scenario.pass) scenario.pass(state, bus, ms); else skip(state, bus, ms);
   if (state.scenario.outcome || state.people[me.who]?.dead) return;
-  const B = bookOf(id), lang = langHere(state), g = readFor(p, b, lang, READ_MIN / 60);
+  const B = bookOf(id), lang = typeof B.lang === 'string' ? B.lang : langHere(state), g = readFor(p, b, lang, READ_MIN / 60);
   soothe(p, READ_CALM);
   if (g.gained) say(state, bus, { kind: 'note', text: B.lang ? `Your ${LANG_NAME[lang] ?? 'grasp of the language'} is ${g.level} now.` : `${B.title}: ${SKILLS[B.skill].name} up a point, ${g.base}.` });
   if (g.last) say(state, bus, { kind: 'note', text: `The last page of ${B.title}.${B.skill || B.lang ? ` ${g.toNext === null ? 'It\'s taught you all it can.' : ''}` : ''}`.trim() });

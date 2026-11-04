@@ -10,14 +10,14 @@
 //
 // The words are Moscow's. In another city its profile's walk (sim/cities/) has its own: the line the
 // walk opens with, the languages a Handler posted there has, what the park's things are in its climate.
-import { townOf, CITIES } from '../cities/index.js';
+import { townOf, CITIES, kioskOf } from '../cities/index.js';
 import { at, TICK_MS, hourOfDay } from '../clock.js';
 import { handler, seedFrom, asOfficer } from '../people.js';
 import { heatKey } from '../heat.js';
 import { say } from '../log.js';
 import { Z, streetName, parkName, inLane, mouthOf } from '../map/street.js';
 import { sectionAt } from '../world.js';
-import { act, crossingNear, paneNear, carNear, benchNear, say1 } from '../acts.js';
+import { act, crossingNear, paneNear, carNear, benchNear, say1, KIOSK_WAYS } from '../acts.js';
 import { openAir } from '../perception.js';
 import { atKerb } from '../taxi.js';
 import { weatherLine } from '../weather.js';
@@ -109,7 +109,7 @@ function instinct(state, me) {
   const f = S.park?.feature;
   if (f && Math.hypot((f.x0 + f.x1) / 2 - me.x, (f.z0 + f.z1) / 2 - me.z) < 9) {
     return L('park', { pond: `${cap(parkName(seed, row, S.i))}'s pond. Ducks, an old man with bread, and a view of every path.`, fountain: 'A fountain, off for the winter.',
-      monument: 'A bronze somebody on a plinth. Every square has one; nobody looks at it, which makes it a fine place to wait.', kiosk: 'A kiosk. Coffee, papers, cigarettes, and a man who sees everyone who passes.',
+      monument: 'A bronze somebody on a plinth. Every square has one; nobody looks at it, which makes it a fine place to wait.', kiosk: KIOSK_WAYS[kioskOf(state.map.city, f)[2]]?.about ?? KIOSK_WAYS.news.about,   // (what it sells, its sign's: sim/cities/ kioskOf())
       beds: 'Flower beds, put to bed for the winter.', ...(C?.park ?? {}) }[f.kind]);
   }
   return wx ? L(wx.id, wx.text) : null;                            // (the weather, when it matters and nothing else does)

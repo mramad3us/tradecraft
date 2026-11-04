@@ -3,7 +3,7 @@
 // more often, the long way round less; their car pulls in behind yours and they get out and follow on;
 // being tailed's team writes the taxi down; Blown's driver may have heard the radio.
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
-import { atKerb, destinations, taxiComing, watching, chase, RIDE_SHOW_S, CHASE_BACK_M } from '../src/sim/taxi.js';
+import { atKerb, destinations, taxiComing, watching, chase, hail as hailCab, cabFor, RIDE_SHOW_S, CHASE_BACK_M } from '../src/sim/taxi.js';
 import { sendTaxi, laneOf, LANE_Z, freeShare } from '../src/sim/traffic.js';
 import { makeAgent, follow } from '../src/sim/agents.js';
 import { sheet } from '../src/sim/people.js';
@@ -34,6 +34,28 @@ function atKerbFollowed({ tracking = 10, pathfinding = 10, back = 6 } = {}) {
 }
 
 export default [
+  {
+    name: 'taxi: on the south kerb, a free one right alongside you: hailed, it pulls in a little ahead, and you\'re asked where to once you\'ve walked to its door',
+    fn() {
+      const g = newGame({ seed: 7, city: 'london', weather: 'clear' }), bus = createBus(), asked = [];
+      bus.on('taxi', (l) => asked.push(l));
+      start(g, bus);
+      for (let k = 0; k < 3; k++) step(g, {}, bus);
+      const me = playerActor(g), dir = laneOf(g, 1) === LANE_Z.south ? 1 : -1;
+      Object.assign(me, { z: Z.kerbS + 1.5, face: 'down', busy: null, glass: false });   // (on the pavement, a step and a half in from its edge)
+      g.traffic.cars = g.traffic.cars.filter(c => c.dir !== dir);
+      const c = sendTaxi(g, dir);
+      Object.assign(c, { x: me.x - dir * 2, v: 9 });                   // (two metres short of you, going at 32 km/h)
+      const kerb = atKerb(g, me), seen = taxiComing(g, me) === c, hailed = hailCab(g, bus, me);
+      let t = 0;
+      for (; t < 400 && !cabFor(g, me); t++) step(g, {}, bus);
+      const stopped = cabFor(g, me), off = stopped ? (stopped.x - me.x) * dir : null, before = asked.length;
+      let w = 0;
+      for (; w < 400 && !asked.length && stopped; w++) step(g, { mx: dir, mz: 0 }, bus);   // (along the kerb to its door)
+      assert(kerb && seen && hailed && stopped && off > 0 && off < 30 && before === 0 && asked.length === 1, `at the kerb ${kerb}, seen ${seen}, hailed ${hailed}, stopped ${!!stopped} ${fmt(off ?? 0, 1)} m ahead, asked before walking ${before}, after ${asked.length}`);
+      console.log(`      a free taxi 2 m short of you at 32 km/h: hailed; stopped ${fmt(off, 1)} m ahead after ${fmt(t * 0.05, 1)} s; walked to its door and asked where to after ${fmt(w * 0.05, 1)} s`);
+    },
+  },
   {
     name: 'taxi: being tailed, a cab hailed with them in view behind you: written down, maybe caught at it, and the ride goes (no throw)',
     fn() {

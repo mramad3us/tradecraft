@@ -32,7 +32,7 @@
 // Also here, the bits of the street they read: where the crossings and the shop windows are, the
 // instinct's offer of what T would do here, and a calm way to pick a line of the instinct's without
 // touching the dice.
-import { townOf } from './cities/index.js';
+import { townOf, kioskOf } from './cities/index.js';
 import { TICK_MS } from './clock.js';
 import { hash } from './rng.js';
 import { LANES, Z, SECTION_M } from './map/street.js';
@@ -56,7 +56,7 @@ import { armName, isBox, boxCal, boxWord } from './firearms.js';
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 // (in a shop: the spot's act, and the instinct's words for it)
 const IN_SHOP = { counter: 'counter', sit: 'table', wash: 'basin', back: 'backdoor' };
-const SHOP_COVER = { counter: (k) => (k === 'gym' || k === 'club' || k === 'school' ? 'ask at the desk' : 'go to the counter'), sit: () => 'have a coffee at the window', wash: () => 'wash at the basin', back: () => 'slip out the back door' };
+const SHOP_COVER = { counter: (k) => (k === 'gym' || k === 'club' || k === 'school' || k === 'culture' ? 'ask at the desk' : 'go to the counter'), sit: () => 'have a coffee at the window', wash: () => 'wash at the basin', back: () => 'slip out the back door' };
 
 export const LACE_AGAIN_S = 40, MOBILE_AGAIN_S = 25, MOBILE_S = 20;
 const TPS = 1000 / TICK_MS;
@@ -107,13 +107,25 @@ export function benchNear(state, a) {
  * 'shelter' | 'notices', x, z (where you stand or sit), face } or null.
  */
 export const KIOSK_S = 25, PHONE_S = 45, NOTICES_S = 30;
+// (a kiosk's business, by what it sells: what T does there, what's paid for, and the minute stood at it, the street past whatever's in your hands)
+export const KIOSK_WAYS = {
+  news: { about: 'A newsstand. Papers, cigarettes, and a man who sees everyone who passes.', cover: 'buy a paper at the kiosk', what: 'a paper', line: 'A paper from the kiosk, and the front page read standing, the street over the top of it.', none: 'You read the headlines off the kiosk\'s rack, the street over the top of them.' },
+  general: { about: 'A kiosk: papers, cigarettes, matches, and a man who sees everyone who passes.', cover: 'buy a paper at the kiosk', what: 'a paper', line: 'A paper and a box of matches from the kiosk, the front page read standing, the street over the top of it.', none: 'You read the headlines off the kiosk\'s rack, the street over the top of them.' },
+  cafe: { about: 'A kiosk with a hatch: coffee in paper cups, and a man who sees everyone who passes.', cover: 'buy a coffee at the kiosk', what: 'a coffee', line: 'A coffee from the hatch, drunk standing, the street over the rim of the cup.', none: 'You read the kiosk\'s price list a long time, the street past the edge of it.' },
+  tea: { about: 'A tea kiosk: an urn, paper cups, and a woman who sees everyone who passes.', cover: 'buy a tea at the kiosk', what: 'a tea', line: 'A tea from the hatch, too hot to drink, the street over the rim of the cup while it cools.', none: 'You read the kiosk\'s price list a long time, the street past the edge of it.' },
+  ices: { about: 'An ice-cream kiosk, open whatever the weather, and a woman who sees everyone who passes.', cover: 'buy an ice cream at the kiosk', what: 'an ice cream', line: 'An ice cream from the kiosk, eaten slowly, whatever the weather: the street past the wafer.', none: 'You read the ice creams\' names off the glass, the street reflected in it.' },
+  flowers: { about: 'A flower kiosk: buckets of carnations, and a woman who sees everyone who passes.', cover: 'look at the flowers at the kiosk', what: 'a flower', line: 'A single carnation, chosen slowly, from a bucket, the street past the cellophane.', none: 'You look over the buckets of flowers as if choosing, the street past them.' },
+  bakery: { about: 'A ka\'ak kiosk: sesame rings on a pole, and a man who sees everyone who passes.', cover: 'buy a ka\'ak at the kiosk', what: 'a ka\'ak', line: 'A ka\'ak from the kiosk, sesame and thyme, eaten standing, the street past the ring of bread.', none: 'You read the kiosk\'s fillings off its board, the street past the edge of it.' },
+  drinks: { about: 'A kiosk with a humming fridge: cold drinks, and a man who sees everyone who passes.', cover: 'buy a cold drink at the kiosk', what: 'a cold drink', line: 'Something cold from the kiosk\'s fridge, drunk standing, the street past the bottle.', none: 'You look over the kiosk\'s fridge as if choosing, the street in its glass.' },
+};
+export const kioskWay = (state, a) => KIOSK_WAYS[spotNear(state, a)?.sells] ?? KIOSK_WAYS.news;
 export function spotNear(state, a) {
   const S = sectionAt(state, a.x);
   if (!S) return null;
   const k = S.doors.find(d => d.kind === 'kiosk' && Math.hypot(d.x - a.x, d.z - a.z) < 1.6);
-  if (k) return { kind: 'kiosk', x: k.x, z: k.z, face: 'up' };
+  if (k) return { kind: 'kiosk', x: k.x, z: k.z, face: 'up', sells: S.park?.feature?.kind === 'kiosk' ? kioskOf(state.map.city, S.park.feature)[2] : 'news' };   // (what it sells: its sign's, sim/cities/ kioskOf())
   const st = S.props.find(p => p.kind === 'stall' && (p.look === 'kiosk' || p.look === 'papers') && Math.abs(p.x - a.x) < 1.4 && Math.abs(a.z - (p.z + 0.8)) < 1.2);
-  if (st) return { kind: 'kiosk', x: st.x, z: st.z + 0.8, face: 'up' };
+  if (st) return { kind: 'kiosk', x: st.x, z: st.z + 0.8, face: 'up', sells: 'news' };   // (Cairo's paper stalls and its kiosks' racks: papers)
   const ph = S.props.find(p => p.kind === 'phonebox' && Math.abs(p.x - a.x) < 1.2 && Math.abs(a.z - (p.z - 0.7)) < 1.2);
   if (ph) return { kind: 'phone', x: ph.x, z: ph.z - 0.7, face: 'down' };
   const sh = stopNear(state, a);
@@ -207,12 +219,12 @@ export function affordance(state, me) {
   if (station) return { act: 'metro', text: ` {use} down into ${metroThe(state)}.` };
   const pane = paneNear(state, me), car = !pane || me.z > Z.kerbN - KERB_SIDE_M ? carNear(state, me) : null;   // (a shop's window first; right by the kerb, a car's)
   const act = kerb && cross ? 'cross' : spot ? spot.kind : kerb && taxiComing(state, me) ? 'taxi' : car ? 'car' : pane ? 'window' : benchNear(state, me) !== null ? 'bench' : cross ? 'cross' : null;
-  return act && { act, text: ` {use} ${COVER[act]}.` };
+  return act && { act, text: ` {use} ${act === 'kiosk' ? kioskWay(state, me).cover : COVER[act]}.` };
 }
 /** What T would do here, for the end of an instinct's line: { act, text } (only: the covers allowed). */
 export function offer(state, me, only = null) {
   const c = coverHere(state, me), ok = c && (!only || only.includes(c));
-  return { act: ok ? c : null, text: ok ? ` {instinct} ${COVER[c]}.` : '' };
+  return { act: ok ? c : null, text: ok ? ` {instinct} ${c === 'kiosk' ? kioskWay(state, me).cover : COVER[c]}.` : '' };
 }
 
 /** Do it: the player's busy plan for act. */
@@ -242,10 +254,10 @@ function act1(state, bus, me, what, { toward = Math.cos(me.head ?? 0) >= 0 ? -1 
   if (what === 'kiosk' || what === 'phone') {
     const sp = spotNear(state, me);
     if (!sp || sp.kind !== what) return;
-    const paid = what === 'kiosk' && pay(state, null, 1, 'a paper');
+    const K = what === 'kiosk' ? KIOSK_WAYS[sp.sells] ?? KIOSK_WAYS.news : null, paid = K && pay(state, null, 1, K.what);
     // (stood at it, the business of it, the street over the top of the paper, or through the glass)
     me.busy = { what, steps: [['go', sp.x, sp.z], ['wait', (what === 'kiosk' ? KIOSK_S : PHONE_S) * TPS, sp.face, 'idle']], wait: 0, since: state.time.ms };
-    say(state, bus, { kind: 'instinct', text: what === 'kiosk' ? (paid ? 'A paper from the kiosk, and the front page read standing, the street over the top of it.' : 'You read the headlines off the kiosk\'s rack, the street over the top of them.') : 'Into the phone box, a call to nobody, the receiver to your ear: the glass shows the street all round.' });
+    say(state, bus, { kind: 'instinct', text: what === 'kiosk' ? (paid ? K.line : K.none) : 'Into the phone box, a call to nobody, the receiver to your ear: the glass shows the street all round.' });
     return;
   }
   if (what === 'shelter') {

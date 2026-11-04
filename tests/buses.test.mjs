@@ -23,7 +23,7 @@ import { assert, fmt } from './helpers.mjs';
 function nearestStop(g) {
   const me = playerActor(g), i0 = Math.floor(me.x / SECTION_M);
   let best = null;
-  for (let i = i0 - 14; i <= i0 + 14; i++) for (const p of section(townOf(g.map), i, g.map.row ?? 0).props) if (p.kind === 'stop' && (!best || Math.abs(p.x - me.x) < Math.abs(best.x - me.x))) best = p;
+  for (let i = i0 - 30; i <= i0 + 30; i++) for (const p of section(townOf(g.map), i, g.map.row ?? 0).props) if (p.kind === 'stop' && (!best || Math.abs(p.x - me.x) < Math.abs(best.x - me.x))) best = p;
   return best;
 }
 
@@ -163,7 +163,7 @@ export default [
         if (sc.team === 'none') continue;
         for (let t = 0; t < 25 * 40; t++) step(g, goTo(g, playerActor(g), g.map.row ?? 0, playerActor(g).x + 30, -2.7), null);   // (a walk first: the team takes up behind)
         const r = takeBus(g);
-        if (!r?.dir) continue;
+        if (!r?.dir || !r.want) continue;                            // (no bus, or one at the end of its line that way: out of service, nobody on)
         const b = by[sc.team];
         b.n++; b.riders += sc.riders.length;
         if (sc.team === 'covert' && sc.carKeeps) b.car++;
@@ -189,7 +189,7 @@ export default [
         if (sc.team === 'none') continue;
         for (let t = 0; t < 25 * 40; t++) step(g, goTo(g, playerActor(g), g.map.row ?? 0, playerActor(g).x + 30, -2.7), null);
         const r = takeBus(g, 'bus0', null, true);
-        if (!r?.dir || sc.outcome) continue;                         // (the evening over before the bus came: the meeting missed)
+        if (!r?.dir || !r.want || sc.outcome) continue;             // (the evening over before the bus came: the meeting missed; or the end of its line, nobody on)
         n++; rode += sc.riders.length + (sc.carried ?? 0); carried += sc.carried ?? 0; lost += sc.teamLost; noted += sc.flags.some(f => f.kind === 'doors'); withSome += sc.riders.length + (sc.carried ?? 0) > 0;
       }
       console.log(`      ${n} rides off as the doors closed: ${rode} of the team rode with you, ${carried} carried on; the team lost ${lost} times (the doors, or nobody got on); written down ${noted} of the ${withSome} with one of them aboard`);
