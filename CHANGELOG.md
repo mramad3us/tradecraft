@@ -4,6 +4,13 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.28 (2026-11-04)
+
+- **No more streaks.** Someone put somewhere new in a tick (a passer-by brought back in at the street's edge, someone out of a door) used to be drawn gliding from where they'd been, a streak up or down the screen. Anyone who moves further than 1.5 m in a tick, more than anyone can run, is now drawn where they are.
+- **Nothing in front of the vendor.** Nothing along a shop's back wall deep enough to stand over whoever serves (a drinks fridge, a fitting room) goes behind the counter any more; the shelves still do.
+- **A bookshop's grammars read as what they are.** Each was labelled with the city's language, so London's three read "A grammar of Russian" three times. Now each says its own: Russian, Chinese, Persian.
+- Tests: training (a shelf's grammars all different); the cities' golden hashes re-set on purpose (the shops' back walls).
+
 ## v0.1.27 (2026-11-04)
 
 - **Hale is the first station's.** His welcome call, his exercises and his number by the phone come with the first tour, in London, and only there. A posting of your own starts with its posting's paper instead, and nobody rings. A saved game from before that's already past its first tour stays quiet too.

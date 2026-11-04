@@ -380,6 +380,7 @@ export function createView({ parent, bus, month = () => 11 }) {
   }
 
   const lerp = (a, b, k) => a + (b - a) * k;
+  const JUMP_M = 1.5;                                               // (a tick's furthest run is under half a metre: past this, a jump)
   const drawn = new Map();                                         // id → [x, z] as last drawn
   const sceneSprites = () => [...sections.values()].flatMap(s => s.sprites);
 
@@ -390,7 +391,8 @@ export function createView({ parent, bus, month = () => 11 }) {
     const ms = state.time.ms, wx = weatherAt(state), S = state.map.kind === 'interior' ? indoors(sky(ms, geoOf(state.map), wx), state.$world?.sections.get(0)?.plan?.mood) : sky(ms, geoOf(state.map), wx), W = state.$world;
     const lamps = W.lamps;
     // Where everyone is, between the ticks.
-    const at = (a) => { const p = prev.get(a.id); return p ? [lerp(p[0], a.x, alpha), lerp(p[1], a.z, alpha), lerp(p[2], a.stride, alpha)] : [a.x, a.z, a.stride]; };
+    // (a jump in a tick further than anyone runs, JUMP_M: put there, a passer-by brought back in at the street's edge, someone out of a door; drawn where they are, not glided across the picture: the user, 2026-11-04, "NPCs streak accross the screen when they spawn")
+    const at = (a) => { const p = prev.get(a.id); return p && Math.hypot(a.x - p[0], a.z - p[1]) < JUMP_M ? [lerp(p[0], a.x, alpha), lerp(p[1], a.z, alpha), lerp(p[2], a.stride, alpha)] : [a.x, a.z, a.stride]; };
     // The camera on the focus.
     const f = focusActor(state);
     if (f) {

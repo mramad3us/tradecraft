@@ -70,6 +70,12 @@ export function shopUnit(B, d, { seed, back = false } = {}) {
   else if (kind === 'flowers') along(['flowerBuckets', 'flowerBuckets', 'flowerBuckets'], zf + 0.02, wallFrom, wallTo);
   else if (kind === 'bank') along(['filingCabinet', 'filingCabinet'], zf + 0.02, wallFrom, wallTo);
   else along(['shelving', 'shelving'], zf + 0.02, wallFrom, wallTo, { goods: 'boxes' });
+  // (nothing along the wall deep enough to stand in front of whoever serves: a fridge, a fitting room behind the counter's
+  // man reached past him and was drawn over him; the user, 2026-11-04, "in some stores, visual bugs display shelves in front of vendors")
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i], F = FURNITURE[it.kind];
+    if (F?.wall && Math.abs(it.x - staff.x) < F.w / 2 + 0.45 && it.z + F.d / 2 > staff.z - 0.15) items.splice(i, 1);
+  }
   // The room's middle, west of the counter, where there's room: an aisle, the rails, a table or two.
   const mid0 = x0 + 0.5, mid1 = cx - cw / 2 - 0.6;
   if (mid1 - mid0 >= 1.9) {

@@ -96,4 +96,16 @@ export default [
       assert(!none && offered === 'read' && g.people.me.books[0].read === 1 && (g.time.ms - t0) / 60000 >= 60, 'an hour at home with the book');
     },
   },
+  {
+    name: 'training: a bookshop\'s grammars each in their own language, by title (London: Russian and two of its schools\' others), none the same twice',
+    fn() {
+      const g = newGame({ seed: 4, scenario: 'walk', city: 'london', weather: 'clear' });
+      start(g, null);
+      const d = atShop(g, 'books');
+      assert(d, 'a bookshop on the street');
+      const labels = ways(g, d, 'counter').filter(o => o.id.startsWith('book:grammar')).map(o => o.label.split(':')[0]);
+      assert(labels.length >= 2 && new Set(labels).size === labels.length, `the grammars: ${labels.join('; ')}`);
+      console.log(`      London's grammars: ${labels.join('; ')}`);
+    },
+  },
 ];
