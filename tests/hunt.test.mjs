@@ -58,6 +58,28 @@ export default [
     },
   },
   {
+    name: 'hunt: after a killing, every street in the city for 48 hours: officers at its corners, armed units jogging through and cars with their lights, several at once (the user, 2026-11-04)',
+    fn() {
+      const w = scene('moscow'), p = w.p;
+      p.skills.deception = [60, 0];                                   // (their eyes going past you: the deployment watched, no stop)
+      start(w.g, w.bus, { why: 'killed', x: w.me.x, who: false, wearing: true });
+      w.g.hunt.next = w.g.time.ms; w.g.hunt.where.row = (w.g.map.row ?? 0) - 6;   // (six streets from it)
+      let posts = 0, most = 0, armed = 0, cars = 0, units = new Set();
+      for (let t = 0; t < 240; t++) {
+        seconds(w, 1);
+        const A = w.g.actors.filter(a => a.hunt);
+        posts = Math.max(posts, A.filter(a => a.huntPost).length);
+        const moving = new Set([...A.filter(a => !a.huntPost).map(a => a.hunt), ...(w.g.traffic?.cars ?? []).filter(c => c.ems?.hunt).map(c => c.ems.hunt)]);
+        most = Math.max(most, moving.size); for (const u of moving) units.add(u);
+        armed = Math.max(armed, A.filter(a => isGun(w.g.people[a.who]?.hand)).length);
+        cars = Math.max(cars, (w.g.traffic?.cars ?? []).filter(c => c.ems?.hunt && c.ems.lights).length);
+      }
+      const H = w.g.hunt;
+      console.log(`      four minutes six streets from it: ${posts} at the corners, ${units.size} units through (${most} at once), ${armed} long guns in hand at once, ${cars} car${cars === 1 ? '' : 's'} with its lights at once; the search on for ${fmt((H.search - H.ms) / HOUR, 0)} h`);
+      assert(posts >= 2 && units.size >= 2 && most >= 2 && armed >= 2 && (H.search - H.ms) / HOUR >= 36, `posts ${posts}, units ${units.size}, at once ${most}, armed ${armed}`);
+    },
+  },
+  {
     name: 'hunt: an officer\'s look, by what you\'ve changed and how far you\'ve gone (Deception 10 against Awareness 10, 4000 looks each): as described where they\'re looking, caught; another coat ten streets on, through',
     fn() {
       const w = scene(), me = w.me, r = stream('hunt-balance', 1);

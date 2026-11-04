@@ -75,6 +75,8 @@ export function markViolent(state, me) {
   const seers = state.actors.filter(a => a !== me && a.ai && !a.hidden && isPasserby(a) && Math.hypot(a.x - me.x, a.z - me.z) < SEE_DOWN_M && seesActor(state, a, me));
   if (seers.length) state.$violent = { ms: state.time.ms, look: seenLook(state.people[me.who]?.look), d: Math.min(...seers.map(a => Math.hypot(a.x - me.x, a.z - me.z))), light: state.$world ? lightHere(state, me.x, me.z) : 1, x: me.x };
 }
+// (your doing, though nobody saw you: someone your rounds hit, or your shots, lately)
+const yours = (state, c, now) => c.who.some(id => { const q = state.people[actorOf(state, id)?.who]; return q?.hitBy?.id === state.player && now - q.hitBy.ms < VIOLENT_S * 1000; }) || (state.$shotBy && now - state.$shotBy.ms < VIOLENT_S * 1000);
 // (how bad it is, for the hunt: someone dead, someone shot, shots fired, or a fight)
 function gravity(state, c, now) {
   const hurt = c.who.map(id => state.people[actorOf(state, id)?.who]).filter(Boolean);
@@ -125,7 +127,7 @@ function report(state, bus, me, now, row) {
     if (c.described) {
       const w = stream('hunt-witness', state.map.seed, now);
       startHunt(state, bus, { why: gravity(state, c, now), row, x: V.x ?? a.x, who: chance(w, faceP(V.d ?? 10, V.light ?? 1)), wearing: chance(w, wearP(V.light ?? 1)), first: c.at.police, aware: false });
-    }
+    } else if (yours(state, c, now)) startHunt(state, bus, { why: gravity(state, c, now), row, x: a.x, first: c.at.police, aware: false });   // (nobody saw who: the hunt for whoever did it, with nothing of you to go on; the user, 2026-11-04, after shooting people unseen, one patrol six streets on)
     // (in your sight or your hearing: you know it's been called, and your instinct guesses how long)
     if (knows) {
       c.known = true;

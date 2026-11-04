@@ -4,6 +4,12 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.34 (2026-11-04)
+
+- **Shoot people and the city fills with police.** After someone's shot, every street in the city is searched for 36 hours (48 after a killing). Armed police stand at the street's corners (two, or three after a killing), armed pairs jog the pavements, and police cars crawl with their lights on, two or three units about at once. Shots that hit nobody get 8 hours, with one officer at a corner of every street.
+- **A hunt even when nobody saw you.** Shooting people unseen started no hunt at all: the call came, but nothing was looking for you. Now the search begins all the same, with nothing of you to go on but where it happened.
+- **Officers at the corners** each check you as you pass, once an hour. They stand down when the search ends, or when they've had you.
+
 ## v0.1.33 (2026-11-04)
 
 - **The wounded do what their wounds make them do.** Pain, blood loss, shock and dizziness decide, not a set distance. With you still there and a gun in your hand, a wounded passer-by runs for their life, and running makes them bleed faster: an opened artery puts them in shock and down in about a minute. With your hands empty, they walk away until you're out of sight, then stand and phone for help until dizziness or pain sits them down. Past what they can bear, they sit against the wall right there, or lie down; in shock they lie down.
