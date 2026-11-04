@@ -19,15 +19,19 @@
 // **They come.** Each by its car (sim/traffic.js sendEms()), lights going, pulled up at the kerb by the place; its crew
 // of two out of it and to the casualties. The ambulance's kneel and work (TREAT_S: what bleeds outside is dressed as
 // they start), then carry them to it on the stretcher, and go: the dead too, under a sheet. Taken, someone's in
-// hospital (what bleeds inside stopped); you, the hours there (HOSPITAL_H), then out, and if they've your description,
-// the police are waiting (sim/armed.js arrest()). The police's tape off the place (state.cordons: CORDON_M round it,
-// CORDON_H), one of them posted at it for as long (back at it whenever you come back to that street), the other
-// taking statements (STATEMENT_S), and gone. Off the street you're on, a call plays out unseen: the tape's there
-// when you come back.
+// hospital (what bleeds inside stopped); you, a hospital's care (sim/services.js care(): what a walk-in at its desk
+// would get) and the hours there (HOSPITAL_H), then out on the pavement in front of the hospital nearest where you fell
+// (sim/services.js outside()), and if they've your description (described()), the police are waiting (sim/armed.js
+// arrest()). A walk-in's hours at a hospital's desk (sim/services.js admit()) are skipped the same way, and what an
+// official hospital costs counted at the end of them: your name in its records (VISIT_HEAT), a gunshot or a knife wound
+// reported (sim/aid.js HOSPITAL_HEAT, sim/police.js POLICE_HOSPITAL).
+// The police's tape off the place (state.cordons: CORDON_M round it, CORDON_H), one of them posted at it for as long
+// (back at it whenever you come back to that street), the other taking statements (STATEMENT_S), and gone. Off the
+// street you're on, a call plays out unseen: the tape's there when you come back.
 // **Your description.** An officer who sees you (EYE_M) dressed as you were described knows you: the alarm (sim/armed.js
 // call(): the order, the cuffs, the armed response if you're armed), and in the campaign your cover standing takes
 // DESCRIBED_COVER, once. Change what you wear (and the hat, the hair) and you're someone else.
-import { policeHeat, POLICE_WANTED } from './police.js';
+import { policeHeat, POLICE_WANTED, POLICE_HOSPITAL } from './police.js';
 import { stream, range, chance, pick, next } from './rng.js';
 import { say } from './log.js';
 import { seesActor } from './perception.js';
@@ -42,6 +46,8 @@ import { sendEms } from './traffic.js';
 import { armCop, call as raiseAlarm, arrest } from './armed.js';
 import { addHeat } from './heat.js';
 import { shortName } from './fight.js';
+import { care, needsOf, outside, hoursWords, VISIT_HEAT } from './services.js';
+import { HOSPITAL_HEAT } from './aid.js';
 import { MIN, HOUR, DAY } from './clock.js';
 
 export const SEE_DOWN_M = 25, CALL_P = 0.1, KNOW_M = 18, ON_PHONE_S = 40, VIOLENT_S = 120, MERGE_M = 30;
@@ -52,6 +58,8 @@ const DEFAULT_EMS = { police: [8, 15], ambulance: [10, 20] };
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
 /** What a witness says of someone: the top they wear and its colour, the hat, the hair. Another of any, someone else. */
 export const seenLook = (look = {}) => [look.top?.kind, look.top?.color, look.hat?.kind ?? 'bare', look.hat?.color, look.hair?.style, look.hair?.color].join('|');
+/** Whether the police here have p's description, as p looks now (state.wanted: in its city, in its days). */
+export const described = (state, p) => { const W = state.wanted; return !!(W && W.until > state.time.ms && (!W.city || W.city === (state.map.city ?? null)) && seenLook(p?.look) === W.look); };
 
 /** You at it, and seen (a shot fired, a killing, a fight: sim/shooting.js, sim/interact.js): whoever sees you now will describe you. */
 export function markViolent(state, me) {
@@ -78,7 +86,7 @@ function report(state, bus, me, now, row) {
     const p = a.who && state.people[a.who];
     if (!p || a.hidden || p.reported || rowOf(state, a) !== row || a.ems) continue;
     const down = p.dead || a.gait === 'down' || !canStand(p);
-    if (!down) continue;
+    if (!down || (a === me && state.$takedown?.stage === 'pin' && canStand(p))) continue;   // (you face down under an officer's knee: the police have it in hand, nobody calls an ambulance: sim/armed.js)
     const near = state.actors.filter(w => w !== a && w.ai && !w.hidden && isPasserby(w) && !(w.ai.fled > now - 20000 && Math.hypot(w.x - a.x, w.z - a.z) > 12) && Math.hypot(w.x - a.x, w.z - a.z) < SEE_DOWN_M && seesActor(state, w, a));
     if (!near.length || !chance(state.rng, 1 - (1 - CALL_P) ** near.length)) continue;
     p.reported = now;
@@ -234,24 +242,37 @@ function finish(state, bus, me, c, kind, S, A, car) {
   S.stage = 'done';
 }
 
-// You, taken in: the hours in a hospital bed, stitched and dressed; out at the end of it, onto the street where it happened. Described, the police are at the bedside.
+// You, taken in: a hospital's care (sim/services.js care(): stitched, dressed, the blood put back), the hours in a bed;
+// out at the end of it in front of the hospital nearest where it happened. Described, the police are at the bedside.
 function hospital(state, bus, me, c) {
-  const p = state.people[me.who], ms = state.time.ms;
-  for (const i of p.injuries ?? []) { if (i.bleed > ms) i.bleed = ms; i.dressed = true; if (i.deep) i.stitched = true; i.clean = true; }
-  p.blood = Math.max(p.blood ?? 100, 80); if (p.blood >= 100) delete p.blood;
+  const p = state.people[me.who], ms = state.time.ms, N = needsOf(p, ms);   // (what's wrong, before it's seen to: a gunshot or a knife wound reported)
+  care(p, ms);                                                     // (the blood put back too, under TRANSFUSE_BELOW)
   me.hidden = false; me.gait = 'idle';
   say(state, bus, { kind: 'note', text: 'The ambulance\'s ceiling, then a corridor\'s, then a ward\'s. Stitches, a drip, a doctor who asks how it happened and doesn\'t believe the answer.' });
-  state.$hospital = { ms: HOSPITAL_H * HOUR, arrest: !!(state.wanted && state.wanted.until > ms && seenLook(p.look) === state.wanted.look) };   // (the hours, skipped after the tick: sim/game.js)
+  state.$hospital = { ms: HOSPITAL_H * HOUR, arrest: described(state, p), from: { row: c.row, x: c.x }, out: 'hospital', charged: true, report: N.reported };   // (an official hospital: its costs as a walk-in's, the user, 2026-11-04)   // (the hours, skipped after the tick: sim/game.js)
 }
 
-/** The hours in hospital (sim/game.js, after the tick, as an arrest's are): skipped; then, if they've your description, the police. */
+/**
+ * The hours in hospital (sim/game.js, after the tick, as an arrest's are; the ambulance's patient's, or a walk-in's at a
+ * hospital's desk: sim/services.js admit()): skipped; at an official hospital, either way, what it costs (its records,
+ * VISIT_HEAT in the campaign; a gunshot or a knife wound reported, HOSPITAL_HEAT more and POLICE_HOSPITAL on the police's
+ * own file); out on the pavement in front of the hospital nearest where you were (H.from: where you fell, or the desk's
+ * door; H.out null, where you are), the log naming it; then, if they've your description, the police.
+ */
 export function afterHospital(state, bus, me, skip) {
   const H = state.$hospital;
   if (!H) return;
   delete state.$hospital;
   skip(state, bus, H.ms);
-  say(state, bus, { kind: 'note', text: 'They let you go at the end of it, with a bag of dressings and a leaflet.' });
-  if (H.arrest && me) { say(state, bus, { kind: 'note', text: 'An officer has been waiting in the corridor the whole time. He has your description in his notebook.' }); arrest(state, bus, me); }
+  const p = me && state.people[me.who], official = H.official !== false;
+  if ((H.walkin || H.charged) && official) {
+    if (state.campaign && state.legend) addHeat(state, VISIT_HEAT + (H.report ? HOSPITAL_HEAT : 0));
+    if (H.report) policeHeat(state, POLICE_HOSPITAL);                // (the police's own file: the hospital's report, sim/police.js)
+  }
+  const at = me && H.out !== null ? outside(state, bus, H.out ?? 'hospital', H.from ?? null) : null, h = H.ms / HOUR;
+  const out = at ? `: out through the doors of ${at.label.charAt(0).toLowerCase()}${at.label.slice(1)}` : '';
+  say(state, bus, { kind: 'note', text: H.walkin ? `${hoursWords(h)}, all told. They let you go with a bag of dressings and a leaflet${out}.` : `They let you go at the end of it, with a bag of dressings and a leaflet${out}.` });
+  if ((H.arrest ?? (H.walkin && official && described(state, p))) && me) { say(state, bus, { kind: 'note', text: 'An officer has been waiting in the corridor the whole time. He has your description in his notebook.' }); arrest(state, bus, me, 'submitted', 'the description'); }
 }
 
 // The tape: round the place, a day.

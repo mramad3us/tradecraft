@@ -98,6 +98,17 @@ function hang(px, d, x, y, w, h) {
     for (let i = x; i < x + w; i += 2) { px(i, y + h, 1, 1, 0xe2dac6); }   // (the fringe)
     return;
   }
+  if (d.kind === 'board' && d.look?.posters) {                    // (a police station's: wanted faces; a hospital's: its posters, a band of colour over their lines)
+    px(x, y, w, h, 0x6b4636); px(x + 1, y + 1, w - 2, h - 2, 0xb48459);
+    const wanted = d.look.posters === 'wanted';
+    for (let k = 0, i = x + 2; i + 4 <= x + w - 2; k++, i += 6) {
+      const ph = Math.min(h - 4, 8), py = y + 2 + ((s + k) % Math.max(1, h - ph - 3));
+      px(i, py, 5, ph, 0xf4efe6); px(i + 2, py, 1, 1, 0x9e3c36);   // (the sheet, its pin)
+      if (wanted) { px(i + 1, py + 1, 3, 1, 0x23252f); px(i + 1, py + 2, 3, 2, [0xd9a48a, 0xb48459, 0x8f6345][(s + k) % 3]); px(i + 1, py + 4, 3, 2, 0x4c5262); for (let j = py + 6; j < py + ph - 1; j += 1) px(i + 1, j, 3, 1, 0x8f96a6); }   // (a face, its hair, its shoulders, the lines under it)
+      else { px(i, py + 1, 5, 2, [0x3b6296, 0x356f42, 0xc95c45][(s + k) % 3]); for (let j = py + 4; j < py + ph - 1; j += 2) px(i + 1, j, 3, 1, 0x8f96a6); }
+    }
+    return;
+  }
   if (d.kind === 'board') {                                       // (a club's notice board: cork, papers pinned on it)
     px(x, y, w, h, 0x6b4636); px(x + 1, y + 1, w - 2, h - 2, 0xb48459);
     for (let k = 0, i = x + 2; i < x + w - 4; k++, i += 4 + (k % 2)) { const ph = 4 + ((s + k) % 3), py = y + 2 + ((s + k * 3) % Math.max(1, h - ph - 3)); px(i, py, 3, ph, k % 3 ? 0xf4efe6 : 0xe8d888); px(i + 1, py, 1, 1, 0x9e3c36); px(i, py + 2, 3, 1, 0x8f96a6); }

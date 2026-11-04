@@ -56,7 +56,7 @@ import { armName, isBox, boxCal, boxWord } from './firearms.js';
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 // (in a shop: the spot's act, and the instinct's words for it)
 const IN_SHOP = { counter: 'counter', sit: 'table', wash: 'basin', back: 'backdoor' };
-const SHOP_COVER = { counter: (k) => (k === 'gym' || k === 'club' || k === 'school' || k === 'culture' || k === 'range' ? 'ask at the desk' : 'go to the counter'), sit: () => 'have a coffee at the window', wash: () => 'wash at the basin', back: () => 'slip out the back door' };
+const SHOP_COVER = { counter: (k) => (['gym', 'club', 'school', 'culture', 'range', 'police', 'hospital'].includes(k) ? 'ask at the desk' : 'go to the counter'), sit: () => 'have a coffee at the window', wash: () => 'wash at the basin', back: () => 'slip out the back door' };
 
 export const LACE_AGAIN_S = 40, MOBILE_AGAIN_S = 25, MOBILE_S = 20;
 const TPS = 1000 / TICK_MS;

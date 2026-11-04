@@ -23,7 +23,7 @@ import { stream, int, range, pick, chance, weighted, hash } from '../rng.js';
 import { SECTION_M, GAP_M, STRETCH, Z, GROUND_H, FLOOR_H, at, toneOf } from '../map/layout.js';
 import { cairoName, cairoLook } from './folk.js';
 import { squareFurniture } from './square.js';
-import { wordM, fit } from './signs.js';
+import { wordM, fit, livery } from './signs.js';
 
 // ---------- names ----------
 
@@ -74,9 +74,11 @@ const SHOPS = {
   butcher: ['جزارة', 'لحوم'], laundry: ['مكوجي', 'دراي كلين'], books: ['مكتبة', 'مكتبة|BOOKS'], optician: ['نظارات', 'نظارات|OPTICS'],
   watches: ['ساعات'], tobacco: ['سجائر', 'كشك'],
   gym: ['جيم|GYM', 'جيم'], club: ['كاراتيه|KARATE', 'كاراتيه'], range: ['نادي رماية|SHOOTING CLUB', 'الرماية'], school: ['لغات|LANGUAGES', 'مدرسة لغات'], culture: ['قصر ثقافة|PALACE OF CULTURE', 'قصر ثقافة', 'فنون|ARTS'],
+  police: ['قسم شرطة|POLICE', 'قسم شرطة'], hospital: ['مستشفى|HOSPITAL', 'مستشفى'],   // (a district's police station, a hospital: sim/services.js)
 };
-const SHOP_WEIGHTS = [['grocery', 3], ['cafe', 3], ['juice', 2], ['koshary', 1.2], ['foul', 1.5], ['pharmacy', 2], ['bakery', 1.5], ['sweets', 1.2],
-  ['phones', 2.5], ['clothes', 2.5], ['shoes', 1.5], ['exchange', 0.6], ['bank', 0.6], ['restaurant', 1.2], ['spices', 0.8], ['barber', 1.2],
+// (a police station where a barber's stood, a hospital where a chemist's did: their weights split, so every other shop is where it was)
+const SHOP_WEIGHTS = [['grocery', 3], ['cafe', 3], ['juice', 2], ['koshary', 1.2], ['foul', 1.5], ['pharmacy', 1.6], ['hospital', 0.4], ['bakery', 1.5], ['sweets', 1.2],
+  ['phones', 2.5], ['clothes', 2.5], ['shoes', 1.5], ['exchange', 0.6], ['bank', 0.6], ['restaurant', 1.2], ['spices', 0.8], ['barber', 0.8], ['police', 0.4],
   ['butcher', 0.8], ['laundry', 1], ['books', 0.6], ['optician', 0.8], ['watches', 0.6], ['tobacco', 1], ['gym', 0.6], ['club', 0.3], ['range', 0.1], ['school', 0.25], ['culture', 0.15]];   // (culture: a community centre and its clubs, sim/clubs.js; the school's weight split, so every other shop is where it was)
 // Boards: [ground, letters, border]; banners: [ground, letters, band].
 const BOARDS = [[0x24503a, 0xf6f4ee, 0x173327], [0x1b2541, 0xf8e08a, 0x14151c], [0xf6f4ee, 0x9e3c36, 0x6a7182], [0x6e2a2e, 0xf8e08a, 0x3f1a22], [0x23252f, 0xe7b84a, 0x14151c]];
@@ -105,8 +107,8 @@ function building(r, x0, x1, z, S) {
     const kind = weighted(r, SHOP_WEIGHTS), words = fit(r, SHOPS[kind], sw - 0.1);
     ops.push(['shopfront', x, sw - 1.3, arched ? 2.6 : 2.75, { goods: [pick(r, [0xe7b84a, 0xc95c45, 0xf6f4ee]), pick(r, [0x9e3c36, 0x3b6296, 0x356f42, 0xe7b84a]), pick(r, [0x8f6345, 0xc95c45, 0x5d8fc2])], arched, roller }]);
     ops.push(['door', x + sw - 1.2, 1.1, 2.45, { color: 0x23252f, frame: 0x23252f }]);
-    if (banner) { const [bg, fg, band] = pick(r, BANNERS); ops.push(['sign', x - 0.1, 3.0, sw + 0.1, 0.95, words, { bg, fg, band, style: 'banner', kind }]); }
-    else { const [bg, fg, border] = pick(r, BOARDS); ops.push(['sign', x, arched ? 3.05 : 3.0, sw - 0.1, 0.8, words, { bg, fg, border, style: chance(r, 0.3) ? 'lightbox' : 'board', kind }]); }
+    if (banner) { const [bg, fg, band] = livery(kind, pick(r, BANNERS)); ops.push(['sign', x - 0.1, 3.0, sw + 0.1, 0.95, words, { bg, fg, band, style: 'banner', kind }]); }   // (a police station's colours, a hospital's: sim/cities/signs.js)
+    else { const [bg, fg, border] = livery(kind, pick(r, BOARDS)); ops.push(['sign', x, arched ? 3.05 : 3.0, sw - 0.1, 0.8, words, { bg, fg, border, style: chance(r, 0.3) ? 'lightbox' : 'board', kind }]); }
     S.doors.push({ x: x0 + x + sw - 0.65, z, w: 1.1, kind: 'shop', shop: kind, pane: { x0: x0 + x, x1: x0 + x + sw - 1.3, z } });
   };
   const groundFloor = ({ shops = 0.7, arched = false, roller = 0, banner = 0.4, entrance = 0.5 }) => {
@@ -364,6 +366,7 @@ export const CAIRO = {
     floors: { living: ['terrazzo', 'cement'], bedroom: ['terrazzo', 'parquet'], kitchen: ['cement'], bath: ['tiles'], hall: ['terrazzo'] }, floorWood: [0x8f6345, 0x6b4636],
     woods: ['dark', 'teak', 'walnut'], fabrics: ['red', 'mustard', 'teal', 'brown'], phones: ['black', 'green'], rugs: ['kilim', 'persian'], wallCarpet: 0, moods: ['cool', 'soft', 'warm'] },
   embassyLook: { lobby: 0xece6da, station: 0xd6ccb8, floor: 'terrazzo' },
+  desks: { police: 'شرطة', hospital: 'استقبال' },                    // (on the plaques of a police station's front desk, a hospital's: sim/interiors/shop.js)
   walk: { about: 'Downtown and the lanes off it: dust, signs in Arabic, a minaret.', hello: 'Cairo in November: the dust settles at dusk, and the horns never do.', langs: { ar: 'working' },
     park: { fountain: 'A fountain, running. Pigeons, a man with a tea, and every path in view.', beds: 'Flower beds, bright in November.' } },
 };

@@ -42,7 +42,7 @@
 //   tread, rail, runner   stairs ('stone' | 'wood' | 'terrazzo'; a wood; a fabric, or false)
 //   colour     shelving's frame, checkout's stripe, drinksFridge's brand, cafeCounter's tiles,
 //              displayCase's cabinet, filingCabinet; metal: mailboxes, stanchions; rope: stanchions
-//   curtain    fittingRoom; cloth ('white' | 'checks') restaurantTable; sign (its word) bankCounter;
+//   curtain    fittingRoom; cloth ('white' | 'checks') restaurantTable; sign (its word), board (its colour), plaque (the word on its front) bankCounter;
 //   water      bathtub (true: filled)
 //   n          boothDivider: the lane number on its plate (a range's: the lane beyond it)
 //
@@ -1390,13 +1390,23 @@ const petals = (c) => rep(`petals-${c}`, 8, (px, w, h, r) => {
 });
 function bankCounter(k, o) {
   const { W, D, look, r } = o, wood = woodOf(look.wood, r, ['walnut', 'teak', 'dark']);
-  const sign = look.sign ?? 'CHANGE';
+  const sign = look.sign ?? 'CHANGE', board = look.board ?? 0x1b2541;   // (a police station's desk navy, a hospital's green: sim/interiors/shop.js)
+  const ar = /[؀-ۿ]/.test(sign), SH = ar ? 11 : 7;        // (Arabic's nine rows, its tails and its alefs, on a taller board: src/art/arabic.js)
+  const fit = (w) => (textWidth(sign) <= w - 2 ? sign : sign.slice(0, Math.floor((w - 2) / 4)));
+  // (its word on a plaque on the desk's front (look.plaque: a police station's, a hospital's), so whoever's behind the
+  // glass shows through it, face, cap and uniform; else on a board over the glass, a bank's)
+  const plaque = !!look.plaque;
   const c = k.comp();
-  c.box(W, 16, D, { sides: woodSide(wood, D, 16), front: tex(`bankfront-${wood}`, W, 16, (px, w, h, rr) => {
+  c.box(W, 16, D, { sides: woodSide(wood, D, 16), front: tex(`bankfront-${wood}${plaque ? `-${sign}-${board}` : ''}`, W, 16, (px, w, h, rr) => {
     grain(px, 0, 0, w, h, wood, rr, true); bevel(px, 0, 0, w, h, wood);
     for (let x = 2; x + 6 <= w - 1; x += 7) { sunk(px, x, 2, 6, h - 5, tone(wood, -0.04)); px(x + 2, 5, 2, h - 11, tone(wood, 0.03)); }
     px(0, h - 2, w, 1, BRASS); px(0, h - 1, w, 1, tone(wood, -0.3));
-  }) }, 0, 0, 0);
+    if (plaque) {
+      const s = fit(w), pw = Math.min(w, textWidth(s) + 4), x0 = Math.floor((w - pw) / 2), y0 = ar ? 2 : 4;   // (as wide as the desk at most: Cairo's استقبال fills it)
+      px(x0, y0, pw, SH, BRASS); px(x0 + 1, y0 + 1, pw - 2, SH - 2, board);
+      text(px, x0 + Math.floor((pw - textWidth(s)) / 2), y0 + (ar ? 3 : 1), s, GLOWS[0]);
+    }
+  }, plaque ? { glows: [GLOWS[0]] } : {}) }, 0, 0, 0);
   c.box(W, 1, D, { sides: 0xc4bba9, top: tex('marble', W, D, (px, w, h, rr) => {
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) px(x, y, 1, 1, noise(x / 3, y / 3, 31) > 0.68 ? 0xc4bba9 : 0xe2dac6);
     for (let i = 0; i < 3; i++) { let x = Math.floor(rr() * w), y = 0; while (y < h) { px(x, y, 1, 1, 0xa0978a); y++; x += rr() < 0.5 ? 1 : 0; } }
@@ -1406,11 +1416,12 @@ function bankCounter(k, o) {
   const fr = k.comp();
   for (const x of [-W / 2 + 0.5, -0.5, W / 2 - 0.5]) fr.thin(1, 13, 1, STEEL_D, x, 17, 0);
   for (const x of [-W / 4, W / 4]) fr.box(2, 2, 1, { sides: STEEL_D, front: tex('grille', 2, 2, (px) => { px(0, 0, 2, 2, 0x4c5262); px(0, 0, 1, 1, 0x8f96a6); px(1, 1, 1, 1, 0x8f96a6); }) }, x, 22, 0.5);
-  fr.box(W, 7, 1, { sides: 0x1b2541, front: tex(`banksign-${sign}`, W, 7, (px, w, h) => {
-    px(0, 0, w, h, 0x1b2541); px(0, 0, w, 1, BRASS); px(0, h - 1, w, 1, BRASS);
-    const s = textWidth(sign) <= w - 2 ? sign : sign.slice(0, Math.floor((w - 2) / 4));
-    text(px, Math.floor((w - textWidth(s)) / 2), 1, s, GLOWS[0]);
+  if (!plaque) fr.box(W, SH, 1, { sides: board, front: tex(`banksign-${sign}-${board}`, W, SH, (px, w, h) => {
+    px(0, 0, w, h, board); px(0, 0, w, 1, BRASS); px(0, h - 1, w, 1, BRASS);
+    const s = fit(w);
+    text(px, Math.floor((w - textWidth(s)) / 2), ar ? 3 : 1, s, GLOWS[0]);
   }, { glows: [GLOWS[0]] }) }, 0, 31, 0);
+  else fr.box(W, 1, 1, { sides: STEEL_D }, 0, 30, 0);              // (the glass's top rail)
   const gl = k.comp();
   for (const [x0, x1] of [[-W / 2 + 1, -1], [0, W / 2 - 1]]) gl.glass(x1 - x0, 13, 0.5, (x0 + x1) / 2, 17, 0);
 }

@@ -1,6 +1,6 @@
 // TRADECRAFT render: everyone on the map, in one draw.
 //
-// Each person's sprite sheet (src/art/sprites.js: 37 frames, 4 facings, a 28 × 34 cell; in BANDS bands, below)
+// Each person's sprite sheet (src/art/sprites.js: 38 frames, 4 facings, a 28 × 34 cell; in BANDS bands, below)
 // goes into a slot of one ATLAS_PX square atlas, the first time their look is seen; a slot whose look
 // has gone unseen longest is reused when the atlas is full. The atlas lives on the GPU, allocated once
 // and never sent whole: a sheet goes up alone, into its slot (renderer.copyTextureToTexture: a
@@ -33,13 +33,13 @@
 // stopped clock (shooting's choice) holds the frame as it was.
 //
 // A sheet is laid out in BANDS bands of frames, one above the other (each band FRAMES / BANDS across, DIRS
-// down), so a sheet is squarer than a row of 37 cells and more of them go in the atlas: SLOTS, 110 (a row
+// down), so a sheet is squarer than a row of 38 cells and more of them go in the atlas: SLOTS, 110 (a row
 // of 37 would leave room for 90; of the 31 before the gun's, 120 went in).
 import * as THREE from 'three';
 import { frames, CELL, FRAMES, DIRS, FIGHT_FRAMES, GUN_FRAMES, flashOf } from '../art/sprites.js';
 import { PX_PER_M } from '../art/pixelart.js';
 
-export const ATLAS_PX = 4096;                                       // (110 people's sheets of 37 frames, in three bands)
+export const ATLAS_PX = 4096;                                       // (110 people's sheets of 38 frames, in three bands)
 export const SHEETS_PER_FRAME = 2, SHEET_MS = 1.5;              // (new faces a frame: one at least, a second only while the first took under SHEET_MS; a slow machine paints one)
 // (the frames of the street, painted with a new face; a fight's, the first time they fight; a gun's with a gun in hand)
 export const STREET = ['idle0', 'idle1', 'walk0', 'walk1', 'walk2', 'walk3', 'run0', 'run1', 'run2', 'run3', 'sit', 'reel', 'hail', 'phone'];

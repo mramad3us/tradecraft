@@ -42,8 +42,13 @@ export default [
       // (the school's weight split with it, so nothing else moved: seed 1234 has one, 7 and 77 none): sim/clubs.js; and a
       // street's bus stops at least STOP_GAP_I sections apart, so its parked cars where the bays were and are: sim/transit.js.
       // In 0.1.21, a shooting range where a martial-arts club stood, the club's weight split with it: seed 77 has one.
-      // In 0.1.28, nothing along a shop's back wall deep enough to stand over its vendor: sim/interiors/shop.js)
-      const want = { 7: 359435163, 77: 1731355650, 1234: 262526973, people: 2649027127 };
+      // In 0.1.28, nothing along a shop's back wall deep enough to stand over its vendor: sim/interiors/shop.js.
+      // In 0.1.30, police stations where exchange booths stood and hospitals where chemists' did, each kind's weight split
+      // with them so every other door is where it was (a door dump of 2,772 sections in the four cities: only those
+      // doors, their signs (on boards, in a police station's colours, a hospital's: sim/cities/signs.js) and their floors changed); seed 7
+      // has a station, 77 a station and two hospitals, 1234 three
+      // stations: sim/services.js)
+      const want = { 7: 2980980494, 77: 2561036788, 1234: 3593916305, people: 2649027127 };
       for (const seed of [7, 77, 1234]) {
         const parts = [];
         // (the bus shelters and notice boards of 0.1.0-rc16, from a stream of their own, left out)

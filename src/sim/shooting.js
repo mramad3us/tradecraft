@@ -484,6 +484,7 @@ const WORD = { head: 'head', torso: 'chest', armL: 'left arm', armR: 'right arm'
 export function bullet(state, bus, a, part, M, from) {
   if (isPaper(state, a)) { shotAt(state, a, part, null, { stray: true }); return `A hole in ${state.people[a.who].name}.`; }   // (paper: a stray hole, no wound, no blood: sim/paper.js)
   const p = person(state, a), r = state.rng, ms = state.time.ms;
+  if (from?.who === state.player && a.who !== state.player) p.hitBy = { id: state.player, ms };   // (yours: what an arrest has you for, sim/armed.js)
   const at = part === 'legs' ? pick(r, ['legL', 'legR']) : part === 'torso' && chance(r, 0.12) ? pick(r, ['armL', 'armR']) : part;
   const raw = BULLET * (CALIBRES[M.cal]?.dmg ?? 1) * M.dmg * range(r, 0.8, 1.25);
   // (a torso hit on armour: stopped, and the blow behind it; or through, slowed. sim/armour.js, on dice of its own)

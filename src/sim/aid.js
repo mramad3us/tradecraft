@@ -32,7 +32,8 @@
 //   - Painkillers (no sooner than DOSE_AGAIN_H after the last), a course of antibiotics (an infection, or
 //     a deep wound).
 // Or a professional (sim/medicine.js fullCare()): the embassy's Health Unit, the nurse, on a working day
-// (NURSE_H; discreet; an artery's beyond her), or a hospital's A&E from the street (HOSPITAL_H; everything;
+// (NURSE_H; discreet; an artery's beyond her), or a hospital's A&E from the street (a taxi to the nearest one, and its
+// desk's care, hours, costs and doors, as walking in at it: sim/services.js admit(); off the street, HOSPITAL_H, everything,
 // a knife wound reported to the police, +HOSPITAL_HEAT).
 // Any care given to a part marks it tended (p.tended): a wound mends only once tended (sim/health.js).
 // On yourself SELF_MOD; with a wounded or broken arm, one-handed, ONE_HAND_MOD. It takes the time it
@@ -56,6 +57,7 @@ import { range } from './rng.js';
 import { weaponOf } from './weapons.js';
 import { eat, needsWords } from './needs.js';
 import { seenName, finds } from './diagnosis.js';
+import { admit } from './services.js';
 
 export const PRESSURE_K = 0.35;
 export const PRESS_S = 60;
@@ -144,7 +146,7 @@ export function options(state, medic, patient) {
     const k = calendar(ms), open = k.weekday < 5 && k.hour >= 9 && k.hour < 18;
     out.push({ key: 'nurse:0', label: 'The Health Unit, down the corridor: the nurse', ok: open, why: open ? `an hour; discreet${wounds.some(([i]) => i.artery && !i.stitched) ? ', but an artery\'s beyond her' : ''}` : 'open 9 to 6, on working days' });
   }
-  if (medic === patient && hurtAny && state.campaign && state.map.kind === 'street') out.push({ key: 'hospital:0', label: 'A hospital, A&E: everything seen to', ok: true, why: `${HOSPITAL_H[0]} to ${HOSPITAL_H[1]} hours${reportable(patient) ? '; a knife wound: they\'ll call the police' : ', most of them waiting'}` });
+  if (medic === patient && hurtAny && state.campaign && state.map.kind === 'street') out.push({ key: 'hospital:0', label: 'A hospital, A&E: everything seen to', ok: true, why: `a taxi to the nearest, and hours by what's wrong; your name on their records${reportable(patient) ? '; a wound like that: they\'ll call the police' : ''}` });
   if (medic === patient && !wounds.some(([i]) => i.bleed > ms) && bloodOf(patient) < 100) {
     const h = restHours(patient);
     out.push({ key: 'rest:0', label: `Rest ${h} hour${h === 1 ? '' : 's'}: somewhere warm, something sweet to drink`, ok: !!state.scenario.rest, why: state.scenario.rest ? `the blood back to ${Math.round(Math.min(100, bloodOf(patient) + h * REGEN_PER_H))}%` : 'not now: the time\'s not yours' });
@@ -258,6 +260,9 @@ export function treat(state, bus, medicActor, patientActor, key) {
     (patient.poultices ??= {})[arg] = ms + POULTICE_H * HOUR;
     return say_(`An arnica poultice on the ${PART_WORD[arg]}, cool and bitter-smelling, bound on. The ache eases.`);
   }
+  // (A&E from the street: a taxi to the nearest hospital and its own desk's care, hours by what's wrong, its costs, and
+  // out through its doors after; the same as walking in at one: sim/services.js admit())
+  if (method === 'hospital' && self && patientActor && state.map?.kind === 'street') return admit(state, bus, patientActor, { official: true }) ? {} : null;
   if (method === 'nurse' || method === 'hospital') {
     if (!self) return null;
     const knife = method === 'hospital' && reportable(patient), done = fullCare(patient, ms, { stitchArtery: method === 'hospital' }, stateOf);

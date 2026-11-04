@@ -73,6 +73,7 @@ import * as talk from './talk.js';
 import * as items from './items.js';
 import { SCENARIOS } from './scenarios/index.js';
 import { settle } from './places.js';
+import { ENGINE as SERVICES_ENGINE } from './services.js';
 
 export const WALK_MS = 1.45;                                       // the player's walk, m/s
 export const STROLL_MS = 0.95;                                     // a stroll (Alt held): to keep a pace without stopping
@@ -258,7 +259,7 @@ export function step(state, input = {}, bus) {
   }
   buses.waitTick(state, bus, me);                                  // (sat at a stop: the bus comes, waits, goes: sim/buses.js)
   const mine = me && state.people[me.who], fallen = mine && (mine.dead || !canStand(mine));
-  if (fallen) input = { act: [] };                                 // (collapsed, out cold or dead: nothing answers)
+  if (fallen || state.$takedown?.stage === 'pin') input = { act: [] };   // (or held face down, cuffed: sim/armed.js)                                 // (collapsed, out cold or dead: nothing answers)
   if (me?.$flee && !(input.mx || input.mz)) { if (state.time.ms < me.$flee.until) input = { ...input, mx: me.$flee.dir, mz: 0, run: me.$flee.run }; else delete me.$flee; }   // (a reflex's run, or its step back: sim/reflex.js)
   if (me && !me.ai) {
     let mx = input.mx ?? 0, mz = input.mz ?? 0;
@@ -365,7 +366,7 @@ export function step(state, input = {}, bus) {
     metro.stepsTick(state);                                         // (whoever rode with you, up the steps after you: sim/metro.js)
     chaseTick(state);                                               // (whoever kept your taxi in sight, out of their car behind you: sim/taxi.js)
     if (scenario.police && !state.tutor) { police.patrolTick(state); police.eyeTick(state, bus); armed.second(state, bus, me); emergency.second(state, bus, me); }   // (and the emergency services: sim/emergency.js)   // (ordinary law: sim/police.js; a gun seen, sim/armed.js)
-    if (state.$held) { const ms = state.$held; delete state.$held; skip(state, bus, ms); }
+    if (state.$held) { const ms = state.$held; delete state.$held; skip(state, bus, ms); armed.released(state, bus, playerActor(state)); }
     if (state.$hospital) emergency.afterHospital(state, bus, me, skip);   // (taken to hospital: the hours there, sim/emergency.js)   // (taken in: the hours at the station, sim/armed.js arrest())
     if (state.tick % (TICKS_PER_S * 60) === 0 && state.people[state.player]) bodyNotes(state, bus, heal(state.people[state.player], 1 / 1440, state.time.ms, { blood: false }));   // (your wounds, a minute on: sim/medicine.js)
     weatherTick(state, bus);                                        // (the weather turning, in the log: sim/weather.js)
@@ -457,6 +458,7 @@ function bodyHeat(state, bus, me, minutes, skipped = false) {
  */
 function react(state, bus, me, o, R, scenario) {
   if (scenario.onReflex?.(state, bus, o, R)) return;
+  if (R?.why === 'arrest' && armed.arrestChoice(state, bus, me, o, R)) return;   // (an officer at your side with the cuffs: sim/armed.js)
   const [what, arg] = String(o.do).split(':'), p = state.people[me.who], now = state.time.ms, away = Math.sign(me.x - (R?.x ?? me.x - 1)) || 1;
   const them = R?.who && state.actors.find(a => a.id === R.who);
   // (a hand reaching: stepped back from or run from, it misses; met, the fight's first edge is yours)
@@ -589,6 +591,7 @@ export function loadRow(state, bus, row, x, { way = null, from = state.map.row, 
   bus?.emit('map', state.map);
   bus?.emit('autosave', 'map');
 }
+SERVICES_ENGINE.loadRow = loadRow;                                 // (out in front of a hospital, a police station, on another street: sim/services.js outside(), which can't import this module)
 
 // (a small, stable number from an id, to spread followers' re-routing over the ticks)
 const hashId = (id) => { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0; return Math.abs(h); };

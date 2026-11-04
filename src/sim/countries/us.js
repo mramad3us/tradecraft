@@ -7,6 +7,7 @@ export const US = {
     look: { top: { kind: 'uniform', color: 0x23252f, trim: 0xb9862e }, legs: 0x23252f, hat: { kind: 'peaked', color: 0x23252f, band: 0xb9862e } },
     ask: '"License and ID, please."',
     order: '"Police! Drop the gun! Drop it!"',                         // (the order to drop it: sim/armed.js)
+    halt: '"Police! Don\'t move! Show me your hands!"',     // (and to stand still, your hands empty: sim/armed.js)
     arms: { patrol: ['glock17'], patrolLong: ['m4', 'rem870'], response: ['m4', 'glock17'], visible: 'patrols' },
     response: { unit: 'SWAT', minutes: [5, 15] },
     // (body armour, sim/armour.js: most patrol officers in a soft vest under the shirt, standard issue; SWAT in olive-drab carriers, POLICE across them)

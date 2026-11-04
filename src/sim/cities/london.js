@@ -26,7 +26,7 @@ import { stream, int, range, pick, chance, weighted, hash } from '../rng.js';
 import { SECTION_M, GAP_M, STRETCH, Z, GROUND_H, FLOOR_H, at, toneOf } from '../map/layout.js';
 import { londonName, londonLook } from './folk.js';
 import { squareFurniture } from './square.js';
-import { wordM, fit } from './signs.js';
+import { wordM, fit, livery } from './signs.js';
 
 // ---------- names ----------
 
@@ -85,10 +85,14 @@ const SHOPS = {
   estate: ['ESTATE AGENTS'], barber: ['BARBER'], bookie: ['BETTING'],
   gym: ['GYM', 'FITNESS'], club: ['JUDO CLUB', 'BOXING CLUB', 'KARATE'], range: ['RIFLE CLUB', 'RIFLE & PISTOL', 'RIFLES'], school: ['LANGUAGES', 'LANGUAGE SCHOOL'],   // (RIFLES as wide as KARATE: the club's board fits the range's words)
   culture: ['COMMUNITY CENTRE', 'COMMUNITY HALL', 'INSTITUTE'],   // (INSTITUTE as wide as LANGUAGES: a school's board fits a centre's words, so the streets' draws are as they were)
+  police: ['POLICE', 'POLICE STATION'], hospital: ['HOSPITAL', 'HOSPITAL A&E'],   // (sim/services.js; POLICE and HOSPITAL fit any board, as the words they stand in for do)
 };
-const SHOP_WEIGHTS = [['grocery', 3], ['cafe', 3.5], ['pharmacy', 1.5], ['estate', 2], ['clothes', 1.5], ['flowers', 1], ['bakery', 1.2],
-  ['books', 0.8], ['optician', 0.8], ['bank', 0.8], ['tobacco', 1.5], ['exchange', 0.5], ['shoes', 0.6], ['watches', 0.5], ['phones', 1],
-  ['kebab', 0.8], ['beer', 1], ['deli', 1], ['restaurant', 1.5], ['chips', 0.8], ['laundry', 1], ['barber', 1], ['bookie', 0.6], ['gym', 0.6], ['club', 0.3], ['range', 0.1], ['school', 0.25], ['culture', 0.15]];   // (culture: a community centre and its clubs, sim/clubs.js; the school's weight split, so every other shop is where it was)
+// (a police station where a newsagent's or a barber's stood, a hospital where a chemist's or a launderette did: their weights
+// split, so every other shop is where it was; London's streets have a shop in every 27 m, a third of the other cities', so it
+// takes four splits to put one of each in every 900 m or so)
+const SHOP_WEIGHTS = [['grocery', 3], ['cafe', 3.5], ['pharmacy', 1.0], ['hospital', 0.5], ['estate', 2], ['clothes', 1.5], ['flowers', 1], ['bakery', 1.2],
+  ['books', 0.8], ['optician', 0.8], ['bank', 0.8], ['tobacco', 1.0], ['police', 0.5], ['exchange', 0.5], ['shoes', 0.6], ['watches', 0.5], ['phones', 1],
+  ['kebab', 0.8], ['beer', 1], ['deli', 1], ['restaurant', 1.5], ['chips', 0.8], ['laundry', 0.5], ['hospital', 0.5], ['barber', 0.5], ['police', 0.5], ['bookie', 0.6], ['gym', 0.6], ['club', 0.3], ['range', 0.1], ['school', 0.25], ['culture', 0.15]];   // (culture: a community centre and its clubs, sim/clubs.js; the school's weight split, so every other shop is where it was)
 // Fascias: [ground, letters, border] — London's: dark grounds and gold, black and white, cream.
 const FASCIAS = [[0x173327, 0xe7b84a, 0x0e1f18], [0x23252f, 0xf6f4ee, 0x14151c], [0x1b2541, 0xf8e08a, 0x14151c], [0x6e2a2e, 0xf8e08a, 0x3f1a22],
   [0xf4efe6, 0x23252f, 0x8f96a6], [0x283f6b, 0xf6f4ee, 0x1b2541], [0x4c5262, 0xf6f4ee, 0x23252f], [0x9e3c36, 0xf6f4ee, 0x6e2a2e]];
@@ -126,7 +130,7 @@ function building(r, x0, x1, z, S) {
   const B = { x0, x1, z, h: 0, d: 35, wall: 'brick', wallColor: pick(r, STOCK), roof: 'flat', ops, style, seed, houses: [], area: [] };
   const door = (x, w, kind, extra = {}) => S.doors.push({ x: x0 + x + w / 2, z, w, kind, ...extra });
   const shop = (x, sw, words = null) => {                         // a shopfront: window, door, fascia
-    const kind = weighted(r, SHOP_WEIGHTS), [bg, fg, border] = pick(r, FASCIAS);
+    const kind = weighted(r, SHOP_WEIGHTS), [bg, fg, border] = livery(kind, pick(r, FASCIAS));   // (a police station's, a hospital's own: sim/cities/signs.js)
     ops.push(['shopfront', x, sw - 1.3, 2.75, { goods: [pick(r, [0xf6f4ee, 0xdfe2e8]), pick(r, [0x9e3c36, 0x3b6296, 0x356f42, 0xe7b84a]), pick(r, [0x8f6345, 0xc95c45, 0x5d8fc2])] }]);
     ops.push(['door', x + sw - 1.2, 1.1, 2.45, { color: 0x23252f, frame: 0x23252f }]);
     ops.push(['sign', x, 3.0, sw - 0.1, 0.8, words ?? fit(r, SHOPS[kind], sw - 0.1), { bg, fg, border, style: 'fascia' }]);
@@ -435,5 +439,7 @@ export const LONDON = {
     floors: { living: ['planks', 'carpet'], bedroom: ['carpet'], kitchen: ['lino', 'checker'], bath: ['tiles', 'lino'], hall: ['planks'] }, floorWood: [0xb48459, 0xd6ad7a, 0x8f6345],
     woods: ['oak', 'pine', 'white'], fabrics: ['navy', 'grey', 'green', 'cream', 'teal'], phones: ['black', 'cream'], rugs: ['kilim', 'plain', 'persian'], wallCarpet: 0, moods: ['soft', 'soft', 'cool'] },
   embassyLook: { lobby: 0xe2dac6, station: 0xd0d8c0, floor: 'terrazzo' },
+  // (the words on the plaques of a police station's front desk and a hospital's: sim/interiors/shop.js; a station's blue lamp over its door, src/render/town.js)
+  desks: { police: 'POLICE', hospital: 'A&E' }, blueLamp: true,
   walk: { about: 'Notting Hill\'s terraces and pubs, a November afternoon, the pavements wet.', hello: 'London in November: the light is going, and the rain hasn\'t made up its mind.', langs: {} },
 };

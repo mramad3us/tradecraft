@@ -70,7 +70,7 @@ export const CELL = [24 + 2 * PAD, 34];
 /** A gun aimed, and fired (its kick): straight the way they face, or turned up or down the picture (hi, lo). See "A gun in the hands". */
 export const GUN_FRAMES = ['aim', 'aimhi', 'aimlo', 'fire', 'firehi', 'firelo'];
 export const FRAMES = ['idle0', 'idle1', 'walk0', 'walk1', 'walk2', 'walk3', 'run0', 'run1', 'run2', 'run3', 'sit', 'guard', 'punch', 'grab', 'reel',
-  'chamber', 'swing', 'hook', 'elbow', 'knee', 'kick', 'highkick', 'lowkick', 'throw', 'sweep', 'parry', 'slip', 'stagger', 'stun', 'hail', 'phone', ...GUN_FRAMES];
+  'chamber', 'swing', 'hook', 'elbow', 'knee', 'kick', 'highkick', 'lowkick', 'throw', 'sweep', 'parry', 'slip', 'stagger', 'stun', 'hail', 'phone', 'kneel', ...GUN_FRAMES];
 /** The posed frames (a fight's, sim/cqcshow.js; an arm up for a taxi, sim/taxi.js): a gait of one of these is drawn as that frame. */
 export const FIGHT_FRAMES = FRAMES.slice(11, FRAMES.indexOf('aim'));
 export const DIRS = ['down', 'up', 'right', 'left'];
@@ -926,6 +926,10 @@ function legsSide(pose, near) {
     runlift: [9, 27, ['ppppp.', '.ppppp', '....pp', '....fff']],                // the knee up, in the air
     runtrail: [7, 27, ['..pppp', '..ppp.', '.ppp..', '.pp...', 'fff...']],
     sit: [9, 27, ['pppppppp', 'pppppppp', '......pp', '......pp', '......ffff']],
+    // On one knee (an officer's on your back, sim/armed.js): the near knee down, its shin along the ground behind, the
+    // toes of that foot turned under; the far knee up in front, its foot planted.
+    kneel: [4, 29, ['.....pppp.', '......pppp', 'ffpppppppp', 'ffpppppppp']],
+    kneelup: [10, 28, ['pppppp', 'pppppp', '....pp', '....pp', '....ffff']],
     // A fight's: a kick to the middle, to the head, to the thigh; a knee driven up; a sweep along the floor.
     kick: [9, 25, ['.........fff', 'ppppppppppff', 'pppppp......']],
     highkick: [9, 14, ['........fff', '.......ppff', '.......pp..', '......pp...', '......pp...', '.....pp....', '.....pp....', '....pp.....', '...ppp.....', '..ppp......', '.ppp.......', 'pppp.......', 'ppp........']],
@@ -971,7 +975,9 @@ const POSES = {
   stagger: { bob: 1, reach: [-1, 1], swing: [-1, 1], front: 0, side: ['back', 'stand'], lean: -2 },
   stun: { bob: 2, reach: [0, 0], swing: [0, 0], front: 0, side: ['stand', 'stand'], lean: -1 },
   hail: { bob: 0, reach: [0, 'up'], swing: ['hail', 0], front: 0, side: ['stand', 'stand'], over: true, armOver: true },
-  phone: { bob: 0, reach: ['phone', 'phone'], swing: [2, 2], front: 0, side: ['stand', 'stand'], head: 1, phone: true },   // (looking at a phone: the head bowed to it)
+  phone: { bob: 0, reach: ['phone', 'phone'], swing: [2, 2], front: 0, side: ['stand', 'stand'], head: 1, phone: true },
+  // (on one knee, leaning over, the hands down on whoever's under them: an officer cuffing you, sim/armed.js)
+  kneel: { bob: 3, reach: [1, 1], swing: ['grab', 'grab'], front: 0, side: ['kneel', 'kneelup'], lean: 2, sit: true },   // (looking at a phone: the head bowed to it)
   // (a gun aimed or fired: the arms are the gun's, its rig below; side on, a shooter's stance, the near foot forward)
   ...Object.fromEntries(GUN_FRAMES.map(f => [f, { bob: 0, reach: [0, 0], swing: [0, 0], front: 0, side: ['fwd', 'back'] }])),
 };

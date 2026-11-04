@@ -34,7 +34,9 @@
 //     numbers its buses go by) }, home (a flat's keeping house: sim/interiors/flat.js), embassyLook (the
 //     embassy's paint: sim/interiors/embassy.js), walk (the free walk: { about (its line on the title),
 //     hello, langs (a Handler's there), park (what the park's things are in its climate) }; Moscow's,
-//     but for its about, are the scene's own: sim/scenarios/walk.js) }.
+//     but for its about, are the scene's own: sim/scenarios/walk.js), desks (the words on the plaques of a police station's
+//     front desk and a hospital's: { police, hospital }, sim/interiors/shop.js), blueLamp
+//     (true: a police station's blue lamp over its door, London's: src/render/town.js) }.
 //
 // A map knows its city by state.map.city ('moscow' when there's none: a game saved before there were
 // cities). The street functions take a *town*: the seed alone in Moscow, so its streets are drawn from
@@ -57,6 +59,7 @@ export const SHOP_EN = {
   shoes: ['SHOES'], watches: ['WATCHES'], phones: ['PHONES'], shawarma: ['SHAWARMA'], beer: ['BEER'], deli: ['DELI'], restaurant: ['RESTAURANT', 'FOOD'],
   gym: ['GYM'], club: ['KARATE CLUB', 'KARATE'], school: ['LANGUAGES'], culture: ['COMMUNITY CENTRE', 'CENTRE'], range: ['SHOOTING RANGE', 'RANGE'], manakish: ['FLATBREADS', 'BREAD'], sweets: ['SWEETS'], vegetables: ['VEGETABLES', 'GREENGROCER'],
   butcher: ['BUTCHER'], barber: ['BARBER'], laundry: ['LAUNDRY'], juice: ['JUICE BAR', 'JUICE'], koshary: ['KOSHARY'], foul: ['BEANS & FALAFEL', 'FALAFEL'], spices: ['SPICES'],
+  police: ['POLICE STATION', 'POLICE'], hospital: ['HOSPITAL'],
 };
 /**
  * A park's kiosk (its feature: look, seed; sim/map/street.js) as its city has it: [sign, colour, sells]. A newsstand (look

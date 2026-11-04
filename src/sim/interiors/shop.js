@@ -14,6 +14,11 @@
 // counter, its ledge along the window, the kitchen and its toilet at the back; a clothes shop's rails,
 // its fitting room and mirror; a bookshop's shelves; a florist's buckets; a bank's or a bureau's
 // counter behind its glass; a gym's mats, a club's, a school's desks; and anything else, shelves.
+// A police station's and a hospital's (sim/services.js): the front desk behind its glass, the city's word for it on a
+// plaque on its front (its profile's desks: ОВД, POLICE, مخفر, شرطة; ПРИЕМ, A&E, طوارئ, استقبال), someone at it in the
+// country's police uniform or a nurse's (staff.dress: the view dresses them, sim/services.js deskLook()), chairs to
+// wait on (west of the desk, or along the west wall where that's too narrow); a notice board (wanted faces, or a
+// hospital's posters) and a clock on the back wall (decor); behind, an office's desk, or a doctor's couch and its basin.
 // Every one has its counter, someone behind it, and what's done where (spots): 'counter' (what the
 // shop sells: sim/shops.js ways()), 'sit' (a café's ledge in its window: the street watched through
 // the glass), 'wash' (a café's toilet). The way out the back (exits) is the back door's.
@@ -27,18 +32,21 @@ const KIND = {
   cafe: 'cafe', restaurant: 'cafe', bar: 'cafe', pub: 'cafe', shawarma: 'cafe', kebab: 'cafe', chips: 'cafe', koshary: 'cafe', foul: 'cafe', juice: 'cafe',
   clothes: 'clothes', shoes: 'clothes', books: 'books', flowers: 'flowers', pharmacy: 'chemist', optician: 'chemist', phones: 'chemist', watches: 'chemist',
   bank: 'bank', exchange: 'bank', bookie: 'bank', estate: 'office', school: 'school', culture: 'school', range: 'bank', gym: 'gym', club: 'gym',   // (a range: its desk behind glass, the lanes beyond)
-  barber: 'office', laundry: 'kiosk',
+  barber: 'office', laundry: 'kiosk', police: 'police', hospital: 'clinic',
 };
 /** What a kind of shop's floor is ('grocer', 'bakery', 'cafe', 'clothes'…): what's in it. */
 export const floorKind = (shop) => KIND[shop] ?? 'kiosk';
-const FLOOR = { grocer: 'tiles', kiosk: 'lino', bakery: 'terrazzo', cafe: 'planks', clothes: 'planks', books: 'planks', flowers: 'tiles', chemist: 'tiles', bank: 'terrazzo', office: 'lino', school: 'lino', gym: 'lino' };
-const PAINT = { grocer: 0xe8ecef, kiosk: 0xd6ccb8, bakery: 0xe8dcc4, cafe: 0xc9a27a, clothes: 0xe2dac6, books: 0xb4bfa0, flowers: 0xd0d8c0, chemist: 0xe8ecef, bank: 0xd9d2c0, office: 0xd6ccb8, school: 0xd0d8c0, gym: 0xc8d4dc };
+const FLOOR = { grocer: 'tiles', kiosk: 'lino', bakery: 'terrazzo', cafe: 'planks', clothes: 'planks', books: 'planks', flowers: 'tiles', chemist: 'tiles', bank: 'terrazzo', office: 'lino', school: 'lino', gym: 'lino', police: 'lino', clinic: 'tiles' };
+const PAINT = { grocer: 0xe8ecef, kiosk: 0xd6ccb8, bakery: 0xe8dcc4, cafe: 0xc9a27a, clothes: 0xe2dac6, books: 0xb4bfa0, flowers: 0xd0d8c0, chemist: 0xe8ecef, bank: 0xd9d2c0, office: 0xd6ccb8, school: 0xd0d8c0, gym: 0xc8d4dc, police: 0xc8d4dc, clinic: 0xe8ecef };
+// (a police station's desk and a hospital's: the words on their plaques, where the city has none of its own; the plaques' colours; who's at them)
+const DESK = { police: { sign: 'POLICE', board: 0x1b2541, dress: 'police' }, clinic: { sign: 'A&E', board: 0x24503a, dress: 'nurse' } };
 
 /**
  * The ground floor behind shop door d (its pane west of it) in building B: a plan, or null if there's no
- * room. back: whether it has a way out the back.
+ * room. back: whether it has a way out the back; desk: the words on a police station's or a hospital's front
+ * desk (its city's profile's desks: sim/map/street.js shopFloors()).
  */
-export function shopUnit(B, d, { seed, back = false } = {}) {
+export function shopUnit(B, d, { seed, back = false, desk = null } = {}) {
   const kind = floorKind(d.shop), r = stream('shop-unit', seed, Math.round(d.x * 10));
   const x0 = Math.max(B.x0 + 0.15, (d.pane?.x0 ?? d.x - 2.5) - 0.2), x1 = Math.min(B.x1 - 0.15, d.x + d.w / 2 + 0.25), W = x1 - x0;
   if (W < 3) return null;
@@ -54,11 +62,12 @@ export function shopUnit(B, d, { seed, back = false } = {}) {
   const put = (k, x, z, face = 'down', look = {}) => { items.push({ kind: k, x, z, face, look }); return items[items.length - 1]; };
   const along = (kinds, z, from, to, look = {}) => { let x = from; for (const k of kinds) { const w = FURNITURE[k].w; if (x + w > to) break; put(k, x + w / 2, z + FURNITURE[k].d / 2, 'down', look); x += w + 0.05; } };
   // The counter: by the street door, facing into the room; behind it, whoever serves.
-  const counter = kind === 'cafe' ? 'cafeCounter' : kind === 'bank' ? 'bankCounter' : kind === 'bakery' ? 'displayCase' : 'shopCounter';
+  const D = DESK[kind];
+  const counter = kind === 'cafe' ? 'cafeCounter' : kind === 'bank' || D ? 'bankCounter' : kind === 'bakery' ? 'displayCase' : 'shopCounter';
   const cw = FURNITURE[counter].w, cx = Math.min(x1 - cw / 2 - 0.15, Math.max(x0 + 1.4 + cw / 2, d.x - 0.2)), cz = zf + 1.3;
-  put(counter, cx, cz, 'down', counter === 'displayCase' ? { goods: pick(r, ['bread', 'pastries', 'cakes']) } : {});
+  put(counter, cx, cz, 'down', counter === 'displayCase' ? { goods: pick(r, ['bread', 'pastries', 'cakes']) } : D ? { sign: desk ?? D.sign, board: D.board, plaque: true } : {});
   spots.push({ kind: 'counter', x: cx, z: cz + FURNITURE[counter].d / 2 + 0.55, face: 'up' });
-  const staff = { x: cx, z: cz - FURNITURE[counter].d / 2 - 0.45 };
+  const staff = { x: cx, z: cz - FURNITURE[counter].d / 2 - 0.45, ...(D ? { dress: D.dress } : {}) };
   // Along the front room's back wall, east of the staff door: the kind's own.
   const wallFrom = sx + 1.0, wallTo = x1 - 0.1;
   if (kind === 'grocer' || kind === 'kiosk') along(['shelving', 'drinksFridge', 'shelving', 'shelving'], zf + 0.02, wallFrom, wallTo, { goods: pick(r, ['groceries', 'tins', 'bottles']) });
@@ -69,6 +78,8 @@ export function shopUnit(B, d, { seed, back = false } = {}) {
   else if (kind === 'chemist') along(['shelving', 'shelving', 'shelving'], zf + 0.02, wallFrom, wallTo, { goods: d.shop === 'phones' ? 'phones' : 'boxes' });
   else if (kind === 'flowers') along(['flowerBuckets', 'flowerBuckets', 'flowerBuckets'], zf + 0.02, wallFrom, wallTo);
   else if (kind === 'bank') along(['filingCabinet', 'filingCabinet'], zf + 0.02, wallFrom, wallTo);
+  else if (kind === 'police') along(['filingCabinet', 'filingCabinet', 'filingCabinet'], zf + 0.02, wallFrom, wallTo);
+  else if (kind === 'clinic') along(['waterCooler', 'plant'], zf + 0.02, wallFrom, wallTo);
   else along(['shelving', 'shelving'], zf + 0.02, wallFrom, wallTo, { goods: 'boxes' });
   // (nothing along the wall deep enough to stand in front of whoever serves: a fridge, a fitting room behind the counter's
   // man reached past him and was drawn over him; the user, 2026-11-04, "in some stores, visual bugs display shelves in front of vendors")
@@ -83,8 +94,11 @@ export function shopUnit(B, d, { seed, back = false } = {}) {
     if (kind === 'grocer' && mid1 - mid0 >= 2.0) put('gondola', mx, mz, 'down', { goods: 'groceries' });
     else if (kind === 'clothes') put('clothesRail', mx, mz, 'down');
     else if (kind === 'books') put('gondola', mx, mz, 'down', { goods: 'books' });
-    else if (kind === 'bank' || kind === 'office' || kind === 'school') put('waitingChairs', mx, z1 - 0.6, 'up');
+    else if (kind === 'bank' || kind === 'office' || kind === 'school' || D) put('waitingChairs', mx, z1 - 0.6, 'up');
     else if (kind === 'gym') put('rug', mx, mz, 'down', { pattern: 'plain', colours: [0x3b6296, 0x283f6b] });
+  } else if (D && cx - cw / 2 - (x0 + 0.1 + FURNITURE.waitingChairs.d) >= 0.9) {
+    // (a police station's, a hospital's, too narrow for them there: the chairs along the west wall, looking at the desk)
+    put('waitingChairs', x0 + 0.1 + FURNITURE.waitingChairs.d / 2, z1 - 0.35 - FURNITURE.waitingChairs.w / 2, 'right');
   }
   // A café's ledge along its window: a coffee stood at it, the street on the other side of the glass.
   if (kind === 'cafe' && d.pane && d.pane.x1 - d.pane.x0 >= 1.8) {
@@ -99,10 +113,20 @@ export function shopUnit(B, d, { seed, back = false } = {}) {
     put('toilet', x1 - 0.4, z0 + 0.45, 'down');
     put('washbasin', x1 - 0.4, zf - 0.35, 'up');
     spots.push({ kind: 'wash', x: x1 - 1.05, z: zf - 0.6, face: 'right' });
+  } else if (kind === 'police') {
+    // (the back office: a desk and its chair, clear of the staff door's way; the files)
+    const ox = Math.min(x0 + 2.4, x1 - 0.8);
+    put('officeDesk', ox, z0 + 0.6, 'down', { top: 'grey' });
+    put('officeChair', ox - 0.15, z0 + 0.6 + FURNITURE.officeDesk.d / 2 + 0.35, 'up');
+    if (x1 - x0 >= 4.3) along(['filingCabinet'], z0 + 0.02, x1 - 0.6, x1 - 0.1);
+  } else if (kind === 'clinic') {
+    // (the treatment room: a doctor's couch along the back wall, made up in white, and its basin)
+    put('singleBed', x0 + 1.6 + FURNITURE.singleBed.w / 2, z0 + 0.02 + FURNITURE.singleBed.d / 2, 'down', { duvet: 0xf4efe6, pattern: 'plain' });
+    if (x1 - x0 >= 3.4) put('washbasin', x1 - 0.45, z0 + 0.02 + FURNITURE.washbasin.d / 2, 'down');
   } else along(['crates', 'pallet'], z0 + 0.05, x0 + 1.6, x1 - 0.1);
   // (its lights, lamps of the street's kind (sim/light.js): the front room's well back from the glass, so its
   // light falls on whoever's inside, not on the pavement; strip lights' blue-white in a grocer's, a bank, warm elsewhere)
-  const cool = kind === 'grocer' || kind === 'chemist' || kind === 'bank' || kind === 'gym';
+  const cool = kind === 'grocer' || kind === 'chemist' || kind === 'bank' || kind === 'gym' || !!D;
   const lights = [{ x: (x0 + x1) / 2, z: z1 - 2.6, r: 1.9, core: 0.55, ring: 0.18, room: 'front', color: cool ? 0xe0e8f0 : 0xf8e0b0 },
     { x: (x0 + x1) / 2, z: (z0 + zf) / 2, r: 1.5, core: 0.4, ring: 0.12, room: 'back', color: 0xf8e0b0 }];
   rooms[0].floor = FLOOR[kind]; rooms[0].paint = PAINT[kind]; rooms[0].wall = { kind: 'paint', c1: PAINT[kind] };
@@ -112,6 +136,10 @@ export function shopUnit(B, d, { seed, back = false } = {}) {
     kind: 'shop', shop: d.shop, door: d.x, x0, z0, x1, z1, rooms, openings, items, spots, lights, staff,
     windows: [], windowsS: d.pane ? [{ a: d.pane.x0 + 0.05, b: d.pane.x1 - 0.05 }] : [],
     exits: back ? [{ id: 'back', x0: x0 + 0.4, z0: z0 - 0.3, x1: x0 + 1.3, z1: z0 + 0.3, to: 'lane' }] : [],
-    look: { floor: 0xb48459, seed: int(r, 1e6) }, decor: [],
+    look: { floor: 0xb48459, seed: int(r, 1e6) },
+    // (a police station's notice board, its wanted faces; a hospital's, its posters; a clock: on the back wall, the one that
+    // stands to the ceiling, over the back room: src/render/interior.js hang())
+    decor: D ? [{ kind: 'board', x: x0 + Math.min(2.6, (x1 - x0) / 2), y: 1.35, w: 1.1, h: 0.75, look: { seed: Math.round(d.x * 10) % 997, posters: kind === 'police' ? 'wanted' : 'health' } },
+      { kind: 'clock', x: Math.max(x0 + Math.min(2.6, (x1 - x0) / 2) + 0.9, x1 - 0.6), y: 1.95, w: 0.32, h: 0.32, look: {} }] : [],
   };
 }

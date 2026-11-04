@@ -6,8 +6,8 @@
 // **Known** (c.known: 'row|i' → 1): a stretch of street is known once walked, every section within SEEN_M
 // of where you've been on foot (learnTick(): once a second, in the campaign's city; a trip abroad's streets
 // aren't London's). What's on a known stretch is known (knownPlaces()): its shops by what they are
-// (KINDS: food, clothes, books, a bank, a gym or a club, a school, phones, an optician, a chemist,
-// anything else), a metro station's doors, a bus stop's shelter. The posting's own places are known from
+// (KINDS: food, clothes, books, a bank, a gym or a club, a school, phones, an optician, a chemist, a
+// hospital, a police station (sim/services.js), anything else), a metro station's doors, a bus stop's shelter. The posting's own places are known from
 // the start: the flat, the embassy (where you work), the safe houses (sim/places.js puts their doors).
 // The assignments' places (sim/places.js missionPlace(): his office, the bench, the café) are known as the
 // station gives them: each open one in the posting's city, till it's done.
@@ -25,8 +25,9 @@ export const SEEN_M = 40, ARRIVED_M = 4;
 const GROUP = {
   food: ['grocery', 'deli', 'vegetables', 'spices', 'butcher', 'bakery', 'sweets', 'manakish', 'cafe', 'restaurant', 'bar', 'pub', 'shawarma', 'kebab', 'chips', 'koshary', 'foul', 'juice', 'beer'],
   clothes: ['clothes', 'shoes'], books: ['books'], bank: ['bank', 'exchange'], club: ['gym', 'club', 'culture', 'range'], school: ['school'], phones: ['phones'], optician: ['optician'], chemist: ['pharmacy'],
+  hospital: ['hospital'], police: ['police'],
 };
-export const KINDS = { job: 'the assignments', food: 'food and drink', clothes: 'clothes', books: 'books', bank: 'banks', club: 'gyms and clubs', school: 'schools', phones: 'phones', optician: 'opticians', chemist: 'chemists', other: 'other shops', metro: 'the metro', bus: 'bus stops', home: 'home', work: 'work', safe: 'safe houses' };
+export const KINDS = { job: 'the assignments', food: 'food and drink', clothes: 'clothes', books: 'books', bank: 'banks', club: 'gyms and clubs', school: 'schools', phones: 'phones', optician: 'opticians', chemist: 'chemists', hospital: 'hospitals', police: 'police stations', other: 'other shops', metro: 'the metro', bus: 'bus stops', home: 'home', work: 'work', safe: 'safe houses' };
 const groupOf = (shop) => Object.keys(GROUP).find(g => GROUP[g].includes(shop)) ?? 'other';
 
 /** Once a second: the stretch round you, known (in the campaign's own city, on foot). */

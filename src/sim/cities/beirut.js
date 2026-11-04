@@ -20,7 +20,7 @@ import { stream, int, range, pick, chance, weighted } from '../rng.js';
 import { SECTION_M, GAP_M, STRETCH, Z, GROUND_H, FLOOR_H, at, toneOf } from '../map/layout.js';
 import { beirutName, beirutLook } from './folk.js';
 import { squareFurniture } from './square.js';
-import { wordM, fit } from './signs.js';
+import { wordM, fit, livery, boardOf } from './signs.js';
 
 // ---------- names ----------
 
@@ -68,10 +68,12 @@ const SHOPS = {
   clothes: ['BOUTIQUE', 'ملابس'], shoes: ['أحذية|CHAUSSURES', 'CHAUSSURES'], phones: ['خليوي|CELLULAR', 'خليوي'], restaurant: ['مطعم|RESTAURANT', 'مطعم'],
   bar: ['BAR', 'PUB', 'CAVE'], shawarma: ['شاورما', 'شاورما|SHAWARMA'], barber: ['حلاق|COIFFEUR', 'COIFFEUR'], laundry: ['PRESSING', 'كوي'],
   gym: ['نادي|GYM', 'GYM'], club: ['كاراتيه|KARATE', 'KARATE'], range: ['الرماية|STAND DE TIR', 'STAND DE TIR', 'CIBLES'], school: ['لغات|LANGUES', 'LANGUES'], culture: ['مركز ثقافي|CENTRE CULTUREL', 'CENTRE CULTUREL', 'فنون|ARTS'],
+  police: ['الشرطة|POLICE', 'مخفر|POLICE'], hospital: ['مستشفى|HÔPITAL', 'HÔPITAL'],   // (the ISF's station, the mukhfar; a hospital: sim/services.js)
 };
-const SHOP_WEIGHTS = [['grocery', 2.5], ['cafe', 3], ['bakery', 1.5], ['manakish', 1.5], ['sweets', 1.2], ['pharmacy', 2], ['vegetables', 1],
+// (a police station where a barber's stood, a hospital where a chemist's did: their weights split, so every other shop is where it was)
+const SHOP_WEIGHTS = [['grocery', 2.5], ['cafe', 3], ['bakery', 1.5], ['manakish', 1.5], ['sweets', 1.2], ['pharmacy', 1.65], ['hospital', 0.35], ['vegetables', 1],
   ['books', 0.8], ['exchange', 0.8], ['bank', 0.8], ['optician', 0.7], ['flowers', 0.8], ['butcher', 0.8], ['clothes', 1.5], ['shoes', 0.8],
-  ['phones', 1.5], ['restaurant', 1.5], ['bar', 1.2], ['shawarma', 1], ['barber', 1], ['laundry', 0.8], ['gym', 0.6], ['club', 0.3], ['range', 0.1], ['school', 0.25], ['culture', 0.15]];   // (culture: a community centre and its clubs, sim/clubs.js; the school's weight split, so every other shop is where it was)
+  ['phones', 1.5], ['restaurant', 1.5], ['bar', 1.2], ['shawarma', 1], ['barber', 0.65], ['police', 0.35], ['laundry', 0.8], ['gym', 0.6], ['club', 0.3], ['range', 0.1], ['school', 0.25], ['culture', 0.15]];   // (culture: a community centre and its clubs, sim/clubs.js; the school's weight split, so every other shop is where it was)
 const BOARDS = [[0x24503a, 0xf6f4ee, 0x173327], [0x23252f, 0xf6f4ee, 0x14151c], [0xf6f4ee, 0x9e3c36, 0x6a7182], [0x6e2a2e, 0xf8e08a, 0x3f1a22],
   [0x283f6b, 0xf6f4ee, 0x1b2541], [0x9e3c36, 0xf6f4ee, 0x6e2a2e], [0xe7b84a, 0x23252f, 0xb9862e]];
 
@@ -90,10 +92,10 @@ function building(r, x0, x1, z, S) {
   const B = { x0, x1, z, h: 0, d: 35, wall: 'plaster', wallColor: pick(r, MANDATE), roof: 'flat', ops, style, seed };
   const door = (x, w, kind, extra = {}) => S.doors.push({ x: x0 + x + w / 2, z, w, kind, ...extra });
   const shop = (x, sw, roller = 0) => {
-    const kind = weighted(r, SHOP_WEIGHTS), words = fit(r, SHOPS[kind], sw - 0.1), [bg, fg, border] = pick(r, BOARDS);
+    const kind = weighted(r, SHOP_WEIGHTS), words = fit(r, SHOPS[kind], sw - 0.1), [bg, fg, border] = livery(kind, pick(r, BOARDS));   // (a police station's, a hospital's own: sim/cities/signs.js)
     ops.push(['shopfront', x, sw - 1.3, 2.75, { goods: [pick(r, [0xe7b84a, 0xc95c45, 0xf6f4ee]), pick(r, [0x9e3c36, 0x3b6296, 0x356f42, 0xe7b84a]), pick(r, [0x8f6345, 0xc95c45, 0x5d8fc2])], roller }]);
     ops.push(['door', x + sw - 1.2, 1.1, 2.45, { color: 0x23252f, frame: 0x23252f }]);
-    ops.push(['sign', x, 3.0, sw - 0.1, 0.85, words, { bg, fg, border, style: weighted(r, [['board', 3], ['lightbox', 1.5], ['letters', 1]]), kind }]);
+    ops.push(['sign', x, 3.0, sw - 0.1, 0.85, words, { bg, fg, border, style: boardOf(kind, weighted(r, [['board', 3], ['lightbox', 1.5], ['letters', 1]])), kind }]);
     S.doors.push({ x: x0 + x + sw - 0.65, z, w: 1.1, kind: 'shop', shop: kind, pane: { x0: x0 + x, x1: x0 + x + sw - 1.3, z } });
   };
   const groundFloor = ({ shops = 0.7, roller = 0.25, entrance = 0.5, arched = false }) => {
@@ -304,6 +306,7 @@ export const BEIRUT = {
     floors: { living: ['cement', 'cement', 'terrazzo'], bedroom: ['cement', 'parquet'], kitchen: ['cement'], bath: ['tiles'], hall: ['cement'] }, floorWood: [0xb48459, 0x8f6345],
     woods: ['teak', 'walnut', 'white'], fabrics: ['plum', 'teal', 'red', 'cream'], phones: ['cream', 'green'], rugs: ['kilim', 'persian'], wallCarpet: 0, moods: ['warm', 'soft'] },
   embassyLook: { lobby: 0xe8dcc4, station: 0xc8d4dc, floor: 'terrazzo' },
+  desks: { police: 'مخفر', hospital: 'طوارئ' },                      // (on the plaques of a police station's front desk, a hospital's: sim/interiors/shop.js)
   walk: { about: 'Gemmayzeh and Achrafieh: old houses, stairs up the hill, cables everywhere.', hello: 'Beirut in November: the heat\'s gone out of the day, and the generators are clearing their throats.', langs: { ar: 'working', fr: 'working' },
     park: { fountain: 'A fountain, running. Pigeons, a man with a coffee, and every path in view.', beds: 'Flower beds, bright in November.' } },
 };

@@ -1475,6 +1475,28 @@ export function hangingSign(x, y, z, str, { bg = 0x6e2a2e, fg = 0xf8e08a } = {})
   return part(g);
 }
 
+/**
+ * A police station's blue lamp (London's: the user, 2026-11-04, sim/services.js), on a bracket out from the wall at z over
+ * its door, x its middle, the bracket at height y: a lantern of blue glass with the white band its word would be on, a
+ * cap; lit at night (its glass swapped to `night` with the lamps, src/render/town.js).
+ */
+export function blueLamp(x, y, z) {
+  const W = 7, H = 9, w = W / M, h = H / M;
+  const face = keep('bluelamp', () => mat(0, paint(W, H, (px) => {
+    px(0, 0, W, H, 0x23252f); px(1, 1, W - 2, H - 2, 0x3b6296); px(1, 1, W - 2, 1, 0x5d8fc2); px(1, 2, W - 2, 2, 0xf4efe6); px(2, 2, 1, 2, 0x8f96a6); px(4, 2, 1, 2, 0x8f96a6);   // (blue glass, the white band its word's on, the word's marks)
+  })));
+  const lit = keep('bluelamp-lit', () => glow(0, face.map));
+  const g = new THREE.Group(), iron = mat(0x23252f);
+  const glass = box(w, h, w, { front: face, back: face, sides: face, top: iron });
+  glass.position.set(x, y - h - 0.1, z + 0.45); g.add(glass);
+  const capM = box(w + 0.06, 0.05, w + 0.06, { sides: iron }); capM.position.set(x, y - 0.1, z + 0.45); g.add(capM);
+  const arm = box(0.04, 0.04, 0.5, { sides: iron }); arm.position.set(x, y, z + 0.25); g.add(arm);
+  const drop = box(0.03, 0.08, 0.03, { sides: iron }); drop.position.set(x, y - 0.06, z + 0.45); g.add(drop);
+  glass.userData.night = [glass.material].flat().map(m => (m === face ? lit : m));
+  g.userData.signs = [glass];
+  return part(g);
+}
+
 // ---------- props ----------
 
 /**

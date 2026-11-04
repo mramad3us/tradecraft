@@ -75,6 +75,7 @@ import { Z, SECTION_M } from '../sim/map/street.js';
 import { isGun, isLong } from '../sim/firearms.js';
 import { pictureOf as armourPicture } from '../sim/armour.js';
 import { passerby } from '../sim/people.js';
+import { deskLook } from '../sim/services.js';
 import { geoOf, SHOP_EN, SHOP_EN_CITY, scriptLang } from '../sim/cities/index.js';
 import { focusActor, playerActor } from '../sim/game.js';
 import { SCENARIOS } from '../sim/scenarios/index.js';
@@ -543,8 +544,9 @@ export function createView({ parent, bus, month = () => 11 }) {
     // shop you're in. Their looks a passer-by's, the hat and the bag left at the door)
     const staff = (opened?.units ?? []).map(u => ({ ...u.staff, key: 7e6 + u.look.seed, face: 'down' }));   // (an embassy's people are the sim's: sim/interiors/staffing.js)
     for (const p of staff) {
-      const lk = p.look ?? indoors(lookOf(p.key));
-      people.push({ key: p.look ? `staff-${p.key}` : p.key, look: lk, x: p.x, z: p.z, face: p.face ?? 'down', gait: p.gait ?? 'idle', stride: 0, phase: 0, tint: lightAt(lamps, p.x, p.z, ms, S) });
+      // (a police station's desk officer in the country's uniform, a hospital's nurse in hers: sim/services.js deskLook())
+      const lk = p.look ?? (p.dress ? deskLook(state.map, p.dress, lookOf(p.key)) : indoors(lookOf(p.key)));
+      people.push({ key: p.look ? `staff-${p.key}` : p.dress ? `${p.dress}-${p.key}-${state.map.city ?? 'moscow'}` : p.key, look: lk, x: p.x, z: p.z, face: p.face ?? 'down', gait: p.gait ?? 'idle', stride: 0, phase: 0, tint: lightAt(lamps, p.x, p.z, ms, S) });
     }
     for (const id in aware ? {} : seen) {                          // (and as remembered, those out of sight)
       const r = seen[id];

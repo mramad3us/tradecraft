@@ -35,7 +35,7 @@
 // Textures are shared by make and kept (pixeltown.js keep()); a section frees only its own.
 import * as THREE from 'three';
 import { ground, tile, mat, glow, box, roundedBox, paint, part, tone, PX_PER_M } from '../art/pixelart.js';
-import { street, streetSteps, building, facade, facadeSteps, lamp, bench, bin, car, railing, awning, hangingSign, hedgeLeaves, keep, phonebox, shelter, noticeBoard, beacon, pubSign, cart, stall, soukStall, minaret, generator, cablesMesh, cell } from '../art/pixeltown.js';
+import { street, streetSteps, building, facade, facadeSteps, lamp, bench, bin, car, railing, awning, hangingSign, blueLamp, hedgeLeaves, keep, phonebox, shelter, noticeBoard, beacon, pubSign, cart, stall, soukStall, minaret, generator, cablesMesh, cell } from '../art/pixeltown.js';
 import { treeCard, propCard } from '../art/townsprites.js';
 import { spritePerson, frame, card } from '../art/sprites.js';
 import { Z, laneRects } from '../sim/map/street.js';
@@ -338,11 +338,19 @@ export function* buildSection(S, { month = 11, night = () => false } = {}) {
       g.add(minaret(B.x0 + m.x, B.z - 1.6, B.h - 0.2, m.h, m.kind, B.wallColor));
       if (d) { const dome = roundedBox(2 * d.r, d.r * 1.3, 2 * d.r, d.r * 0.95, { sides: mat(0xc4bba9), top: mat(0xe2dac6) }); dome.position.set(B.x0 + d.x, B.h, B.z - d.r - 2.5); g.add(part(dome)); }
     }
-    for (const a of B.look?.awnings ?? []) g.add(awning(B.x0 + a.x0, B.x0 + a.x1, 3.0, B.z, { depth: 0.7, drop: 0.35, color: a.color }));
+    // (awnings over some shops; not over a police station's door, nor a hospital's: the dress drew one for whatever stood there before, sim/services.js)
+    const official = S.doors.filter(d => (d.shop === 'police' || d.shop === 'hospital') && d.z === B.z);
+    for (const a of B.look?.awnings ?? []) if (!official.some(d => d.x > B.x0 + a.x0 && d.x < B.x0 + a.x1 + 0.2)) g.add(awning(B.x0 + a.x0, B.x0 + a.x1, 3.0, B.z, { depth: 0.7, drop: 0.35, color: a.color }));
     for (const s of B.look?.hanging ?? []) {
       const hs = hangingSign(B.x0 + s.x, 3.0, B.z, s.text, { bg: s.bg, fg: s.fg });
       for (const b of hs.userData.signs) heads.push({ head: b, day: b.material, night: b.userData.night });   // (lit with the lamps)
       g.add(hs);
+    }
+    // (a police station's blue lamp over its door, where the city has them: London's; lit with the lamps, gone with the front when you're in)
+    if (C.blueLamp) for (const d of S.doors) if (d.shop === 'police' && d.z === B.z && d.x > B.x0 && d.x < B.x1) {
+      const bl = blueLamp(d.x, 2.95, B.z);
+      for (const b of bl.userData.signs) heads.push({ head: b, day: b.material, night: b.userData.night });
+      g.add(bl);
     }
     byBuilding.push(g.children.slice(before));
     // (its shop signs, for one turning into English for whoever reads them: src/render/view.js)

@@ -318,7 +318,7 @@ function backToPosting(s) {
 
 /** Papers the days brought (pay, the week's review), one after another. */
 function showPapers(list) {
-  const next = () => { const p = list.shift(); if (p) ui.showPaper({ stamp: { pay: 'PAY', review: 'REVIEW', news: 'NEWS', over: 'CABLE', cable: 'CABLE' }[p.kind] ?? 'NOTE', title: p.title, lines: p.lines }, next); };
+  const next = () => { const p = list.shift(); if (p) ui.showPaper({ stamp: { pay: 'PAY', review: 'REVIEW', news: 'NEWS', over: 'CABLE', cable: 'CABLE', arrest: 'ARREST' }[p.kind] ?? 'NOTE', title: p.title, lines: p.lines }, next); };
   next();
 }
 

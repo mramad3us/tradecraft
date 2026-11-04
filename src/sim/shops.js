@@ -14,7 +14,10 @@
 //     into the shop's bag to take home, so that whoever was looking for the old one
 //     looks past you as you come out; a thing (sim/clothes.js GOODS: an umbrella, a penknife, a bottle,
 //     a kitchen knife), into the hand or a pocket or the bag; a book (a bookshop's shelf: sim/training.js); the gym's, the
-//     club's, the school's hours (sim/training.js; the hours skipped, as an action that takes time);
+//     club's, the school's hours (sim/training.js; the hours skipped, as an action that takes time); at a police
+//     station's front desk or a hospital's, a question (a minute, as a browse); at a hospital's, 'treat': whatever's
+//     wrong seen to, the hours by how bad it is, the heat an official hospital costs (sim/services.js admit(); its hours
+//     skipped as an ambulance patient's are, and out in front of its door after), or, nothing wrong, the desk says so;
 //   - the ledge in the window (a café's, a bar's, a kebab shop's: WINDOW_TABLES): a coffee stood at it,
 //     watching the street through the glass (SIT_S, lived through: move, and you've had enough of it),
 //     or a coffee and a book, for as long as you like (sim/reading.js);
@@ -51,6 +54,7 @@ import { LANG_NAME } from './langs.js';
 import { HOUR, DAY, calendar } from './clock.js';
 import { unitAt, SPOT_REACH_M } from './interiors/use.js';
 import { floorKind } from './interiors/shop.js';
+import { admit, needsOf, hoursWords, SERVICE_WORDS } from './services.js';
 
 export const BROWSE_S = 40;
 export const YARD_S = 20;                                          // (the yard and its gate)
@@ -111,7 +115,13 @@ export const FOOD = new Set([...CAFES, 'bakery', 'sweets', 'manakish', 'deli', '
 export { BACK_REACH_M, BACK_IN_M, BACKWAYS };
 const WORDS = { cafe: 'the café', restaurant: 'the restaurant', bar: 'the bar', shawarma: 'the shawarma place', grocery: 'the grocer\'s', deli: 'the food hall', bakery: 'the bakery', beer: 'the beer shop',
   clothes: 'the clothes shop', books: 'the bookshop', shoes: 'the shoe shop', flowers: 'the florist\'s', tobacco: 'the tobacconist\'s', phones: 'the phone shop', pharmacy: 'the pharmacy', bank: 'the bank',
-  exchange: 'the exchange booth', optician: 'the optician\'s', watches: 'the watchmaker\'s', gym: 'the gym', club: 'the club', school: 'the language school', culture: 'the community centre', range: 'the range' };
+  exchange: 'the exchange booth', optician: 'the optician\'s', watches: 'the watchmaker\'s', gym: 'the gym', club: 'the club', school: 'the language school', culture: 'the community centre', range: 'the range',
+  ...SERVICE_WORDS };                                              // (a police station, a hospital: sim/services.js)
+// (a question at a police station's desk, a hospital's: the browse's minute, in their words: [the way's, as it's asked, as it's answered])
+const DESK_WAYS = {
+  police: ['A question at the desk, through the glass: the way somewhere, a lost wallet (a minute)', 'A question through the glass of the front desk.', 'The officer at the desk points the way with his pen, and goes back to his forms.'],
+  hospital: ['A question at the desk: visiting hours, the way to a ward (a minute)', 'A question at the front desk.', 'Visiting hours are on the board, the nurse says, and goes back to her screen.'],
+};
 export const shopWord = (kind) => WORDS[kind] ?? 'the shop';
 
 /** The shop floor actor a stands in (sim/interiors/use.js unitAt()): { S, u, k }, or null. */
@@ -152,7 +162,12 @@ export function ways(state, d, spot = 'counter') {
     if (WINDOW_TABLES.has(d.shop) && PASTIME.has(state.scenario.kind) && p?.books?.some(onYou)) out.push({ id: 'read', label: `A coffee at the ledge, and your book, for as long as you like (${price(state, BITE_USD)}, and another every forty minutes)` });
     return out;
   }
-  out.push({ id: 'browse', label: 'A look at what they have, a question at the counter: a minute, nothing bought' });
+  out.push({ id: 'browse', label: DESK_WAYS[d.shop]?.[0] ?? 'A look at what they have, a question at the counter: a minute, nothing bought' });
+  // (a hospital's desk: whatever's wrong seen to, its hours by how bad it is, and what an official hospital costs: sim/services.js)
+  if (d.shop === 'hospital') {
+    const N = needsOf(p, state.time.ms), h = N.hours;
+    out.push({ id: 'treat', label: N.needs.length ? `Get yourself seen to: ${N.urgent ? 'they\'ll take you straight through' : 'the wait, then a doctor'} (${hoursWords(h).toLowerCase()} or so${N.reported ? `; ${N.reported === 'gunshot' ? 'a gunshot wound' : 'a knife wound'}: they'll report it to the police` : ''})` : 'Ask to see a doctor' });
+  }
   if (FOOD.has(d.shop)) out.push({ id: 'eat', label: `${d.shop === 'grocery' || d.shop === 'bakery' || d.shop === 'deli' ? 'Something to eat: bread, cheese, eaten by the window' : 'A bite and a hot drink at the counter'} (two minutes, ${price(state, BITE_USD)})` });
   // (time put into yourself: the gym, a class, a lesson; a book off the shelf)
   // (a gym's, a club's sessions: paid each time, or free on a month's membership of this one: CLUB_MONTH_USD)
@@ -209,6 +224,13 @@ export function doWay(state, bus, me, way, scenario) {
   if (!piece && !good && !ways(state, d, sp.kind).some(w => w.id === way)) return false;
   const no = ways(state, d, sp.kind).find(w => w.id === way)?.off;
   if (no) { say(state, bus, { kind: 'note', text: `Not today: ${no}.` }); return false; }   // (a second session in a day: sim/shops.js WORKOUT_GAP_H)
+  // (a hospital's desk: taken in and cared for, the hours skipped after the tick and out in front of its door, sim/services.js
+  // admit(); nothing wrong with you, the desk says so, and no time goes)
+  if (way === 'treat') {
+    const T = admit(state, bus, me, { door: d });
+    if (!T) say(state, bus, { kind: 'note', text: 'The nurse at the desk looks you up and down. "There\'s nothing here for a doctor. Rest, and something for the pain if you need it."' });
+    return !!T;
+  }
   if (piece && !pay(state, bus, piece.usd, piece.name)) return false;
   if (good && !pay(state, bus, good[2], good[1])) return false;
   const member = memberOf(state, d);
@@ -232,7 +254,7 @@ export function doWay(state, bus, me, way, scenario) {
     sit: 'A coffee, stood at the ledge in the window: the street goes by on the other side of the glass.',
     read: 'A coffee at the ledge in the window, the book open on it.',
     train: 'The changing room, and the gym floor.', class: 'Into a gi, and on to the mat.', lesson: 'A classroom upstairs, a table, a teacher.',
-  }[way.startsWith('lesson:') ? 'lesson' : way] ?? (way === 'ask' ? 'A stool at the end of the counter, a drink, and the patience to wait till it\'s quiet.' : lane ? 'Ear defenders, eye protection, a form signed at the desk, and down to the lanes.' : club ? `Upstairs, ${club.name}${(meetsIn(club, state.time.ms) ?? 0) > 0 ? ', a chair, and a wait for the start' : ', late, a chair at the back'}.` : piece ? `Along the rail: ${piece.name}, the tags off at the till.` : good ? `${good[1].charAt(0).toUpperCase() + good[1].slice(1)}, paid for at the counter.` : book ? 'The book from the shelf, paid for at the counter.' : 'A look along the shelves, and a question at the counter.') });
+  }[way.startsWith('lesson:') ? 'lesson' : way] ?? (way === 'ask' ? 'A stool at the end of the counter, a drink, and the patience to wait till it\'s quiet.' : lane ? 'Ear defenders, eye protection, a form signed at the desk, and down to the lanes.' : club ? `Upstairs, ${club.name}${(meetsIn(club, state.time.ms) ?? 0) > 0 ? ', a chair, and a wait for the start' : ', late, a chair at the back'}.` : piece ? `Along the rail: ${piece.name}, the tags off at the till.` : good ? `${good[1].charAt(0).toUpperCase() + good[1].slice(1)}, paid for at the counter.` : book ? 'The book from the shelf, paid for at the counter.' : DESK_WAYS[d.shop]?.[1] ?? 'A look along the shelves, and a question at the counter.') });
   if (way === 'read') bus?.emit('reading', cardOf(state, me));      // (ten minutes at a time: sim/reading.js)
   return true;
 }
@@ -313,5 +335,5 @@ export function insideTick(state, bus, me, scenario) {
     if (!face) delete p.bloody.clothes;
     if (!Object.keys(p.bloody).length) delete p.bloody;
     say(state, bus, { kind: 'note', text: face ? `Cold water, paper towels, a long look in the mirror. Your face is your own again${p.bloody?.clothes ? '; the coat isn\'t: it wants changing' : ''}.` : 'Cold water and a scrub: the stain\'s darker and smaller, and passes for dirt. Out again.' });
-  } else say(state, bus, { kind: 'note', text: 'Nothing you need, and nobody minds.' });
+  } else say(state, bus, { kind: 'note', text: DESK_WAYS[ins.shop]?.[2] ?? 'Nothing you need, and nobody minds.' });
 }

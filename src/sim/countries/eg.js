@@ -7,6 +7,7 @@ export const EG = {
     look: { top: { kind: 'uniform', color: 0xe6e2d8, trim: 0x14151c }, legs: 0x14151c, hat: { kind: 'peaked', color: 0x14151c, band: 0x14151c } },
     ask: '"Your passport, please."',
     order: '"Drop the gun! On the ground!"',                         // (the order to drop it: sim/armed.js)
+    halt: '"Stop where you are! Hands up!"',     // (and to stand still, your hands empty: sim/armed.js)
     // (a CZ 75, a Glock or a revolver at the belt; rifles and submachine guns at the stations, the MP5 with special units; the embassy streets in Garden City guarded)
     arms: { patrol: ['cz75', 'helwan', 'sw686'], patrolLong: ['akm'], response: ['mp5', 'akm'], visible: 'the guards on the embassy streets of Garden City' },
     response: { unit: 'the Central Security Forces', minutes: [6, 15] },

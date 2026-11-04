@@ -571,11 +571,12 @@ function dress(S, seed, row, zx, sx, P) {
 /** A section's shops' ground floors set into their buildings (sim/interiors/shop.js): S.units, and the blockers carved round them. */
 function shopFloors(S, seed, row, block) {
   S.units = [];
+  const desks = cityOf(seed).desks ?? {};                           // (the words on a police station's front desk, a hospital's)
   for (const d of S.doors) {
     if (d.kind !== 'shop' || d.z !== Z.front) continue;
     const b = S.buildings.findIndex(B => d.x > B.x0 && d.x < B.x1 && B.z === Z.front && B.style !== 'embassy' && B.style !== 'station');
     if (b < 0) continue;
-    const u = shopUnit(S.buildings[b], d, { seed: hash(seed, row, S.i), back: backWayAt(seed, row, d) });
+    const u = shopUnit(S.buildings[b], d, { seed: hash(seed, row, S.i), back: backWayAt(seed, row, d), desk: desks[d.shop] ?? null });
     if (!u) continue;
     u.building = b; d.unit = S.units.length;
     S.units.push(u);

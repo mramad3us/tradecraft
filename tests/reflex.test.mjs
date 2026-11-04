@@ -99,9 +99,10 @@ export default [
       for (let t = 0; t < 20 * 10 && !R; t++) { step(g, {}, bus); if (g.$reflex?.why === 'gun') R = g.$reflex; }
       assert(R && R.options.some(o => o.key === 'drop') && stands(g), `his draw seen, time stood: ${R?.title}`);
       step(g, { act: ['reflex:drop'] }, bus);
-      for (let t = 0; t < 20 * 8; t++) step(g, {}, bus);
-      assert(!isGun(p.hand) && !log.some(l => /fires/.test(l)) && log.some(l => /cuffs/.test(l)), `dropped: ${log.filter(l => /fires|cuffs|fall/.test(l)).join(' | ')}`);
-      console.log(`      "${R.title}": ${R.options.map(o => o.label).join(' / ')}; dropped it: no shot, taken in`);
+      let T = null;                                                  // (he comes in with the cuffs: the moment's yours, and you go down on your knees: sim/armed.js)
+      for (let t = 0; t < 20 * 20; t++) { if (g.$reflex?.why === 'arrest') { T = g.$reflex; step(g, { act: ['reflex:submit'] }, bus); } else step(g, {}, bus); }
+      assert(!isGun(p.hand) && !log.some(l => /fires/.test(l)) && log.some(l => /cuffs/.test(l)) && T, `dropped: ${log.filter(l => /fires|cuffs|fall/.test(l)).join(' | ')}; the cuffs' moment ${T?.title}`);
+      console.log(`      "${R.title}": ${R.options.map(o => o.label).join(' / ')}; dropped it: no shot; "${T.title}": ${T.options.map(o => o.label).join(' / ')}; down on your knees: taken in`);
     },
   },
 ];

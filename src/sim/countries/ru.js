@@ -7,6 +7,7 @@ export const RU = {
     look: { top: { kind: 'uniform', color: 0x4c5262, trim: 0x9e3c36 }, legs: 0x353947, hat: { kind: 'peaked', color: 0x4c5262, band: 0x9e3c36 } },
     ask: '"Документы, пожалуйста." Documents, please.',
     order: '"Полиция! Бросай оружие!" Police! Drop it!',                         // (the order to drop it: sim/armed.js)
+    halt: '"Полиция! Стоять! Руки!" Police! Stand still! Hands!',     // (and to stand still, your hands empty: sim/armed.js)
     // (a holstered pistol on every patrol: the Makarov still about, the PL-15K since 2021; some patrols an AKS-74U; Rosgvardia's AK-74M)
     arms: { patrol: ['pl15', 'makarov'], patrolLong: ['aks74u'], response: ['ak74m', 'pya'], visible: 'Rosgvardia at events and stations' },
     response: { unit: 'Rosgvardia', minutes: [6, 12] },

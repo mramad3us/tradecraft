@@ -34,7 +34,7 @@ import { streetName, SECTION_M, Z } from '../sim/map/street.js';
 import { sectionOf } from '../sim/city.js';
 import { callWays, nextMeeting } from '../sim/phone.js';
 
-export const KIND_COLOUR = { job: 0xd36bd0, home: 0xe7b84a, work: 0x5d8fc2, safe: 0x76ad4c, food: 0xe8896a, clothes: 0x7a4a86, books: 0x2f6b62, bank: 0xb9862e, club: 0xc95c45, school: 0x3b6296, phones: 0x95c1e3, optician: 0x8f96a6, chemist: 0x356f42, other: 0x6a7182, metro: 0x9e3c36, bus: 0xc4bba9 };
+export const KIND_COLOUR = { job: 0xd36bd0, home: 0xe7b84a, work: 0x5d8fc2, safe: 0x76ad4c, food: 0xe8896a, clothes: 0x7a4a86, books: 0x2f6b62, bank: 0xb9862e, club: 0xc95c45, school: 0x3b6296, phones: 0x95c1e3, optician: 0x8f96a6, chemist: 0x356f42, hospital: 0xdfe2e8, police: 0x283f6b, other: 0x6a7182, metro: 0x9e3c36, bus: 0xc4bba9 };
 const LEAVES = [['ahead', 'Ahead'], ['city', 'The city'], ['people', 'People'], ['stand', 'Where you stand']];
 const ROW_PX = 30, NAME_PX = 92, MAP_W = 320;                     // (a canvas this wide, drawn big: some 350 m across at the first zoom)
 // The city's window (the user, 2026-11-03: "the map should be zoomed in our position, showing 2 streets around

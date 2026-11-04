@@ -8,14 +8,16 @@ import { bullet } from '../src/sim/shooting.js';
 import { makeAgent } from '../src/sim/agents.js';
 import { sheet } from '../src/sim/people.js';
 import { heat } from '../src/sim/heat.js';
+import { kill } from '../src/sim/health.js';
+import { nearestDoor } from '../src/sim/services.js';
 import { policeOf } from '../src/sim/countries/index.js';
 import { stream } from '../src/sim/rng.js';
 import { assert, fmt } from './helpers.mjs';
 
 // (a street at noon in a city, and an officer a few metres off, facing you)
 function scene(city, seed = 4) {
-  const g = newGame({ seed, scenario: 'walk', city, hour: 12, weather: 'clear' }), log = [];
-  const bus = { emit: (k, v) => { if (k === 'log') log.push(v.text ?? ''); }, on() {} };
+  const g = newGame({ seed, scenario: 'walk', city, hour: 12, weather: 'clear' }), log = [], papers = [];
+  const bus = { emit: (k, v) => { if (k === 'log') log.push(v.text ?? ''); if (k === 'papers') papers.push(...v); }, on() {} };
   start(g, bus);
   for (let t = 0; t < 20; t++) step(g, {}, bus);
   const me = playerActor(g), p = g.people[me.who];
@@ -23,7 +25,7 @@ function scene(city, seed = 4) {
   const gun = armCop(g, g.people.cop1, 'patrol', stream('t', 1));
   const c = makeAgent(g, { who: 'cop1', row: g.map.row ?? 0, x: me.x + 7, z: me.z, speed: 1.1, face: 'left' });
   c.cop = true; c.stopping = true; c.head = Math.PI; c.ai.wait = 20 * 600;   // (stood there, as a patrol at a stop: sim/police.js keeps them)
-  return { g, bus, log, me, p, c, cop: g.people.cop1, gun };
+  return { g, bus, log, papers, me, p, c, cop: g.people.cop1, gun };
 }
 const seconds = (w, n, input = {}) => { for (let t = 0; t < 20 * n; t++) step(w.g, input, w.bus); };
 
@@ -56,16 +58,55 @@ export default [
     },
   },
   {
-    name: 'armed: drop it, hands empty, and you\'re taken in: the gun taken, hours at the station, heat',
+    name: 'armed: drop it, hands empty: he comes in, takes you down (you face down, him on one knee on you), and you\'re taken in: the gun taken, the hours, heat, the paper that says what for; then nobody\'s still shouting',
     fn() {
       const w = scene('moscow'), h0 = heat(w.g), t0 = w.g.time.ms;
       w.p.hand = newGun(w.p, 'makarov');
       seconds(w, 2);
       (w.p.items ??= []).push(w.p.hand); w.p.hand = null;            // (put away: hands empty, and shown)
-      w.c.x = w.me.x + 3;
-      seconds(w, 5);
-      assert(w.log.some(l => /cuffs/.test(l)) && heat(w.g) > h0 && w.g.time.ms - t0 > 2 * 3600 * 1000, `taken in: heat ${h0} → ${heat(w.g)}, ${fmt((w.g.time.ms - t0) / 3600000, 1)} h`);
+      w.c.x = w.me.x + 5;
+      let pinned = null, firstPin = null;
+      for (let t = 0; t < 20 * 20 && !w.papers.length; t++) { step(w.g, {}, w.bus); if (w.g.$takedown?.stage === 'pin') { pinned = [w.me.gait, w.c.gait, Math.abs(w.c.x - w.me.x)]; firstPin ??= w.g.time.ms; } }
+      const P = w.papers[0], held = (w.g.time.ms - t0) / 3600000;
+      seconds(w, 2);
+      // (let out on the nearest station's steps: sim/services.js)
+      const me2 = playerActor(w.g), st = nearestDoor(w.g, 'police'), out = w.log.find(l => /steps of/.test(l));
+      assert(st && Math.abs(me2.x - st.x) < 1.5 && (w.g.map.row ?? 0) === st.row && out, `out: ${out}; at x ${fmt(me2.x, 1)} row ${w.g.map.row ?? 0}, the station's ${st && fmt(st.x, 1)} row ${st?.row}`);
+      assert(pinned?.[0] === 'down' && pinned[1] === 'kneel' && pinned[2] < 1, `pinned: you ${pinned?.[0]}, him ${pinned?.[1]}, ${fmt(pinned?.[2] ?? 0, 2)} m`);
+      assert(P?.kind === 'arrest' && /a gun in your hand/.test(P.lines[0]) && /Makarov/.test(P.lines.join(' ')) && heat(w.g) > h0 && w.g.time.ms - t0 > 2 * 3600 * 1000, `taken in: heat ${h0} → ${heat(w.g)}, ${fmt((w.g.time.ms - t0) / 3600000, 1)} h; the paper: ${P?.lines?.[0]}`);
       assert(!Object.keys(w.p.arms ?? {}).some(isGun), 'the gun gone');
+      const before = w.log.length;
+      seconds(w, 30);
+      const after = w.log.slice(before).filter(l => /Полиция|Drop|Стоять/.test(l));
+      assert(!w.g.$alarm && !w.g.$takedown && !w.g.wanted && !w.g.actors.some(a => a.alert) && !after.length, `after: alarm ${!!w.g.$alarm}, shouts ${after.length}`);
+      console.log(`      the order, the gun away; ${fmt((firstPin - t0) / 1000, 1)} s on he has you down; the paper: ${P.lines.slice(0, 3).join(' / ')}; the hours: ${fmt((w.g.time.ms - t0) / 3600000, 1)} h; heat ${h0} → ${heat(w.g)}; ${out}`);
+    },
+  },
+  {
+    name: 'armed: a dead officer takes nobody in (the user\'s, 2026-11-04: checking on one he\'d shot, he was arrested by him); a shove that works and you\'re away, the resisting on the file',
+    fn() {
+      const w = scene('moscow');
+      w.p.hand = newGun(w.p, 'makarov');
+      seconds(w, 2);
+      (w.p.items ??= []).push(w.p.hand); w.p.hand = null;
+      kill(w.cop, w.g.time.ms, 'shot'); w.c.gait = 'down';
+      w.me.x = w.c.x - 0.8;
+      seconds(w, 15);
+      assert(!w.papers.length && !w.g.$takedown, `beside the dead officer: ${w.papers.length ? 'arrested' : 'not arrested'}`);
+      // (a shove: your CQC well over his)
+      const v = scene('moscow', 6);
+      v.g.$reflexes = true; v.p.skills.cqc = [20, 2];
+      v.p.hand = newGun(v.p, 'makarov');
+      for (let t = 0; t < 20 * 2; t++) { if (v.g.$reflex) step(v.g, { act: ['reflex:none'] }, v.bus); else step(v.g, {}, v.bus); }
+      (v.p.items ??= []).push(v.p.hand); v.p.hand = null;
+      let shoved = null;
+      for (let t = 0; t < 20 * 30 && !v.papers.length; t++) {
+        if (v.g.$reflex) { const k = v.g.$reflex.why === 'arrest' && !shoved ? 'shove' : 'none'; if (k === 'shove') shoved = v.g.time.ms; step(v.g, { act: [`reflex:${k}`] }, v.bus); }
+        else step(v.g, {}, v.bus);
+      }
+      const P = v.papers[0];
+      assert(shoved && P && /shove/.test(P.lines[1]), `shoved: ${!!shoved}; the paper: ${P?.lines?.[1]}`);
+      console.log(`      beside a dead officer for 15 s: not taken in; a shove (CQC 20 against his 6 + ${'4'}): ${v.log.find(l => /Both hands|ready for it/.test(l))}; the paper: ${P.lines[1]}`);
     },
   },
   {

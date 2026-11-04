@@ -9,6 +9,7 @@
 import { stream, int, range, pick, chance, weighted } from '../rng.js';
 import { SECTION_M, GAP_M, STRETCH, GROUND_H, FLOOR_H, at, toneOf } from '../map/layout.js';
 import { russianName, streetLook } from '../people.js';
+import { livery, boardOf } from './signs.js';
 
 // Names. A row is a street (and its boulevard, its parks), each side street a lane.
 const STREETS = ['Pokrovka', 'Maroseyka', 'Myasnitskaya', 'Sretenka', 'Solyanka', 'Petrovka', 'Pyatnitskaya', 'Ostozhenka',
@@ -43,9 +44,11 @@ const SHOPS = {
   optician: 'ОПТИКА', bank: 'БАНК', tobacco: 'ТАБАК', exchange: 'ОБМЕН ВАЛЮТ', bar: 'БАР', clothes: 'ОДЕЖДА',
   shoes: 'ОБУВЬ', watches: 'ЧАСЫ', phones: 'СВЯЗЬ', shawarma: 'ШАУРМА', beer: 'ПИВО', deli: 'ГАСТРОНОМ', restaurant: 'РЕСТОРАН',
   gym: 'ФИТНЕС', club: 'САМБО', range: 'ТИР', school: 'ЯЗЫКИ', culture: 'ДОМ КУЛЬТУРЫ',
+  police: 'ПОЛИЦИЯ', hospital: 'БОЛЬНИЦА',   // (a police station, a hospital: sim/services.js; longer than four letters, as the exchange's and the chemist's are, so their boards' dress is drawn as it was)
 };
-const SHOP_WEIGHTS = [['grocery', 3], ['pharmacy', 2.5], ['cafe', 3], ['clothes', 2], ['flowers', 1.5], ['bakery', 1.5],
-  ['books', 1], ['optician', 1], ['bank', 1.2], ['tobacco', 1], ['exchange', 1], ['bar', 1.2], ['shoes', 1], ['watches', 0.6],
+// (a police station where an exchange booth stood, a hospital where a chemist's did: their weights split, so every other shop is where it was)
+const SHOP_WEIGHTS = [['grocery', 3], ['pharmacy', 2.1], ['hospital', 0.4], ['cafe', 3], ['clothes', 2], ['flowers', 1.5], ['bakery', 1.5],
+  ['books', 1], ['optician', 1], ['bank', 1.2], ['tobacco', 1], ['exchange', 0.6], ['police', 0.4], ['bar', 1.2], ['shoes', 1], ['watches', 0.6],
   ['phones', 1.2], ['shawarma', 1], ['beer', 0.8], ['deli', 1], ['restaurant', 1], ['gym', 0.6], ['club', 0.3], ['range', 0.1], ['school', 0.25], ['culture', 0.15]];   // (culture: a community centre and its clubs, sim/clubs.js; the school's weight split, so every other shop is where it was)
 // Sign boards: [background, letters, border].
 const SIGN_COLOURS = [[0x1b2541, 0xf6f4ee, 0x8f96a6], [0x24503a, 0xf6f4ee, 0x173327], [0x6e2a2e, 0xf8e08a, 0x23252f],
@@ -87,7 +90,7 @@ function building(r, x0, x1, z, S, { far = false } = {}) {
     if (!far && room > 3.6 && chance(r, 0.6)) {                    // a shop: window, door, a sign above
       const sw = Math.min(room, 3.4 + int(r, 3) * 0.8);
       const kind = weighted(r, SHOP_WEIGHTS);
-      const [bg, fg, border] = pick(r, SIGN_COLOURS);
+      const [bg, fg, border] = livery(kind, pick(r, SIGN_COLOURS));   // (a police station's, a hospital's own: sim/cities/signs.js)
       ops.push(['shopfront', x, sw - 1.3, 2.7, { goods: [pick(r, [0xf6f4ee, 0xdfe2e8]), pick(r, [0x9e3c36, 0x3b6296, 0x356f42, 0xe7b84a]), pick(r, [0x8f6345, 0xc95c45, 0x5d8fc2])] }]);
       ops.push(['door', x + sw - 1.2, 1.1, 2.4, { color: 0x23252f, frame: 0x23252f }]);
       ops.push(['sign', x, 3.05, sw - 0.1, 0.75, SHOPS[kind], { bg, fg, border, kind }]);   // (its kind: in English for whoever reads Russian, src/render/view.js)
@@ -196,7 +199,7 @@ function dressBuilding(B, L) {
     else if (op[0] === 'door') op[op.length - 1] = { ...o, color: frame, frame, style: 'shop' };
     else if (op[0] === 'shopfront') op[op.length - 1] = { ...o, frame };
     else if (op[0] === 'sign') {
-      op[op.length - 1] = { ...o, style: weighted(L, [['board', 3], ['letters', 1.5], ['lightbox', 1.5], ['hanging', op[5].length <= 4 ? 2 : 0]]) };
+      op[op.length - 1] = { ...o, style: boardOf(o.kind, weighted(L, [['board', 3], ['letters', 1.5], ['lightbox', 1.5], ['hanging', op[5].length <= 4 ? 2 : 0]])) };
       if (op[op.length - 1].style === 'hanging') { op[op.length - 1].style = 'board'; v.hanging.push({ x: op[1] + op[3] - 0.55, text: op[5], bg: o.bg, fg: o.fg }); }   // (over its door, beside the board)
     }
     else if (op[0] === 'arch') op.push({ kind: weighted(L, [['open', 2], ['gate', 2], ['rect', soviet ? 3 : 1], ['doors', 1.5]]) });
@@ -315,6 +318,8 @@ export const MOSCOW = {
     floors: { living: ['herringbone'], bedroom: ['herringbone', 'parquet'], kitchen: ['lino', 'checker'], bath: ['tiles'], hall: ['parquet'] }, floorWood: [0xa8784f, 0x8f6345, 0xb48459],
     woods: ['walnut', 'teak', 'dark'], fabrics: ['brown', 'green', 'red', 'mustard'], phones: ['red', 'cream'], rugs: ['persian', 'persian', 'kilim'], wallCarpet: 0.6, moods: ['warm', 'warm', 'soft'] },
   embassyLook: { lobby: 0xd9d2c0, station: 0xc8d4dc, floor: 'terrazzo' },
+  // (the words on the plaques of a police station's front desk and a hospital's: sim/interiors/shop.js; the district's ОВД, the casualty department's ПРИЕМ)
+  desks: { police: 'ОВД', hospital: 'ПРИЕМ' },
   // (the free walk's line on the title, src/ui/ui.js; its words in the walk are the scene's own, sim/scenarios/walk.js)
   walk: { about: 'A boulevard in central Moscow: plaster and Stalinist stone, the lanes north and south, the sun down at ten to five.' },
 };

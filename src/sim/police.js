@@ -45,10 +45,11 @@ export const EYE_M = 14, STOP_M = 6, STOP_PER_POINT = 0.07, HEAT_FROM = 30, HEAT
 // heat"): not the opposition's (sim/heat.js), the city's police, who stop people and write names down. Up for a name in a
 // notebook (POLICE_PAPERS), a search (POLICE_SEARCH, POLICE_FOUND when they find something), a stop walked away from
 // (POLICE_WALK), being taken in (POLICE_ARREST: sim/armed.js), your description out after violence (POLICE_WANTED:
-// sim/emergency.js), a gun dealer's phone (sim/market.js); down POLICE_COOL_DAY a day (sim/campaign.js pass()). It makes
+// sim/emergency.js), a hospital's report of the gunshot or the knife wound it treated you for (POLICE_HOSPITAL:
+// sim/services.js), a gun dealer's phone (sim/market.js); down POLICE_COOL_DAY a day (sim/campaign.js pass()). It makes
 // a patrol likelier to stop you (× 1 + police / POLICE_STOP_K: at 40 twice as likely, at 100 three and a half times).
 export const POLICE_MAX = 100, POLICE_COOL_DAY = 2, POLICE_STOP_K = 40;
-export const POLICE_PAPERS = 2, POLICE_SEARCH = 4, POLICE_FOUND = 15, POLICE_WALK = 6, POLICE_ARREST = 30, POLICE_WANTED = 20;
+export const POLICE_PAPERS = 2, POLICE_SEARCH = 4, POLICE_FOUND = 15, POLICE_WALK = 6, POLICE_ARREST = 30, POLICE_WANTED = 20, POLICE_HOSPITAL = 12;
 /** The police's interest, now (0 outside a campaign). */
 export const policeHeatOf = (state) => state.campaign?.posting?.police ?? 0;
 /** The police's interest up (or down) by n: the new value. */

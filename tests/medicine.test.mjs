@@ -11,6 +11,7 @@ import { newGame, start, step, skip } from '../src/sim/game.js';
 import { createBus } from '../src/sim/bus.js';
 import { candidates, newCampaign } from '../src/sim/campaign.js';
 import { DAY, HOUR } from '../src/sim/clock.js';
+import { VISIT_HEAT } from '../src/sim/services.js';
 import { assert } from './helpers.mjs';
 
 const person = (med = 8, fit = 5, id = 'q') => sheet({ id, name: 'P Q', cls: 'civilian', skills: { medicine: [med, 0], fitness: [fit, 0] } });
@@ -167,14 +168,15 @@ export default [
         p.injuries = wounds(s.time.ms); p.tourniquets = { legL: { ms: s.time.ms } }; p.injuries[1].bleed = s.time.ms;
         const keys = options(s, p, p).map(o => o.key), t0 = s.time.ms, h0 = s.heat[Object.keys(s.heat)[0]] ?? 0;
         step(s, { act: [`aid:${me.id}:${where === 'embassy' ? 'nurse' : 'hospital'}:0`] }, bus);
+        for (let t = 0; t < 25; t++) step(s, {}, bus);                 // (A&E's hours, skipped at the second's turn, and out through its doors: sim/services.js admit())
         const [stab, artery, arm] = p.injuries;
-        return { keys, h: (s.time.ms - t0) / HOUR, heat: (s.heat[Object.keys(s.heat)[0]] ?? 0) - h0, stab: !!stab.stitched, artery: !!artery.stitched, tq: !!p.tourniquets, set: !!p.set?.armL && !!p.splints?.armL, line: s.log.filter(l => /nurse|A&E/.test(l.text ?? '')).at(-1)?.text };
+        return { keys, h: (s.time.ms - t0) / HOUR, heat: (s.heat[Object.keys(s.heat)[0]] ?? 0) - h0, stab: !!stab.stitched, artery: !!artery.stitched, tq: !!p.tourniquets, set: !!p.set?.armL && !!p.splints?.armL, line: s.log.filter(l => /nurse|A&E|trolley|doors of/.test(l.text ?? '')).at(-1)?.text };
       };
       const e = run('embassy'), h = run('street');
       console.log(`      the nurse (${e.keys.includes('nurse:0')}): ${e.h.toFixed(1)} h, heat +${e.heat}, the stab stitched ${e.stab}, the artery ${e.artery ? 'tied off' : 'beyond her'} (the tourniquet ${e.tq ? 'still on' : 'off'}), the arm set and splinted ${e.set}`);
       console.log(`      A&E (${h.keys.includes('hospital:0')}): ${h.h.toFixed(1)} h, heat +${h.heat}, the stab stitched ${h.stab}, the artery tied off ${h.artery}, the tourniquet ${h.tq ? 'still on' : 'off'}, the arm set and splinted ${h.set}; "${(h.line ?? '').slice(0, 140)}…"`);
       assert(e.keys.includes('nurse:0') && Math.round(e.h) === 1 && e.heat === 0 && e.stab && !e.artery && e.tq && e.set, 'the nurse: an hour, discreet, all but the artery');
-      assert(h.keys.includes('hospital:0') && h.h >= 4 && h.h <= 6.1 && h.heat === 8 && h.stab && h.artery && !h.tq && h.set, 'A&E: hours, everything, the knife wound reported');
+      assert(h.keys.includes('hospital:0') && h.h >= 3 && h.h <= 8 && h.heat === VISIT_HEAT + 8 && h.stab && h.artery && !h.tq && h.set, `A&E: hours, everything, the knife wound reported: ${h.h.toFixed(1)} h, heat +${h.heat}`);
     },
   },
 ];
