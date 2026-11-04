@@ -65,12 +65,30 @@ import { outcomeWord } from './outcomes.js';
 import { CITIES, CITY_IDS, cityById, FIRST_TOUR_CITY } from './cities/index.js';
 import { missionXP, gain, level, progress } from './xp.js';
 import { fieldwork } from './rust.js';
+import { LESSON_BOOK, lessonBook, sceneOf } from './lessons.js';
+export { LESSON_BOOK, lessonBook, sceneOf };
+export const LESSON_GAP_H = 2, LESSON_XP_K = 0.4;
 
 export const KINDS = {
   sdr: { name: 'An asset meeting', scenario: 'sdr', about: 'Meet the asset clean: a surveillance detection run to the bench, and only sit down if nobody\'s on you.' },
   tail: { name: 'A tail', scenario: 'tail', about: 'Follow the target from his door to whoever he meets, and don\'t be seen.' },
   watch: { name: 'A photograph', scenario: 'watch', about: 'Photograph the target at his meeting, and don\'t let his minder see you do it.' },
+  lesson: { name: 'Hale\'s exercise', scenario: null, about: 'One of Hale\'s exercises, on the posting\'s own streets: him in your ear, the station\'s people playing the parts.' },   // (its scene the lesson's: sim/tutorial/)
 };
+/**
+ * Hale's exercises, booked (the user, 2026-11-04: "unless we accept tutorials from Hale, which instead of teleporting us
+ * into the tutorials, should book the tutorial as an assignment we have to move to during a day we're not working in the
+ * beginning. Assignments should populate the days after the tutorials we picked and asking for an other tutorial later on
+ * should populate it a day that is free (or at an earlier time like in the morning) where the planning is free and at
+ * least two hours before an assignment to avoid collisions"). Each an assignment of its own (kind 'lesson', a.lesson its
+ * id: sim/tutorial/), walked to like any other, its place by its scene's kind (scene: a tail's door, a meeting's bench, a
+ * café), its hour its own (h: when he comes out, the meeting, the photograph's). Booked on Hale's first call, the station
+ * gives you the days before your desk to settle in: one a day from tomorrow, the desk from the day after the last
+ * (p.deskFrom; the days between, nothing expected at the embassy), the work planned from there. Booked later: the first
+ * day from tomorrow with room, one a day, LESSON_GAP_H clear of anything else that day. The Farm's mat isn't on the list:
+ * it's a memory, played from the title's tutorial.
+ */
+export const lessonsLeft = (c) => LESSON_BOOK.filter(L => !c.assignments.some(a => a.kind === 'lesson' && a.lesson === L.id && a.status === 'open') && !c.done.some(a => a.kind === 'lesson' && a.lesson === L.id && a.status === 'done'));
 /** Days between one asset's meetings, and between tails on one target. */
 export const CADENCE = { sdr: [3, 6], tail: [4, 8], watch: [5, 9] };
 export const WORK = { from: 9, to: 18 };
@@ -381,6 +399,55 @@ export function plan(c, ms) {
   c.plannedTo = Math.max(c.plannedTo, to);
   c.assignments.sort((a, b) => a.from - b.from);
 }
+
+// (a lesson at game time from: its window as its scene's kind would have it)
+function lessonAt(c, L, from) {
+  const a = { id: `l${hash(c.seed, L.id, from) % 1e7}`, kind: 'lesson', lesson: L.id, who: null, from, status: 'open' };
+  if (L.scene === 'sdr') Object.assign(a, { to: from + 15 * MIN, start: from - 30 * MIN });
+  else if (L.scene === 'watch') Object.assign(a, { to: from + 15 * MIN, start: from - 10 * MIN });
+  else Object.assign(a, { to: from + 20 * MIN, start: from });
+  a.brief = `Hale's exercise: ${L.title.toLowerCase()}, at ${hm(from)}. The station's own people play the parts; Hale's in your ear.`;
+  return a;
+}
+// (whether a lesson at a has room: nothing open within LESSON_GAP_H of it, no other lesson that day)
+const roomFor = (c, a) => !c.assignments.some(x => x.status === 'open' && ((x.kind === 'lesson' && dayOf(x.from) === dayOf(a.from)) || (x.start < a.to + LESSON_GAP_H * HOUR && x.to > a.start - LESSON_GAP_H * HOUR)));
+
+/**
+ * Book Hale's lessons (ids, in order) from game time ms. settling: the first call's, the days before the desk (one a day
+ * from tomorrow at its own hour; the desk from the day after the last; the work planned after it). Otherwise the first
+ * free slot from tomorrow: a working day's evening after the desk, or a day off at its own hour, the morning or the
+ * afternoon. Returns the assignments booked.
+ */
+export function bookLessons(c, ids, ms, settling = false) {
+  const p = c.posting, today = dayOf(ms), out = [];
+  if (settling) {                                                   // (the work moved after the lessons: what was planned from tomorrow, planned again)
+    for (const a of c.assignments) if (a.status === 'open' && a.kind !== 'lesson' && dayOf(a.from) > today) a.status = 'unplanned';
+    c.assignments = c.assignments.filter(a => a.status !== 'unplanned');
+    for (const t of p.trips ?? []) if (t.planned && !c.assignments.some(a => a.trip && a.who === t.id)) t.planned = false;
+  }
+  let d = settling ? Math.max(today + 1, ...c.assignments.filter(a => a.kind === 'lesson' && a.status === 'open').map(a => dayOf(a.from) + 1)) : today + 1;
+  for (const id of ids) {
+    const L = lessonBook(id);
+    if (!L || !lessonsLeft(c).some(x => x.id === id)) continue;
+    for (let k = 0; k < 60; k++, d++) {
+      const dayMs = d * DAY, hours = settling ? [L.h] : isWorkday(dayMs) ? [Math.max(L.h, WORK.to + 0.75), WORK.to + 1.5, WORK.to + 2.5] : [L.h, 10.5, 14, 17];
+      const a = hours.map(h => lessonAt(c, L, dayMs + Math.round(h * 60) * MIN)).find(x => x.start > ms && roomFor(c, x));
+      if (a) { c.assignments.push(a); out.push(a); d++; break; }
+    }
+  }
+  if (settling && out.length) {
+    const last = Math.max(...c.assignments.filter(a => a.kind === 'lesson' && a.status === 'open').map(a => dayOf(a.from)));
+    p.deskFrom = last + 1;
+    for (let k = today + 1; k < p.deskFrom; k++) c.worked[k] ??= 'settling';   // (nothing expected at the embassy: sim/campaign.js pass(), the hub's working day)
+    for (const s of p.assets) s.nextDay = Math.max(s.nextDay ?? 0, p.deskFrom + hash(c.seed, s.id, 'desk') % 2);
+    for (const t of p.targets) t.nextDay = Math.max(t.nextDay ?? 0, p.deskFrom + 1 + hash(c.seed, t.id, 'desk') % 3);
+    for (const t of p.trips ?? []) if (!t.planned) t.day = Math.max(t.day, p.deskFrom);
+    c.plannedTo = today;
+    plan(c, ms);
+  }
+  c.assignments.sort((x, y) => x.from - y.from);
+  return out;
+}
 const hm = (ms) => { const k = calendar(ms); return `${String(k.hour).padStart(2, '0')}:${String(k.minute).padStart(2, '0')}`; };
 
 /** The open assignments at time ms: [{ a, state: 'later' | 'now' | 'missed' }]; the missed are marked (and cost), once. */
@@ -395,11 +462,11 @@ function miss(c, a) {
   const p = c.posting;
   if (a.kind === 'sdr' && !a.trip) { const s = p.assets.find(x => x.id === a.who); if (s) s.trust = Math.max(-5, s.trust - 1); }
   if (a.trip) { p.cover = Math.max(0, p.cover - COVER_MISSED); c.log.push({ ms: a.to, text: `Missed: the ${cityById(a.trip).name} trip. The station there noticed, and so did yours.` }); c.done.push(a); return; }
-  c.log.push({ ms: a.to, text: a.kind === 'sdr' ? `Missed: ${who(c, a)} waited on the bench for nothing. Trust down.` : `Missed: ${who(c, a)}'s evening, unwatched.` });
+  c.log.push({ ms: a.to, text: a.kind === 'lesson' ? `Missed: Hale's exercise, ${(lessonBook(a.lesson)?.title ?? 'the street').toLowerCase()}. He waited, and went home; ring him for another evening.` : a.kind === 'sdr' ? `Missed: ${who(c, a)} waited on the bench for nothing. Trust down.` : `Missed: ${who(c, a)}'s evening, unwatched.` });
   c.done.push(a);
 }
 /** Whom an assignment was about (an asset's codename, a target's name), or null (an asset arrested since: gone from the network). */
-const nameOf = (c, a) => { const T = a.trip && c.posting.trips?.find(t => t.id === a.who); return (T ? T.asset?.codename ?? T.target?.name : a.kind === 'sdr' ? c.posting.assets.find(x => x.id === a.who)?.codename : c.posting.targets.find(x => x.id === a.who)?.name) ?? null; };
+const nameOf = (c, a) => { if (a.kind === 'lesson') return 'Hale'; const T = a.trip && c.posting.trips?.find(t => t.id === a.who); return (T ? T.asset?.codename ?? T.target?.name : a.kind === 'sdr' ? c.posting.assets.find(x => x.id === a.who)?.codename : c.posting.targets.find(x => x.id === a.who)?.name) ?? null; };
 const who = (c, a) => nameOf(c, a) ?? 'someone';
 
 /**
@@ -411,7 +478,7 @@ export function pass(c, from, to) {
   const p = c.posting, papers = [];
   for (let d = dayOf(from); d < dayOf(to); d++) {
     const dayMs = d * DAY;
-    if (isWorkday(dayMs) && !c.worked[d] && d >= dayOf(p.startMs)) { p.cover = Math.max(0, p.cover - COVER_MISSED); c.log.push({ ms: dayMs + 18 * HOUR, text: 'A working day missed at the embassy. Someone noticed.' }); }
+    if (isWorkday(dayMs) && !c.worked[d] && d >= Math.max(dayOf(p.startMs), p.deskFrom ?? 0)) { p.cover = Math.max(0, p.cover - COVER_MISSED); c.log.push({ ms: dayMs + 18 * HOUR, text: 'A working day missed at the embassy. Someone noticed.' }); }
     const next = calendar((d + 1) * DAY);
     if (next.day === 1 && next.month !== p.money.paid) { p.money.paid = next.month; p.money.bank = (p.money.bank ?? 0) + p.money.salary; p.money.fundLeft = p.money.fund; papers.push({ kind: 'pay', title: 'PAY', lines: [`Salary in: $${p.money.salary}.`, `The operational fund topped up to $${p.money.fund}.`] }); }
     if (weekday(dayMs) === 6) papers.push(review(c, dayMs));
@@ -536,6 +603,13 @@ export function context(c, a) {
     // (still on you from your own hours when it began: them; sim/scenarios/campaign.js)
     const rolled = weighted(r, [['none', Math.max(1, 70 - heat)], ['overt', 20 + heat * 0.3], ['covert', Math.max(0, heat - 25)]]), team = (!T && a.tailedBy) || rolled;
     Object.assign(ctx, { asset: { codename: s.codename, look: s.look, sex: s.sex, role: s.role }, meetFrom: a.from, meetTo: a.to, team, heat });
+  } else if (a.kind === 'lesson') {
+    // (the station's people playing the parts: the scene's own cast, its own odds of a team; the heat the opposition's is no business of an exercise's)
+    const L = lessonBook(a.lesson), rr = stream('lesson-team', c.seed, a.id), teams = { tailed: [['overt', 3], ['covert', 1.5], ['none', 1.5]], brush: [['none', 2], ['overt', 2], ['covert', 1]], drop: [['none', 2], ['overt', 2], ['covert', 1]] }[a.lesson];
+    Object.assign(ctx, { lesson: a.lesson, heat: 20, meetFrom: a.from, meetTo: a.to, wary: false, made: false, brief: null });   // (no brief of ours: the scene's own, with Hale's framing, sim/tutorial/ briefFor())
+    if (L?.scene === 'sdr') Object.assign(ctx, { team: teams ? weighted(rr, teams) : 'none', asset: { codename: 'SOLOVEY', role: 'Petrov of the station, playing an asset' } });
+    if (a.lesson === 'tailing') ctx.target = { name: 'Piotr Lisowski', what: 'of the station\'s political section, playing the man you follow tonight' };
+    if (a.lesson === 'blown') ctx.heat = 90;
   } else if (a.kind === 'tail' || a.kind === 'watch') {
     const t = fileOf(c, T ? T.target : p.targets.find(x => x.id === a.who), city);
     // (his file: his look, his craft (how careful: Pathfinding, Awareness, his way, his checks), the man he meets)
@@ -545,6 +619,20 @@ export function context(c, a) {
   return ctx;
 }
 export const TRIP_HEAT = 35;
+// (the core four back to what they were, in a debrief's words)
+const keptLine = (names) => (!names.length ? null : `${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]}: a day of it for real, and ${names.length > 1 ? 'they\'re' : 'it\'s'} back to what ${names.length > 1 ? 'they were' : 'it was'}.`);
+
+/** A lesson over: a little Tradecraft (LESSON_XP_K of its scene's), the core kept, nothing on the record; Hale's words are the result's (src/ui/ui.js). */
+function foldLesson(c, a, sc, endMs, lines) {
+  const L = lessonBook(a.lesson), xp = Math.round(missionXP({ kind: L?.scene ?? 'tail', outcome: a.known }) * LESSON_XP_K * 10) / 10;
+  gain(c.character, xp);
+  const ups = level(c.character), pr = progress(c.character);
+  lines.push(`An exercise with Hale, ${(L?.title ?? 'the street').toLowerCase()}: the station's own people playing the parts, nothing on the record but what you learnt.`);
+  lines.push(ups ? `Tradecraft ${pr.os}: you do this a little better now. (${xp} XP; ${pr.have} of ${pr.need} toward ${pr.os + 1}.)` : `${xp} XP from it: ${pr.words}.`);
+  const kept = keptLine(fieldwork(c.character, endMs));
+  if (kept) lines.push(kept);
+  return { title: `HALE'S EXERCISE: ${(L?.title ?? 'the street').toUpperCase()}`, lines };
+}
 
 /** The odds the opposition's on you as you step out (heat, a city's id), and of a covert team when they are. */
 export const watchedOdds = (heat, city) => (stationOf(city)?.watched ?? 0.6) * Math.max(0, Math.min(WATCHED_MAX, (heat - 10) / 60));
@@ -568,6 +656,7 @@ export function fold(c, a, sc, player, endMs, heatNow) {
   c.done.push(a);
   c.character = { ...structuredClone(player), id: 'me' };
   const lines = [];
+  if (a.kind === 'lesson') return foldLesson(c, a, sc, endMs, lines);
   // (Tradecraft comes of doing it, slowly and slower as it climbs: the assignment's XP, by its kind, how it went, how hard and how risky; sim/xp.js)
   const T0 = a.trip ? p.trips?.find(t => t.id === a.who) : null, target = a.kind !== 'sdr' ? (T0?.target ?? p.targets.find(t => t.id === a.who)) : null;
   const xp = missionXP({ kind: a.kind, outcome: a.known, craft: target?.craft ?? null, team: a.kind === 'sdr' ? sc.team ?? 'none' : 'none',
@@ -575,8 +664,8 @@ export function fold(c, a, sc, player, endMs, heatNow) {
   gain(c.character, xp);
   const ups = level(c.character), pr = progress(c.character);
   lines.push(ups ? `Tradecraft ${pr.os}: you do this a little better now, and it shows on the street. (${xp} XP; ${pr.have} of ${pr.need} toward ${pr.os + 1}.)` : `${xp} XP from it: ${pr.words}.`);
-  const unrusted = fieldwork(c.character, endMs);                  // (out on it, however it went: the craft's core kept up, sim/rust.js; assignments not gone to never fold)
-  if (unrusted.length) lines.push(`${unrusted.length > 1 ? `${unrusted.slice(0, -1).join(', ')} and ${unrusted.at(-1)}` : unrusted[0]}: a day of it for real, and ${unrusted.length > 1 ? 'they\'re' : 'it\'s'} back to what ${unrusted.length > 1 ? 'they were' : 'it was'}.`);
+  const kept = keptLine(fieldwork(c.character, endMs));             // (out on it, however it went: the craft's core kept up, sim/rust.js; assignments not gone to never fold)
+  if (kept) lines.push(kept);
   if (a.trip) return foldTrip(c, a, sc, endMs, heatNow, lines);
   if (heatNow !== undefined) p.heat = Math.max(20, Math.min(100, heatNow));
   if (a.kind === 'sdr') {

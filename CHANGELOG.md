@@ -4,6 +4,18 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.20 (2026-11-04)
+
+- **Hale's exercises are booked, not jumped into.** On the phone, Hale offers to book them: all seven, or one at a time until you've enough. He doesn't send you into the lessons there and then any more.
+  - **On his first call**, the station gives you the days before your desk to settle in. The lessons go one a day from tomorrow, each at its own hour: tailing at 16:30, being tailed at 19:00, the photograph at 13:00, the brush pass at 18:30, the dead drop at 15:00, Blown at 18:45, the umbrella at 18:00. Your desk at the embassy starts the day after the last one, and the station's assignments start after that. Nobody at the embassy expects you on those first days.
+  - **Booked later**, a lesson takes the first free slot from tomorrow: an evening after the desk on a working day, or a day off at its own hour, the morning or the afternoon. One a day, and at least two hours from any assignment.
+  - **Each is an assignment**: in Ahead on the mind, walked to (a door, a bench or a café on your streets), begun there with T, and played on the posting's own streets at its hour, as your officer is, in the real weather, with Hale in your ear.
+  - **The lessons speak the city's language**: Moscow, the FSB, Lefortovo and "November" become the city you're in, its opposition, its prison and the month it is. A legend's first lesson opens as Hale's evening "to watch".
+  - **Afterwards**: Hale's debrief, a little Tradecraft (0.4 of a real assignment's), and the core four kept up. Nothing goes on the record: no heat, no intelligence. Miss one, and he waited and went home.
+  - The Farm's mat stays in the title's tutorial, as a memory.
+- **The embassy's Marine is a Marine.** The guard at the desk reads as a well-trained soldier now (Warfighting 50; close combat 14, weapon handling 16, fitness 16, awareness 12), not as a little-trained civilian.
+- Tests: `tests/lessons.test.mjs` (the first call's booking before the desk, a later one's free slot, each lesson played on Moscow's and London's streets in their words, folded); the browser test books the first lesson from the phone and begins it as an assignment; interiors (the Marine).
+
 ## v0.1.19 (2026-11-04)
 
 - **Hailing a taxi from either kerb, with one alongside.** You count as at the kerb within 2 m of its edge (it was 1.2), on the south pavement as on the north. A free taxi right next to you or just past you can be hailed now. Before, it had to be 12 to 90 m off. It pulls in a little ahead, where it can stop, and you're asked where to once you've walked to its door.

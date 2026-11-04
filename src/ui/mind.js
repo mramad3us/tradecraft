@@ -14,6 +14,7 @@
 //   - **People:** your network, the men you watch, your colleagues: as you know them.
 //   - **Where you stand:** your read of your heat and your cover (sim/belief.js: words, and how sure),
 //     the station's tally, your money, your body.
+import { lessonBook } from '../sim/lessons.js';
 import { plaque } from './plaque.js';
 import { text as glyphs, textWidth } from '../art/pixelart.js';
 import { knownPlaces, knownStreets, setWaypoint, KINDS } from '../sim/knowledge.js';
@@ -66,7 +67,7 @@ function pix(cv, k) { cv.style.width = `${cv.width * k}px`; cv.style.height = `$
 // ---------- Ahead ----------
 function aheadLeaf(state, { el, act }, show) {
   const c = state.campaign, now = state.time.ms, today = Math.floor(now / DAY), items = agenda(c, now).slice(0, 6);
-  const who = (a) => { const T = a.trip && c.posting.trips?.find(t => t.id === a.who); return T ? `${cityById(T.city).name}, ${T.asset?.codename ?? T.target?.name}` : a.kind === 'sdr' ? c.posting.assets.find(s => s.id === a.who)?.codename : c.posting.targets.find(t => t.id === a.who)?.name; };
+  const who = (a) => { const T = a.trip && c.posting.trips?.find(t => t.id === a.who); return T ? `${cityById(T.city).name}, ${T.asset?.codename ?? T.target?.name}` : a.kind === 'lesson' ? (lessonBook(a.lesson)?.title ?? 'the street').toLowerCase() : a.kind === 'sdr' ? c.posting.assets.find(s => s.id === a.who)?.codename : c.posting.targets.find(t => t.id === a.who)?.name; };
   return [
     el('h3', {}, `${dateText(now)}, ${clockText(now)}`),
     items.length ? el('div', { className: 'mind-list' }, ...items.map(({ a, when }) => {

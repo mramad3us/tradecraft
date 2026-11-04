@@ -74,6 +74,24 @@ export const SHOP_EN_CITY = { moscow: { club: ['SAMBO CLUB', 'SAMBO'], culture: 
 /** The language a sign's part is in, by its script and the city: Cyrillic Russian, Arabic Arabic, Latin French in Beirut, else English. */
 export const scriptLang = (part, city) => (/[\u0400-\u04FF]/.test(part) ? 'ru' : /[\u0600-\u06FF]/.test(part) ? 'ar' : city === 'beirut' ? 'fr' : 'en');
 
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/**
+ * Words written for Moscow (the tests', the lessons': sim/scenarios/, sim/tutorial/) in another city's: its name, its
+ * opposition (its station's: "the FSB" as "the Russian residency", "Hezbollah's security", "the GIS"), its prison; and,
+ * given the game time, "in November" as the month it is. Moscow's, as they are.
+ */
+export function cityWords(t, city, ms = null) {
+  if (typeof t !== 'string') return t;
+  let out = t;
+  if (ms !== null) { const m = MONTH_NAMES[new Date(Date.UTC(2026, 0, 1) + ms).getUTCMonth()]; out = out.replace(/\bin November\b/g, `in ${m}`); }
+  if (!city || city === 'moscow') return out;
+  const K = cityById(city), O = K.station?.opposition ?? {}, up = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+  out = out.replace(/\bMoscow\b/g, K.name);
+  if (O.the) out = out.replace(/\bthe FSB\b/g, O.the).replace(/\bThe FSB\b/g, up(O.the)).replace(/\ban FSB\b/g, O.an ?? O.the).replace(/\bAn FSB\b/g, up(O.an ?? O.the)).replace(/\bFSB\b/g, O.name ?? O.the);
+  if (O.prison) out = out.replace(/\bLefortovo\b/g, O.prison);
+  return out;
+}
+
 /** The town a map's streets are generated from: its seed in Moscow, `city:seed` in another city. */
 export const townOf = (map) => (!map?.city || map.city === 'moscow' ? map.seed : `${map.city}:${map.seed}`);
 

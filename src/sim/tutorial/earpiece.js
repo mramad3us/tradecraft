@@ -19,6 +19,7 @@
 //   - mem: the lesson's own memory (state.tutor.mem), for beats and steps that count (seconds kept at
 //     the right distance, the first window). A lesson's tick(state, mem) keeps it, once a second.
 // Plain data, so a lesson saves and loads like the rest.
+import { cityWords } from '../cities/index.js';
 import { TICK_MS } from '../clock.js';
 import { say } from '../log.js';
 import { lessonOf } from './index.js';
@@ -35,7 +36,7 @@ export function startTutor(state, lesson) {
 /** Something said on the earpiece now (beats queue; this is for the scene's own moments). */
 export function radio(state, bus, text) {
   const t = state.tutor;
-  say(state, bus, { kind: 'radio', who: t?.who ?? 'Hale', text });
+  say(state, bus, { kind: 'radio', who: t?.who ?? 'Hale', text: cityWords(text, state.map?.city, state.time.ms) });   // (in the city's own words: sim/cities/ cityWords())
   if (t) t.busyUntil = state.time.ms + readMs(text);
 }
 

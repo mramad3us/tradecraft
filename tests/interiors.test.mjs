@@ -137,6 +137,8 @@ export default [
       skip(s, bus, (5 - calendar(s.time.ms).weekday) * DAY + 3 * HOUR);
       for (let i = 0; i < 40; i++) step(s, {}, bus);
       assert(staff().map(a => a.ai.sid).join() === 'marine' && !apps().length, `the weekend: the Marine alone (${staff().map(a => a.ai.sid)})`);
+      const M = s.people[staff()[0].who];                               // (a Marine, not a clerk in dress blues: sim/interiors/staffing.js)
+      assert(M.cls === 'soldier' && M.os >= 40 && M.skills.weapons[0] >= 12 && M.skills.cqc[0] >= 10, `the Marine: ${M.cls}, Warfighting ${M.os}, weapons ${M.skills.weapons}, CQC ${M.skills.cqc}`);
     },
   },
   {

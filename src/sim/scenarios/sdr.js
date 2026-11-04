@@ -44,7 +44,7 @@
 // too: there its sheet is the scene's `tail` (teamOf(); sim/scenarios/campaign.js outing()).
 // Everything shown is what the character knows: the result paper too (result()), with the rest told
 // later by the world (epilogue()), and in full only in debug mode.
-import { townOf, cityById } from '../cities/index.js';
+import { townOf, cityById, cityWords } from '../cities/index.js';
 import { at, TICK_MS, clockText, dateText } from '../clock.js';
 import { handler, sheet, streetLook, describe, passerby, asOfficer } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
@@ -444,13 +444,14 @@ export const sdr = {
  */
 function sub(state, t) {
   const sc = state.scenario, s = state.people.solovey;
-  if (typeof t !== 'string' || !sc?.campaign) return t;
-  return t.replace(/SOLOVEY/g, s.name)
+  if (typeof t !== 'string') return t;
+  if (!sc?.campaign) return cityWords(t, state.map?.city);          // (another city's test: its name, its opposition: sim/cities/ cityWords())
+  return cityWords(t.replace(/SOLOVEY/g, s.name)
     .replace('works in the Ministry of Defence and has been ours for two years', `is ${sc.role ?? 'one of ours'}, and has been ours a while`)
     .replace('a Ministry of Defence official', sc.role ?? 'an official')
     .replace('Bald, glasses, a brown coat, a newspaper.', `${cap(describe(s.look, s.sex))}, with a newspaper.`)
     .replace(/Station Moscow · Thursday 5 November 2026/, `Station ${cityById(state.map.city).name} · ${dateText(sc.began)}`)
-    .replace('Inside, next month\'s procurement schedule for the Western Military District.', 'Inside: what the agency asked for.');
+    .replace('Inside, next month\'s procurement schedule for the Western Military District.', 'Inside: what the agency asked for.'), state.map.city);
 }
 const subAll = (state, o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Array.isArray(v) ? v.map(x => (typeof x === 'string' ? sub(state, x) : x)) : sub(state, v)]));
 

@@ -4,15 +4,15 @@
 // meeting; and on the way, his tells, a sighting, the grey coats, a shop, a lane, the other pavement.
 import { Z } from '../map/street.js';
 import { rowOf } from '../agents.js';
-import { me, actorId, gap, secs, sees, busyAtSomething, aside } from './common.js';
+import { me, actorId, gap, secs, sees, busyAtSomething, aside, opening } from './common.js';
 
 const him = (state) => actorId(state, state.scenario.target);
 
 export const tailing = {
   id: 'tailing', title: 'Tailing a man', scenario: 'tail', options: { evening: 'dusk' },
   about: 'Follow a man to a meeting without his seeing you twice. Hale in your ear, a colleague playing the man.',
-  intro: () => [
-    'Your first month at the station. Hale, who taught you hand to hand at the Farm, runs its training now, and tonight he runs you: an earpiece in your ear, him on the radio from a car somewhere about. Lisowski, from the political section, plays the man you follow; another of ours plays whoever he meets. It\'s an exercise. The brief\'s written as if it weren\'t, because that\'s how they\'ll come.',
+  intro: (state) => [
+    `${opening(state)} Lisowski, from the political section, plays the man you follow; another of ours plays whoever he meets. It's an exercise. The brief's written as if it weren't, because that's how they'll come.`,
   ],
   steps: [
     { id: 'pick', text: 'Pick him out as he leaves', done: (s) => s.scenario.markGone && s.scenario.marked === s.scenario.target,

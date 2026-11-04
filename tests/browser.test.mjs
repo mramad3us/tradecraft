@@ -218,7 +218,7 @@ export default [
     },
   },
   {
-    name: 'the tutorial from the flat\'s telephone and back, then lesson 1 played by the officer picked: the brief, the marker, the instinct, Hale on the earpiece, the checklist, no errors',
+    name: 'Hale\'s exercises booked from the flat\'s telephone, then the first one begun as an assignment and played by the officer picked: the brief, the marker, the instinct, Hale on the earpiece, the checklist, no errors',
     heavy: true,
     async fn() {
       await withGame(async (page, errors) => {
@@ -232,13 +232,15 @@ export default [
         await page.evaluate(() => window.__tradecraft.step(300));
         await page.keyboard.press('KeyT');
         await page.waitForSelector('.sheet.call', { timeout: 30000 });
-        await page.locator('.sheet.call button', { hasText: 'The exercises' }).click();   // (the tutorial, from the telephone: sim/tutorial/)
-        await page.locator('#title button', { hasText: 'Back to the flat' }).click();     // (back as it was left; and Hale's number, by the telephone)
-        await page.waitForFunction('window.__ready === true && window.__tradecraft.state?.map.place === "home"', null, { timeout: 30000 });
-        await page.keyboard.press('KeyT');
-        await page.waitForSelector('.sheet.call', { timeout: 30000 });
-        await page.locator('.sheet.call button', { hasText: 'The exercises' }).click();
-        await page.locator('#title button', { hasText: '1. Tailing a man' }).click();
+        await page.locator('.sheet.call button', { hasText: 'Book the exercises' }).click();   // (booked, not played there and then: sim/campaign.js bookLessons())
+        await page.locator('.choices .item', { hasText: 'Tailing a man' }).click();
+        await page.locator('.choices .item', { hasText: 'That\'s enough' }).click();
+        await page.waitForSelector('.sheet .stamp:text("BOOKED")', { timeout: 30000 });
+        const booked = await page.evaluate(() => { const c = window.__tradecraft.state.campaign; return { lessons: c.assignments.filter(a => a.kind === 'lesson').map(a => a.lesson), desk: c.posting.deskFrom - Math.floor(c.posting.startMs / 86400000) }; });
+        assert(booked.lessons.join() === 'tailing' && booked.desk === 2, `booked: ${booked.lessons}, the desk from day ${booked.desk + 1}`);
+        for (let k = 0; k < 2; k++) { await page.locator('[data-kind]:not([hidden]) button').first().click(); await page.waitForTimeout(300); }   // (the paper of what's booked, then the posting's brief)
+        // (begun at its place in its hour, as the instinct would: the hub's begin, the assignment's scene, src/main.js launchAssignment())
+        await page.evaluate(() => { const T = window.__tradecraft, s = T.state, a = s.campaign.assignments.find(x => x.kind === 'lesson'); T.pause(true); s.scenario.prompt = { id: 'test', act: `begin:${a.id}` }; T.step(1, { act: ['instinct'] }); T.pause(false); });
         await page.waitForSelector('.sheet.brief', { timeout: 30000 });
         await page.keyboard.press('Enter');
         await page.waitForFunction('window.__ready === true', null, { timeout: 30000 });

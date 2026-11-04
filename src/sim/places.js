@@ -19,6 +19,7 @@ import { Z } from './map/layout.js';
 import { placeName, streetName } from './map/street.js';
 import { stream, int, pick } from './rng.js';
 import { DAY } from './clock.js';
+import { lessonBook } from './lessons.js';
 
 export const SAFE_APART_M = 25;
 const placesOf = (p) => [p.embassy, p.home, ...p.safehouses];
@@ -76,6 +77,14 @@ export function missionPlace(c, a) {
   if (a.at !== undefined || a.trip) return a.at ?? null;
   const p = c.posting, town = townOf({ seed: p.mapSeed, city: p.city });
   if (a.kind === 'tail') { const t = p.targets.find(x => x.id === a.who); return (a.at = t ? officeOf(c, t) : null); }
+  // (Hale's exercises, sim/lessons.js: the door its scene's laid out from, on the posting's row 0; else a bench, or a door)
+  const L = a.kind === 'lesson' ? lessonBook(a.lesson) : null;
+  if (L?.place === 'entrance0' || L?.place === 'door0') {
+    const doors = [0, 1].flatMap(i => sectionOf(town, 0, i).doors);
+    const d = L.place === 'entrance0' ? doors.find(o => o.kind === 'entrance' && o.z === Z.front) ?? { x: 14 } : doors.find(o => o.x > 14 && o.x < 26 && o.kind !== 'arch' && o.z === Z.front) ?? { x: 20 };
+    return (a.at = { row: 0, x: d.x, z: Z.front + 0.8, kind: 'door', label: `${L.place === 'entrance0' ? 'A block\'s door' : 'A door'} on ${streetName(town, 0)}` });
+  }
+  const kind = L ? (L.place === 'bench' ? 'sdr' : 'door') : a.kind;
   // (never a place another assignment has had, two weeks either side: the same bench twice, or the same
   // park, is how a network's found; with none fresh to be had, any)
   const near = [...new Set([...c.assignments, ...c.done])].filter(x => x !== a && x.at && Math.abs(x.from - a.from) < 14 * DAY);
@@ -84,7 +93,7 @@ export function missionPlace(c, a) {
     const row = rowFor(c, r), i0 = int(r, 8) - 3;
     for (const i of [i0, i0 + 1, i0 - 1, i0 + 2]) {
       const S = sectionOf(town, row, i);
-      if (a.kind === 'sdr') {
+      if (kind === 'sdr') {
         const b = (k < 6 ? S.band === 'park' : true) && pick(r, S.props.filter(q => q.kind === 'bench'));
         // (its park by name, and its street: a city's parks can share a name)
         const label = b && `A bench in ${placeName(town, row, b.x, 14)}, by ${streetName(town, row)}`;

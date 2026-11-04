@@ -18,12 +18,13 @@
 import { newGame, start, step, skip } from './sim/game.js';
 import { createBus } from './sim/bus.js';
 import { toJSON, fromJSON } from './sim/state.js';
-import { TICK_MS, HOUR, MIN, stampText, hourOfDay, calendar } from './sim/clock.js';
+import { TICK_MS, HOUR, MIN, DAY, stampText, dateText, hourOfDay, calendar } from './sim/clock.js';
 import { SCENARIOS } from './sim/scenarios/index.js';
 import { haleCall } from './sim/hale.js';
 import { options as shootOptions } from './sim/shooting.js';
 import { newGun, newMag, isGun } from './sim/firearms.js';
-import { candidates, legendFile, newCampaign, context, fold, heatWord, KINDS, LEVELS, levelOf, promote, goalOf } from './sim/campaign.js';
+import { candidates, legendFile, newCampaign, context, fold, heatWord, KINDS, LEVELS, levelOf, promote, goalOf, bookLessons, lessonsLeft, lessonBook } from './sim/campaign.js';
+import { missionPlace } from './sim/places.js';
 import { cityById, CITY_IDS, FIRST_TOUR_CITY } from './sim/cities/index.js';
 import { shopWord } from './sim/shops.js';
 import { price } from './sim/money.js';
@@ -102,25 +103,43 @@ function careerBest() { try { return JSON.parse(localStorage.getItem(CAREER_KEY)
 function reached(k) { try { if (k > careerBest()) localStorage.setItem(CAREER_KEY, JSON.stringify({ best: k, at: Date.now() })); } catch {} }
 
 /**
- * The flat's telephone (sim/scenarios/campaign.js): Hale. Day one he offers the exercises (the tutorial,
- * played by this officer) or straight in (the posting's brief); called back later, the exercises again.
- * His words are sim/hale.js haleCall()'s: to a file from the basement, not a new officer's.
+ * The flat's telephone (sim/scenarios/campaign.js): Hale. Day one he offers the exercises, booked (bookCard()), or
+ * straight in (the posting's brief); called back later, the exercises again, in a free evening. His words are
+ * sim/hale.js haleCall()'s: to a file from the basement, not a new officer's.
  */
 function openCall(s, id) {
   if (state !== s) return;
   const c = s.campaign, first = id === 'hale';
   ui.showCall({ who: 'HALE', ...haleCall(c, cityById(c.posting.city).name, first) }, (key) => {   // (his words: sim/hale.js; to a file from the basement, he knows who he's talking to)
-    if (key === 'tutorial') toTutorial(s);
+    if (key === 'book') bookCard(s, first && !c.done.length && c.posting.deskFrom === undefined);
     else if (key === 'begin') ui.showPaper(postingPaper(c), () => {});
   });
 }
 
-/** From the flat to the tutorial: the hub kept to come back to, its officer to play the lessons. */
-async function toTutorial(s) {
-  await autosave();                                                 // (the hub, as it's left: Continue's, all the while you're in the lessons)
-  home = { json: toJSON(s), character: structuredClone(s.people[s.player]), name: s.people[s.player].name, city: s.campaign.posting.city, job: s.campaign.posting.job };
-  stop();
-  ui.showTutorial({ home });
+/**
+ * Hale's exercises to book (the user, 2026-11-04: "should book the tutorial as an assignment we have to move to"):
+ * all of them, or one at a time till you've enough (sim/campaign.js bookLessons(): settling, the first call's, the
+ * days before your desk; else a free evening); then what's booked, on a paper, and (day one) the posting's brief.
+ */
+function bookCard(s, settling, booked = []) {
+  if (state !== s) return;
+  const c = s.campaign, left = lessonsLeft(c);
+  const brief = () => { if (settling) ui.showPaper(postingPaper(c), () => {}); };
+  const done = () => {
+    if (!booked.length) return brief();
+    ui.showPaper({ stamp: 'BOOKED', title: 'HALE\'S EXERCISES', lines: [
+      ...booked.map(a => `${stampText(a.from)}: ${lessonBook(a.lesson)?.title ?? 'an exercise'}. ${missionPlace(c, a)?.label ?? ''}.`),
+      settling ? `Your desk at the embassy from ${dateText(c.posting.deskFrom * DAY)}, and the station's work after it.` : 'Like any assignment: be there at its hour. Ahead, on the mind (Tab), has them.'] }, brief);
+  };
+  if (!left.length) return done();
+  const list = [...(left.length > 1 ? [{ key: 'all', label: `All ${left.length}, ${settling ? 'a day each from tomorrow' : 'in the first free evenings'}` }] : []),
+    ...left.map(L => ({ key: L.id, label: L.title })), { key: 'done', label: booked.length ? 'That\'s enough' : 'None, after all' }];
+  ui.openChoices('HALE', settling ? 'THE EXERCISES, BEFORE THE DESK' : 'AN EVENING OF THE EXERCISES', list, (key) => {
+    if (key === 'done') return done();
+    booked.push(...bookLessons(c, key === 'all' ? left.map(L => L.id) : [key], s.time.ms, settling));
+    if (key === 'all') return done();
+    setTimeout(() => bookCard(s, settling, booked), 0);
+  });
 }
 
 /** Back to the flat from the tutorial, as it was left; begin: the posting's brief first. */
@@ -248,6 +267,8 @@ function result() {
 function launchAssignment(s, id) {
   const c = s.campaign, a = c?.assignments.find(x => x.id === id);
   if (!a || state !== s) return;
+  // (Hale's exercise: its lesson's scene, on the posting's streets at its hour, Hale in your ear: sim/tutorial/, sim/campaign.js context())
+  if (a.kind === 'lesson') return launch(newGame({ seed: randomSeed(), lesson: a.lesson, version: VERSION, campaign: c, context: context(c, a), weather: WEATHER }));
   launch(newGame({ seed: randomSeed(), scenario: KINDS[a.kind].scenario, version: VERSION, campaign: c, context: context(c, a), weather: WEATHER }));
 }
 

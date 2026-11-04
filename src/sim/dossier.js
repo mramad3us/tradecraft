@@ -31,6 +31,7 @@ import { weather } from './weather.js';
 import { sun } from './light.js';
 import { missionPlace } from './places.js';
 import { network } from './transit.js';
+import { lessonBook } from './lessons.js';
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 // (a place's words mid-sentence: "the trade delegation on Sretenka", but "Pavel Rudnev's office" as it is)
@@ -172,6 +173,11 @@ function deal(c, a, key, list) {
 
 /** An assignment's brief: { title, body: [paragraphs] } (the scene puts its footer and keys to it). */
 export function briefOf(c, a) {
+  if (a.kind === 'lesson') {                                       // (Hale's exercise, for the mind's Ahead; the scene's own brief is the lesson's: sim/tutorial/ briefFor())
+    const L = lessonBook(a.lesson), at = missionPlace(c, a);
+    return { title: `HALE'S EXERCISE: ${(L?.title ?? 'the street').toUpperCase()}`, body: [at ? `${at.label}, at ${clockText(a.from)}.` : `At ${clockText(a.from)}.`,
+      'The station\'s own people play the parts, and Hale\'s in your ear from a car somewhere about. Nothing goes on the record but what you learn.'] };
+  }
   const p = c.posting, T = a.trip ? p.trips?.find(t => t.id === a.who) : null, city = T?.city ?? p.city, K = CITIES[city], cityName = K?.name ?? 'the city';
   const d = (key, list) => deal(c, a, key, list), at = missionPlace(c, a), mapSeed = T?.mapSeed ?? p.mapSeed;
   const when = clockText(a.from), until = clockText(a.to), light = lightOf(c, city, mapSeed, a.from), service = K ? serviceOf(K) : 'They';

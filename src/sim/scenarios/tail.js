@@ -43,7 +43,7 @@
 //     contact (a professional) gets a look of his own.
 // Every roll goes to the log with a line of flavour. The scenario's progress is plain data in
 // state.scenario, read by the UI (the marker, the instinct, the brief and the result).
-import { townOf, cityById } from '../cities/index.js';
+import { townOf, cityById, cityWords } from '../cities/index.js';
 import { at, TICK_MS, calendar, dateText } from '../clock.js';
 import { handler, sheet, seedFrom, streetLook, describe, asOfficer } from '../people.js';
 import { heatKey, addHeat } from '../heat.js';
@@ -328,11 +328,13 @@ function campaignEvening(C) {
  */
 function sub(state, t) {
   const sc = state.scenario, name = state.people.orlov?.name ?? 'Gennady Orlov', family = name.split(' ').slice(-1)[0];
-  if (typeof t !== 'string' || !sc?.campaign) return t;
+  if (typeof t !== 'string') return t;
+  if (!sc?.campaign) return cityWords(t, state.map?.city);          // (another city's test: its name, its opposition: sim/cities/ cityWords())
   if (sc.sig) t = sigWords(t, sc.sig, sc.contactSig, cityById(state.map.city).name, sc.month);
-  return t.replace(/Gennady Orlov, 54\. Deputy head of procurement at a defence plant\. Twenty years ago an officer of the GRU, and he hasn't forgotten all of it\./, `${name}: ${sc.what ?? 'a man the station wants watched'}.`)
+  return cityWords(t.replace(/Gennady Orlov, 54\. Deputy head of procurement at a defence plant\. Twenty years ago an officer of the GRU, and he hasn't forgotten all of it\./, `${name}: ${sc.what ?? 'a man the station wants watched'}.`)
     .replace(/GENNADY ORLOV/g, name.toUpperCase()).replace(/Gennady Orlov/g, name).replace(/Orlov/g, family)
-    .replace(/Station Moscow · Tuesday 3 November 2026/, `Station ${cityById(state.map.city).name} · ${dateText(sc.began)}`);
+    .replace(/Station Moscow · Tuesday 3 November 2026/, `Station ${cityById(state.map.city).name} · ${dateText(sc.began)}`)
+    .replace(/Station Moscow · Wednesday 4 November 2026/, `Station ${cityById(state.map.city).name} · ${dateText(sc.began)}`), state.map.city);
 }
 /**
  * The test's words for Orlov (grey coat, grey fedora, a briefcase; Moscow; the man in the blue beanie)
@@ -1069,7 +1071,7 @@ export const umbrellaTest = {
   about: 'A GRU colonel who poisons defectors, his bus stop, an umbrella with a pellet in its tip. Be sure it\'s him; never run.',
   brief(state) {
     const sc = state.scenario, ev = eveningOf(state);
-    return {
+    return subAll(state, {
       title: 'THE UMBRELLA',
       body: [
         'Colonel Pavel Kostin, 51, GRU. In March a defector in Vienna died of what the coroner called heart failure; in July, one in Lisbon. Kostin was in both cities that week. On Friday he flies to Helsinki, and the name on his list this time is one of ours.',
@@ -1079,17 +1081,19 @@ export const umbrellaTest = {
       ],
       footer: `Station Moscow · Wednesday 4 November 2026 · ${hhmm(ev.h, ev.m)}`,
       keys: [['instinct', 'what your instinct offers; at arm\'s length, the umbrella; calling it off'], ['use', 'what\'s at hand: a shelter, a window'], ['watch', 'held: stop and look; on a grey coat, a close look'], ['slow', 'held: stroll'], ['log', 'the log']],
-    };
+    });
   },
 
-  setup(state, { city = null, lesson = null, character = null } = {}) {
-    const r = state.rng, ev = UMBRELLA_EVENINGS.find(e => e.id === lesson?.options?.evening) ?? weighted(r, UMBRELLA_EVENINGS.map(e => [e, e.w]));
-    state.time.ms = at(2026, 11, 4, ev.h, ev.m);
-    if (!state.weather) state.weather = lesson?.options?.weather ?? (weighted(r, [['rain', 3], ['rain-heavy', 1.5], ['', 2]]) || null);   // (rain more often than not: the umbrella's cover)
+  setup(state, { campaign: C = null, city = null, lesson = null, character = null } = {}) {
+    // (Hale's exercise from a campaign, booked: sim/campaign.js bookLessons(): its hour, its streets, its officer as they are, the weather the sky's)
+    const r = state.rng, ev = C ? { ...campaignEvening(C), id: 'campaign' } : UMBRELLA_EVENINGS.find(e => e.id === lesson?.options?.evening) ?? weighted(r, UMBRELLA_EVENINGS.map(e => [e, e.w]));
+    state.time.ms = C ? C.startMs : at(2026, 11, 4, ev.h, ev.m);
+    if (!state.weather && !C) state.weather = lesson?.options?.weather ?? (weighted(r, [['rain', 3], ['rain-heavy', 1.5], ['', 2]]) || null);   // (rain more often than not: the umbrella's cover)
     state.legend = { id: 'embassy', name: 'Second Secretary, US Embassy', cover: 'official', floor: 20 };
-    state.country = 'ru';
-    state.heat[heatKey('embassy', state.country)] = 20;
-    const me = asOfficer(handler(r), character);
+    state.country = C?.country ?? 'ru';
+    state.heat[heatKey('embassy', state.country)] = C?.heat ?? 20;
+    const me = C ? { ...structuredClone(C.player), id: 'me' } : asOfficer(handler(r), character);
+    if (me.hand && me.hand !== 'umbrella') (me.items ??= []).push(me.hand);   // (Hale's plain umbrella in your hand: what was in it, in a pocket)
     me.hand = 'umbrella';
     state.people[me.id] = me;
     state.player = me.id;
@@ -1105,9 +1109,9 @@ export const umbrellaTest = {
     state.people.minder = sheet({ id: 'minder', name: 'his minder', sex: 'm', cls: 'spook', os: 30, look: minderLook,
       skills: { awareness: [11, 1], tracking: [10, 1], deception: [8, 0], cqc: [15, 1] }, langs: { ru: 'native' } });
     state.people.minder.seen = describe(minderLook, 'm');
-    state.map = { kind: 'street', seed: seedFrom(r), row: 0, i0: null, i1: null, crowd: 1, city: city ?? undefined };
+    state.map = { kind: 'street', seed: C ? C.mapSeed : seedFrom(r), row: 0, i0: null, i1: null, crowd: 1, city: C?.city ?? city ?? undefined };
     const seed = townOf(state.map);
-    const door = [0, 1].flatMap(i => sectionOf(seed, 0, i).doors).find(d => d.x > 14 && d.x < 26 && d.kind !== 'arch' && d.z === Z.front) ?? { x: 20 };
+    const door = [0, 1].flatMap(i => sectionOf(seed, 0, i).doors).find(d => d.x > 14 && d.x < 26 && d.kind !== 'arch' && d.z === Z.front) ?? { x: 20 };   // (a booked one's walked to: sim/places.js, 'door0')
     // His stop: three to five streets away, a little way along; he waits at its end, on the pavement.
     const row = (chance(r, 0.5) ? -1 : 1) * (STOP_ROWS[0] + int(r, STOP_ROWS[1] - STOP_ROWS[0] + 1));
     const stop = stopNear(seed, row, door.x + range(r, -150, 150)), side = chance(r, 0.5) ? -1 : 1;
@@ -1137,7 +1141,7 @@ export const umbrellaTest = {
     const first = route.pts.find(p => Math.abs(p.x - door.x) > 3), dirX = first ? Math.sign(first.x - door.x) : 1;
     state.actors.unshift({ id: 'a0', who: me.id, seed: null, row: 0, x: door.x - dirX * range(r, 17, 22), z: LINE.F, vx: 0, vz: 0, face: dirX > 0 ? 'right' : 'left', head: dirX > 0 ? 0 : Math.PI, gait: 'idle', stride: 0, stuck: 0, ai: null });
     state.scenario = {
-      kind: 'umbrella', evening: ev.id, ev, campaign: false, wary: ev.wary, phase: 'tail', target: t.id, contact: null, twins: [], meet: stand, seats: [],
+      kind: 'umbrella', evening: ev.id, ev, campaign: !!C, wary: ev.wary, phase: 'tail', target: t.id, contact: null, twins: [], meet: stand, seats: [],
       marked: t.id, lastSeen: { row: 0, x: t.x, z: t.z, ms: state.time.ms }, lastSeenT: state.time.ms, unseenS: 0, keepS: 0, findS: 0, startX: door.x,
       alert: ev.wary ? 25 : 0, sightings: [], scan: null, lastScanMs: null, tell: null, shop: null, warned: 0, mixups: 0, stillS: 0, mirrorMs: -1e12, gap: [],
       witnessS: 0, meetS: 0, closest: 1e9, farthest: 0, prompt: null, outcome: null, lead: null, rolls: 0, began: state.time.ms, turn: null,

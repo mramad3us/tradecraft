@@ -17,7 +17,7 @@
 //
 // It shows the state and routes the player's choices to the callbacks it's given (src/main.js); it
 // never changes the state itself. Times are game time (sim/clock.js); rolls read through checkShort() at the top left, checkText() (the whole sum) in the log.
-import { townOf, localize, cityById, CITIES, CITY_IDS } from '../sim/cities/index.js';
+import { townOf, localize, cityById, CITIES, CITY_IDS, cityWords } from '../sim/cities/index.js';
 import { LANG_NAME } from '../sim/langs.js';
 import { shopWord } from '../sim/shops.js';
 import { needsWords } from '../sim/needs.js';
@@ -262,7 +262,7 @@ export function createUI({ input, cb }) {
       const key = `${L.id}:${tu.steps.map(s => (s.done ? 1 : 0)).join('')}`;
       if (lessonBox.dataset.key !== key) {
         lessonBox.dataset.key = key;
-        lessonBox.replaceChildren(el('div', { className: 'title', textContent: `LESSON ${numberOf(L.id)} · ${L.title}` }),
+        lessonBox.replaceChildren(el('div', { className: 'title', textContent: state.campaign ? `HALE'S EXERCISE · ${L.title}` : `LESSON ${numberOf(L.id)} · ${L.title}` }),   // (booked in a campaign, not a numbered lesson: sim/campaign.js bookLessons())
           ...tu.steps.map(s => el('div', { className: `step${s.done ? ' done' : ''}` }, el('span', { className: 'box', textContent: s.done ? '✓' : '' }), ...keyed(s.text))));
       }
       lessonBox.hidden = false;
@@ -979,7 +979,7 @@ export function createUI({ input, cb }) {
     // (a lesson: Hale's word after it, the checklist as it stood, and the ways on through the tutorial)
     const L = state.tutor && lessonOf(state.tutor.lesson), next = L && nextLesson(L.id);
     const debrief = L ? el('div', { className: 'debrief' }, el('h3', { textContent: 'HALE, AFTER' }),
-      ...(L.debrief?.(state) ?? []).map(t => el('p', {}, ...keyed(t))),
+      ...(L.debrief?.(state) ?? []).map(t => el('p', {}, ...keyed(cityWords(t, state.map?.city, state.time.ms)))),   // (in the city's own words: sim/cities/ cityWords())
       el('div', { className: 'steps' }, ...state.tutor.steps.map(s => el('div', { className: s.done ? 'done' : 'not' }, s.done ? '✓ ' : '✗ ', ...keyed(s.text))))) : null;
     const ways = L && lesson ? [el('hr'),
       el('p', { className: 'note', textContent: 'What was unclear, or too much hand-holding, or too little: in the chat. The tutorial\'s for refining.' }),

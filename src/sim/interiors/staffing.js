@@ -122,13 +122,18 @@ function walk(S, from, to) {
 }
 const seat = (p) => (p.gait === 'sit' ? [['sit', p.x, p.z, p.face ?? 'down']] : [['go', p.x, p.z], ['wait', 1, p.face ?? 'down', 'idle']]);
 
+// (a Marine Security Guard's: Warfighting MARINE_OS, well trained; close combat, the rifle and the pistol, fit, watchful at the door)
+export const MARINE_OS = 50, MARINE_SKILLS = { cqc: [12, 2], weapons: [14, 2], fitness: [14, 2], awareness: [11, 1], pathfinding: [6, 0], medicine: [6, 1] };
 // (someone in, at the street door or already at their post)
 function spawn(state, S, post, where) {
   const plan = S.plan, e = plan.exits[0], door = { x: (e.x0 + e.x1) / 2, z: e.z0 - 0.5 }, who = `emb:${post.id}`;
   if (!state.people[who]) {
     const P = passerby(hash(plan.seed, post.id), state.map.city);
     const look = post.look ?? indoors(P.look);
-    state.people[who] = sheet({ id: who, name: P.name, sex: P.sex, cls: 'civilian', look, skills: P.skills });
+    // (the Marine on the desk is a Marine: a Security Guard, an infantryman before it, trained and fit; the user, 2026-11-04,
+    // "the marine in ambassy reads as a civilian, they are military that should count for something")
+    const marine = post.who === 'marine';
+    state.people[who] = sheet({ id: who, name: P.name, sex: P.sex, cls: marine ? 'soldier' : 'civilian', os: marine ? MARINE_OS : undefined, look, skills: marine ? { ...P.skills, ...MARINE_SKILLS } : P.skills });
   }
   const start = where === 'post' ? (post.gait === 'sit' ? post : post.approach ?? post) : door;
   const a = { id: `s${state.nextActor++}`, who, seed: null, row: state.map.row ?? 0, x: start.x, z: start.z, vx: 0, vz: 0, face: post.face ?? 'down', head: headOf(post.face ?? 'down'), gait: where === 'post' && post.gait === 'sit' ? 'sit' : 'idle', stride: 0, stuck: 0,

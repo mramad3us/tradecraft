@@ -48,6 +48,7 @@ import { townOf, cityById, FIRST_TOUR_CITY } from '../cities/index.js';
 import { skip, newMap } from '../game.js';
 import { eat, soothe } from '../needs.js';
 import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, watched, KINDS, WORK, TRAVEL, EXCUSES, EXCUSE_LINES } from '../campaign.js';
+import { lessonBook, sceneOf } from '../lessons.js';
 import { screen } from '../screening.js';
 import { ways as tableWays, work as gunWork } from '../gunwork.js';
 import { discharge } from '../shooting.js';
@@ -533,12 +534,12 @@ function passTo(state, bus, to, text) {
 
 /** When an assignment's place takes T: a tail from a little before he's out till just after; a meeting till near the bench's end; a photograph a while into his window. */
 export const SPARE_MIN = 10;                                        // (out of the embassy this much before you'd need to leave for an assignment: sim/campaign.js work())
-export const windowOf = (a) => [a.from - BEGIN_EARLY_MIN * MIN, a.kind === 'sdr' ? a.to - 3 * MIN : a.from + (a.kind === 'tail' ? 2 : 5) * MIN];
+export const windowOf = (a) => { const k = sceneOf(a); return [a.from - BEGIN_EARLY_MIN * MIN, k === 'sdr' ? a.to - 3 * MIN : a.from + (k === 'tail' ? 2 : 5) * MIN]; };   // (a lesson's as its scene's: sim/lessons.js)
 export const BEGIN_EARLY_MIN = 15, LEAD_H = 3;
 export const MISSION_AT_M = { tail: 30, sdr: 40, watch: 40 };
 /** Whether you're at an assignment's place (on its street, within MISSION_AT_M of it). */
 function atMission(state, me, a, at) {
-  return !!at && !!me && state.map.kind === 'street' && !state.scenario.window && state.map.seed === state.campaign.posting.mapSeed && (state.map.row ?? 0) === at.row && Math.abs(me.x - at.x) <= MISSION_AT_M[a.kind];
+  return !!at && !!me && state.map.kind === 'street' && !state.scenario.window && state.map.seed === state.campaign.posting.mapSeed && (state.map.row ?? 0) === at.row && Math.abs(me.x - at.x) <= MISSION_AT_M[sceneOf(a)];
 }
 /** Your street, as far as the way to anywhere goes: the street's, or the flat's or the embassy's. */
 const rowHere = (state) => state.map.kind === 'street' ? state.map.row ?? 0 : state.map.place === 'embassy' ? state.campaign.posting.embassy.row : state.campaign.posting.home.row;
@@ -557,7 +558,8 @@ function begin(state, bus, id) {
   const c = state.campaign, a = c.assignments.find(x => x.id === id && x.status === 'open');
   if (!a || state.scenario.outcome) return;
   c.posting.heat = heatNow(state);
-  if (a.kind === 'tail' && state.time.ms < a.from) passTo(state, bus, a.from, `You wait across from his door. ${clockText(a.from)}: it opens.`);
+  if (a.kind === 'lesson' && state.time.ms < a.from) passTo(state, bus, a.from, `You wait where Hale said, the earpiece in. ${clockText(a.from)}: "Hale. You hear me? Here we go."`);
+  else if (a.kind === 'tail' && state.time.ms < a.from) passTo(state, bus, a.from, `You wait across from his door. ${clockText(a.from)}: it opens.`);
   const me = state.actors.find(x => x.who === state.player);
   if (state.scenario.outcome || state.people.me.dead || a.status !== 'open' || !me) return;
   const t = state.scenario.tail;
@@ -702,7 +704,7 @@ function instinct(state, c, now) {
   const k = calendar(now), today = Math.floor(now / DAY), worked = c.worked[today];
   if (next) {
     const a = next.a, T = a.trip && c.posting.trips?.find(t => t.id === a.who);
-    const name = T ? T.asset?.codename ?? T.target?.name : a.kind === 'sdr' ? c.posting.assets.find(s => s.id === a.who)?.codename : c.posting.targets.find(t => t.id === a.who)?.name;
+    const name = T ? T.asset?.codename ?? T.target?.name : a.kind === 'lesson' ? lessonBook(a.lesson)?.title : a.kind === 'sdr' ? c.posting.assets.find(s => s.id === a.who)?.codename : c.posting.targets.find(t => t.id === a.who)?.name;
     if (T) {                                                          // (a trip abroad: flown out, from the mind)
       if (next.when === 'now') return L(`now-${a.id}`, 'warn', `${cityById(T.city).name}: ${name}, now. {mindmap}, and go.`);
       if (a.start - now < LEAD_H * HOUR) return L(`soon-${a.id}`, 'note', `${cityById(T.city).name}, ${name} at ${clockText(a.from)}: {mindmap} by ${clockText(a.start)}, and go.`);
@@ -736,10 +738,11 @@ function instinct(state, c, now) {
   return next ? L(`later-${next.a.id}`, 'calm', `Next: ${KINDS[next.a.kind].name.toLowerCase()}, ${dayWord(next.a.from, now)} at ${clockText(next.a.from)}.`) : null;   // (how hot you are is the officer's guess, the mind's: sim/belief.js)
 }
 const BEGIN_LINE = {
+  lesson: (name, a) => `${lessonBook(a.lesson)?.title ?? 'The exercise'}: Hale's place, at ${clockText(a.from)}. {instinct}: the earpiece in, and begin.`,
   tail: (name) => `Across the street from ${name}'s door. {instinct}: wait for him to come out, and follow.`,
   sdr: (name, a) => `${name}'s bench, from ${clockText(a.from)}. Only if you're clean. {instinct}: the meeting.`,
   watch: (name, a) => `The café: ${name}, due between ${clockText(a.from)} and ${clockText(a.to)}. {instinct}: somewhere to watch it from.`,
 };
-const LATE_LINE = { tail: 'He\'s out of his door and away.', sdr: 'The bench is as good as empty.', watch: 'Whatever passed outside the café, you weren\'t there for it.' };
+const LATE_LINE = { lesson: 'Hale waited, and went home. Ring him for another evening.', tail: 'He\'s out of his door and away.', sdr: 'The bench is as good as empty.', watch: 'Whatever passed outside the café, you weren\'t there for it.' };
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const dayWord = (ms, now) => { const d = Math.floor(ms / DAY) - Math.floor(now / DAY); return d === 0 ? 'today' : d === 1 ? 'tomorrow' : DAYS[calendar(ms).weekday]; };

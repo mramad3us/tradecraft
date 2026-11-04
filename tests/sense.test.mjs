@@ -150,13 +150,13 @@ export default [
       for (const level of ['junior', 'handler']) for (let n = 0; n < LEGENDS.length; n++) {
         const city = level === 'junior' ? 'london' : 'moscow', p = legendFile(3, city, level, n), L = LEGENDS.find(x => x.id === p.legend);
         const call = haleCall(newCampaign(3, p, city, level), city === 'london' ? 'London' : 'Moscow'), text = call.lines.join(' ');
-        assert(p.anew === L.anew && text.includes(KNOWS[L.id]) && !text.includes('Before they let you near anyone') && call.choices.some(c => c.key === 'tutorial') && call.choices.some(c => c.key === 'begin'), `${L.id} at ${level}: not a new officer's call`);
+        assert(p.anew === L.anew && text.includes(KNOWS[L.id]) && !text.includes('The station gives you a few days to settle in') && call.choices.some(c => c.key === 'book') && call.choices.some(c => c.key === 'begin'), `${L.id} at ${level}: not a new officer's call`);
         assert(level === 'junior' ? /first tour/.test(text) : /network to run/.test(text), `${L.id} at ${level}: what the paper makes of them`);
         assert((L.id === 'deaf') === /relay service/.test(text), `${L.id}: the relay`);
         seenLines.add(text);
       }
       const again = haleCall(newCampaign(3, legendFile(3), 'moscow'), 'Moscow', false);
-      assert(/Before they let you near anyone/.test(plain.lines.join(' ')) && !/Before they let/.test(again.lines.join(' ')), 'the ordinary call as it was; called back, a legend\'s own');
+      assert(/The station gives you a few days to settle in/.test(plain.lines.join(' ')) && !/The station gives you/.test(again.lines.join(' ')), 'the ordinary call as it was; called back, a legend\'s own');
       console.log(`      Hale: ${seenLines.size} different calls to the files; to ${legendFile(3).name}, ${legendFile(3).legend}: ${haleCall(newCampaign(3, legendFile(3), 'moscow'), 'Moscow').lines.join(' ')}`);
       const a = legendFile(5), b = legendFile(5), c = legendFile(5, 'moscow', 'handler', 1);
       assert(a.name === b.name && JSON.stringify(a.skills) === JSON.stringify(b.skills), 'the same seed, the same file');

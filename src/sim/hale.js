@@ -70,18 +70,20 @@ export const KNOWS = {
  */
 export function haleCall(c, city, first = true) {
   const me = c.character, p = c.posting, legend = me?.legend && KNOWS[me.legend] ? me.legend : null;
-  const tutorial = { key: 'tutorial', label: legend ? 'The exercises anyway' : 'The exercises, with Hale', about: 'The tutorial: the work on the street, one lesson at a time, played by your officer. Back to the flat whenever you like.' };
+  // (booked, not played there and then: each an assignment of its own on the posting's streets, sim/campaign.js bookLessons();
+  // the first call's before the desk starts, the station's days to settle in; a later one's in a free evening)
+  const tutorial = { key: 'book', label: legend ? 'An evening or two anyway' : 'Book the exercises', about: `Hale's evenings, booked like any assignment: on the streets here, at their hours, him in your ear. ${first ? 'Before your desk starts: the station gives you the days to settle in.' : 'In a free evening, clear of the work.'}` };
   const begin = { key: 'begin', label: 'Straight in', about: 'The posting\'s brief, and on with it. Hale\'s number stays by the phone.' }, later = { key: 'later', label: 'Not now', about: 'Another time.' };
   const relay = me?.legend === 'deaf' ? ['The telephone\'s lamp flashes: the relay service, his words on its screen as he says them.'] : [];
   if (!first) return { lines: [...relay, '"Hale."', legend ? '"The exercises are still there, if you want an evening of them. I\'d enjoy watching, frankly."' : '"The exercises? Whenever you like. My door\'s open, and so\'s the street."'], choices: [tutorial, later] };
   if (!legend) return { lines: [
     `"Hale. Welcome to ${city}. You'll meet the station chief soon enough; I wanted to get to you first."`,
-    '"Before they let you near anyone who matters, I\'d like some of your evenings: the street work, me in your ear and our own people playing the parts. Seven exercises and the mat at the Farm, if you want it again. Or you go straight in and learn it on the job. Plenty did. Your call."',
+    '"The station gives you a few days to settle in before the desk. I\'d like them: the street work, an evening at a time, me in your ear and our own people playing the parts. Seven exercises, as many as you want. Or you go straight in and learn it on the job. Plenty did. Your call."',
   ], choices: [tutorial, begin] };
   const paper = p.level === 'junior'
     ? '"The paper says first tour, liaison with Five, as if you\'d come out of the Farm in the summer. It was the only way back onto the books: at the bottom, like everyone. Nobody at the station knows otherwise, and best keep it so."'
     : `"The paper says ${p.job.split(',')[0]} and a network to run, as anyone's posting would. The chief knows what you are. Nobody else at the station does, and best keep it so."`;
   return { lines: [...relay, `"Hale. Welcome to ${city}."`, KNOWS[legend], paper,
-    '"There are exercises, the ones I give the new people: me in your ear, our own playing the parts. You don\'t need them. The streets have more cameras on them than they used to, though; if you want an evening or two to see them with someone at your back, they\'re yours. Or straight in. I expect you will."',
+    '"There are exercises, the ones I give the new people: me in your ear, our own playing the parts. You don\'t need them. The streets have more cameras on them than they used to, though; if you want an evening or two to see them with someone at your back, before the desk, they\'re yours. Or straight in. I expect you will."',
   ], choices: [tutorial, begin] };
 }

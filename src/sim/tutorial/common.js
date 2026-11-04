@@ -20,5 +20,16 @@ export const around = (state, a, r) => (a ? state.actors.filter(o => o !== a && 
 /** Whether the player's doing something with a reason to it: a window, a bench, a kiosk, a phone box, a shelter, a café's table. */
 export const busyAtSomething = (a) => !!a && (!!a.glass || ['bench', 'kiosk', 'phone', 'shelter', 'notices', 'lace', 'mobile', 'window', 'car'].includes(a.busy?.what) || a.inside?.way === 'sit');
 
+/**
+ * The first lesson's opening, as it's played: from the title, a first month at the station; booked in a campaign
+ * (sim/campaign.js bookLessons()), the first days; for a legend (sim/campaign.js LEGENDS), Hale knows better than
+ * to teach them, and asks for the evening anyway.
+ */
+export function opening(state) {
+  const p = state.people?.[state.player];
+  if (p?.legend) return 'Hale runs the station\'s training, and he asked for an evening of yours all the same, "to watch", he says: an earpiece in your ear, him on the radio from a car somewhere about.';
+  return `Your first ${state.campaign ? 'days' : 'month'} at the station. Hale, who taught you hand to hand at the Farm, runs its training now, and tonight he runs you: an earpiece in your ear, him on the radio from a car somewhere about.`;
+}
+
 /** Hale's aside in a lesson (sim/hale.js ASIDES): once, after afterS seconds, when he's said nothing for twenty. */
 export const aside = (id, afterS) => ({ id: 'aside', when: (s) => secs(s) >= afterS && !s.tutor?.queue.length && s.time.ms - (s.tutor?.busyUntil ?? 0) > 20000, say: ASIDES[id] });

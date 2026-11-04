@@ -12,6 +12,7 @@ import { brushPass, deadDrop } from './handover.js';
 import { blown } from './blown.js';
 import { umbrella } from './umbrella.js';
 import { HEARSAY } from '../hale.js';
+import { cityWords } from '../cities/index.js';
 
 export const FARM = { id: 'farm', title: 'Hand to hand, at the Farm', scenario: 'dojo', chapter: 'lesson', farm: true,
   about: 'Camp Peary, week six: Hale teaches you to hit, grab and cover, then puts you in the ring with your class, and with himself.' };
@@ -28,5 +29,7 @@ export function briefFor(state, b) {
   const L = state.tutor && lessonOf(state.tutor.lesson);
   if (!L || !b) return b;
   const talk = `In the station's canteen, they say things about Hale. ${HEARSAY[(numberOf(L.id) * 3 + 1) % HEARSAY.length]}`;
-  return { ...b, stamp: 'EXERCISE', title: `TUTORIAL ${numberOf(L.id)}: ${L.title.toUpperCase()}`, body: [...(L.intro?.(state) ?? []), ...(b.body ?? []), talk], footer: `${b.footer ?? ''} · an exercise` };
+  // (in the city's own words, and the month it is; booked in a campaign, not a numbered lesson but another of Hale's evenings)
+  const W = (t) => cityWords(state.campaign ? t.replace(/^Lesson [a-z]+, a week on\. /, 'Another of Hale\'s evenings. ').replace(/^Lesson [a-z]+(, [^.]*)?\. /, (m, rest) => `Another of Hale's evenings${rest ?? ''}. `) : t, state.map?.city, state.time.ms);
+  return { ...b, stamp: 'EXERCISE', title: state.campaign ? `HALE'S EXERCISE: ${L.title.toUpperCase()}` : `TUTORIAL ${numberOf(L.id)}: ${L.title.toUpperCase()}`, body: [...(L.intro?.(state) ?? []), ...(b.body ?? []), talk].map(W), footer: `${W(b.footer ?? '')} · an exercise` };
 }
