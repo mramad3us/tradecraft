@@ -8,7 +8,7 @@ import { offers, nextPosting, facesOf, careerEnd, forecast, LEGEND_AFTER } from 
 import { incubationOf, ciOf, UNDERCOVER_MONTHS, ILLEGAL_YEARS, YEAR, MONTH } from '../src/sim/incubation.js';
 import { DEEP, DEEP_CITIES, isDeep } from '../src/sim/legends.js';
 import { threads, purposeAt, rivalryOf } from '../src/sim/geopolitics.js';
-import { ageOf, ILLEGAL_OS, RETIRE_AGE } from '../src/sim/career.js';
+import { ageOf, ILLEGAL_OS, ILLEGAL_AGE, RETIRE_AGE, planPaper } from '../src/sim/career.js';
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
 import { DAY, HOUR, calendar, at } from '../src/sim/clock.js';
 import { heatKey } from '../src/sim/heat.js';
@@ -20,11 +20,12 @@ const open = (list, kind) => list.filter(o => o.kind === kind && o.ok).map(o => 
 
 export default [
   {
-    name: 'postings: a handler\'s posting done: undercover posts offered where your face isn\'t on file (Beirut, Cairo after Moscow), never London; an illegal\'s not before Tradecraft 80 and an undercover post carried out',
+    name: 'postings: a handler\'s posting done: undercover posts offered where your face isn\'t on file (Beirut, Cairo after Moscow), never London; an illegal\'s only under 30',
     fn() {
       const c = ended(newCampaign(5, candidates(5, 'moscow')[0], 'moscow')), L = offers(c, c.over.ms);
       const uc = open(L, 'undercover'), il = open(L, 'illegal'), why = L.find(o => o.kind === 'undercover' && o.city === 'moscow')?.why;
-      assert(uc.join() === 'beirut,cairo' && !il.length && /face/.test(why) && !L.some(o => o.kind !== 'official' && o.city === 'london') && open(L, 'official').length === 4, `undercover ${uc}, illegal ${il}, Moscow: ${why}`);
+      const young = ageOf(c.character, c.over.ms) < ILLEGAL_AGE;
+      assert(uc.join() === 'beirut,cairo' && il.join() === (young ? 'beirut,cairo' : '') && /face/.test(why) && !L.some(o => o.kind !== 'official' && o.city === 'london') && open(L, 'official').length === 4, `undercover ${uc}, illegal ${il}, Moscow: ${why}`);
       // (a first tour's officer, promoted: only stations; a legend's, straight to a legend)
       const J = ended(newCampaign(6, candidates(6, 'london', 'junior')[0], 'london', 'junior'), 90, 'promoted'), LJ = offers(J, J.over.ms);
       const G = ended(newCampaign(6, legendFile(6, 'london', 'junior'), 'london', 'junior'), 90, 'promoted'), LG = offers(G, G.over.ms);
@@ -75,20 +76,20 @@ export default [
     },
   },
   {
-    name: 'postings: the illegal\'s gate (Tradecraft 80, an undercover post carried out), native language, years lying low; the last posting: nothing offered after it; brought out, the career\'s over',
+    name: 'postings: the illegal\'s gate (the user, 2026-11-04): a posting done well and under 30, nothing else (a first tour at 26 opens all three; at 30, none; sacked, none); the training ends at Tradecraft 80; native; years lying low; the last posting: nothing after it; brought out, the career\'s over',
     fn() {
-      const c = ended(newCampaign(13, candidates(13, 'moscow')[0], 'moscow'), 70), u = ended(nextPosting(c, 'beirut', 'undercover'), 120);
-      const before = offers(u, u.over.ms).find(o => o.kind === 'illegal' && o.city === 'cairo');
-      u.character.os = ILLEGAL_OS;
-      const L = offers(u, u.over.ms), il = open(L, 'illegal');
-      const half = ended(nextPosting(c, 'beirut', 'undercover'), 30, 'sacked'); half.character.os = 90;
-      assert(!before.ok && il.join() === 'cairo' && !open(offers(half, half.over.ms), 'illegal').length, `before 80: ${before.why}; at 80: ${il}; sacked from it: ${open(offers(half, half.over.ms), 'illegal')}`);
-      const i = nextPosting(u, 'cairo', 'illegal'), p = i.posting, y = p.incubation.months / 12;
-      assert(p.level === 'illegal' && i.character.langs.ar === 'native' && y >= 3 && y <= 14 && i.character.skills.deception[0] >= 20, `illegal: ${i.character.langs.ar}, ${fmt(y, 1)} years`);
+      const young = { ...candidates(13, 'london', 'junior')[0], age: 26 }, old = { ...young, age: 30 }; delete young.born; delete old.born;
+      const J = ended(newCampaign(13, young, 'london', 'junior'), 70, 'promoted'), O = ended(newCampaign(13, old, 'london', 'junior'), 70, 'promoted');
+      const il = open(offers(J, J.over.ms), 'illegal'), closed = offers(O, O.over.ms).find(o => o.kind === 'illegal');
+      const S = ended(nextPosting(J, 'moscow', 'official'), 40, 'sacked'); S.character.os = 95;
+      assert(il.join() === 'moscow,beirut,cairo' && !closed.ok && /under 30/.test(closed.why) && !open(offers(S, S.over.ms), 'illegal').length && J.character.os < ILLEGAL_OS, `at 26: ${il}; at 30: ${closed.why}; sacked: ${open(offers(S, S.over.ms), 'illegal')}; Tradecraft ${J.character.os}`);
+      const paper = planPaper(J.character, 'cairo', 'illegal');
+      const i = nextPosting(J, 'cairo', 'illegal'), p = i.posting, y = p.incubation.months / 12;
+      assert(p.level === 'illegal' && i.character.os === ILLEGAL_OS && i.character.langs.ar === 'native' && y >= 3 && y <= 14 && i.character.skills.deception[0] >= 20 && paper.lines.some(l => /Tradecraft 80/.test(l)), `illegal: Tradecraft ${i.character.os}, ${i.character.langs.ar}, ${fmt(y, 1)} years`);
       ended(i, 400);
-      const brought = ended(nextPosting(u, 'cairo', 'illegal'), 400, 'brought');
+      const brought = ended(nextPosting(J, 'cairo', 'illegal'), 400, 'brought');
       assert(!offers(i, i.over.ms).length && careerEnd(brought, brought.over.ms)?.why === 'last', 'the last posting');
-      console.log(`      an illegal for Cairo: ${p.alias}, ${p.jobShort}; ${fmt(y, 1)} years lying low, activated ${yearOf(p.startMs)} at ${ageOf(i.character, p.startMs)}; ${p.life.lines.slice(2).join(' ')}`);
+      console.log(`      a first tour done at 26: illegal offered in ${il.join(', ')}; at 30: "${closed.why}"; for Cairo: Tradecraft ${J.character.os} → ${i.character.os}, ${fmt(y, 1)} years lying low, activated ${yearOf(p.startMs)} at ${ageOf(i.character, p.startMs)}; the paper: "${paper.lines.find(l => /Tradecraft 80/.test(l))}"`);
     },
   },
   {
@@ -108,7 +109,7 @@ export default [
     },
   },
   {
-    name: 'postings: the picker\'s deep rungs: an undercover officer\'s file (Tradecraft 55–69, fluent, a handler\'s posting behind them, never London); its face on file is elsewhere',
+    name: 'postings: the picker\'s deep rungs: an undercover officer\'s file (Tradecraft 55–69, fluent, a handler\'s posting behind them, never London); its face on file is elsewhere; an illegal\'s gone at under 30 after a first tour, Tradecraft 80',
     fn() {
       const ids = LEVELS.map(l => l.id), out = [];
       for (const city of ['moscow', 'beirut', 'london']) {
@@ -117,8 +118,9 @@ export default [
         out.push(`${city} → ${p.city}: ${ch.name} (${ch.os}), as ${p.alias}; before: ${c.career.map(k => `${k.level} ${k.city}`).join(', ')}`);
       }
       const I = candidates(32, 'cairo', 'illegal')[0], ci = newCampaign(32, I, 'cairo', 'illegal');
-      assert(ids.join() === 'junior,handler,undercover,illegal' && I.os >= 80 && I.langs.ar === 'native' && ci.career.some(k => k.level === 'undercover'), `levels ${ids}; illegal ${I.os} ${I.langs.ar}`);
-      console.log(`      ${out.join('; ')}; an illegal's start (debug): ${I.name} (${I.os}), before: ${ci.career.map(k => `${k.level} ${k.city}`).join(', ')}`);
+      const went = ageOf(ci.character, ci.career.find(k => k.level === 'training').from);
+      assert(ids.join() === 'junior,handler,undercover,illegal' && I.os === ILLEGAL_OS && I.langs.ar === 'native' && ci.career[0].level === 'junior' && !ci.career.some(k => k.level === 'undercover') && went < ILLEGAL_AGE, `levels ${ids}; illegal ${I.os} ${I.langs.ar}, went at ${went}`);
+      console.log(`      ${out.join('; ')}; an illegal's start (debug): ${I.name} (${I.os}, ${I.age} on day one, gone illegal at ${went}), before: ${ci.career.map(k => `${k.level} ${k.city}`).join(', ')}`);
     },
   },
   {

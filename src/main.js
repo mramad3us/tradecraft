@@ -264,7 +264,7 @@ function result() {
     // (the next posting from what the career offers, the deep ones among them: sim/postings.js; lost: dead, expelled, taken; retiring: age, a legend's pretext, an illegal brought home)
     const end = c.over?.ms ?? state.time.ms, lost = state.people[state.player]?.dead || over === 'expelled' || over === 'taken', E = careerEnd(c, end), retiring = !!over && !lost && !!E?.retire;
     const list = over && !lost && !retiring ? offers(c, end) : [];
-    const next = list.length ? { offers: list, go: (o) => ui.showPaper(planPaper(c.character, o.city, o.kind, afterPhases(c, o.city, o.kind, end)), () => launch(newGame({ seed: randomSeed(), scenario: 'campaign', version: VERSION, campaign: nextPosting(c, o.city, o.kind), weather: WEATHER }))) } : null;
+    const next = list.length ? { offers: list, go: (o) => ui.showPaper(planPaper(c.character, o.city, o.kind, afterPhases(c, o.city, o.kind, end)), () => { if (o.kind !== 'official') reached(levelOf(o.kind)); launch(newGame({ seed: randomSeed(), scenario: 'campaign', version: VERSION, campaign: nextPosting(c, o.city, o.kind), weather: WEATHER })); }) } : null;   // (going deep reaches its rung: an illegal's opens the start under a legend)
     const W = { seed: c.world ?? c.seed, ms: end, last: c.character.name, why: retiring ? 'retired' : lost ? 'lost' : null };
     if (lost || retiring) keepWorld(W);
     const successor = lost || retiring ? { words: `${retiring ? E.words : `${c.character.name}'s career is over`}: the next officer, the world going on`, go: async () => { await autosave(); stop(); pickOfficer(CITY_IDS[0], null, W); } } : null;

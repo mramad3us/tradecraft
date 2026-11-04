@@ -71,7 +71,8 @@ import { CITIES, CITY_IDS, cityById, FIRST_TOUR_CITY } from './cities/index.js';
 import { missionXP, gain, level, progress } from './xp.js';
 import { fieldwork, practise } from './rust.js';
 import { SKILLS } from './skills.js';
-import { between, born, FLOORS } from './career.js';
+import { between, born, FLOORS, plan as trainingPlan, ILLEGAL_OS, ILLEGAL_AGE } from './career.js';
+import { incubationOf } from './incubation.js';
 import { taskingAt, purposeAt } from './geopolitics.js';
 import { LANG_NAME } from './langs.js';
 import { POLICE_COOL_DAY } from './police.js';
@@ -276,17 +277,27 @@ export function candidates(seed, city = 'moscow', level = 'handler') {
 
 /**
  * Officers who start under a legend (LEVELS' deep rungs: an undercover officer's, opened by a game that's carried one out; an
- * illegal's, debug's only): a handler's file aged on, a posting behind them (sim/legends.js backstory()), the post's training
- * done (sim/career.js FLOORS, the language to fluent or native), Tradecraft by the rung (DEEP_OS).
+ * illegal's, debug's only): a handler's file, the post's training done (sim/career.js FLOORS, the language to fluent or native),
+ * a past behind them (sim/legends.js backstory()). Undercover: aged on a few years, Tradecraft DEEP_OS. An illegal (the user's
+ * branch for the young): gone illegal at BACK_DECIDED (under ILLEGAL_AGE, after a first tour done well, perhaps a handler's
+ * posting), the training's own weeks and this posting's incubation since (so their age on day one is that), Tradecraft ILLEGAL_OS.
  */
-export const DEEP_OS = { undercover: [55, 69], illegal: [80, 88] };
+export const DEEP_OS = { undercover: [55, 69] }, BACK_DECIDED = [25, ILLEGAL_AGE - 1];
 export const ILLEGAL_REHIRED = 40;                                 // (an illegal's job lost: another, the standing this)
 function deepCandidates(seed, city, level) {
   city = DEEP_CITIES.includes(city) ? city : DEEP_CITIES[0];         // (never London)
   const r = stream('candidates', seed, level), lang = cityById(city).lang, F = FLOORS[level];
+  const inc = level === 'illegal' ? incubationOf(seed, city, 'illegal', seed, at(2026, 11, 2, WAKE_H)).ms : 0;   // (this seed's posting's, as newCampaign() will make it)
   return candidates(seed, city, 'handler').map((p, i) => {
-    p.os = DEEP_OS[level][0] + int(r, DEEP_OS[level][1] - DEEP_OS[level][0] + 1);
-    p.age += level === 'illegal' ? 10 + int(r, 8) : 4 + int(r, 5);
+    if (level === 'illegal') {
+      const decided = BACK_DECIDED[0] + int(r, BACK_DECIDED[1] - BACK_DECIDED[0] + 1), weeks = trainingPlan(p, city, 'illegal').reduce((t, x) => t + x.weeks, 0);
+      p.$back = { decided, weeks };                                  // (for its past: sim/legends.js backstory())
+      p.age = Math.floor(decided + (weeks * 7 * DAY + inc) / (365.25 * DAY));
+      p.os = Math.max(p.os, ILLEGAL_OS);
+    } else {
+      p.os = DEEP_OS[level][0] + int(r, DEEP_OS[level][1] - DEEP_OS[level][0] + 1);
+      p.age += 4 + int(r, 5);
+    }
     for (const [k, f] of Object.entries(F)) { const v = p.skills[k] ?? [0, 0]; if (v[0] < f) p.skills[k] = [f, v[1]]; }
     if (lang !== 'en') p.langs = { ...p.langs, [lang]: level === 'illegal' ? 'native' : 'fluent' };
     return p;

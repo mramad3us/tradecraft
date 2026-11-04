@@ -10,9 +10,13 @@
 //     posting to undercover, then illegal"). Never where your face is on file (facesOf(): every country you've served in
 //     under official cover, and wherever you were made on a trip abroad, or blown; the user, 2026-11-04: "if our face is in
 //     GRU/FSB files as a diplomatic employee, no amount of time will suffice to go unnoticed").
-//   - **An illegal's post**: Tradecraft ILLEGAL_OS (80) and an undercover post carried out to its end (the user: "only
-//     available for 80+ tradecraft officers who succesfully achieved a full undercover assignment"); never where your face
-//     is on file. Neither deep post (my call, to settle) where you've lived another legend already (servedDeep()).
+//   - **An illegal's post**, a branch for the young (the user, 2026-11-04: "we'll ask for a successful posting and age under 30,
+//     illegal being a career ending move, officers won't be expecting to get out of alive. So it'll be a branch, either go
+//     illegal while young enough (we'll make it so their tradecraft is boosted to 80 as they end their illegal training), or
+//     decide to go undercover which is a lighter assignment or keep going with regular handler assignments under official
+//     cover"): any posting done well (a first tour's too) with the officer under ILLEGAL_AGE (30) the day it ends; never where
+//     your face is on file. Neither deep post (my call, to settle) where you've lived another legend already (servedDeep()).
+//     The training ends with Tradecraft at least ILLEGAL_OS (80: trained()); a one-way post, the last there is.
 // **The end of a career** (careerEnd()): past RETIRE_AGE at a posting's end (never in the middle of one), or a legend's last
 // (LEGEND_AFTER postings after the one they started in: the user, "the already old officer should have a pretext to retire
 // (can be terminal disease) after two postings at most"; my reading, DESIGN's: the two are the undercover and the illegal
@@ -24,7 +28,7 @@
 // rusty with it. The career's file keeps each phase (training, the legend lived) and how each posting ended (how).
 import { CITY_IDS, cityById } from './cities/index.js';
 import { countryOfCity } from './countries/index.js';
-import { plan, born, ageOf, retires, ILLEGAL_OS, FLOORS, NEED, RETIRE_AGE } from './career.js';
+import { plan, born, ageOf, retires, ILLEGAL_OS, ILLEGAL_AGE, FLOORS, NEED, RETIRE_AGE } from './career.js';
 import { incubationOf, lived, MONTH, YEAR } from './incubation.js';
 import { DEEP_CITIES, DEEP_LEVELS, targetOf } from './legends.js';
 import { newCampaign, promote, dayOf, WAKE_H } from './campaign.js';
@@ -65,6 +69,8 @@ export function servedDeep(c) {
 }
 /** Postings so far, the one now among them (the career's file: training, the language school and the legend lived aren't). */
 export const postingsOf = (c) => (c.career ?? []).filter(k => !['school', 'training', 'incubation'].includes(k.level)).length + 1;
+/** Whether p may go illegal at ms: under ILLEGAL_AGE (the posting done well is offers()' own test). */
+export const youngEnough = (p, ms) => (ageOf(p, ms) ?? 99) < ILLEGAL_AGE;
 /** Whether an undercover post's been carried out to its end in this career (now, or before). */
 export const undercoverDone = (c) => (c.career ?? []).some(k => k.level === 'undercover' && k.how === 'completed') || (c.posting?.level === 'undercover' && c.over?.why === 'completed');
 /** Whether a handler's posting's been carried out (the way to an undercover one, a legend's aside). */
@@ -106,13 +112,12 @@ export function offers(c, ms) {
   for (const kind of ['undercover', 'illegal']) for (const city of DEEP_CITIES) {
     const country = countryOfCity(city)?.id, K = cityById(city);
     const why = kind === 'undercover' && !may ? 'a handler\'s posting carried out first'
-      : kind === 'illegal' && (me.os ?? 0) < ILLEGAL_OS ? `Tradecraft ${ILLEGAL_OS} first (yours is ${me.os ?? 0})`
-      : kind === 'illegal' && !undercoverDone(c) ? 'an undercover post carried out to its end first'
+      : kind === 'illegal' && !youngEnough(me, ms) ? `under ${ILLEGAL_AGE} only, and you're ${ageOf(me, ms)}`
       : faces.has(country) ? `your face is in their files: ${countryOfCity(city)?.name ?? K.name} is closed to you`
       : deep.has(country) ? `you've lived a legend there already`
       : null;
     const T = forecast(c, city, kind, ms).T?.target;
-    out.push({ city, kind, ok: !why, why, title: `${kind === 'illegal' ? 'Illegal' : 'Undercover'}, ${K.name}`, about: T ? `Inside ${T.place}.` : '', words: why ? null : timeWords(c, city, kind, ms) });
+    out.push({ city, kind, ok: !why, why, title: `${kind === 'illegal' ? 'Illegal' : 'Undercover'}, ${K.name}`, about: T ? `Inside ${T.place}.${kind === 'illegal' ? ' One way: the last posting there is.' : ''}` : '', words: why ? null : timeWords(c, city, kind, ms) });
   }
   return out;
 }
@@ -136,12 +141,13 @@ export function timeWords(c, city, kind, ms) {
   const extra = P.filter(x => x.what !== 'home leave').map(x => x.what);
   if (kind === 'official') return extra.length ? `${span(weeks)} first: home leave, ${extra.join(', ')}.` : `${span(weeks)}' home leave, then out.`;
   const I = forecast(c, city, kind, ms).I;
-  return `${extra.length ? `${span(weeks)} of training (${extra.join('; ')})` : `${span(weeks)}' home leave`}, then ${kind === 'illegal' ? `${Math.round(I.months / 12 * 10) / 10} years lying low` : `${I.months} months living the legend`} before day one.`;
+  return `${extra.length ? `${span(weeks)} of training (${extra.join('; ')}${kind === 'illegal' ? `; Tradecraft to ${Math.max(ch.os ?? 0, ILLEGAL_OS)}` : ''})` : `${span(weeks)}' home leave`}, then ${kind === 'illegal' ? `${Math.round(I.months / 12 * 10) / 10} years lying low` : `${I.months} months living the legend`} before day one.`;
 }
 
-/** The officer trained for a post of `kind` at city: the language to its need, the skills to its floors (sim/career.js). p, changed. */
+/** The officer trained for a post of `kind` at city: the language to its need, the skills to its floors (sim/career.js); an illegal's Tradecraft to ILLEGAL_OS at least. p, changed. */
 export function trained(p, city, kind) {
   const lang = cityById(city).lang, need = NEED[kind];
+  if (kind === 'illegal') p.os = Math.max(p.os ?? 0, ILLEGAL_OS);
   if (need && lang !== 'en') p.langs = { ...(p.langs ?? {}), [lang]: need };
   for (const [k, f] of Object.entries(FLOORS[kind] ?? {})) { const v = p.skills?.[k] ?? [0, 0]; if (v[0] < f) (p.skills ??= {})[k] = [f, v[1] ?? 0]; }
   return p;

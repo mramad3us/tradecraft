@@ -164,18 +164,20 @@ export function handlerOf(seed, city) {
 /** Whether a posting is a deep one (undercover, an illegal's): no embassy, no immunity. */
 export const isDeep = (P) => DEEP_LEVELS.has(P?.level);
 
-// A deep start's past (sim/campaign.js newCampaign(): the picker's undercover or illegal officer, nobody's career before it): a
-// handler's posting carried out in another country, for an illegal an undercover post too, then the training (BACK_TRAINING_Y)
-// and the legend lived (the posting's own incubation). The career's file, as sim/postings.js nextPosting() would have made it.
-export const BACK_TRAINING_Y = { undercover: 1, illegal: 4 };
+// A deep start's past (sim/campaign.js newCampaign(): the picker's undercover or illegal officer, nobody's career before it). An
+// undercover officer's: a handler's posting carried out in another country, the training (BACK_TRAINING_Y), the legend lived (the
+// posting's own incubation). An illegal's (the branch for the young): London's first tour done well, and half the time a handler's
+// posting after it in another country, ended under ILLEGAL_AGE; then the training (its own weeks: character.$back), the legend
+// lived. The career's file, as sim/postings.js nextPosting() would have made it.
+export const BACK_TRAINING_Y = { undercover: 1, illegal: 4 }, BACK_HANDLER_P = 0.5, BACK_SCHOOL_Y = 1.2;
 export function backstory(seed, P, character = null) {
-  const r = stream('deep-back', seed, P.city, P.level), Y = 365.25 * DAY, inc = P.incubation?.from ?? P.startMs, train = inc - BACK_TRAINING_Y[P.level] * Y;
+  const r = stream('deep-back', seed, P.city, P.level), Y = 365.25 * DAY, inc = P.incubation?.from ?? P.startMs;
+  const train = inc - (P.level === 'illegal' && character?.$back ? character.$back.weeks * 7 * DAY : BACK_TRAINING_Y[P.level] * Y);
   const other = Object.keys(DEEP).concat(['london']).filter(c => countryOfCity(c)?.id !== P.country);
   const handler = pick(r, other), out = [];
   if (P.level === 'illegal') {
-    const uc = pick(r, Object.keys(DEEP).filter(c => c !== P.city && countryOfCity(c)?.id !== countryOfCity(handler)?.id)) ?? null;
-    out.push({ level: 'handler', city: handler, until: train - 3.5 * Y, how: 'completed' });
-    if (uc) out.push({ level: 'undercover', city: uc, until: train, how: 'completed' });
+    if (chance(r, BACK_HANDLER_P)) out.push({ level: 'junior', city: 'london', until: train - BACK_SCHOOL_Y * Y, how: 'promoted' }, { level: 'handler', city: handler, until: train, how: 'completed' });
+    else out.push({ level: 'junior', city: 'london', until: train, how: 'promoted' });
   } else out.push({ level: 'handler', city: handler, until: train, how: 'completed' });
   out.push({ level: 'training', kind: P.level, city: P.city, from: train, until: inc }, { level: 'incubation', kind: P.level, city: P.city, from: inc, until: P.startMs });
   return out;
