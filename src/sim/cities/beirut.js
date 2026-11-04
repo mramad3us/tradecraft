@@ -68,10 +68,10 @@ const SHOPS = {
   clothes: ['BOUTIQUE', 'ملابس'], shoes: ['أحذية|CHAUSSURES', 'CHAUSSURES'], phones: ['خليوي|CELLULAR', 'خليوي'], restaurant: ['مطعم|RESTAURANT', 'مطعم'],
   bar: ['BAR', 'PUB', 'CAVE'], shawarma: ['شاورما', 'شاورما|SHAWARMA'], barber: ['حلاق|COIFFEUR', 'COIFFEUR'], laundry: ['PRESSING', 'كوي'],
   gym: ['نادي|GYM', 'GYM'], club: ['كاراتيه|KARATE', 'KARATE'], range: ['الرماية|STAND DE TIR', 'STAND DE TIR', 'CIBLES'], school: ['لغات|LANGUES', 'LANGUES'], culture: ['مركز ثقافي|CENTRE CULTUREL', 'CENTRE CULTUREL', 'فنون|ARTS'],
-  police: ['الشرطة|POLICE', 'مخفر|POLICE'], hospital: ['مستشفى|HÔPITAL', 'HÔPITAL'],   // (the ISF's station, the mukhfar; a hospital: sim/services.js)
+  police: ['الشرطة|POLICE', 'مخفر|POLICE'], hospital: ['مستشفى|HÔPITAL', 'HÔPITAL'], clinic: ['عيادة|CLINIQUE', 'CLINIQUE'],   // (the ISF's station, the mukhfar; a hospital: sim/services.js)
 };
 // (a police station where a barber's stood, a hospital where a chemist's did: their weights split, so every other shop is where it was)
-const SHOP_WEIGHTS = [['grocery', 2.5], ['cafe', 3], ['bakery', 1.5], ['manakish', 1.5], ['sweets', 1.2], ['pharmacy', 1.65], ['hospital', 0.35], ['vegetables', 1],
+const SHOP_WEIGHTS = [['grocery', 2.5], ['cafe', 3], ['bakery', 1.5], ['manakish', 1.5], ['sweets', 1.2], ['pharmacy', 1.65], ['clinic', 0.35], ['vegetables', 1],
   ['books', 0.8], ['exchange', 0.8], ['bank', 0.8], ['optician', 0.7], ['flowers', 0.8], ['butcher', 0.8], ['clothes', 1.5], ['shoes', 0.8],
   ['phones', 1.5], ['restaurant', 1.5], ['bar', 1.2], ['shawarma', 1], ['barber', 0.65], ['police', 0.35], ['laundry', 0.8], ['gym', 0.6], ['club', 0.3], ['range', 0.1], ['school', 0.25], ['culture', 0.15]];   // (culture: a community centre and its clubs, sim/clubs.js; the school's weight split, so every other shop is where it was)
 const BOARDS = [[0x24503a, 0xf6f4ee, 0x173327], [0x23252f, 0xf6f4ee, 0x14151c], [0xf6f4ee, 0x9e3c36, 0x6a7182], [0x6e2a2e, 0xf8e08a, 0x3f1a22],
@@ -307,7 +307,7 @@ export const BEIRUT = {
     floors: { living: ['cement', 'cement', 'terrazzo'], bedroom: ['cement', 'parquet'], kitchen: ['cement'], bath: ['tiles'], hall: ['cement'] }, floorWood: [0xb48459, 0x8f6345],
     woods: ['teak', 'walnut', 'white'], fabrics: ['plum', 'teal', 'red', 'cream'], phones: ['cream', 'green'], rugs: ['kilim', 'persian'], wallCarpet: 0, moods: ['warm', 'soft'] },
   embassyLook: { lobby: 0xe8dcc4, station: 0xc8d4dc, floor: 'terrazzo' },
-  desks: { police: 'مخفر', hospital: 'طوارئ' },                      // (on the plaques of a police station's front desk, a hospital's: sim/interiors/shop.js)
+  desks: { police: 'مخفر', hospital: 'طوارئ', clinic: 'استقبال' },                      // (on the plaques of a police station's front desk, a hospital's: sim/interiors/shop.js)
   walk: { about: 'Gemmayzeh and Achrafieh: old houses, stairs up the hill, cables everywhere.', hello: 'Beirut in November: the heat\'s gone out of the day, and the generators are clearing their throats.', langs: { ar: 'working', fr: 'working' },
     park: { fountain: 'A fountain, running. Pigeons, a man with a coffee, and every path in view.', beds: 'Flower beds, bright in November.' } },
 };

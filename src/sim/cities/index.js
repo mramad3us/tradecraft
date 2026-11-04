@@ -59,7 +59,7 @@ export const SHOP_EN = {
   shoes: ['SHOES'], watches: ['WATCHES'], phones: ['PHONES'], shawarma: ['SHAWARMA'], beer: ['BEER'], deli: ['DELI'], restaurant: ['RESTAURANT', 'FOOD'],
   gym: ['GYM'], club: ['KARATE CLUB', 'KARATE'], school: ['LANGUAGES'], culture: ['COMMUNITY CENTRE', 'CENTRE'], range: ['SHOOTING RANGE', 'RANGE'], manakish: ['FLATBREADS', 'BREAD'], sweets: ['SWEETS'], vegetables: ['VEGETABLES', 'GREENGROCER'],
   butcher: ['BUTCHER'], barber: ['BARBER'], laundry: ['LAUNDRY'], juice: ['JUICE BAR', 'JUICE'], koshary: ['KOSHARY'], foul: ['BEANS & FALAFEL', 'FALAFEL'], spices: ['SPICES'],
-  police: ['POLICE STATION', 'POLICE'], hospital: ['HOSPITAL'],
+  police: ['POLICE STATION', 'POLICE'], hospital: ['HOSPITAL'], clinic: ['CLINIC'],
 };
 /**
  * A park's kiosk (its feature: look, seed; sim/map/street.js) as its city has it: [sign, colour, sells]. A newsstand (look

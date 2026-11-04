@@ -48,8 +48,11 @@ export default [
       // doors, their signs (on boards, in a police station's colours, a hospital's: sim/cities/signs.js) and their floors changed); seed 7
       // has a station, 77 a station and two hospitals, 1234 three
       // stations: sim/services.js). In 0.1.36, a station's police cars at its kerb, where the street's own were
-      // (sim/map/street.js stationCars(), a stream of its own: with it left out, the hashes before it, checked)
-      const want = { 7: 3630721626, 77: 2468670460, 1234: 2001736832, people: 2649027127 };
+      // (sim/map/street.js stationCars(), a stream of its own: with it left out, the hashes before it, checked). In 0.1.40, the
+      // hospitals on the shopfronts clinics (the same weight, the same streets: their kind's name), the station cars' ems
+      // marked; the big hospital and headquarters (sim/cities/big.js) stand in none of these sections (checked: the same
+      // hashes with them left out)
+      const want = { 7: 3109346416, 77: 531670346, 1234: 1494987650, people: 2649027127 };
       for (const seed of [7, 77, 1234]) {
         const parts = [];
         // (the bus shelters and notice boards of 0.1.0-rc16, from a stream of their own, left out)

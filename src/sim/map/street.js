@@ -56,6 +56,7 @@ import { cityOf } from '../cities/index.js';
 import { marksAt } from './marks.js';
 import { embassyBuilding } from '../cities/embassy.js';
 import { stationBuilding } from '../cities/station.js';
+import { bigAt, bigBuildings, BIG } from '../cities/big.js';
 import { stationAt, busLinesAt } from '../transit.js';
 import { shopUnit } from '../interiors/shop.js';
 import { walls, wallRect } from '../interiors/plan.js';
@@ -189,12 +190,22 @@ export function section(seed, i, row = 0) {
       S.doors.push({ x: (B.x0 + B.x1) / 2, z: B.z, w: 1.6, kind: 'embassy', place: 'embassy' });
     } else if (m.kind === 'door') { const d = S.doors.find(o => o.kind === 'entrance' && Math.abs(o.x - m.x) < 0.01); if (d) d.place = m.place; }
   }
+  // The city's big buildings (sim/cities/big.js): its hospital, its police headquarters, along the front of a few
+  // sections of a street; what stood in front of what they replace (a basement's railings, a wall's post box, a stall) gone too.
+  const big = bigAt(seed, row, i);
+  if (big) {
+    bigBuildings(S, big, P.id);
+    const along = (x) => S.buildings.some(B => B.style === BIG[big.kind].style && x >= B.x0 - 0.1 && x <= B.x1 + 0.1);
+    const fronted = (o) => ['area', 'postbox', 'stall', 'generator', 'scooter'].includes(o.kind ?? o.what) && (o.z ?? o.z0) < Z.front + 1 && (o.z ?? o.z1) > Z.front - 1.5 && along(o.x ?? (o.x0 + o.x1) / 2);
+    S.props = S.props.filter(o => !fronted(o));
+    S.blockers = S.blockers.filter(o => !fronted(o));
+  }
   // A metro station, where the city's network has one in this section (sim/transit.js): the widest
   // building on the front (never the embassy, a mosque, a church) is the station, its one wide door the way down.
   const lines = stationAt(seed, row, i);
   if (lines) {
     // (the widest on the front, 9 m or more; else the widest there is, set back round a square or narrow)
-    const score = (B) => (B.style === 'embassy' || B.minaret || B.dome ? -1 : (B.x1 - B.x0) + (B.z === Z.front && B.x1 - B.x0 >= 9 ? 100 : 0));
+    const score = (B) => (B.style === 'embassy' || B.style === 'hospital' || B.style === 'precinct' || B.minaret || B.dome ? -1 : (B.x1 - B.x0) + (B.z === Z.front && B.x1 - B.x0 >= 9 ? 100 : 0));
     const k = S.buildings.reduce((best, B, j) => (score(B) > 0 && (best < 0 || score(B) > score(S.buildings[best])) ? j : best), -1);
     if (k >= 0) {
       const B = S.buildings[k];
@@ -279,12 +290,16 @@ function stationCars(S, r, P, zx, block, near, inMouth) {
   // (a station set back round a square or a crescent: in its forecourt, by its door, clear of what stands there)
   const clear = (ax, az, bx, bz) => !S.blockers.some(b => b.x1 > ax && b.x0 < bx && b.z1 > az && b.z0 < bz);
   const forecourt = (d) => (x, put) => { const q = [...(S.squares ?? []), ...(S.courts ?? [])].find(g => d.x > g.x0 && d.x < g.x1) ?? { x0: S.x0, x1: S.x0 + SECTION_M }; return x >= q.x0 + 2.3 && x <= q.x1 - 2.3 && clear(x - 2.2, d.z + 1.3, x + 2.2, d.z + 3.3) && !put.some(o => Math.abs(o - x) < 4.4); };
-  for (const d of S.doors) {
-    if (d.shop !== 'police' || d.z > Z.kerbN) continue;
+  // (the big ones' more: the police headquarters' five, the hospital's ambulances, four, at its A&E: sim/cities/big.js)
+  // (and along their wings, two at each 9 m or more without the door, so the street in front of them is theirs)
+  const wings = S.buildings.filter(B => (B.style === 'hospital' || B.style === 'precinct') && B.x1 - B.x0 >= 9 && !S.doors.some(d => d.big && d.x > B.x0 && d.x < B.x1))
+    .map(B => ({ x: (B.x0 + B.x1) / 2, z: Z.front, shop: B.style === 'hospital' ? 'hospital' : 'police', big: B.style, want: 2 }));
+  for (const d of [...S.doors, ...wings]) {
+    if (!(d.shop === 'police' || (d.shop === 'hospital' && d.big)) || d.z > Z.kerbN) continue;
     const back = d.z < Z.front - 0.5, ok = back ? forecourt(d) : fits, z = back ? d.z + 2.3 : 0.55;
-    const put = [];
-    for (const x0 of [d.x - 2.4, d.x + 2.4, d.x - 6.9, d.x + 6.9, d.x - 11.4, d.x + 11.4]) {
-      if (put.length >= 2) break;
+    const put = [], want = d.want ?? (d.big === 'hospital' ? 4 : d.big ? 5 : 2), look = d.shop === 'hospital' ? 'ambulance' : 'police';
+    for (const x0 of [d.x - 2.4, d.x + 2.4, d.x - 6.9, d.x + 6.9, d.x - 11.4, d.x + 11.4, d.x - 15.9, d.x + 15.9, d.x - 20.4, d.x + 20.4]) {
+      if (put.length >= want) break;
       let x = null;
       for (let k = 0; k <= 16 && x === null; k++) for (const o of k ? [k * 0.15, -k * 0.15] : [0]) if (x === null && ok(x0 + o, put)) x = x0 + o;
       if (x === null) continue;
@@ -293,7 +308,7 @@ function stationCars(S, r, P, zx, block, near, inMouth) {
         S.props = S.props.filter(p => !(p.kind === 'car' && !p.police && p.z < 5 && Math.abs(p.x - x) < 4.3));
         for (let j = S.blockers.length - 1; j >= 0; j--) { const b = S.blockers[j]; if (b.what === 'car' && !b.police && b.z1 < 5 && b.x1 > x - 2.2 && b.x0 < x + 2.2) S.blockers.splice(j, 1); }
       }
-      S.props.push({ kind: 'car', x, z, look: 'police', police: true, color: 0xf6f4ee, seed: int(r, 1000) });
+      S.props.push({ kind: 'car', x, z, look, police: look === 'police', ems: look, color: 0xf6f4ee, seed: int(r, 1000) });
       block(x - 2.1, z - 0.9, x + 2.1, z + 0.9, 'car');
       S.blockers.at(-1).police = true;
     }
@@ -569,6 +584,7 @@ function hedgeLook(seed, row, x) {
 }
 
 // Dress a section: its looks (above), on new keys and paint ops only.
+const OWN_DRESS = new Set(['embassy', 'station', 'hospital', 'precinct']);
 function dress(S, seed, row, zx, sx, P) {
   const LOOKS = P.LOOKS, L = stream('street-look', seed, row, S.i), k = Math.floor(S.i / STRETCH), w = (key) => weighted(L, LOOKS[key]);
   const b = scheme(seed, row, k), a = S.i % STRETCH === 0 ? scheme(seed, row, k - 1) : b;
@@ -600,7 +616,7 @@ function dress(S, seed, row, zx, sx, P) {
   const f = S.park?.feature;
   if (f) f.look = w(f.kind);
   if (S.square && LOOKS[S.square.kind]) S.square.look = w(S.square.kind);
-  for (const B of S.buildings) if (B.style !== 'embassy' && B.style !== 'station') P.dress(B, L, S);   // (the embassy and a station wear their own: sim/cities/)
+  for (const B of S.buildings) if (!OWN_DRESS.has(B.style)) P.dress(B, L, S);   // (the embassy, a station, the hospital and the headquarters wear their own: sim/cities/)
 }
 
 /** A section's shops' ground floors set into their buildings (sim/interiors/shop.js): S.units, and the blockers carved round them. */

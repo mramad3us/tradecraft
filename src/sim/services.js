@@ -34,6 +34,7 @@
 // of the engine's it needs, loadRow(), sim/game.js puts in ENGINE as it loads.
 import { sectionOf } from './city.js';
 import { townOf } from './cities/index.js';
+import { bigPlan } from './cities/big.js';
 import { policeOf } from './countries/index.js';
 import { SECTION_M, Z, streetName } from './map/street.js';
 import { fullCare, isOpen, infectionOf, addSupply, DOSE_H } from './medicine.js';
@@ -44,8 +45,8 @@ import { HOUR, DAY } from './clock.js';
 // (the engine's own, given by sim/game.js as it loads: see the header)
 export const ENGINE = { loadRow: null };
 // (what they're called: sim/shops.js WORDS has them too)
-export const SERVICE_WORDS = { police: 'the police station', hospital: 'the hospital' };
-export const SERVICES = ['police', 'hospital'];
+export const SERVICE_WORDS = { police: 'the police station', hospital: 'the hospital', clinic: 'the clinic' };
+export const SERVICES = ['police', 'clinic', 'hospital'];
 export const SERVICE_ROWS = 8, SERVICE_SECTIONS = 30, ROW_WALK_M = 80, OUT_M = 0.8;   // (OUT_M: out of the door onto the pavement)
 // A doctor's hours, by what's done (my calls, from an A&E's own): the wait (seen at once if it's bad), then each thing.
 export const TREAT_H = { feed: 2, seen: 0.25, wait: 1.5, inside: 4, artery: 1.5, bullet: 1, stitch: 0.5, set: 1.5, xray: 0.5, blood: 1, drip: 1, dress: 0.25, look: 0.5, tourniquet: 0.25 };
@@ -95,6 +96,11 @@ export function nearestDoor(state, kind, from = null) {
         }
       }
     }
+  }
+  // (the city's one hospital, its one headquarters, further off than the search goes: there all the same, sim/cities/big.js)
+  if (!best && kind === 'hospital') {
+    const P = bigPlan(town).hospital, i = P.i0 + Math.floor(P.n / 2), d = sectionOf(town, P.row, i).doors.find(o => o.big === 'hospital');
+    if (d) best = { far: Math.abs(P.row - f.row) * ROW_WALK_M + Math.abs(d.x - f.x), row: P.row, x: d.x };
   }
   return best && { row: best.row, x: best.x, z: Z.front + OUT_M, label: `${cap(SERVICE_WORDS[kind] ?? 'the door')} on ${streetName(town, best.row)}`, kind, far: Math.round(best.far) };
 }

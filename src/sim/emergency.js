@@ -41,13 +41,13 @@ import { say } from './log.js';
 import { seesActor } from './perception.js';
 import { isPasserby, lies } from './crowd.js';
 import { makeAgent, setRoute, rowOf } from './agents.js';
-import { routeFrom, LINE } from './city.js';
-import { streetName } from './map/street.js';
+import { routeFrom, LINE, sectionOf } from './city.js';
+import { streetName, SECTION_M } from './map/street.js';
 import { townOf } from './cities/index.js';
 import { sheet } from './people.js';
 import { policeOf } from './countries/index.js';
 import { canStand, casualty } from './health.js';
-import { sendEms } from './traffic.js';
+import { sendEms, depotCar } from './traffic.js';
 import { armCop, arrest } from './armed.js';
 import { addHeat } from './heat.js';
 import { shortName } from './fight.js';
@@ -97,6 +97,7 @@ export function second(state, bus, me) {
   report(state, bus, me, now, row);
   heard(state, bus, me, now, row);
   found(state, now, row);
+  depot(state, me, now, row);
   for (const c of state.calls ?? []) if (!c.done) (c.row === row ? play : offstage)(state, bus, me, c, now);
   state.calls = (state.calls ?? []).filter(c => !c.done || now - c.ms < DAY);
   state.cordons = (state.cordons ?? []).filter(k => k.until > now);
@@ -283,6 +284,27 @@ function found(state, now, row) {
     const E = policeOf(state.map)?.ems ?? DEFAULT_EMS, r = stream('ems-found', a.id);
     (state.calls ??= []).push({ id: `call${now}${a.id}`, city: state.map.city ?? null, row: rowOf(state, a), x: a.x, z: a.z, ms: now, who: [a.id], described: null, known: false,
       at: { police: now + Math.round(range(r, ...E.police) * MIN), ambulance: now + Math.round(range(r, ...E.ambulance) * MIN) }, err: { police: 0, ambulance: 0 }, police: { stage: 'coming' }, ambulance: { stage: 'coming' } });
+  }
+}
+
+// A big building's comings and goings (the user, 2026-11-04: "where a lot of emergency vehicules are and move in and out"):
+// on its street, every DEPOT_S or so, one of its own in to its door (an ambulance, half the time with its lights going, at
+// the hospital; a police car at the headquarters), DEPOT_HOLD_S pulled in, and away.
+export const DEPOT_S = [35, 90], DEPOT_HOLD_S = [15, 40], DEPOT_LIGHTS_P = 0.5;
+function depot(state, me, now, row) {
+  const W = state.$world;
+  if (!W) return;
+  const D = (state.$depot ??= { next: 0 });
+  for (const car of state.traffic?.cars ?? []) if (car.ems?.depot && car.ems.hold && car.taxi?.stopped && now >= (car.ems.until ??= now + range(stream('depot-hold', car.id), ...DEPOT_HOLD_S) * 1000)) { car.ems.hold = false; car.taxi.hail = null; }
+  if (now < D.next) return;
+  const r = stream('depot', state.map.seed, row, Math.floor(now / 1000));
+  D.next = now + range(r, ...DEPOT_S) * 1000;
+  const town = townOf(state.map), [x0, x1] = W.bx;
+  for (let i = Math.floor(x0 / SECTION_M); i <= Math.floor(x1 / SECTION_M); i++) {
+    const d = sectionOf(town, row, i).doors.find(o => o.big);
+    if (!d) continue;
+    depotCar(state, d.big === 'hospital' ? 'ambulance' : 'police', d.x, chance(r, DEPOT_LIGHTS_P));
+    return;
   }
 }
 

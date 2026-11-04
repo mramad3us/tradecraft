@@ -528,7 +528,7 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
     },
     /** A shopfront: a dark frame, lit glass with things on shelves, a stall riser; a police station's or a hospital's (inside), their own glass: official(). */
     shopfront(x, w, h, { frame = 0x23252f, lit = true, goods = [0x9e3c36, 0xf6f4ee, 0x5d8fc2, 0xe7b84a], etched = false, arched = false, roller = 0, inside = null } = {}) {
-      if (inside === 'police' || inside === 'hospital') roller = 0;        // (open all night: never shuttered)
+      if (inside === 'police' || inside === 'hospital' || inside === 'clinic') roller = 0;        // (open all night: never shuttered)
       const x0 = X(x), y0 = Y(h), ww = Math.round(w * M), hh = Math.round(h * M);
       if (arched) {                                              // a round head over it, a grille fanning in it (downtown Cairo's ground floors)
         const R = ww / 2, base = wall ?? 0xd6b98a;
@@ -555,7 +555,7 @@ function painter(px, wM, hM, seed = 1, night = false, wall = null, split = false
         return;
       }
       px(x0, y0, ww, hh, frame);
-      if (inside === 'police' || inside === 'hospital') official(x0 + 1, y0 + 1, ww - 2, hh - 6, inside, lit);
+      if (inside === 'police' || inside === 'hospital' || inside === 'clinic') official(x0 + 1, y0 + 1, ww - 2, hh - 6, inside === 'clinic' ? 'hospital' : inside, lit);
       else {
         px(x0 + 1, y0 + 1, ww - 2, hh - 6, lit ? 0xe7b84a : 0x283f6b);
         px(x0 + 1, y0 + 1, ww - 2, 3, lit ? 0xf8e08a : 0x3b6296);

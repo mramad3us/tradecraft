@@ -44,10 +44,10 @@ const SHOPS = {
   optician: 'ОПТИКА', bank: 'БАНК', tobacco: 'ТАБАК', exchange: 'ОБМЕН ВАЛЮТ', bar: 'БАР', clothes: 'ОДЕЖДА',
   shoes: 'ОБУВЬ', watches: 'ЧАСЫ', phones: 'СВЯЗЬ', shawarma: 'ШАУРМА', beer: 'ПИВО', deli: 'ГАСТРОНОМ', restaurant: 'РЕСТОРАН',
   gym: 'ФИТНЕС', club: 'САМБО', range: 'ТИР', school: 'ЯЗЫКИ', culture: 'ДОМ КУЛЬТУРЫ',
-  police: 'ПОЛИЦИЯ', hospital: 'БОЛЬНИЦА',   // (a police station, a hospital: sim/services.js; longer than four letters, as the exchange's and the chemist's are, so their boards' dress is drawn as it was)
+  police: 'ПОЛИЦИЯ', hospital: 'БОЛЬНИЦА', clinic: 'ПОЛИКЛИНИКА',   // (a police station, a hospital: sim/services.js; longer than four letters, as the exchange's and the chemist's are, so their boards' dress is drawn as it was)
 };
 // (a police station where an exchange booth stood, a hospital where a chemist's did: their weights split, so every other shop is where it was)
-const SHOP_WEIGHTS = [['grocery', 3], ['pharmacy', 2.1], ['hospital', 0.4], ['cafe', 3], ['clothes', 2], ['flowers', 1.5], ['bakery', 1.5],
+const SHOP_WEIGHTS = [['grocery', 3], ['pharmacy', 2.1], ['clinic', 0.4], ['cafe', 3], ['clothes', 2], ['flowers', 1.5], ['bakery', 1.5],
   ['books', 1], ['optician', 1], ['bank', 1.2], ['tobacco', 1], ['exchange', 0.6], ['police', 0.4], ['bar', 1.2], ['shoes', 1], ['watches', 0.6],
   ['phones', 1.2], ['shawarma', 1], ['beer', 0.8], ['deli', 1], ['restaurant', 1], ['gym', 0.6], ['club', 0.3], ['range', 0.1], ['school', 0.25], ['culture', 0.15]];   // (culture: a community centre and its clubs, sim/clubs.js; the school's weight split, so every other shop is where it was)
 // Sign boards: [background, letters, border].
@@ -320,7 +320,7 @@ export const MOSCOW = {
     woods: ['walnut', 'teak', 'dark'], fabrics: ['brown', 'green', 'red', 'mustard'], phones: ['red', 'cream'], rugs: ['persian', 'persian', 'kilim'], wallCarpet: 0.6, moods: ['warm', 'warm', 'soft'] },
   embassyLook: { lobby: 0xd9d2c0, station: 0xc8d4dc, floor: 'terrazzo' },
   // (the words on the plaques of a police station's front desk and a hospital's: sim/interiors/shop.js; the district's ОВД, the casualty department's ПРИЕМ)
-  desks: { police: 'ОВД', hospital: 'ПРИЕМ' },
+  desks: { police: 'ОВД', hospital: 'ПРИЕМ', clinic: 'ПРИЕМ' },
   // (the free walk's line on the title, src/ui/ui.js; its words in the walk are the scene's own, sim/scenarios/walk.js)
   walk: { about: 'A boulevard in central Moscow: plaster and Stalinist stone, the lanes north and south, the sun down at ten to five.' },
 };

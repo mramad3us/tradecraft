@@ -4,6 +4,13 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.40 (2026-11-04)
+
+- **Clinics.** The small shopfront medical places are now clinics (CLINIC, ПОЛИКЛИНИКА, عيادة, CLINIQUE). They treat cuts, breaks and bruises. A gunshot, a cut artery, internal bleeding or heavy blood loss gets you an ambulance to the hospital, and you come out at its doors.
+- **One hospital per city.** A long, pale building of five storeys across three sections of a street, its name over the ground floor and the A&E under a canopy. Ambulances line the kerb, and one pulls in at the door every minute or so, waits, and leaves, half of them with lights on. It's found from anywhere in the city.
+- **One police headquarters per city**, smaller than the hospital: METROPOLITAN POLICE, УПРАВЛЕНИЕ МВД and so on, with guards, a row of police cars, and cars coming and going.
+- **Key hint:** X now reads "time stop" (and "time on" in stop motion).
+
 ## v0.1.39 (2026-11-04)
 
 - **The black market's alternatives.** Once you know a black-market man (a beer mat from a barman) and have done one deal with him, the phone leaf offers his versions of three agency services, paid in cash at £1,000 per support point:

@@ -5,7 +5,7 @@ import { pick } from '../rng.js';
 
 // (a police station's: navy, white letters; a hospital's: white, green letters (no cross: the emblems are the Red Cross's
 // and the Red Crescent's); a board's [ground, letters, border], a banner's [ground, letters, band])
-export const LIVERY = { police: [0x283f6b, 0xf6f4ee, 0x1b2541], hospital: [0xf6f4ee, 0x24503a, 0x356f42] };
+export const LIVERY = { police: [0x283f6b, 0xf6f4ee, 0x1b2541], hospital: [0xf6f4ee, 0x24503a, 0x356f42], clinic: [0xf6f4ee, 0x24503a, 0x356f42] };
 /** A board's colours for a shop of this kind: its livery (LIVERY), or the ones drawn for it (drawn first, so the streets' dice are as they were). */
 export const livery = (kind, drawn) => LIVERY[kind] ?? drawn;
 /** A board's style for a shop of this kind: a liveried one's on a board where the dice said letters on the wall (white letters lost on pale plaster). */

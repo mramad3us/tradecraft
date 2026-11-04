@@ -1,4 +1,4 @@
-// The city's services (sim/services.js): police stations and hospitals on every city's streets, their fronts signed in
+// The city's services (sim/services.js): police stations and clinics on every city's streets, a hospital and a headquarters in each, their fronts signed in
 // the city's words, a desk inside with someone at it; the nearest of each from a place; a walk-in at a hospital's desk
 // (the hours by how bad it is, everything seen to, the heat an official hospital costs, the police waiting if they have
 // your description; nothing wrong, no time); and the ambulance's patient out in front of the hospital nearest where
@@ -42,6 +42,24 @@ function atHospital(city = 'london', seed = 43) {
   walk(g, k.x, k.z, bus);
   return { g, bus, log, u, me: playerActor(g), p: g.people[g.player] };
 }
+// (the same at a clinic's counter: the small ones, on the shopfronts)
+function atClinic(city = 'london', seed = 43) {
+  const c = newCampaign(seed, candidates(seed, city, 'junior')[0], city, 'junior');
+  c.calls = [];
+  const g = newGame({ seed, scenario: 'campaign', campaign: c }), bus = createBus(), log = [];
+  bus.on('log', (e) => log.push(e.text ?? ''));
+  start(g, bus);
+  step(g, { act: ['desk:travel:embassy'] }, bus);
+  for (let t = 0; t < 10; t++) step(g, {}, bus);
+  const at = nearestDoor(g, 'clinic');
+  if (at.row !== g.map.row) loadRow(g, bus, at.row, at.x, { quiet: true });
+  Object.assign(playerActor(g), { x: at.x });
+  const u = atDoor(g, (o) => o.shop === 'clinic');
+  walkIn(g, u, bus);
+  const k = spotOf(u, 'counter');
+  walk(g, k.x, k.z, bus);
+  return { g, bus, log, u, at, me: playerActor(g), p: g.people[g.player] };
+}
 // (the counter's ways, as the UI would offer them, and the one chosen; then the second the hours are skipped in)
 const counter = (w) => ways(w.g, { x: w.u.door, z: Z.front, shop: 'hospital' }, 'counter');
 function treat(w) {
@@ -53,17 +71,18 @@ function treat(w) {
 
 export default [
   {
-    name: 'services: police stations and hospitals on every city\'s streets, one in every 600 to 900 m or so, signed in the city\'s words; a desk inside, its word on it, someone at it',
+    name: 'services: police stations and clinics on every city\'s streets, one in every 600 to 900 m or so, signed in the city\'s words; the one hospital and the one headquarters, big; a desk inside each, its word on it, someone at it',
     fn() {
       const rows = [];
       for (const city of Object.keys(CITIES)) {
-        const C = CITIES[city], n = { police: 0, hospital: 0 }, signs = { police: new Set(), hospital: new Set() };
+        const C = CITIES[city], n = { police: 0, clinic: 0 }, signs = { police: new Set(), clinic: new Set() }, big = { hospital: 0, precinct: 0 };
         let sections = 0, desks = 0, staffed = 0, chairs = 0;
         for (const seed of [7, 77]) for (let row = -4; row <= 4; row++) for (let i = -10; i <= 10; i++) {
           const S = section(townFor(city, seed), i, row);
           sections++;
           for (const d of S.doors) {
-            if (d.kind !== 'shop' || !n.hasOwnProperty(d.shop) || d.z !== Z.front || d.unit === undefined) continue;
+            if (d.kind !== 'shop' || !(n.hasOwnProperty(d.shop) || d.big) || d.z !== Z.front || d.unit === undefined) continue;
+            if (d.big) { big[d.big]++; const u = S.units[d.unit]; if (u.items.find(it => it.kind === 'bankCounter')) desks++; if (u.staff.dress === (d.shop === 'police' ? 'police' : 'nurse')) staffed++; if (u.items.some(it => it.kind === 'waitingChairs')) chairs++; continue; }   // (sim/cities/big.js: its own sign, the city's name for it)
             n[d.shop]++;
             const B = S.buildings.find(b => d.x > b.x0 && d.x < b.x1), sign = B.ops.find(op => op[0] === 'sign' && d.x > B.x0 + op[1] && d.x < B.x0 + op[1] + op[3] + 0.2);
             signs[d.shop].add(sign[5]);
@@ -76,10 +95,11 @@ export default [
         }
         const km = sections * SECTION_M / 1000, every = (k) => 1000 * km / n[k];
         const words = (k) => [...signs[k]].join(', ');
-        rows.push(`${C.name}: ${fmt(km, 1)} km of street, ${n.police} police stations (one every ${Math.round(every('police'))} m: ${words('police')}), ${n.hospital} hospitals (one every ${Math.round(every('hospital'))} m: ${words('hospital')}); desks ${C.desks.police} / ${C.desks.hospital}, chairs to wait on in ${chairs} of ${desks}`);
-        for (const k of ['police', 'hospital']) assert(every(k) > 380 && every(k) < 1400, `${city}: a ${k} in every ${Math.round(every(k))} m`);
-        for (const k of ['police', 'hospital']) for (const w of signs[k]) assert((Array.isArray(C.SHOPS[k]) ? C.SHOPS[k] : [C.SHOPS[k]]).some(s => s === w || s.split('|')[0] === w), `${city}: ${w} is one of its ${k} signs`);
-        assert(desks === n.police + n.hospital && staffed === desks && chairs >= desks / 2, `${city}: every one a desk with its word (${desks}), someone at it (${staffed}), most with chairs (${chairs})`);
+        rows.push(`${C.name}: ${fmt(km, 1)} km of street, ${n.police} police stations (one every ${Math.round(every('police'))} m: ${words('police')}), ${n.clinic} clinics (one every ${Math.round(every('clinic'))} m: ${words('clinic')}); the big ones, a town each: ${big.hospital} hospitals, ${big.precinct} headquarters; desks ${C.desks.police} / ${C.desks.hospital}, chairs to wait on in ${chairs} of ${desks}`);
+        for (const k of ['police', 'clinic']) assert(every(k) > 380 && every(k) < 1400, `${city}: a ${k} in every ${Math.round(every(k))} m`);
+        for (const k of ['police', 'clinic']) for (const w of signs[k]) assert((Array.isArray(C.SHOPS[k]) ? C.SHOPS[k] : [C.SHOPS[k]]).some(s => s === w || s.split('|')[0] === w), `${city}: ${w} is one of its ${k} signs`);
+        assert(big.hospital === 2 && big.precinct === 2, `${city}: a hospital and a headquarters in each of the two towns: ${JSON.stringify(big)}`);
+        assert(desks === n.police + n.clinic + big.hospital + big.precinct && staffed === desks && chairs >= desks / 2, `${city}: every one a desk with its word (${desks}), someone at it (${staffed}), most with chairs (${chairs})`);
       }
       console.log(`      ${rows.join('\n      ')}`);
     },
@@ -101,11 +121,13 @@ export default [
         }
         return best;
       };
-      for (const f of [{ row: 0, x: 20 }, { row: 3, x: 500 }, { row: -5, x: -900 }, { row: 1, x: 2400 }]) for (const kind of ['police', 'hospital']) {
+      for (const f of [{ row: 0, x: 20 }, { row: 3, x: 500 }, { row: -5, x: -900 }, { row: 1, x: 2400 }]) for (const kind of ['police', 'clinic']) {
         const a = nearestDoor(g, kind, f), b = brute(kind, f);
         assert(a && b && Math.abs(a.far - b.far) < 1, `${kind} from row ${f.row}, ${f.x} m: ${a?.far} m, the brute's ${b && Math.round(b.far)} m`);
         lines.push(`${kind} from row ${f.row} at ${f.x} m: ${a.label}, row ${a.row} at ${fmt(a.x, 1)} m (${a.far} m away)`);
       }
+      // (the city's one hospital, from anywhere: however far it is, it's found)
+      for (const f of [{ row: 0, x: 20 }, { row: -12, x: -3000 }]) { const h = nearestDoor(g, 'hospital', f); assert(h, `the hospital from row ${f.row}, ${f.x} m`); lines.push(`the hospital from row ${f.row} at ${f.x} m: ${h.label} (${h.far} m away)`); }
       // (out in front of the nearest hospital: the player, on another street if need be; nothing of a kind there isn't, and nothing moves)
       const me = playerActor(g), was = { row: g.map.row, x: me.x }, at = outside(g, bus, 'hospital', { row: 2, x: 300 });
       assert(at && g.map.row === at.row && me.row === at.row && Math.abs(me.x - at.x) < 1e-9 && Math.abs(me.z - (Z.front + 0.8)) < 1e-9 && me.face === 'down', 'out on the pavement in front of its door, on its street');
@@ -186,6 +208,39 @@ export default [
       console.log(`      called after ${called} s; ${fmt((g.time.ms - t0) / HOUR, 1)} h on; fell on row ${fell.row} at ${fmt(fell.x, 1)} m, out on row ${g.map.row} at ${fmt(me.x, 1)} m (the nearest: ${want.label}, ${want.far} m); blood ${Math.round(bloodOf(p))}%, the wound ${p.injuries[0].stitched ? 'stitched' : 'NOT stitched'}\n      "${line}"`);
       assert(called && line.includes(`${want.label.charAt(0).toLowerCase()}${want.label.slice(1)}`), 'carried off; out, the log naming the hospital');
       assert(g.map.row === want.row && Math.abs(me.x - want.x) < 1e-6 && Math.abs(me.z - (Z.front + 0.8)) < 1e-6 && !me.hidden, 'on the pavement in front of the nearest hospital to where they fell');
+    },
+  },
+  {
+    name: 'services: a clinic\'s desk: a cut seen to there, out at its door; a bullet in you, an ambulance from its door to the hospital, and out at the hospital\'s (the user, 2026-11-04)',
+    fn() {
+      const a = atClinic('london', 43), ms = a.g.time.ms;
+      a.p.injuries = [{ part: 'armL', kind: 'cut', name: 'a deep cut on the left arm', ms, until: ms + 10 * DAY, bleed: ms + HOUR, rate: 0.2, deep: true }];
+      const A = treat(a), mine = playerActor(a.g), atClinicDoor = a.g.map.row === a.at.row && Math.abs(mine.x - a.at.x) < 1.5;
+      const b = atClinic('london', 43), ms2 = b.g.time.ms;
+      b.p.injuries = [{ part: 'torso', kind: 'cut', name: 'a gunshot wound in the chest', ms: ms2, until: ms2 + 30 * DAY, bleed: ms2 + 6 * HOUR, rate: 0.8, deep: true, gunshot: true }];
+      const B = treat(b), hosp = nearestDoor(b.g, 'hospital'), me2 = playerActor(b.g), atHosp = b.g.map.row === hosp.row && Math.abs(me2.x - hosp.x) < 1.5;
+      console.log(`      a cut: ${fmt(A.h, 2)} h, out at the clinic's door ${atClinicDoor}; a bullet: "${B.lines.find(l => /ambulance from the door/.test(l))?.slice(0, 70)}…", ${fmt(B.h, 2)} h, out at ${hosp.label} ${atHosp}`);
+      assert(A.h > 0 && atClinicDoor && B.lines.some(l => /ambulance from the door/.test(l)) && atHosp, JSON.stringify({ atClinicDoor, atHosp }));
+    },
+  },
+  {
+    name: 'services: the hospital\'s street: ambulances parked at its kerb, and one in to its door every minute or so, pulled in a while, and away (the user, 2026-11-04)',
+    async fn() {
+      const { bigPlan } = await import('../src/sim/cities/big.js');
+      const g = newGame({ seed: 4, scenario: 'walk', city: 'london', hour: 12, weather: 'clear' }), bus = createBus();
+      start(g, bus);
+      const town = townOf(g.map), P = bigPlan(town).hospital, i = P.i0 + Math.floor(P.n / 2), d = sectionOf(town, P.row, i).doors.find(o => o.big);
+      loadRow(g, bus, P.row, d.x + 6, { quiet: true });
+      const me = playerActor(g); Object.assign(me, { x: d.x + 6, z: -2.6 });
+      const parked = sectionOf(town, P.row, i).props.filter(p => p.ems === 'ambulance').length;
+      const seen = new Map();
+      for (let t = 0; t < 20 * 300; t++) {
+        step(g, {}, bus);
+        for (const c of g.traffic?.cars ?? []) if (c.ems?.depot) { const e = seen.get(c.id) ?? { stopped: false, left: false }; if (c.taxi?.stopped && Math.abs(c.x - d.x) < 8) e.stopped = true; if (e.stopped && !c.ems.hold) e.left = true; seen.set(c.id, e); }
+      }
+      const all = [...seen.values()], stopped = all.filter(e => e.stopped).length, left = all.filter(e => e.left).length;
+      console.log(`      ${parked} parked at the A&E; in five minutes, ${all.length} come, ${stopped} pulled in at its door, ${left} away again`);
+      assert(parked >= 2 && all.length >= 2 && stopped >= 1 && left >= 1, JSON.stringify({ parked, n: all.length, stopped, left }));
     },
   },
 ];

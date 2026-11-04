@@ -142,6 +142,18 @@ export function sendEms(state, kind, x, call) {
 }
 
 /**
+ * A big building's own (sim/cities/big.js): an ambulance in to the hospital's door or a police car to the headquarters',
+ * from an edge, its lights going now and then; pulled in at x a while (held: sim/emergency.js depot() lets it go), and on.
+ */
+export function depotCar(state, kind, x, lights = false) {
+  const t = T(state);
+  if (!t || state.map.kind !== 'street' || !state.$world) return null;
+  const dir = laneOf(state, 1) === LANE_Z.south ? 1 : -1, [x0, x1] = state.$world.bx, from = dir > 0 ? x0 + 2 : x1 - 2;
+  if (t.cars.some(c => c.dir === dir && Math.abs(c.x - from) < 14)) return null;
+  return spawn(state, dir, from, { bus: false, kind, extra: { taxi: { free: false, plain: true, hail: { x, by: null } }, ems: { kind, depot: true, hold: true, lights } } });
+}
+
+/**
  * A police car on a hunt's search (sim/hunt.js): from either edge, slow (CRUISE_MS), its lights going and no call to go to,
  * its crew looking out as it goes (c.ems.crew: their sheet); through and gone, unless pulled over (pullOver()). The car, or null.
  */

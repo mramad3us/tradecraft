@@ -121,8 +121,10 @@ const WORDS = { cafe: 'the café', restaurant: 'the restaurant', bar: 'the bar',
 const DESK_WAYS = {
   police: ['A question at the desk, through the glass: the way somewhere, a lost wallet (a minute)', 'A question through the glass of the front desk.', 'The officer at the desk points the way with his pen, and goes back to his forms.'],
   hospital: ['A question at the desk: visiting hours, the way to a ward (a minute)', 'A question at the front desk.', 'Visiting hours are on the board, the nurse says, and goes back to her screen.'],
+  clinic: ['A question at the desk: opening hours, a doctor\'s appointment (a minute)', 'A question at the front desk.', 'The receptionist gives you a leaflet and a number to ring, and goes back to her screen.'],
 };
 export const shopWord = (kind) => WORDS[kind] ?? 'the shop';
+const SERIOUS = /^(inside|artery|blood|bullet)/;                  // (what a clinic sends on to the hospital)
 
 /** The shop floor actor a stands in (sim/interiors/use.js unitAt()): { S, u, k }, or null. */
 export const shopHere = (state, a) => (a && !a.hidden && state.map.kind === 'street' ? unitAt(state, a.x, a.z) : null);
@@ -164,7 +166,7 @@ export function ways(state, d, spot = 'counter') {
   }
   out.push({ id: 'browse', label: DESK_WAYS[d.shop]?.[0] ?? 'A look at what they have, a question at the counter: a minute, nothing bought' });
   // (a hospital's desk: whatever's wrong seen to, its hours by how bad it is, and what an official hospital costs: sim/services.js)
-  if (d.shop === 'hospital') {
+  if (d.shop === 'hospital' || d.shop === 'clinic') {
     const N = needsOf(p, state.time.ms), h = N.hours;
     out.push({ id: 'treat', label: N.needs.length ? `Get yourself seen to: ${N.urgent ? 'they\'ll take you straight through' : 'the wait, then a doctor'} (${hoursWords(h).toLowerCase()} or so${N.reported ? `; ${N.reported === 'gunshot' ? 'a gunshot wound' : 'a knife wound'}: they'll report it to the police` : ''})` : 'Ask to see a doctor' });
   }
@@ -227,7 +229,11 @@ export function doWay(state, bus, me, way, scenario) {
   // (a hospital's desk: taken in and cared for, the hours skipped after the tick and out in front of its door, sim/services.js
   // admit(); nothing wrong with you, the desk says so, and no time goes)
   if (way === 'treat') {
-    const T = admit(state, bus, me, { door: d });
+    // (a clinic sees to what a clinic can; a bullet, an artery, bleeding inside, the blood to be put back: an ambulance from its
+    // door to the hospital, and out at the hospital's: sim/cities/big.js)
+    const serious = d.shop === 'clinic' && needsOf(state.people[me.who], state.time.ms).needs.some(n => SERIOUS.test(n.key));
+    if (serious) say(state, bus, { kind: 'note', text: 'The nurse takes one look and picks up the phone: this is the hospital\'s, not theirs. An ambulance from the door, ten minutes of the siren, and A&E.' });
+    const T = admit(state, bus, me, { door: d, out: serious ? 'hospital' : d.shop });
     if (!T) say(state, bus, { kind: 'note', text: 'The nurse at the desk looks you up and down. "There\'s nothing here for a doctor. Rest, and something for the pain if you need it."' });
     return !!T;
   }

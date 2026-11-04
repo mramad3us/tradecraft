@@ -82,7 +82,7 @@ const runSteps = (ops, night, inside) => function* (f) {
 // the shopfront's own x: sim/cities/), its kind; the dress drew them as it draws any shop's, sim/services.js)
 function officialOf(B, S) {
   const out = new Map();
-  for (const d of S.doors) if ((d.shop === 'police' || d.shop === 'hospital') && d.pane && d.z === B.z && d.x > B.x0 && d.x < B.x1) {
+  for (const d of S.doors) if ((d.shop === 'police' || d.shop === 'hospital' || d.shop === 'clinic') && d.pane && d.z === B.z && d.x > B.x0 && d.x < B.x1) {
     const o = B.ops.find(op => op[0] === 'shopfront' && Math.abs(B.x0 + op[1] - d.pane.x0) < 0.01);
     if (o) out.set(o, d.shop);
   }
@@ -353,7 +353,7 @@ export function* buildSection(S, { month = 11, night = () => false } = {}) {
       if (d) { const dome = roundedBox(2 * d.r, d.r * 1.3, 2 * d.r, d.r * 0.95, { sides: mat(0xc4bba9), top: mat(0xe2dac6) }); dome.position.set(B.x0 + d.x, B.h, B.z - d.r - 2.5); g.add(part(dome)); }
     }
     // (awnings over some shops; not over a police station's door, nor a hospital's: the dress drew one for whatever stood there before, sim/services.js)
-    const official = S.doors.filter(d => (d.shop === 'police' || d.shop === 'hospital') && d.z === B.z);
+    const official = S.doors.filter(d => (d.shop === 'police' || d.shop === 'hospital' || d.shop === 'clinic') && d.z === B.z);
     for (const a of B.look?.awnings ?? []) if (!official.some(d => d.x > B.x0 + a.x0 && d.x < B.x0 + a.x1 + 0.2)) g.add(awning(B.x0 + a.x0, B.x0 + a.x1, 3.0, B.z, { depth: 0.7, drop: 0.35, color: a.color }));
     for (const s of B.look?.hanging ?? []) {
       const hs = hangingSign(B.x0 + s.x, 3.0, B.z, s.text, { bg: s.bg, fg: s.fg });
@@ -403,7 +403,7 @@ export function* buildSection(S, { month = 11, night = () => false } = {}) {
       case 'car': {
         // Parked with the traffic: driving on the right, the street's north kerb faces west and the far
         // road's south kerb east; on the left (London), the other way round.
-        const m = car(p.color, { seed: p.seed, kind: p.look, livery: p.police ? policeOf({ city: C.id })?.ems?.policeCar : null });   // (a police station's, in the country's livery: sim/map/street.js stationCars())
+        const m = car(p.color, { seed: p.seed, kind: p.look, livery: p.ems ? policeOf({ city: C.id })?.ems?.[`${p.ems}Car`] : p.police ? policeOf({ city: C.id })?.ems?.policeCar : null });   // (a police station's, in the country's livery: sim/map/street.js stationCars())
         m.position.set(snap(p.x), 0, snap(p.z));
         if ((p.z < Z.fence) === (C.drive !== 'left')) m.rotation.y = Math.PI;
         g.add(m); cost += 1; break;
