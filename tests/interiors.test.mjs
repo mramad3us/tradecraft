@@ -148,6 +148,7 @@ export default [
         const seed = 4, c = newCampaign(seed, candidates(seed, city)[0], city), s = newGame({ seed, scenario: 'campaign', campaign: c }), bus = createBus(), opened = [];
         c.calls = [];
         bus.on('desk-open', () => opened.push(true));
+        bus.on('chief', (list) => { if (list.some(w => w.key === 'desk')) step(s, { act: ['desk:chief:desk'] }, bus); });   // (the chief's card: what's on, first; sim/armoury.js)
         start(s, bus);
         const me = () => playerActor(s), day = Math.floor(s.time.ms / DAY);
         step(s, { act: ['desk:travel:embassy'] }, bus);

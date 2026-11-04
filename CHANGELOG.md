@@ -4,6 +4,15 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.1.23 (2026-11-04)
+
+- **The chief's office has an armoury.** T at the chief's office now opens a card:
+  - **What's on:** the mind's Ahead, as before.
+  - **A sidearm, and a permit to carry it,** where the law lets a diplomat carry one. In Beirut, the security office files with the Ministry of Defence and the permit comes back in three days; collect it at the chief's office: the station's SIG on the belt, a spare magazine, a box of fifty, and a permit good for a year. In Cairo, the Interior Ministry takes a week, and the chief only asks when your heat is 60 or more. In Moscow and London the chief says no, and why.
+  - **A vest** from the security office's stores, where the post keeps them (Beirut, Cairo), worn under your clothes.
+- **A permit at a stop.** A Lebanese police search that finds the gun your permit names reads the permit twice, copies its number, and hands both back. Without a permit, they take the gun.
+- Tests: `tests/armoury.test.mjs` (the sidearm and the vest, city by city; Beirut end to end); police (a gun on a permit at a Beirut stop).
+
 ## v0.1.22 (2026-11-04)
 
 - **The black market.** A gun is a whole thing to come by now:

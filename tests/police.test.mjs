@@ -8,6 +8,7 @@ import { createBus } from '../src/sim/bus.js';
 import { heat } from '../src/sim/heat.js';
 import { stream, chance } from '../src/sim/rng.js';
 import { HOUR } from '../src/sim/clock.js';
+import { newGun } from '../src/sim/firearms.js';
 import { assert } from './helpers.mjs';
 
 const walk = (city = 'moscow', seed = 3) => { const g = newGame({ seed, city, weather: 'clear' }), bus = createBus(), said = []; bus.on('police', (o) => said.push(o)); start(g, bus); return { g, bus, said, me: playerActor(g), p: g.people[g.player] }; };
@@ -80,6 +81,25 @@ export default [
         const searched = said.some(t => /your pockets, please/.test(t)), blood = said.some(t => /blood on you/.test(t)), taken = p.hand !== hand;
         assert(hand === 'umbrella' ? held === clean && !searched && !taken : held > clean && searched && !blood && taken, `${hand}: the stop's odds ${clean.toFixed(3)} → ${held.toFixed(3)}, searched ${searched}, blood named ${blood}, taken ${taken}`);
         out.push(`${hand}: odds ×${(held / clean).toFixed(2)}, ${searched ? 'searched, taken' : 'papers, on your way'}`);
+      }
+      console.log(`      ${out.join('; ')}`);
+    },
+  },
+  {
+    name: 'police: Beirut, a gun in your hand on a permit of Lebanon\'s: searched, the permit read twice, the gun handed back; without one, taken',
+    fn() {
+      const out = [];
+      for (const permit of [true, false]) {
+        const { g, p, bus } = walk('beirut'), said = [];
+        bus.on('log', (e) => said.push(e.text ?? ''));
+        const id = newGun(p, 'p229');
+        p.hand = id;
+        if (permit) p.permit = { country: g.country, gun: id, until: g.time.ms + 365 * 86400000 };
+        stopped(g, bus);
+        answer(g, bus, 'papers');
+        const kept = p.hand === id, read = said.some(t => /copies its number/.test(t));
+        assert(permit ? kept && read : !kept && !read, `permit ${permit}: kept ${kept}, the permit read ${read}`);
+        out.push(`${permit ? 'on a permit' : 'without one'}: ${kept ? 'handed back' : 'taken'}`);
       }
       console.log(`      ${out.join('; ')}`);
     },

@@ -50,6 +50,7 @@ import { eat, soothe } from '../needs.js';
 import { agenda, pass, work, rest, lieLow, heatWord, places, trip, fatigue, watched, KINDS, WORK, TRAVEL, EXCUSES, EXCUSE_LINES } from '../campaign.js';
 import { lessonBook, sceneOf } from '../lessons.js';
 import { order, lapse, dropHere, atDrop } from '../market.js';
+import { chiefWays, chiefDo } from '../armoury.js';
 import { price } from '../money.js';
 import { screen } from '../screening.js';
 import { ways as tableWays, work as gunWork } from '../gunwork.js';
@@ -180,6 +181,11 @@ export const campaignHub = {
       const p = state.people.me;
       if (id === 'nap') { until(now + NAP_MIN * MIN, 'An hour on top of the covers, shoes off. You wake thick-headed, and better for it.'); c.awake = Math.min(state.time.ms, (c.awake ?? now) + NAP_EASES_H * HOUR); }
       else { until(now + REST_MIN * MIN, 'Half an hour on the bed with the ceiling for company. Your breathing slows.'); eat(p, p.needs?.ate ?? state.time.ms, REST_CALM); }
+    }
+    else if (what === 'chief') {                                    // (the chief's office: desk:chief:<desk|sidearm|collect|vest>, sim/armoury.js)
+      if (id === 'desk') return bus?.emit('desk-open');
+      const line = chiefDo(state, id);
+      if (line) say(state, bus, { kind: 'note', text: line });
     }
     else if (what === 'market') {                                   // (a call to the seller, from the mind: sim/market.js; desk:market:<model>:<burner|own>)
       const r = order(state, bus, id, action.split(':')[3]);
@@ -462,7 +468,7 @@ function use(state, bus, act, here = false) {
     Object.assign(me, { x: seat.x, z: seat.z, vx: 0, vz: 0, face: seat.face ?? 'down', head: headOf(seat.face ?? 'down'), gait: 'sit' });
     campaignHub.act(state, bus, 'desk:work');
   }
-  else if (act === 'chief') { say(state, bus, { kind: 'note', text: 'The chief looks up from a cable, takes his glasses off: "What have we got?"' }); bus?.emit('desk-open'); }   // (the desk: what's on, src/ui/ui.js)
+  else if (act === 'chief') { say(state, bus, { kind: 'note', text: 'The chief looks up from a cable, takes his glasses off: "What have we got?"' }); bus?.emit('chief', chiefWays(state)); }   // (what's on, a sidearm, a vest: sim/armoury.js; the desk, src/ui/mind.js)
   else if (act === 'read') openBook(state, bus, me);               // (ten minutes at a time, your own books: sim/reading.js)
   else if (act === 'table') bus?.emit('table', [...(larderOf(c).meals ? [{ key: 'eat', label: `Something to eat (20 min; ${larderOf(c).meals} meals in)` }] : []), ...tableWays(state.people.me)]);   // (the kitchen table: a meal, or the gun's work: sim/gunwork.js)
   else if (act === 'eat') {                                        // (a meal out of the larder; none left, a grocer's: the user, 2026-11-03, "the flat should have limited groceries")

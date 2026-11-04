@@ -170,6 +170,10 @@ function search(state, bus, them, end, why = null) {
     const r = opposed(state.rng, { skill: 'awareness', value: skill(them, 'awareness'), body: them }, { skill: 'deception', value: skill(p, 'deception'), body: p, mods: [{ why: 'in a pocket', v: POCKET_MOD }] }, { them: true });
     if (r.ok) found.push(o.kind);
   }
+  // (a gun carried on a permit of this country's, the one it names: read twice, written down, handed back; sim/armoury.js)
+  const P = p.permit, permitted = P && P.country === state.country && P.until > state.time.ms && found.includes(P.gun);
+  if (permitted) { found.splice(found.indexOf(P.gun), 1); say(state, bus, { kind: 'note', text: 'The gun, and then the permit: he reads it twice, copies its number into his notebook, and hands both back. "Keep it out of sight, sir."' }); }
+  if (permitted && !found.length) { policeHeat(state, POLICE_PAPERS); return end('The rest of your pockets: keys, a phone, coins. "On your way." Your name, and the permit\'s number, in the notebook.', PAPERS_HEAT); }
   if (!found.length) { policeHeat(state, POLICE_SEARCH); return end('Hands down your coat, your pockets turned out: keys, a phone, coins. Nothing. "On your way." Your name\'s in the notebook.', PAPERS_HEAT); }
   policeHeat(state, POLICE_FOUND);
   // (taken; a diplomat isn't arrested: driven to the embassy's gate)
