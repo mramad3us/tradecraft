@@ -207,7 +207,7 @@ function launch(s, { hour = null } = {}) {
   bus.on('photo', (w) => { snapWanted = w; });                    // (sim/scenarios/watch.js: the frame, at the next draw)
   bus.on('shop', ({ shop, ways }) => ui.openChoices('SHOP', shopWord(shop).replace(/^the /, '').toUpperCase(), ways.map(w => ({ key: w.id, label: w.label, off: w.off ?? undefined })), (key) => acts.push(`shop:${key}`)));   // (sim/shops.js)
   // (sim/buses.js; stood by the doors, off as they close: the same stops, a second card)
-  bus.on('reflex', (R) => ui.openChoices('REFLEX', R.title, R.options.map(o => ({ key: o.key, label: o.label })), (key) => acts.push(`reflex:${key}`)));   // (a moment seen coming: sim/reflex.js)
+  bus.on('reflex', (R) => ui.openChoices('REFLEX', R.title, R.options.map(o => ({ key: o.key, label: o.label })), (key) => acts.push(`reflex:${key}`), { keep: true }));   // (a moment seen coming: sim/reflex.js; its keep: the answer kept a while)
   bus.on('bus', ({ line, towards, list }) => {
     const card = (doors) => ui.openChoices('BUS', doors ? `THE ${line}: OFF AS THE DOORS CLOSE` : `THE ${line}, FOR ${String(towards).toUpperCase()}: WHERE TO?`, [
       ...list.map(d => ({ key: doors ? `${d.id}:doors` : d.id, label: `${d.label.charAt(0).toUpperCase() + d.label.slice(1)} · ${price(state, d.fare)}` })),
@@ -318,7 +318,7 @@ function backToPosting(s) {
 
 /** Papers the days brought (pay, the week's review), one after another. */
 function showPapers(list) {
-  const next = () => { const p = list.shift(); if (p) ui.showPaper({ stamp: { pay: 'PAY', review: 'REVIEW', news: 'NEWS', over: 'CABLE', cable: 'CABLE', arrest: 'ARREST' }[p.kind] ?? 'NOTE', title: p.title, lines: p.lines }, next); };
+  const next = () => { const p = list.shift(); if (p) ui.showPaper({ stamp: { pay: 'PAY', review: 'REVIEW', news: 'NEWS', over: 'CABLE', cable: 'CABLE', arrest: 'ARREST', questioned: 'QUESTIONED' }[p.kind] ?? 'NOTE', title: p.title, lines: p.lines }, next); };
   next();
 }
 
@@ -463,7 +463,7 @@ function frame(now) {
   last = now;
   if (running) {
     const live = !paused && !ui.overlay();
-    if (live && state.$reflex && !acts.some(k => String(k).startsWith('reflex:'))) acts.push('reflex:none');   // (the reflex's card closed without a choice: nothing, and time goes on: sim/reflex.js)
+    if (live && state.$reflex && !acts.some(k => String(k).startsWith('reflex:'))) acts.push(`reflex:${state.$reflex.auto ?? 'none'}`);   // (the reflex's card closed without a choice: nothing, and time goes on; or an answer kept a while, given again: sim/reflex.js)
     if (live) {
       acc += dt;
       while (acc >= TICK_MS / 1000) {

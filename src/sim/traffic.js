@@ -141,6 +141,24 @@ export function sendEms(state, kind, x, call) {
   return spawn(state, dir, from, { bus: false, kind, extra: { taxi: { free: false, plain: true, hail: { x, by: null } }, ems: { kind, call, hold: true, lights: true } } });
 }
 
+/**
+ * A police car on a hunt's search (sim/hunt.js): from either edge, slow (CRUISE_MS), its lights going and no call to go to,
+ * its crew looking out as it goes (c.ems.crew: their sheet); through and gone, unless pulled over (pullOver()). The car, or null.
+ */
+export const CRUISE_MS = 4.5;
+export function cruiser(state, unit, crew, dir = 1) {
+  const t = T(state);
+  if (!t || state.map.kind !== 'street' || !state.$world) return null;
+  const [x0, x1] = state.$world.bx, from = dir > 0 ? x0 + 2 : x1 - 2;
+  if (t.cars.some(c => c.dir === dir && Math.abs(c.x - from) < 14)) return null;
+  return spawn(state, dir, from, { bus: false, kind: 'police', extra: { v: CRUISE_MS, vmax: CRUISE_MS, taxi: { free: false, plain: true }, ems: { kind: 'police', hunt: unit, crew, lights: true, hold: false } } });
+}
+/** A cruising police car pulled over by x, and held there (its crew out: sim/hunt.js). */
+export function pullOver(state, c, x) {
+  if (!c?.taxi) return;
+  c.taxi.hail = { x, by: null }; c.ems.hold = true;
+}
+
 /** The taxi you've just got out of, stopped at the south kerb by x, its light dark; it goes in a moment, free again. */
 export function dropTaxi(state, x) {
   if (state.map.kind !== 'street' || !state.$world) return null;

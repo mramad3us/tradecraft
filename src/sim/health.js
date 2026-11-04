@@ -44,6 +44,20 @@
 // (down, out: can't stand), dead (bled out). Collapsed with nothing bleeding any more, lying flat,
 // you come round after COME_ROUND_S (the blood to the head again), in shock (sim/game.js bloodBeat()).
 // The figures are the textbook's classes of haemorrhage, roughly.
+// **Moving bleeds** (the user, 2026-11-04: "Moving away should increase blood loss if realistic"): the heart going
+// harder and the wound worked open, whatever bleeds bleeds faster on the move (exertion(), EXERTION: crawling ×1.25,
+// walking ×1.5, running ×2.5; lying, sitting or standing still as it is), under a hand pressed on it or not; the
+// player's as everyone's (sim/game.js bloodBeat()).
+//
+// **Down from a shot, and for how long** (the user, 2026-11-04: "being knocked down is a logical result of getting
+// shot. Staying down should be justified (pain level, shot in legs, blood loss, loss of consciousness)"): a bullet
+// puts anyone down (sim/shooting.js bullet()), for the knock of it (knockS(): KNOCK_S by where it went in, an arm a
+// few seconds, a leg ten to thirty, the body twenty to a minute, a graze along the skull about half a minute;
+// longer in pain, KNOCK_PAIN by the pain's band, and with the blood lost, KNOCK_BLOOD; the trained TRAINED_K of
+// it; KNOCK_MIN_S to KNOCK_MAX_S). Past that, only the body keeps them down (staysDown()): out cold (outCold():
+// dead, bled past collapse, the cold or the heat, a bullet in the skull), the chest gone from a gunshot, or both
+// legs gone; and whoever's down only for the legs, awake, with an arm to pull with, can crawl (canCrawl(), at
+// crawlMs()). The rest get up and get away (sim/wounded.js). Whom a witness calls an ambulance for: casualty().
 //
 // **Death** (p.dead: { ms, why }; kill()): someone dead is out of everything: they can't stand, a fight
 // with them is over, they lie where they fell (sim/game.js). A blow can kill (sim/cqc.js deathChance():
@@ -246,13 +260,45 @@ export function mobility(p, ms = 0) {
 }
 export const canRun = (p, ms = 0) => mobility(p, ms) >= RUN_BELOW && bandOf(p) !== 'shock';
 
+/** Out cold whatever the clock says: dead, collapsed from the blood lost, the cold or the heat, a bullet in the skull. */
+export const outCold = (p) => !!p.dead || thermalDown(p) || bloodOf(p) < BLOOD.collapse || (p.injuries ?? []).some(i => i.internal && i.part === 'head');
+const chestGone = (p) => stateOf(p, 'torso') === 'out' && (p.injuries ?? []).some(i => i.gunshot && i.part === 'torso');
+const armFree = (p, k) => stateOf(p, k) !== 'out' && !p.tourniquets?.[k];
+
 /**
- * Down whatever an agent's clock says (sim/agents.js): dead, collapsed from the blood lost, both legs gone, the cold
- * or the heat, a bullet in the skull, the chest gone from a gunshot. Out cold from a blow isn't this: they come
- * round on their clock (sim/interact.js DOWN_S), the head's damage mending by the day as before.
+ * Down whatever an agent's clock says (sim/agents.js): out cold (outCold()), both legs gone, the chest gone from a
+ * gunshot. Out cold from a blow isn't this: they come round on their clock (sim/interact.js DOWN_S), the head's
+ * damage mending by the day as before.
  */
-export const staysDown = (p) => !!p.dead || thermalDown(p) || bloodOf(p) < BLOOD.collapse || LEGS.every(k => stateOf(p, k) === 'out')
-  || (p.injuries ?? []).some(i => (i.internal && i.part === 'head') || (i.gunshot && i.part === 'torso' && stateOf(p, 'torso') === 'out'));
+export const staysDown = (p) => outCold(p) || LEGS.every(k => stateOf(p, k) === 'out') || chestGone(p);
+/** Down only for the legs, awake, an arm to pull with: they can crawl (sim/wounded.js), drawn lying. */
+export const canCrawl = (p) => !!p && staysDown(p) && !outCold(p) && !chestGone(p) && ARMS.some(k => armFree(p, k));
+// (a crawl's pace, m/s, on the elbows and the good arm: the torso's hurt and the blood lost slow it as they slow a walk; one arm, CRAWL_ONE_ARM of it)
+export const CRAWL_MS = 0.25, CRAWL_ONE_ARM = 0.6;
+export const crawlMs = (p) => CRAWL_MS * (MOBILITY.torso[stateOf(p, 'torso')] ?? 1) * (MOBILITY.blood[bandOf(p)] ?? 1) * (ARMS.every(k => armFree(p, k)) ? 1 : CRAWL_ONE_ARM);
+
+export const KNOCK_S = { arm: [4, 12], leg: [10, 30], torso: [20, 60], head: [15, 35] };
+export const KNOCK_PAIN = { 'in pain': 1.3, 'bad pain': 2, agony: 3 };   // (by the pain's band after the hit: sim/medicine.js PAIN_BANDS)
+export const KNOCK_BLOOD = { pale: 1.3, shock: 2 };
+export const KNOCK_MIN_S = 2, KNOCK_MAX_S = 180, TRAINED_K = 0.4;
+/** How long a bullet's knock keeps p down, in seconds, by where it went in (a PARTS key), the pain and the blood after it; trained: TRAINED_K of it. r: the dice. */
+export function knockS(p, part, r, trained = false) {
+  const K = KNOCK_S[part.startsWith('arm') ? 'arm' : part.startsWith('leg') ? 'leg' : part] ?? KNOCK_S.torso;
+  const pain = painBand(painOf(p, stateOf, Object.keys(PARTS)));
+  const s = range(r, ...K) * (KNOCK_PAIN[pain?.word] ?? 1) * (KNOCK_BLOOD[bandOf(p)] ?? 1) * (trained ? TRAINED_K : 1);
+  return Math.round(Math.max(KNOCK_MIN_S, Math.min(KNOCK_MAX_S, s)) * 10) / 10;
+}
+
+export const EXERTION = { crawl: 1.25, walk: 1.5, run: 2.5 };
+const EXERTS = { walk: EXERTION.walk, stagger: EXERTION.walk, run: EXERTION.run, down: EXERTION.crawl };   // (moving 'down' is a crawl: sim/wounded.js)
+/** How much faster actor a bleeds for how they're moving now (× bleedRate): still, 1. */
+export const exertion = (a) => (a && !a.hidden && Math.hypot(a.vx ?? 0, a.vz ?? 0) > 0.05 ? EXERTS[a.gait] ?? 1 : 1);
+
+/**
+ * Whom a witness calls an ambulance for (sim/emergency.js report()): the dead, whoever's down or can't stand, and
+ * whoever's been shot and is getting away from it or sat against a wall after it (a.ai.hurt: sim/wounded.js).
+ */
+export const casualty = (p, a) => !!p && (!!p.dead || a?.gait === 'down' || !canStand(p) || !!a?.ai?.hurt);
 
 /** Dead, at game time ms, of `why` ('a blow to the head', …). */
 export function kill(p, ms, why) { p.dead ??= { ms, why }; }

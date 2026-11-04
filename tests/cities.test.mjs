@@ -263,6 +263,24 @@ export default [
     },
   },
   {
+    name: 'cities: a woman in a headscarf is never in a T-shirt, nor a dress that bares her arms or legs (the user, 2026-11-04)',
+    fn() {
+      const out = [];
+      for (const city of ['beirut', 'cairo', 'london']) {
+        let scarves = 0, bad = 0; const tops = {};
+        for (let k = 0; k < 3000; k++) {
+          const L = passerby(k * 7 + 3, city).look;                  // (as the street makes them: their background and its share of headscarves)
+          if (L.hat?.kind !== 'hijab') continue;
+          scarves++; tops[L.top.kind] = (tops[L.top.kind] ?? 0) + 1;
+          if (L.top.kind === 'tee' || (L.top.kind === 'dress' && (!L.top.sleeves || L.legs !== L.top.color))) bad++;
+        }
+        assert(!bad && (city === 'london' || scarves > 100), `${city}: ${bad} of ${scarves} showing skin`);
+        out.push(`${city}: ${scarves} of 3000 passers-by in a headscarf, in ${Object.entries(tops).map(([k, n]) => `${k} ${n}`).join(', ')}`);
+      }
+      console.log(`      ${out.join('; ')}`);
+    },
+  },
+  {
     name: 'cities: London\'s lane plates and mansion blocks\' names over nothing else painted (a fascia, a window, a door, a console), and most lanes with their plate',
     fn() {
       // (the user, 2026-11-04: a mews's plate over a police station's board; before, one plate in five covered something,

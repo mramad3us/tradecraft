@@ -7,6 +7,11 @@
 // undrawn, and where it should be when its street is loaded. The loaded street follows the focus
 // (sim/game.js): an agent that's the focus takes the map with it through a lane.
 //
+// Down (ai.downUntil: knocked out, knocked down by a shot; tied), it lies there; down for good while the body says so
+// (sim/health.js staysDown()). Shot (ai.hurt), its tick is the wounded's first (sim/wounded.js step(): lying, getting
+// up, sat against a wall), and its getaway is walked here like any route, slowed by the wounds, or crawled
+// (crawling(): at sim/health.js crawlMs(), gait 'down', the head the way it goes).
+//
 // A route (ai.route, or one rebuilt from a plan: routeOf(), PLANNERS) can carry stops (route.stops,
 // sorted by s: { s, ticks, face, head, gait, hidden, glass, wide, kind, check, slowM }): the agent
 // slows over the slowM metres before one (a tell), then waits there, facing a way (its eyes on head,
@@ -35,7 +40,9 @@ import { Z, SECTION_M, mouthOf, inLane as inLaneG, laneLine } from './map/street
 import { near, blocked } from './world.js';
 import { seesActor, headOf, gazeInto, openAir, reach } from './perception.js';
 import { weatherAt, footing } from './weather.js';
-import { staysDown, canRun, mobility } from './health.js';
+import { staysDown, canRun, mobility, crawlMs } from './health.js';
+import { step as hurtStep, crawling } from './wounded.js';
+import { see as lookAbout, step as lookStep, due as lookDue } from './onlookers.js';
 import { paneAt, seatTaken } from './acts.js';
 import { intoCar, carInWay } from './traffic.js';
 
@@ -119,6 +126,7 @@ export const isAgent = (a) => a.ai?.kind === 'agent';
 // is planned again on load, the same.
 export const PLANNERS = {
   way: (state, plan) => routeFrom(townOf(state.map), plan.from, plan.to),     // (just a way from one place to another)
+  straight: (state, plan) => finish([{ ...plan.from, w: 0 }, { ...plan.to, w: 0 }]),   // (straight across, a few metres: to a place in a ring of onlookers, sim/onlookers.js)
 };
 
 /** An agent's route: its own (ai.route), or the one its plan makes (runtime: ai.$route). */
@@ -184,19 +192,26 @@ export function stepAgent(state, a, scenario, bus) {
   if (ai.fighting) return;                                          // (in a fight, its feet are the fight's: sim/fight.js)
   if (ai.gunner) { a.vx = a.vz = 0; return; }                       // (a gun up: standing to shoot, sim/armed.js)
   const body = a.who && state.people[a.who];
-  if (ai.downUntil > state.time.ms || ai.tied || (body && staysDown(body))) { a.vx = a.vz = 0; a.gait = 'down'; return; }   // (knocked out: lying there a while; and down for good while the body says so, whatever the clock: sim/health.js staysDown())
+  if (ai.downUntil > state.time.ms || ai.tied) { a.vx = a.vz = 0; a.gait = 'down'; return; }   // (knocked out, knocked down: lying there a while)
+  if (ai.hurt && hurtStep(state, a, body)) return;                 // (shot: lying, getting up, sat, kept still; or its getaway walked below: sim/wounded.js)
+  const crawl = crawling(a, body);                                 // (the legs gone, getting away all the same: a crawl)
+  if (body && staysDown(body) && !crawl) { a.vx = a.vz = 0; a.gait = 'down'; return; }   // (and down for good while the body says so, whatever the clock: sim/health.js staysDown())
   if (ai.wait > 0) {
     a.vx = a.vz = 0;
     if (ai.visit) visitStep(a, ai.visit, ai.visit.ticks - ai.wait);
     if (--ai.wait === 0) endStop(state, a, scenario, bus);
     return;
   }
+  if (ai.civ && !ai.hurt) {                                        // (someone down in sight: come to look, or keep clear of it; stood looking: sim/onlookers.js)
+    if (ai.look && lookStep(state, a)) return;
+    if (!ai.look && lookDue(state, a)) lookAbout(state, a);
+  }
   const route = routeOf(state, a);
   const stop = route?.stops?.[ai.stop];
   if (stop && stop.s <= ai.s + 1e-6) { startStop(state, a, stop, scenario, bus); return; }
   if (!route || ai.s >= route.length - 1e-6) { a.vx = a.vz = 0; a.gait = ai.sit ? 'sit' : 'idle'; return; }
-  let v = ai.speed * (ai.pace ?? 1) * footing(weatherAt(state)).walk * (body ? mobility(body, state.time.ms) : 1);   // (slower going in snow: sim/weather.js; and wounded, sim/health.js)
-  if (body && !canRun(body, state.time.ms)) v = Math.min(v, RUN_GAIT_MS * 0.95);   // (too hurt to run: a hurried limp at best)
+  let v = crawl ? crawlMs(body) * footing(weatherAt(state)).walk : ai.speed * (ai.pace ?? 1) * footing(weatherAt(state)).walk * (body ? mobility(body, state.time.ms) : 1);   // (slower going in snow: sim/weather.js; and wounded, sim/health.js)
+  if (!crawl && body && !canRun(body, state.time.ms)) v = Math.min(v, RUN_GAIT_MS * 0.95);   // (too hurt to run: a hurried limp at best)
   if (ai.detour && walkDetour(state, a, v)) return;
   if (stop && stop.slowM && stop.s - ai.s <= stop.slowM) {        // a tell: slowing before a check
     if (ai.told !== ai.stop) { ai.told = ai.stop; scenario?.onStop?.(state, a, stop, 'tell', bus); }
@@ -218,8 +233,9 @@ export function stepAgent(state, a, scenario, bus) {
   a.x = p.x; a.z = p.z; ai.s = s1;
   if (a.row !== row0) { a.vx = p.ux * v; a.vz = p.uz * v; }       // (through a seam: no leap of velocity)
   else { a.vx = (a.x - x0) / DT; a.vz = (a.z - z0) / DT; a.stride += Math.hypot(a.x - x0, a.z - z0); }
-  a.gait = gaitAt(Math.hypot(a.vx, a.vz));
-  if (Math.hypot(p.ux, p.uz) > 0.5 && Math.hypot(a.vx, a.vz) > 0.05) { a.face = faceFor(p.ux, p.uz, a.face); if (!ai.eyesOn) a.head = Math.atan2(p.uz, p.ux); }
+  a.gait = crawl ? 'down' : gaitAt(Math.hypot(a.vx, a.vz));
+  // (a crawl's drawn lying, the head the way they go: src/render/crowd.js lays a 'left' card's head to the right)
+  if (Math.hypot(p.ux, p.uz) > 0.5 && Math.hypot(a.vx, a.vz) > 0.05) { a.face = crawl ? (p.ux > 0.3 ? 'left' : p.ux < -0.3 ? 'right' : a.face) : faceFor(p.ux, p.uz, a.face); if (!ai.eyesOn) a.head = Math.atan2(p.uz, p.ux); }
   if (stop && ai.s >= stop.s - 1e-6) startStop(state, a, stop, scenario, bus);
 }
 

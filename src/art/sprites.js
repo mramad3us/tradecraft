@@ -986,7 +986,7 @@ function compose(spec, dir, frame) {
   const [W, H] = CELL;
   const view = dir === 'left' ? 'right' : dir;
   const P = POSES[frame];
-  const kind = spec.top?.kind ?? 'tee';
+  const kind = spec.top?.kind ?? 'tee', sleeve = spec.top?.sleeves ? 'coat' : kind;   // (the arms: a dress with sleeves covers them, sim/cities/folk.js)
   const style = spec.hair?.style ?? 'short';
   const cells = Array.from({ length: H }, () => Array(W).fill(null));   // { ch, part }
   let part = 0;
@@ -1035,9 +1035,9 @@ function compose(spec, dir, frame) {
     if (rig) drawAll(rig.body, 0);
     else {
       // (the umbrella's in the camera's left hand from the front, the right from behind: the same hand)
-      if (l !== 'up') draw(armFront(5, kind, brolly && view === 'down' ? 'umb' : l, -1), 0, bob);
+      if (l !== 'up') draw(armFront(5, sleeve, brolly && view === 'down' ? 'umb' : l, -1), 0, bob);
       hand = part;
-      if (r !== 'up') draw(armFront(16, kind, brolly && view === 'up' ? 'umbBack' : r, 1), 0, bob);
+      if (r !== 'up') draw(armFront(16, sleeve, brolly && view === 'up' ? 'umbBack' : r, 1), 0, bob);
       other = part;
       if (brolly && view === 'up') [hand, other] = [other, hand];
     }
@@ -1077,8 +1077,8 @@ function compose(spec, dir, frame) {
   if (P.over && view === 'right') { draw(armSide(kind, P.swing[0], false), lean, bob); hand = part; }   // (a fist before the face)
   if (P.armOver && view !== 'right') {                             // (an arm up past the head: a taxi hailed)
     const [l, r] = view === 'up' ? [P.reach[1], P.reach[0]] : P.reach;
-    if (l === 'up') draw(armFront(5, kind, 'up', -1), 0, bob);
-    if (r === 'up') draw(armFront(16, kind, 'up', 1), 0, bob);
+    if (l === 'up') draw(armFront(5, sleeve, 'up', -1), 0, bob);
+    if (r === 'up') draw(armFront(16, sleeve, 'up', 1), 0, bob);
   }
   if (spec.hand === 'umbrella' && rain !== 'umbrella') hang(cells, W, H, hand, ++part, CARRIED_THINGS.umbrella);   // (furled: it hangs from the hand, its tip by the ankle)
   else if (spec.hand && view !== 'up' && HELD[spec.hand] && !(spec.hand === 'umbrella' && spec.rainwear === 'umbrella')) held(   // (an umbrella up is the canopy and its shaft, not the furled one)

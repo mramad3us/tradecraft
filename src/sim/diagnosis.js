@@ -5,7 +5,7 @@
 // (src/ui/body.js: the figure, the wounds marked where they are, and the words); the body itself is
 // sim/health.js, its care sim/medicine.js and sim/aid.js.
 //
-// **Plain sight** (no roll): whether they're up or down, moving, conscious; where the wounds are (a hole in the
+// **Plain sight** (no roll): whether they're up or down (or sat on the ground against a wall), moving, conscious; where the wounds are (a hole in the
 // coat, a cut, a split lip, a bloody nose; a hole with no blood under it, where a vest stopped a round) and whether
 // they bleed (badly: anyone can see that); a dressing, a tourniquet, a splint; pale, grey; a limb that hangs wrong;
 // a face swollen; a plate carrier (a soft vest under the shirt only once you know of it: sim/know.js, sim/armour.js).
@@ -78,9 +78,10 @@ export function finds(p, ms, what, i = null) {
   return Math.max(L.margin, L.prior && (i.ms ?? 0) <= L.prior.ms ? L.prior.margin : -99) >= FINDS[what];
 }
 
-/** How someone is placed, from their actor: 'dead', 'down', 'running', 'walking', 'standing'. */
+/** How someone is placed, from their actor: 'dead', 'sitting' (on the ground against a wall: sim/wounded.js), 'down', 'running', 'walking', 'standing'. */
 export function postureOf(p, a) {
   if (p.dead) return 'dead';
+  if (a?.gait === 'slump') return 'sitting';
   if ((a && a.gait === 'down') || !canStand(p)) return 'down';
   const v = a ? Math.hypot(a.vx ?? 0, a.vz ?? 0) : 0;
   return v > 2.5 && a.gait === 'run' ? 'running' : v > 0.3 ? 'walking' : 'standing';
@@ -172,6 +173,7 @@ export function findings(state, p, { actor = null, self = false } = {}) {
   if (p.dead) status.push(find('breath') ? { text: `Dead. No pulse, no breath.`, tone: 'bad' } : { text: `Not moving. Not breathing, that you can see.`, tone: 'bad' });
   else if (!awake) status.push({ text: find('breath') ? `Out cold, but breathing${chest ? ': fast and shallow' : ''}.` : 'Down, and not moving.', tone: 'bad' });
   else if (posture === 'down') status.push({ text: self ? 'You\'re down, and can\'t get up.' : `Down, conscious: ${!canStand(p) ? `${she} can't get up` : 'in pain'}.`, tone: 'bad' });
+  else if (posture === 'sitting') status.push({ text: `Sitting on the ground against the wall, conscious${!canStand(p) ? `: ${she} can't get up` : ''}.`, tone: 'bad' });
   else status.push({ text: self ? `On your feet${posture === 'running' ? ', running' : posture === 'walking' ? ', walking' : ''}.` : `On ${their} feet${posture === 'running' ? ', running' : posture === 'walking' ? ', walking' : ''}.`, tone: 'calm' });
   // (body armour: a carrier anyone sees; a vest under the top you know of (your read caught it, a round of yours stopped in it, a
   // search), or a look made at the body finds, the shirt opened; your own you feel: sim/armour.js, sim/know.js)
@@ -224,7 +226,7 @@ export function findings(state, p, { actor = null, self = false } = {}) {
     else status.push(made ? { text: 'Inside: you can\'t tell.', tone: 'mid' } : { text: 'What\'s inside, you can\'t tell: treat it as bad.', tone: 'bad' });
   }
   // (what it'll take)
-  const looksBad = posture === 'down' || !awake || rate >= 3 || band !== 'steady' || (p.injuries ?? []).some(i => i.gunshot);
+  const looksBad = posture === 'down' || posture === 'sitting' || !awake || rate >= 3 || band !== 'steady' || (p.injuries ?? []).some(i => i.gunshot);
   if (!p.dead && L && !made && hurtAtAll(p)) needs.push(looksBad ? { text: 'Hard to say what it needs. If in doubt, a hospital.', tone: 'bad' } : { text: 'Hard to say what it needs.', tone: 'mid' });
   else if (!p.dead && find('needs')) needs.push(...needsOf(p, ms, find, self ? 'you' : p.sex === 'f' ? 'her' : 'him'));
   return { posture, self, dead: !!p.dead, look: L ? { margin: L.margin, ok: L.ok, roll: L.roll, ms: L.ms } : null, status, rows, needs, marks: marksOf(p, rows, ms, bleedsInside && ins.some(i => find('inside', i))) };

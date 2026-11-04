@@ -8,7 +8,8 @@
 // boulevard, a call). Followed, a passer-by leads somewhere: the tail ends at their door.
 //
 // The bubble: passers-by live on the focus's street and the streets either side (BUBBLE_ROWS), within
-// WINDOW_M of the focus along them, and are let go beyond, or once in at their door. So whoever was on
+// WINDOW_M of the focus along them, and are let go beyond, or once in at their door; a casualty (shot, getting
+// away or sat against a wall after it: sim/wounded.js; or dead) out to KEEP_HURT_M. So whoever was on
 // our street when we crossed to the next is still about on the one behind us, and lives on there;
 // whoever crosses after us arrives; the street we come to was already full of people going about their
 // business. Crossing again, the street two back is let go. (A scenario's people are never passers-by:
@@ -19,6 +20,9 @@
 // (unseen) they appear anywhere along it. The count on each street holds near a target that follows the
 // hour (density()) and the weather (sim/weather.js crowdK(): fewer out in heavy rain or snow, many
 // fewer in a downpour, a blizzard or a gale).
+//
+// Someone down in the street, a passer-by who sees it comes to look, in a ring, or keeps clear of it (sim/onlookers.js);
+// one shot gets away from whoever shot them, and sits it out against a wall (sim/wounded.js).
 //
 // A passer-by's route isn't saved (2 KB): it keeps its plan (ai.plan: where from, where to, who) and
 // the route is planned again on load, the same (agents.js PLANNERS).
@@ -116,10 +120,13 @@ export function recycle(state, focusX, ms) {
   return true;
 }
 
-/** Whether a passer-by stays: in the bubble, not in at their door. */
+/** Whether a passer-by stays: in the bubble, not in at their door; a casualty (shot, dead), KEEP_HURT_M along. */
+export const KEEP_HURT_M = 120;
 function stays(state, a, rows, focusX) {
   if (a.ai.waiting?.kind === 'enter') return false;
-  return rows.includes(rowOf(state, a)) && Math.abs(a.x - focusX) <= WINDOW_M + 6;
+  // (the shot don't walk off, and the dead don't get up: they're there till the ambulance takes them, sim/wounded.js, sim/emergency.js)
+  const far = a.ai.hurt || state.people[a.who]?.dead ? KEEP_HURT_M : WINDOW_M + 6;
+  return rows.includes(rowOf(state, a)) && Math.abs(a.x - focusX) <= far;
 }
 
 /**

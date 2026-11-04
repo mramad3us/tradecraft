@@ -6,7 +6,7 @@ import { newGun, newMag, armOf, canDo, act, stepMs, said, MAG_FRESH } from '../s
 import { ways, work, BENT_COND } from '../src/sim/gunwork.js';
 import { discharge, muzzleSafe, bullet } from '../src/sim/shooting.js';
 import { screen, SCREEN_COVER } from '../src/sim/screening.js';
-import { mobility, canStand, canRun } from '../src/sim/health.js';
+import { mobility, canStand, canRun, casualty } from '../src/sim/health.js';
 import { MODELS } from '../src/sim/firearms.js';
 import { candidates, newCampaign } from '../src/sim/campaign.js';
 import { sheet } from '../src/sim/people.js';
@@ -113,7 +113,7 @@ export default [
     },
   },
   {
-    name: 'wounds: shot, the fallen stay down while they can\'t stand; the wounded slow, too hurt to run; a head shot is death or worse than a minute down',
+    name: 'wounds: shot, down for the knock and then as the body says (two in the chest: down a minute or more, then sat against a wall, a casualty); the wounded slow, too hurt to run; a head shot is death or worse than a minute down',
     fn() {
       const g = newGame({ seed: 4, scenario: 'walk', city: 'moscow', hour: 12, weather: 'clear' });
       start(g, null);
@@ -122,10 +122,11 @@ export default [
       const civ = g.actors.filter(a => a !== me && a.ai && !a.cop).slice(0, 2);
       g.rng = seedRng(7);
       bullet(g, null, civ[0], 'torso', M, me); bullet(g, null, civ[0], 'torso', M, me);
-      const p0 = g.people[civ[0].who];
+      const p0 = g.people[civ[0].who], knock = (civ[0].ai.downUntil - g.time.ms) / 1000;
       for (let t = 0; t < 20 * 120; t++) step(g, {}, null);            // (two minutes on)
-      const down = civ[0].gait === 'down' || !canStand(p0) || p0.dead;
-      assert(down, `two in the chest, two minutes on: still down (${civ[0].gait}, blood ${Math.round(p0.blood ?? 100)}%)`);
+      // (the knock of two in the chest, then the body's say: still down, or up, away, and sat against a wall, never about their day: sim/wounded.js)
+      const down = civ[0].gait === 'down' || !canStand(p0) || p0.dead, sat = civ[0].gait === 'slump' && casualty(p0, civ[0]);
+      assert(knock >= 30 && (down || sat), `two in the chest: down ${Math.round(knock)} s; two minutes on: down or sat against a wall (${civ[0].gait}, blood ${Math.round(p0.blood ?? 100)}%)`);
       // (the head: dead, or out with a bullet in the skull, or a graze; never up and running in a minute)
       const out = { dead: 0, skull: 0, graze: 0 };
       for (let k = 0; k < 200; k++) {
@@ -136,7 +137,7 @@ export default [
       }
       const hurt = sheet({ id: 'w', cls: 'civ' }); hurt.injuries = [{ part: 'legL', gunshot: true, ms: 0 }]; hurt.damage = { legL: 9 };
       assert(out.dead > 80 && out.skull > out.graze && out.graze > 0, `head shots: ${JSON.stringify(out)}`);
-      console.log(`      two in the chest, two minutes on: ${civ[0].gait}, blood ${Math.round(p0.blood ?? 100)}%; 200 head shots: ${out.dead} dead, ${out.skull} out cold with a bullet in the skull, ${out.graze} grazed; mobility, a fresh bullet wound: ${fmt(mobility({ injuries: [{ gunshot: true, ms: 0 }] }, 1000), 2)}, can run: ${canRun({ injuries: [{ gunshot: true, ms: 0 }], blood: 66 }, 1000)}`);
+      console.log(`      two in the chest: down ${Math.round(knock)} s; two minutes on: ${civ[0].gait}, blood ${Math.round(p0.blood ?? 100)}%; 200 head shots: ${out.dead} dead, ${out.skull} out cold with a bullet in the skull, ${out.graze} grazed; mobility, a fresh bullet wound: ${fmt(mobility({ injuries: [{ gunshot: true, ms: 0 }] }, 1000), 2)}, can run: ${canRun({ injuries: [{ gunshot: true, ms: 0 }], blood: 66 }, 1000)}`);
     },
   },
 ];

@@ -10,8 +10,12 @@
 // SEE_DOWN_M: each second each of them may make the call (CALL_P), and stands there on the phone a while. A call
 // (state.calls) is a place and its casualties, and the times the police and an ambulance will be there: the country's
 // minutes (its police profile's ems: sim/countries/), from the call. If you were seen at it in the last VIOLENT_S
-// (markViolent(): a shot fired, a killing, a fight, seen), the caller describes you: your look then (seenLook(): what
-// you wear, your hat, your hair) goes out to every officer in the city (state.wanted, WANTED_DAYS).
+// (markViolent(): a shot fired, a killing, a fight, seen; how near the nearest who saw it, and the light), the caller
+// describes you, and the hunt for you begins (sim/hunt.js start(): what you wear nearly always, your face by how near
+// and how lit they were; as bad as the casualties make it, gravity(): a killing, someone shot, shots fired, a fight).
+// **Shots, nobody hit** (heard()): passers-by within SHOTS_HEARD_M of your shots may call the police (SHOTS_CALL_P a
+// second each, SHOTS_CALL_S after them): a call for the police alone, to where the shots were, and the hunt for the gunman
+// (described if you were seen firing).
 // **What you know of it** (etaOf(): the instinct's timer on the watch, src/ui/ui.js): a caller you can see or hear
 // (KNOW_M) tells you it's been called, and your Tradecraft guesses how long they'll be: the guess off by an error drawn
 // once a call (ERR_K × what you lack of 100), said as exactly as your feel for it goes (70 and over, to the minute; 40
@@ -28,10 +32,10 @@
 // The police's tape off the place (state.cordons: CORDON_M round it, CORDON_H), one of them posted at it for as long
 // (back at it whenever you come back to that street), the other taking statements (STATEMENT_S), and gone. Off the
 // street you're on, a call plays out unseen: the tape's there when you come back.
-// **Your description.** An officer who sees you (EYE_M) dressed as you were described knows you: the alarm (sim/armed.js
-// call(): the order, the cuffs, the armed response if you're armed), and in the campaign your cover standing takes
-// DESCRIBED_COVER, once. Change what you wear (and the hat, the hair) and you're someone else.
-import { policeHeat, POLICE_WANTED, POLICE_HOSPITAL } from './police.js';
+// **Your description** is the hunt's (sim/hunt.js): every officer who sees you weighs you against it, a check a unit an
+// hour, and your face, your clothes and how far you've gone since count. described(): all they have matches you as you
+// are now (a hospital's corridor: the officer waiting there).
+import { policeHeat, POLICE_HOSPITAL } from './police.js';
 import { stream, range, chance, pick, next } from './rng.js';
 import { say } from './log.js';
 import { seesActor } from './perception.js';
@@ -41,31 +45,42 @@ import { routeFrom, LINE } from './city.js';
 import { townOf } from './cities/index.js';
 import { sheet } from './people.js';
 import { policeOf } from './countries/index.js';
-import { canStand } from './health.js';
+import { canStand, casualty } from './health.js';
 import { sendEms } from './traffic.js';
-import { armCop, call as raiseAlarm, arrest } from './armed.js';
+import { armCop, arrest } from './armed.js';
 import { addHeat } from './heat.js';
 import { shortName } from './fight.js';
 import { care, needsOf, outside, hoursWords, VISIT_HEAT } from './services.js';
 import { HOSPITAL_HEAT } from './aid.js';
+import { start as startHunt, know, fullMatch, faceP, wearP } from './hunt.js';
+import { lightHere } from './perception.js';
 import { MIN, HOUR, DAY } from './clock.js';
 
 export const SEE_DOWN_M = 25, CALL_P = 0.1, KNOW_M = 18, ON_PHONE_S = 40, VIOLENT_S = 120, MERGE_M = 30;
 export const DRIVE_S = 14, TREAT_S = [60, 150], STATEMENT_S = 120, CORDON_H = 24, CORDON_M = 4.5, HOSPITAL_H = 8;
-export const WANTED_DAYS = 4, EYE_M = 14, DESCRIBED_COVER = 35, LINE_WARN_S = 30, ERR_K = 0.7;
+export const LINE_WARN_S = 30, ERR_K = 0.7;
+export const SHOTS_HEARD_M = 60, SHOTS_CALL_P = 0.15, SHOTS_CALL_S = 90;   // (shots with nobody hit: who hears them, how soon one of them calls, how long after the last)
 const DEFAULT_EMS = { police: [8, 15], ambulance: [10, 20] };
 
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
 /** What a witness says of someone: the top they wear and its colour, the hat, the hair. Another of any, someone else. */
 export const seenLook = (look = {}) => [look.top?.kind, look.top?.color, look.hat?.kind ?? 'bare', look.hat?.color, look.hair?.style, look.hair?.color].join('|');
-/** Whether the police here have p's description, as p looks now (state.wanted: in its city, in its days). */
-export const described = (state, p) => { const W = state.wanted; return !!(W && W.until > state.time.ms && (!W.city || W.city === (state.map.city ?? null)) && seenLook(p?.look) === W.look); };
+/** Whether the police here have p's full description, as p looks now (their face and their clothes: sim/hunt.js). */
+export const described = (state, p) => fullMatch(state, p);
 
-/** You at it, and seen (a shot fired, a killing, a fight: sim/shooting.js, sim/interact.js): whoever sees you now will describe you. */
+/** You at it, and seen (a shot fired, a killing, a fight: sim/shooting.js, sim/interact.js): whoever sees you now will describe you (how near the nearest, the light: what they'll have, sim/hunt.js). */
 export function markViolent(state, me) {
   if (!me) return;
-  const seen = state.actors.some(a => a !== me && a.ai && !a.hidden && isPasserby(a) && Math.hypot(a.x - me.x, a.z - me.z) < SEE_DOWN_M && seesActor(state, a, me));
-  if (seen) state.$violent = { ms: state.time.ms, look: seenLook(state.people[me.who]?.look) };
+  const seers = state.actors.filter(a => a !== me && a.ai && !a.hidden && isPasserby(a) && Math.hypot(a.x - me.x, a.z - me.z) < SEE_DOWN_M && seesActor(state, a, me));
+  if (seers.length) state.$violent = { ms: state.time.ms, look: seenLook(state.people[me.who]?.look), d: Math.min(...seers.map(a => Math.hypot(a.x - me.x, a.z - me.z))), light: state.$world ? lightHere(state, me.x, me.z) : 1, x: me.x };
+}
+// (how bad it is, for the hunt: someone dead, someone shot, shots fired, or a fight)
+function gravity(state, c, now) {
+  const hurt = c.who.map(id => state.people[actorOf(state, id)?.who]).filter(Boolean);
+  if (hurt.some(q => q.dead)) return 'killed';
+  if (hurt.some(q => (q.injuries ?? []).some(i => i.gunshot))) return 'wounded';
+  if (state.$shotBy && now - state.$shotBy.ms < VIOLENT_S * 1000) return 'shots';
+  return 'fight';
 }
 
 /** Once a second, on a street with police (sim/game.js): the calls made, the services on their way and at work, your description. */
@@ -73,11 +88,11 @@ export function second(state, bus, me) {
   if (state.map.kind !== 'street' || !me) return;
   const now = state.time.ms, row = state.map.row ?? 0;
   report(state, bus, me, now, row);
+  heard(state, bus, me, now, row);
   for (const c of state.calls ?? []) if (!c.done) (c.row === row ? play : offstage)(state, bus, me, c, now);
   state.calls = (state.calls ?? []).filter(c => !c.done || now - c.ms < DAY);
   state.cordons = (state.cordons ?? []).filter(k => k.until > now);
   posted(state, bus, me, now, row);
-  recognise(state, bus, me, now);
 }
 
 // Someone down, seen: a call, or one more casualty on a call already made.
@@ -85,7 +100,7 @@ function report(state, bus, me, now, row) {
   for (const a of state.actors) {
     const p = a.who && state.people[a.who];
     if (!p || a.hidden || p.reported || rowOf(state, a) !== row || a.ems) continue;
-    const down = p.dead || a.gait === 'down' || !canStand(p);
+    const down = casualty(p, a);                                  // (down, or shot and sat against a wall after it: sim/health.js)
     if (!down || (a === me && state.$takedown?.stage === 'pin' && canStand(p))) continue;   // (you face down under an officer's knee: the police have it in hand, nobody calls an ambulance: sim/armed.js)
     const near = state.actors.filter(w => w !== a && w.ai && !w.hidden && isPasserby(w) && !(w.ai.fled > now - 20000 && Math.hypot(w.x - a.x, w.z - a.z) > 12) && Math.hypot(w.x - a.x, w.z - a.z) < SEE_DOWN_M && seesActor(state, w, a));
     if (!near.length || !chance(state.rng, 1 - (1 - CALL_P) ** near.length)) continue;
@@ -93,26 +108,61 @@ function report(state, bus, me, now, row) {
     const caller = pick(state.rng, near);
     Object.assign(caller, { gait: 'phone', vx: 0, vz: 0 }); caller.ai.wait = ON_PHONE_S * 20;
     let c = (state.calls ?? []).find(k => !k.done && k.row === row && Math.hypot(k.x - a.x, k.z - a.z) < MERGE_M);
-    if (c) { c.who.push(a.id); continue; }
+    if (c) {
+      c.who.push(a.id);
+      if (c.shots && c.ambulance.stage === 'done') { const E2 = policeOf(state.map)?.ems ?? DEFAULT_EMS, r2 = stream('ems-late', state.map.seed, now); c.ambulance = { stage: 'coming' }; c.at.ambulance = now + Math.round(range(r2, ...E2.ambulance) * MIN); c.err.ambulance = gauss(r2); }   // (someone hurt after all: an ambulance too)
+      continue;
+    }
     const E = policeOf(state.map)?.ems ?? DEFAULT_EMS, r = stream('ems', state.map.seed, now);
     const V = state.$violent && now - state.$violent.ms < VIOLENT_S * 1000 ? state.$violent : null;
     c = { id: `call${now}`, row, x: a.x, z: a.z, ms: now, who: [a.id], described: V?.look ?? null, known: false,
       at: { police: now + Math.round(range(r, ...E.police) * MIN), ambulance: now + Math.round(range(r, ...E.ambulance) * MIN) },
       err: { police: gauss(r), ambulance: gauss(r) }, police: { stage: 'coming' }, ambulance: { stage: 'coming' } };
     (state.calls ??= []).push(c);
+    const knows = Math.hypot(caller.x - me.x, caller.z - me.z) < KNOW_M || seesActor(state, me, caller);
+    // (described: the hunt for you, with what the caller had: your clothes nearly always, your face by how near and how lit; sim/hunt.js)
     if (c.described) {
-      state.wanted = { look: c.described, ms: now, until: now + WANTED_DAYS * DAY, city: state.map.city ?? null, hit: false };
-      if (state.legend) addHeat(state, 10);
-      policeHeat(state, POLICE_WANTED);                         // (your description out to every officer: the police's own file, sim/police.js)
+      const w = stream('hunt-witness', state.map.seed, now);
+      startHunt(state, bus, { why: gravity(state, c, now), row, x: V.x ?? a.x, who: chance(w, faceP(V.d ?? 10, V.light ?? 1)), wearing: chance(w, wearP(V.light ?? 1)), first: c.at.police, aware: false });
     }
     // (in your sight or your hearing: you know it's been called, and your instinct guesses how long)
-    if (Math.hypot(caller.x - me.x, caller.z - me.z) < KNOW_M || seesActor(state, me, caller)) {
+    if (knows) {
       c.known = true;
       const eta = etaOf(state, c);
-      say(state, bus, { kind: 'instinct', text: `Someone's on the phone, looking at ${a === me ? 'you' : shortName(state, a.who)}: police, an ambulance.${c.described ? ' And they\'re describing you as they talk.' : ''} ${cap(eta.map(e => `${e.word}: ${e.text}`).join(', '))}.${state.actors.some(o => o.cop && !o.unit && !o.hidden) ? ' A patrol\'s already on the street, though: they won\'t wait for the call.' : ''}` });   // (the call's squad and the patrol here: not the same men)
+      say(state, bus, { kind: 'instinct', text: `Someone's on the phone, looking at ${a === me ? 'you' : shortName(state, a.who)}: police, an ambulance.${c.described ? ' And they\'re describing you as they talk.' : ''} ${cap(eta.map(e => `${e.word}: ${e.text}`).join(', '))}.${state.actors.some(o => o.cop && !o.unit && !o.hidden && (o.row ?? row) === row) ? ' A patrol\'s already on the street, though: they won\'t wait for the call.' : ''}` });   // (the call's squad and the patrol here: not the same men)
+      if (c.described) know(state, bus);                          // (and what they'll have of you: your Tradecraft's read, sim/hunt.js)
     }
   }
 }
+// Your shots heard, nobody hit (the user, 2026-11-04: "gunshots with no victims seem to not trigger a police call ? It should"):
+// passers-by within SHOTS_HEARD_M may call it in (SHOTS_CALL_P a second each, for SHOTS_CALL_S after the last shot), a call
+// for the police alone, to where the shots were; you described if you were seen firing, and the hunt for the gunman either
+// way (sim/hunt.js: with nothing of you to go on, if nobody saw you).
+function heard(state, bus, me, now, row) {
+  const S = state.$shotBy;
+  if (!S || S.called || now - S.ms > SHOTS_CALL_S * 1000) return;
+  const x = S.x ?? me.x, z = S.z ?? me.z;
+  if ((state.calls ?? []).some(k => !k.done && k.row === row && Math.hypot(k.x - x, k.z - z) < MERGE_M && now - k.ms < SHOTS_CALL_S * 1000)) { S.called = now; return; }   // (called in already, with its casualties)
+  const near = state.actors.filter(w => w.ai && !w.hidden && isPasserby(w) && rowOf(state, w) === row && Math.hypot(w.x - x, w.z - z) < SHOTS_HEARD_M);
+  if (!near.length || !chance(state.rng, 1 - (1 - SHOTS_CALL_P) ** near.length)) return;
+  S.called = now;
+  const caller = pick(state.rng, near);
+  Object.assign(caller, { gait: 'phone', vx: 0, vz: 0 }); caller.ai.wait = ON_PHONE_S * 20;
+  const E = policeOf(state.map)?.ems ?? DEFAULT_EMS, r = stream('ems', state.map.seed, now), at = now + Math.round(range(r, ...E.police) * MIN);
+  const V = state.$violent && now - state.$violent.ms < VIOLENT_S * 1000 ? state.$violent : null;
+  const c = { id: `call${now}`, row, x, z, ms: now, who: [], shots: true, described: V?.look ?? null, known: false, at: { police: at, ambulance: at },
+    err: { police: gauss(r), ambulance: 0 }, police: { stage: 'coming' }, ambulance: { stage: 'done' } };
+  (state.calls ??= []).push(c);
+  const w = stream('hunt-witness', state.map.seed, now);
+  startHunt(state, bus, { why: 'shots', row, x, who: !!V && chance(w, faceP(V.d ?? 10, V.light ?? 1)), wearing: !!V && chance(w, wearP(V.light ?? 1)), first: at, aware: false });
+  if (Math.hypot(caller.x - me.x, caller.z - me.z) < KNOW_M || seesActor(state, me, caller)) {
+    c.known = true;
+    const eta = etaOf(state, c);
+    say(state, bus, { kind: 'instinct', text: `Someone's on the phone, looking back the way the shots came from: the police.${V ? ' And they\'re describing you as they talk.' : ''} ${cap(eta.map(e => `${e.word}: ${e.text}`).join(', '))}.` });
+    know(state, bus);
+  }
+}
+
 const gauss = (r) => { let s = 0; for (let k = 0; k < 4; k++) s += next(r); return (s - 2) / 0.577; };   // (about a standard normal, from four uniforms)
 
 /** Your guess at how long they'll be (the call's), by your Tradecraft: [{ kind, word, text }], those still to come. */
@@ -301,24 +351,6 @@ export function onMap(state) {
     if (!state.people[who].items?.length && !state.people[who].hand) armCop(state, state.people[who], 'patrol', r);
     const a = makeAgent(state, { who, row, x: k.x + k.r + 0.4, z: k.z, speed: 1.2, face: 'left' });
     Object.assign(a, { cop: true, ems: k.id }); a.ai.posted = k.id; a.ai.route = null;
-  }
-}
-
-// Your description: an officer who sees you dressed as you were described, and knows you.
-function recognise(state, bus, me, now) {
-  const W = state.wanted;
-  if (!W || W.until <= now || (W.city && W.city !== (state.map.city ?? null)) || state.$alarm) return;
-  const p = state.people[me.who];
-  if (seenLook(p?.look) !== W.look) return;
-  const cop = state.actors.find(a => a.cop && !a.hidden && Math.hypot(a.x - me.x, a.z - me.z) < EYE_M && seesActor(state, a, me));
-  if (!cop) return;
-  cop.alert = now;
-  raiseAlarm(state, bus, me.x, 'the description');
-  say(state, bus, { kind: 'note', text: `${cap(shortName(state, cop.who))} looks at you, at the notebook, at you again: they have your description.` });
-  if (state.campaign?.posting && !W.hit) {
-    W.hit = true;
-    state.campaign.posting.cover = Math.max(0, state.campaign.posting.cover - DESCRIBED_COVER);
-    state.campaign.log?.push({ ms: now, text: `The police had a description from the shooting, and it was you: the embassy's view of you, −${DESCRIBED_COVER}.` });
   }
 }
 

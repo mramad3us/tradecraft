@@ -4,26 +4,29 @@
 // what can be done, each greyed with why when it can't; treat() does it.
 //   - Press on it: hands on the wound; while you hold still (PRESS_S), it bleeds PRESSURE_K as fast
 //     (sim/game.js bloodBeat()). No roll.
-//   - Dress it: a pressure dressing; with nothing better, a strip torn from your shirt (IMPROVISED).
+//   - Dress it: a pressure dressing, a bandage from your kit, and only that (the user, 2026-11-04: "remove the ability
+//     to just rip a strip from a shirt to bandage on the fly, we will build a crafting system later on to make bandages
+//     from clothing": the strip of shirt is gone till then; a wound dressed with one before keeps it, i.rag).
 //     A Medicine check against DRESS_DC by the wound (shallow, deep, an artery); made, a cut stops
 //     bleeding, an artery slows to ARTERY_HELD of its rate (a dressing alone won't hold it); missed,
 //     it soaks through and nothing's changed, and the next try on that wound is RETRY_MOD harder
 //     (a soaked, messy wound).
-//   - Tourniquet (an arm or a leg): your belt, against TOURNIQUET_DC; made, it stops, but the limb's
+//   - Tourniquet (an arm or a leg): the kit's (the user, 2026-11-04: "same comment about tourniquet without belt", a
+//     belt being nothing you carry yet: none without one), against TOURNIQUET_DC; made, it stops, but the limb's
 //     no use while it's on (sim/health.js mods(): as broken), until a hospital takes it off.
 //   - Splint it (a broken arm or leg, a fracture): something rigid (sim/weapons.js splint: a stick, a
 //     pipe, an umbrella, a crowbar) and a strip to tie it, against SPLINT_DC; made, the break costs
 //     half (sim/health.js mods()).
 // With supplies (sim/medicine.js; the user, 2026-10-28: "bandage a bleeding wound, disinfect wide wound,
 // apply poultry to bruises etc, set broken limbs etc."), each where it fits:
-//   - A bandage, for the strip of shirt: no IMPROVISED, and it keeps a wound clean (a strip is dirty from
-//     the start); on a wound that's stopped bleeding, a bandage put on or changed (a day old, it's dirty).
+//   - A bandage: what dresses a bleeding wound (above), and keeps it clean; on a wound that's stopped bleeding, a
+//     bandage put on or changed (a day old, it's dirty).
 //   - Antiseptic: an open wound cleaned (no roll): it hardly goes bad after; on an infected one, a little
 //     of the infection off (INFECTION.clean).
 //   - A suture kit: a deep cut stitched (STITCH_DC; an artery tied off first, harder; on the face, finer
 //     work): the bleeding stops, it knits faster and leaves no scar. Clean it first: stitched dirty, the
 //     dirt's sewn in.
-//   - A tourniquet, for the belt: no IMPROVISED. Loosened, what's under it bleeds again, unless the
+//   - A tourniquet: what stops an artery in a limb (above). Loosened, what's under it bleeds again, unless the
 //     artery's tied off; left on past two hours, the limb starves (sim/health.js).
 //   - Set the bone (a broken arm or leg; SET_DC; it hurts): set, it knits straight; not, crooked, for
 //     good (sim/medicine.js scarOf()). A splint (the kit's, for something rigid and strips of shirt).
@@ -37,7 +40,9 @@
 // a knife wound reported to the police, +HOSPITAL_HEAT).
 // Any care given to a part marks it tended (p.tended): a wound mends only once tended (sim/health.js).
 // On yourself SELF_MOD; with a wounded or broken arm, one-handed, ONE_HAND_MOD. It takes the time it
-// takes (SECONDS), stooped over it; moving stops it (the effect's already made).
+// takes (SECONDS, at Medicine 10; paceOf(): the medic's Medicine makes it quicker or slower, the user's, 2026-11-04: "every
+// first aid action should also take time proportionally to medicine skill"; pressure held is the same for anyone),
+// stooped over it, the time on its option; moving stops it (the effect's already made).
 //   - Rest (yourself, nothing bleeding, the blood down; where the scene lets the clock go: the free
 //     walk's state.scenario.rest): sit somewhere warm, something sweet to drink, REST_H hours at most,
 //     the blood back REGEN_PER_H an hour (sim/health.js); the game skips the clock (sim/game.js).
@@ -74,6 +79,11 @@ export const STITCH_DC = { deep: 13, artery: 18 }, FACE_MOD = -2;
 export const SET_DC = 14;
 export const NURSE_H = 1, HOSPITAL_H = [4, 6], HOSPITAL_HEAT = 8;
 export const SECONDS = { dress: 45, tourniquet: 25, splint: 120, clean: 30, stitch: 240, bandage: 40, set: 60, poultice: 40, painkillers: 5, antibiotics: 5, loosen: 10 };
+// (the medic's pace: ×1.6 the time at Medicine 0, ×1 at 10, ×0.73 at 20, ×0.57 at 30; never under half)
+export const PACE_K = 16.7;
+export const paceOf = (medic) => Math.max(0.5, 1.6 / (1 + Math.max(0, skill(medic, 'medicine')) / PACE_K));
+/** How long a way of tending takes this medic, in seconds (SECONDS by their pace). */
+export const secondsOf = (medic, method) => Math.round((SECONDS[method] ?? 0) * paceOf(medic));
 const LIMBS = ['armL', 'armR', 'legL', 'legR'];
 const DEEP_BLEED_H = 6;
 const SIDE = { armL: 'left arm', armR: 'right arm', legL: 'left leg', legR: 'right leg' };
@@ -103,8 +113,8 @@ export function options(state, medic, patient) {
   // (what bleeds, first)
   for (const [i, n] of wounds.filter(([i]) => i.bleed > ms)) {
     out.push({ key: `pressure:${n}`, label: `Press on ${nm(i, n)}`, ok: true });
-    if (!i.dressed || i.artery) out.push({ key: `dress:${n}`, label: `Bandage ${nm(i, n)}`, ok: true, why: has('bandage') ? left('bandage') : `a strip of your shirt (${IMPROVISED} to the check, and it won't keep it clean${i.tries ? `; ${RETRY_MOD * i.tries} for the tries before` : ''})` });
-    if (i.part !== 'head' && i.part !== 'torso' && (i.artery || i.deep) && !patient.tourniquets?.[i.part]) out.push({ key: `tourniquet:${n}`, label: `A tourniquet above ${nm(i, n)}`, ok: true, why: `${has('tourniquet') ? left('tourniquet') : `your belt (${IMPROVISED})`}; the limb's no use while it's on` });
+    if (!i.dressed || i.artery) out.push({ key: `dress:${n}`, label: `Bandage ${nm(i, n)}`, ok: has('bandage') > 0, why: has('bandage') ? `${left('bandage')}${i.tries ? `; ${RETRY_MOD * i.tries} for the tries before` : ''}` : 'no bandage on you: a chemist\'s or a grocer\'s sells them' });
+    if (i.part !== 'head' && i.part !== 'torso' && (i.artery || i.deep) && !patient.tourniquets?.[i.part]) out.push({ key: `tourniquet:${n}`, label: `A tourniquet above ${nm(i, n)}`, ok: has('tourniquet') > 0, why: has('tourniquet') ? `${left('tourniquet')}; the limb's no use while it's on` : 'no tourniquet on you: a chemist\'s sells them' });
   }
   // (open wounds: cleaned, stitched, kept bandaged)
   for (const [i, n] of wounds.filter(([i]) => isOpen(i))) {
@@ -151,6 +161,8 @@ export function options(state, medic, patient) {
     const h = restHours(patient);
     out.push({ key: 'rest:0', label: `Rest ${h} hour${h === 1 ? '' : 's'}: somewhere warm, something sweet to drink`, ok: !!state.scenario.rest, why: state.scenario.rest ? `the blood back to ${Math.round(Math.min(100, bloodOf(patient) + h * REGEN_PER_H))}%` : 'not now: the time\'s not yours' });
   }
+  // (how long each takes this medic, on the ones that can be done: their Medicine's pace)
+  for (const o of out) { const m = o.key.split(':')[0], t = o.ok && m !== 'pressure' && SECONDS[m] ? secondsOf(medic, m) : 0; if (t) o.why = `${o.why ? `${o.why} · ` : ''}${t < 90 ? `${t} s` : `${Math.round(t / 60)} min`}`; }
   return out;
 }
 const PART_WORD = { head: 'head', torso: 'ribs', armL: 'left arm', armR: 'right arm', legL: 'left leg', legR: 'right leg' };
@@ -168,7 +180,7 @@ export function treat(state, bus, medicActor, patientActor, key) {
   const mods = [self && { why: 'on yourself', v: SELF_MOD }, oneHanded(medic) && { why: 'one-handed', v: ONE_HAND_MOD }].filter(Boolean);
   const roll = (dc, extra = []) => check(state.rng, { skill: 'medicine', value: skill(medic, 'medicine'), body: medic, dc, mods: [...mods, ...extra] });
   // (a busy plan's wait is in ticks)
-  const stoop = (s, what) => { medicActor.busy = { what, on: patientActor.id, steps: [['wait', Math.round(s * 1000 / TICK_MS), medicActor.face, 'crouch']], wait: 0, since: ms }; };
+  const pace = paceOf(medic), stoop = (s, what) => { const t = what === 'pressure' ? s : s * pace; medicActor.busy = { what, on: patientActor.id, steps: [['wait', Math.round(t * 1000 / TICK_MS), medicActor.face, 'crouch']], wait: 0, since: ms }; };   // (pressure held: anyone's the same; the rest by the medic's Medicine)
   if (method === 'pressure') {
     stoop(PRESS_S, 'pressure');
     say(state, bus, { kind: 'note', text: `You press hard on ${self ? 'it' : 'the wound'}. Hold still a minute: while you do, it bleeds a third as fast. Moving lets go.` });
@@ -185,19 +197,20 @@ export function treat(state, bus, medicActor, patientActor, key) {
   if (method === 'dress' || method === 'tourniquet') {
     const i = patient.injuries?.[Number(arg)];
     if (!i || !(i.bleed > ms)) return null;
-    // (the kit's, if there's one: no penalty; else a strip of shirt, a belt)
+    // (a bandage from the kit, or no dressing at all; a tourniquet from the kit, or none)
+    if (!kitOf(medic, method === 'dress' ? 'bandage' : 'tourniquet')) return null;
     const kit = method === 'dress' ? useSupply(medic, 'bandage') : useSupply(medic, 'tourniquet');
-    const r = method === 'dress' ? roll(DRESS_DC[depth(i)], [!kit && { why: 'a strip of your shirt', v: IMPROVISED }, i.tries && { why: 'soaked from the tries before', v: RETRY_MOD * i.tries }].filter(Boolean)) : roll(TOURNIQUET_DC, kit ? [] : [{ why: 'a belt for a tourniquet', v: IMPROVISED }]);
+    const r = method === 'dress' ? roll(DRESS_DC[depth(i)], [i.tries && { why: 'soaked from the tries before', v: RETRY_MOD * i.tries }].filter(Boolean)) : roll(TOURNIQUET_DC, []);
     stoop(SECONDS[method], method);
     tend(i.part);
     let text;
     if (method === 'tourniquet') {
-      if (r.ok) { i.bleed = ms; (patient.tourniquets ??= {})[i.part] = { ms }; text = `You cinch ${kit ? 'the tourniquet' : 'a belt'} above ${whose} ${SIDE[i.part]} until it stops. Two hours, no more: tie off the artery and loosen it, or the limb pays.`; }
-      else text = `You get ${kit ? 'the tourniquet' : 'the belt'} round ${whose} ${SIDE[i.part]}, but it won't go tight enough. Still bleeding.`;
+      if (r.ok) { i.bleed = ms; (patient.tourniquets ??= {})[i.part] = { ms }; text = `You cinch the tourniquet above ${whose} ${SIDE[i.part]} until it stops. Two hours, no more: tie off the artery and loosen it, or the limb pays.`; }
+      else text = `You get the tourniquet round ${whose} ${SIDE[i.part]}, but it won't go tight enough. Still bleeding.`;
     } else if (r.ok) {
-      Object.assign(i, { dressed: true, bandage: ms }); if (kit) delete i.rag; else i.rag = true;
+      Object.assign(i, { dressed: true, bandage: ms }); delete i.rag;
       if (i.artery) { i.rate = Math.round(i.rate * ARTERY_HELD * 100) / 100; text = `You pack it and bind it hard. It slows, but an artery won't stop for a dressing: a tourniquet, or tie it off.`; }
-      else { i.bleed = ms; text = kit ? `You bind ${self ? 'it' : 'the wound'} with a bandage, tight. The bleeding stops.` : `You tear a strip from your shirt and bind ${self ? 'it' : 'the wound'} tight. The bleeding stops; it isn't clean.`; }
+      else { i.bleed = ms; text = `You bind ${self ? 'it' : 'the wound'} with a bandage, tight. The bleeding stops.`; }
     } else { i.tries = (i.tries ?? 0) + 1; text = 'You bind it, but it soaks through in a minute: not tight enough, not in the right place. No better, and messier.'; }
     return say_(text, r);
   }

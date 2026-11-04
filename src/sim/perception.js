@@ -2,7 +2,8 @@
 //
 // Everyone on the map faces a heading (a.head, radians in the ground plane: 0 east, π/2 south toward
 // the camera), set by where they walk and where they stop to look. What someone sees (eyes()):
-//   - a cone ahead, CONE_DEG wide plus CONE_PER_AWARENESS for each point of Awareness, out to a range
+//   - a cone ahead, CONE_DEG wide plus CONE_PER_AWARENESS for each point of Awareness (the player lying on the ground,
+//     awake: all round, looking about), out to a range
 //     set by the light at the spot looked at: SIGHT_M + LIGHT_M × lightLevel (sim/light.js, the one
 //     number the dice read). By day the eye reaches 52 m; at night a man under a lamp is seen from
 //     30 m, one in the dark between lamps from 15: the night street is islands of light (the user,
@@ -85,9 +86,12 @@ export const sharpM = (os = 0) => (os > SHARP_OS ? (os - SHARP_OS) ** 2 * SHARP_
 export function eyes(state, a) {
   const sheet = a.who ? state.people[a.who] : null;
   const aw = sheet ? skill(sheet, 'awareness') : CIVILIAN_AWARENESS;
+  // (you on the ground, awake: you look about you, all round (the user, 2026-11-04: "half the world is frozen some of it
+  // keeps moving", the street behind a man lying on his side drawn as it was last seen))
+  const about = a.who && a.who === state.player && a.gait === 'down' && sheet && !sheet.dead;
   return {
     x: a.x, z: a.z, head: a.head ?? headOf(a.face),
-    cone: Math.min(CONE_MAX_DEG, CONE_DEG + CONE_PER_AWARENESS * aw) * Math.PI / 360,
+    cone: about ? Math.PI : Math.min(CONE_MAX_DEG, CONE_DEG + CONE_PER_AWARENESS * aw) * Math.PI / 360,
     aware: AWARE_M + AWARE_PER * aw + sharpM(sheet?.os), glass: a.glass?.z !== undefined ? a.glass : null,
     felt: a.who && a.who === state.player ? feltPatches(state) : null,
   };

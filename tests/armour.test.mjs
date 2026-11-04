@@ -3,8 +3,9 @@
 // training, being seen); who wears it; noticing a vest up close; the arch; the words the read and first aid use; the
 // wardrobe and the door; and the carrier drawn over the top.
 import { newGame, start, step, playerActor } from '../src/sim/game.js';
-import { bullet } from '../src/sim/shooting.js';
-import { MODELS } from '../src/sim/firearms.js';
+import { bullet, npcShot } from '../src/sim/shooting.js';
+import { MODELS, newGun, armOf } from '../src/sim/firearms.js';
+import { makeAgent } from '../src/sim/agents.js';
 import { person } from '../src/sim/interact.js';
 import { sheet } from '../src/sim/people.js';
 import { startFight, resolve, MOVES } from '../src/sim/cqc.js';
@@ -233,6 +234,42 @@ export default [
       }
       console.log(`      you: "${line}"; him: "${words}"; of ${tries} AK rounds his plates stopped, ${downs} knocked him off his feet`);
       assert(tries > 50 && downs > 0 && downs < tries / 2, 'now and then off his feet');
+    },
+  },
+  {
+    name: 'armour: a patrol officer\'s pistol at you in a soft vest: his aimed rounds land centre mass, on the vest, nine in ten of those in the body stopped; a stray\'s three in four; one past the edge named for where it went',
+    fn() {
+      // (the user, 2026-11-04: "my soft vest didn't seem to stop the two bullets from the police officer shooting at me")
+      const rows = [], rate = {};
+      let edgeWords = '', edgeName = '';
+      for (const [model, d] of [['pl15', 6], ['makarov', 6], ['pl15', 15]]) {
+        const { g, me } = range0(), mine = g.people[me.who];
+        g.people.cop1 = sheet({ id: 'cop1', name: 'a police officer', cls: 'cop', skills: { weapons: [8, 0], awareness: [8, 0] } });
+        const cop = makeAgent(g, { who: 'cop1', row: g.map.row ?? 0, x: me.x + d, z: me.z }), q = g.people.cop1, id = newGun(q, model, { safety: false });
+        cop.cop = true; q.hand = id; g.rng = seedRng(11);
+        const out = { pulls: 300, hits: 0, stopped: 0, through: 0, edge: 0, arm: 0 };
+        for (let k = 0; k < out.pulls; k++) {
+          Object.assign(mine, { body: {}, injuries: [] }); delete mine.blood; delete mine.dead; AR.wear(mine, 'light');
+          const gun = armOf(q, id); gun.chamber = 'live'; if (gun.mag) q.arms[gun.mag].n = 8; gun.jam = null; gun.cond = 0.95;
+          g.time.ms += 2000; me.skid = 0; delete g.shoot;
+          npcShot(g, null, cop, q, id, me, 1.5);
+          const I = mine.injuries ?? [], wound = I.find(i => i.gunshot && !i.internal);
+          if (I.some(i => i.kind === 'blunt')) out.stopped++;
+          else if (wound?.part.startsWith('arm')) out.arm++;
+          else if (wound && /through the vest/.test(wound.name)) out.through++;
+          else if (wound) { out.edge++; edgeName ||= wound.name; edgeWords ||= g.log?.at(-1)?.text ?? ''; }
+          else continue;
+          out.hits++;
+        }
+        const torso = out.hits - out.arm;
+        rate[`${model}${d}`] = out.stopped / torso;
+        rows.push(`${MODELS[model].short} at ${d} m: ${out.hits} hits of ${out.pulls} pulls; on the body ${torso}: stopped ${out.stopped} (${pct(out.stopped / torso)}), through the vest ${out.through}, past its edge ${out.edge}; an arm ${out.arm}`);
+      }
+      const stray = volley('makarov', 'light', 500);
+      console.log(`      ${rows.join('\n      ')}\n      a stray Makarov round (no aim to it): stopped ${pct(stray.sStop)} of the body's; one past the edge: "${edgeName}"${edgeWords ? `, "${edgeWords}"` : ''}`);
+      assert(rate.pl156 > 0.85 && rate.makarov6 > 0.85 && rate.pl1515 > 0.8, 'an officer\'s aimed rounds at you in a vest: stopped nearly always');
+      assert(stray.sStop > 0.65 && stray.sStop < 0.85, 'a stray, three in four (the vest\'s cover)');
+      assert(/side|shoulder|belly/.test(edgeName) && !/chest/.test(edgeName), `past the edge, named for where: ${edgeName}`);
     },
   },
   {

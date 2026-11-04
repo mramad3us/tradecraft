@@ -4,7 +4,7 @@
 import { seedRng } from '../src/sim/rng.js';
 import { sheet } from '../src/sim/people.js';
 import { injure, bloodTick, bloodOf, bandOf, bleedRate, mods, canStand, BLOOD, takes, hurt } from '../src/sim/health.js';
-import { options, treat, bodyLine, PRESSURE_K } from '../src/sim/aid.js';
+import { options, treat, bodyLine, PRESSURE_K, secondsOf, SECONDS } from '../src/sim/aid.js';
 import { newGame, start, step, playerActor, skip } from '../src/sim/game.js';
 import { at } from '../src/sim/clock.js';
 import { assert, fmt } from './helpers.mjs';
@@ -19,6 +19,20 @@ function timeline(p) {
 
 export default [
   {
+    name: 'first aid: the time each takes by the medic\'s Medicine (the user, 2026-11-04), shown on its option; no bandage, no dressing; no tourniquet, none (no strip of shirt, no belt)',
+    fn() {
+      const rows = [0, 5, 10, 20, 30].map(m => `Medicine ${m}: a dressing ${secondsOf(person(m), 'dress')} s, stitching ${Math.round(secondsOf(person(m), 'stitch') / 60)} min`);
+      assert(secondsOf(person(0), 'dress') > SECONDS.dress * 1.5 && secondsOf(person(10), 'dress') === SECONDS.dress && secondsOf(person(30), 'dress') < SECONDS.dress * 0.6, rows.join('; '));
+      const s = { rng: seedRng(3), people: {}, time: { ms: 0 }, log: [] }, m = person(5), q = person();
+      q.injuries = [{ part: 'legL', kind: 'cut', name: 'a cut artery', bleed: 1e9, rate: 12, deep: true, artery: true }];
+      const bare = options(s, m, q).filter(o => /dress|tourniquet/.test(o.key)).map(o => `${o.key} ${o.ok ? 'ok' : 'off'} (${o.why})`);
+      m.kit = { bandage: 1, tourniquet: 1 };
+      const kitted = options(s, m, q).filter(o => /dress|tourniquet/.test(o.key)).map(o => `${o.key} ${o.ok ? 'ok' : 'off'} (${o.why})`);
+      assert(bare.every(t => / off /.test(t)) && kitted.every(t => / ok \(.*\d+ s\)/.test(t)), `${bare.join(' | ')} || ${kitted.join(' | ')}`);
+      console.log(`      ${rows.join('; ')}\n      with nothing: ${bare.join(' | ')}\n      with a kit: ${kitted.join(' | ')}`);
+    },
+  },
+  {
     name: 'the body in every roll: in shock, a dressing (and any roll naming its roller) carries the −3, not just a fight',
     fn() {
       const g = newGame({ seed: 8 });
@@ -26,7 +40,7 @@ export default [
       start(g, null);
       const me = playerActor(g), p = g.people[g.player];
       injure(p, 'armL', 0.3, g.rng, g.time.ms, { edge: true, deep: true });
-      p.blood = 60;
+      p.blood = 60; p.kit = { bandage: 1 };                          // (a dressing is a bandage from the kit: no strip of shirt now, sim/aid.js)
       const r = treat(g, null, me, me, 'dress:0');
       const why = r.mods.map(m => `${m.why} ${m.v}`);
       console.log(`      dressing your own cut at 60% blood: ${why.join(', ')}`);
@@ -62,7 +76,7 @@ export default [
         for (let seed = 1; seed <= n; seed++) {
           const s = { rng: seedRng(seed), people: {}, time: { ms: 0 }, log: [] }, m = person(med), q = person();
           q.injuries = [{ part: 'armL', kind: 'cut', name: 'a cut', bleed: 1e9, rate: kind === 'artery' ? 12 : 3, deep: true, artery: kind === 'artery' }];
-          s.people.m = m; s.people.q = q;
+          s.people.m = m; s.people.q = q; m.kit = { bandage: 1 };
           const A = { id: 'A', who: 'm', face: 'right' }, B = self ? A : { id: 'B', who: 'q', face: 'left' };
           if (self) { s.people.m.injuries = q.injuries; }
           const r = treat(s, null, A, B, 'dress:0');
@@ -77,7 +91,7 @@ export default [
       const s = { rng: seedRng(2), people: {}, time: { ms: 0 }, log: [] }, m = person(30), q = person();
       q.injuries = [{ part: 'legL', kind: 'cut', name: 'a cut artery', bleed: 1e9, rate: 12, deep: true, artery: true }, { part: 'armR', kind: 'cut', name: 'a stab', bleed: 1e9, rate: 3, deep: true }];
       hurt(q, 'armL', takes(q, 'armL') + 1);
-      s.people.m = m; s.people.q = q;
+      s.people.m = m; s.people.q = q; m.kit = { bandage: 2, tourniquet: 1 };
       m.hand = 'stick';
       const A = { id: 'A', who: 'm', face: 'right' }, B = { id: 'B', who: 'q', face: 'left' };
       const keys = options(s, m, q).map(o => o.key);

@@ -116,7 +116,8 @@ export default [
       assert(fb.rows[0].words === 'A fractured right shin' && /set, splinted/.test(fb.rows[0].care) && fb.marks.splints.includes('legR'), 'the break named, set and splinted');
       // (two in the chest: down; first aid's options before a look and after)
       const s = next();
-      bullet(g, null, s.a, 'torso', MODELS.makarov, me); bullet(g, null, s.a, 'torso', MODELS.makarov, me);
+      // (aimed at the body till two are in the chest: one in eight takes an arm, as the dice fall)
+      for (let k = 0; k < 8 && (s.p.injuries ?? []).filter(i => i.gunshot && i.part === 'torso' && !i.internal).length < 2; k++) bullet(g, null, s.a, 'torso', MODELS.makarov, me);
       const before = options(g, mine, s.p);
       assert(!before.some(o => /inside/i.test(o.label)) && before.some(o => /Press on the first wound in the chest/.test(o.label)), `before a look: no row for bleeding inside, and the wounds as seen (${before[0].label})`);
       sure(g, me, s.a);

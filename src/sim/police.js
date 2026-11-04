@@ -71,7 +71,7 @@ export function patrolTick(state) {
   const row = state.map.row ?? 0, hour = Math.floor(state.time.ms / HOUR), K = P(state);
   for (const a of cops(state)) {
     const done = !a.ai.route || a.ai.s >= a.ai.route.length - 0.05;
-    if (a.alert || a.unit || a.ems) continue;                       // (an alarm's up, or they're on a call: they stay: sim/armed.js, sim/emergency.js)                                 // (an alarm's up: they stay: sim/armed.js)
+    if (a.alert || a.unit || a.ems || a.hunt) continue;             // (an alarm's up, they're on a call, or a hunt's: they stay: sim/armed.js, sim/emergency.js, sim/hunt.js)
     if ((a.row ?? row) !== row || Math.abs(a.x - me.x) > GONE_M || (done && !a.stopping)) { state.actors.splice(state.actors.indexOf(a), 1); delete state.people[a.who]; }
   }
   if (cops(state).length) return;
@@ -86,7 +86,7 @@ export function patrolTick(state) {
       look: { skin: pick(r, K.skin), hair: { style: 'crew', color: pick(r, [0x23252f, 0x47302a]) }, shoes: 0x14151c, ...structuredClone(K.look) } });
     armCop(state, state.people[who], 'patrol', stream('patrol-arms', state.map.seed, row, hour, k));   // (its country's sidearm, holstered, or none: sim/armed.js)
     const a = makeAgent(state, { who, row, x: x0 - dir * k * 1.3, z: z + k * 0.4, speed: 1.15, face: dir > 0 ? 'right' : 'left' });
-    a.cop = true;
+    a.cop = true; a.squad = `patrol:${row}:${hour}`;                // (the pair one unit: a hunt's check a unit an hour, sim/hunt.js)
     try { setRoute(state, a, routeFrom(town, { row, x: a.x, z: a.z }, { row, x: me.x + dir * (SPAWN_M + 20), z: a.z })); } catch { a.ai.route = null; }
   }
 }
@@ -100,7 +100,7 @@ export function stopChance(state) {
 /** Once a second: officers who see you weigh you; a stop begun walks up to you and asks; walked off from, you've walked away. */
 export function eyeTick(state, bus) {
   const me = playerOf(state), S = state.$stop;
-  if (!me || me.hidden || state.fight || state.map.kind !== 'street' || state.$alarm) return;   // (an alarm's up: no papers now, sim/armed.js)
+  if (!me || me.hidden || state.fight || state.map.kind !== 'street' || state.$alarm || state.$takedown) return;   // (an alarm's up, or they're coming for you: no papers now, sim/armed.js, sim/hunt.js)
   if (S) {
     const lead = state.actors.find(a => a.id === S.lead);
     if (!lead) { delete state.$stop; return; }
@@ -113,9 +113,10 @@ export function eyeTick(state, bus) {
     else if (state.time.ms - (S.again ?? S.asked) > 6000) { S.again = state.time.ms; bus?.emit('police', { line: 'DOCUMENTS', ways: ways(state) }); }   // (the card shut without an answer: asked again)
     return;
   }
-  const odds = stopChance(state);
+  const odds = stopChance(state), row = state.map.row ?? 0;
   for (const a of cops(state)) {
-    if (a.done || (a.weighed ?? -1) >= odds || Math.hypot(a.x - me.x, a.z - me.z) > EYE_M || !seesActor(state, a, me)) continue;
+    if ((a.row ?? row) !== row) continue;                           // (one at a tape on the street you left, still in the world: not here, sim/armed.js copsHere)
+    if (a.done || a.hunt || (a.weighed ?? -1) >= odds || Math.hypot(a.x - me.x, a.z - me.z) > EYE_M || !seesActor(state, a, me)) continue;   // (a hunt's pair looks for a face, not papers: sim/hunt.js)
     a.weighed = odds;
     if (chance(stream('stop', state.map.seed, a.id, Math.floor(state.time.ms / 1000)), odds)) { state.$stop = { lead: a.id }; return; }
   }
@@ -160,10 +161,9 @@ export function answer(state, bus, key) {
   return end('"Thank you." They walk on.', PAPERS_HEAT);
 }
 
-/** A search: what shows is found, what's in a pocket by their Awareness against your Deception. */
-function search(state, bus, them, end, why = null) {
+/** What a search of the player by them turns up: what shows, and what's in a pocket by their Awareness against your Deception (+POCKET_MOD). [kind]. */
+export function searchOf(state, them) {
   const p = state.people[state.player], found = [];
-  if (why) say(state, bus, { kind: 'note', text: why });
   if (p.hand && suspicious(p.hand)) found.push(p.hand);             // (an umbrella's an umbrella: sim/weapons.js EVERYDAY)
   for (const o of placed(p).out) {
     if (!suspicious(o.kind)) continue;
@@ -171,6 +171,18 @@ function search(state, bus, them, end, why = null) {
     const r = opposed(state.rng, { skill: 'awareness', value: skill(them, 'awareness'), body: them }, { skill: 'deception', value: skill(p, 'deception'), body: p, mods: [{ why: 'in a pocket', v: POCKET_MOD }] }, { them: true });
     if (r.ok) found.push(o.kind);
   }
+  return found;
+}
+/** What they found, taken off p (from the hand, or the pockets). */
+export function take(p, found) {
+  for (const k of found) { if (p.hand === k) delete p.hand; else { const i = (p.items ?? []).indexOf(k); if (i >= 0) p.items.splice(i, 1); } }
+}
+
+/** A search: what shows is found, what's in a pocket by their Awareness against your Deception. */
+function search(state, bus, them, end, why = null) {
+  const p = state.people[state.player];
+  if (why) say(state, bus, { kind: 'note', text: why });
+  const found = searchOf(state, them);
   // (a gun carried on a permit of this country's, the one it names: read twice, written down, handed back; sim/armoury.js)
   const P = p.permit, permitted = P && P.country === state.country && P.until > state.time.ms && found.includes(P.gun);
   if (permitted) { found.splice(found.indexOf(P.gun), 1); say(state, bus, { kind: 'note', text: 'The gun, and then the permit: he reads it twice, copies its number into his notebook, and hands both back. "Keep it out of sight, sir."' }); }
@@ -178,7 +190,7 @@ function search(state, bus, them, end, why = null) {
   if (!found.length) { policeHeat(state, POLICE_SEARCH); return end('Hands down your coat, your pockets turned out: keys, a phone, coins. Nothing. "On your way." Your name\'s in the notebook.', PAPERS_HEAT); }
   policeHeat(state, POLICE_FOUND);
   // (taken; a diplomat isn't arrested: driven to the embassy's gate)
-  for (const k of found) { if (p.hand === k) delete p.hand; else { const i = (p.items ?? []).indexOf(k); if (i >= 0) p.items.splice(i, 1); } }
+  take(p, found);
   const words = found.map(k => thingName(k));
   return end(`They find ${words.length > 1 ? `${words.slice(0, -1).join(', ')} and ${words.at(-1)}` : words[0]}, and take ${found.length > 1 ? 'them' : 'it'}. Your name, a long look, a radio call: a diplomat isn't arrested, only reported. The ambassador will hear of it before the day's out.`, FOUND_HEAT, FOUND_COVER);
 }

@@ -352,7 +352,7 @@ function closedTop(g, B, look, top) {
 }
 
 function arms(g, B, look, top) {
-  const bare = top.kind === 'tee' || top.kind === 'dress', c = top.color ?? 0x353947, S = flesh(SKIN[look.skin] ?? look.skin ?? SKIN.light), T = cloth(c), loose = ['coat', 'jacket'].includes(top.kind) ? 1 : 0.4, sewn = bare ? 0 : loose;
+  const bare = (top.kind === 'tee' || top.kind === 'dress') && !top.sleeves, c = top.color ?? 0x353947, S = flesh(SKIN[look.skin] ?? look.skin ?? SKIN.light), T = cloth(c), loose = ['coat', 'jacket'].includes(top.kind) ? 1 : 0.4, sewn = bare ? 0 : loose;   // (a dress with its sleeves: sim/cities/folk.js, with a headscarf)
   const armpit = 40, cuffY = B.armIn[0][1], A = bare ? S : T;
   // (a sleeve stands off the arm, more so a coat's)
   const out = B.armOut.map(([d, y], i) => [d + (i ? sewn : 0), y]), inn = B.armIn.map(([d, y], i) => [d - (i < 4 ? sewn * 0.5 : 0), y]);

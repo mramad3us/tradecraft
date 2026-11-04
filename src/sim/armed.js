@@ -54,7 +54,7 @@ import { stream, chance, pick, range } from './rng.js';
 import { issue } from './armour.js';
 import { say } from './log.js';
 import { HOUR } from './clock.js';
-import { outside, nearestDoor } from './services.js';
+import { outside, nearestDoor, needsOf, care, hoursWords } from './services.js';
 const low = (t) => t.charAt(0).toLowerCase() + t.slice(1);
 
 export const COP_WEAPONS = { patrol: [8, 1], response: [15, 2] };
@@ -73,13 +73,37 @@ export const TIERS = {
   killed: { h: 14, heat: 80, cover: 80 },
 };
 export const HIT_RECENT_H = 2;                                       // (who your rounds hit counts against you this long: p.hitBy, sim/shooting.js)
+// (a hunt's kind as what they had you for, when it's the worse: arrested hours after a killing, for the killing: sim/hunt.js)
+export const HUNT_TIER = { fight: 'described', gun: 'gun', shots: 'shots', wounded: 'wounded', killed: 'killed' };
+const TIER_RANK = ['described', 'gun', 'shots', 'wounded', 'killed'];
 
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
 const cops = (state) => state.actors.filter(a => a.cop);
+// (those on the street you're on: only they hear your shot, see you, shout. An officer at a tape or a call on the street
+// you left stays in the world on that street; the user's, 2026-11-04: "ghosts shouting at us to get down after a gunshot",
+// a posted officer a street over, at the same x, hearing and seeing through the streets between)
+const copsHere = (state) => { const row = state.map.row ?? 0; return state.actors.filter(a => a.cop && (a.row ?? row) === row); };
 /** Whether officer c can act: alive, on their feet, not knocked flat, out on the street. */
 export function able(state, c) {
   const q = state.people[c.who];
   return !!q && !q.dead && canStand(q) && !staysDown(q) && c.gait !== 'down' && !((c.ai?.downUntil ?? 0) > state.time.ms) && !c.hidden;
+}
+
+/**
+ * An officer on their way to (x, z), each second: a new way only when where they're going has moved (CLOSE_KEEP_M), or they've
+ * got there, or they're stuck; never one begun again mid-crossing (a route starts by joining the pavement's line, which from
+ * the middle of a zebra is behind them: the user, 2026-11-04, "going back and forth"). Their route, or null.
+ */
+export const CLOSE_KEEP_M = 1.2;
+export function closeIn(state, c, x, z, route = null) {
+  const R = c.ai?.route, end = R?.pts?.at(-1), row = state.map.row ?? 0;
+  const done = !R || c.ai.s >= R.length - 0.05, still = Math.hypot(c.vx ?? 0, c.vz ?? 0) < 0.05;
+  if (!done && end && Math.hypot(end.x - x, end.z - z) < CLOSE_KEEP_M && !(still && c.ai.$stuck > 2)) { c.ai.$stuck = still ? (c.ai.$stuck ?? 0) + 1 : 0; return R; }
+  const crossing = !done && c.z > LINE.N + 1 && c.z < LINE.F - 1;   // (on the road: across first)
+  if (crossing && end && Math.abs(end.z - z) < 4) return R;
+  c.ai.$stuck = 0;
+  try { setRoute(state, c, route ?? routeFrom(townOf(state.map), { row, x: c.x, z: c.z }, { row, x, z })); } catch { c.ai.route = null; }
+  return c.ai.route;
 }
 
 /** An officer's gun, by their role and their country (patrol: holstered, or none; response: a long gun, in the hand, ready). Returns its id or null. */
@@ -111,28 +135,34 @@ export function call(state, bus, x, why = 'a call') {
 /** Once a second (sim/game.js): who's seen the gun, the order, compliance, the call, the response. */
 export function second(state, bus, me) {
   if (!me || state.map.kind !== 'street') return;
-  const p = state.people[me.who], now = state.time.ms, armed = isGun(p?.hand), A = state.$alarm;
+  const p = state.people[me.who], now = state.time.ms, A = state.$alarm;
+  // (a gun in a hand that can use it: down on the pavement you can't get it up, and they come in for it, the user's,
+  // 2026-11-04: "being brought down with a gun", armed police shouting at a man on the ground and nobody moving)
+  const held = isGun(p?.hand), armed = held && me.gait !== 'down' && canStand(p);
   const shot = state.$shotBy && now - state.$shotBy.ms < SHOT_FRESH_S * 1000 ? state.$shotBy : null;
   // (passers-by who see it, run; one in a while calls it in)
-  if (armed) for (const a of state.actors) if (isPasserby(a) && !a.hidden && !a.ai?.fled && Math.hypot(a.x - me.x, a.z - me.z) < SEE_GUN_M && seesActor(state, a, me)) {
+  if (held) for (const a of state.actors) if (isPasserby(a) && !a.hidden && !a.ai?.fled && Math.hypot(a.x - me.x, a.z - me.z) < SEE_GUN_M && seesActor(state, a, me)) {
     flee(state, a, me.x);
     if (chance(state.rng, CALL_P)) call(state, bus, me.x, 'a passer-by');
   }
   if (shot) call(state, bus, shot.x, 'the shots');
+  // (an officer on another street: out of it; you're not his to shout at)
+  const row = state.map.row ?? 0;
+  for (const c of cops(state)) if ((c.row ?? row) !== row && c.alert) { c.alert = null; if (c.ai) { c.ai.gunner = null; c.ai.closing = null; c.ai.pace = undefined; } }
   // (an officer who sees you armed, or heard you fire: the alarm, the order)
-  for (const c of cops(state)) {
+  for (const c of copsHere(state)) {
     const sees = seesActor(state, c, me), heard = shot && Math.hypot(c.x - shot.x, c.z - shot.z) < HEARD_M;
     if (sees) c.$seen = now;
-    if (!c.alert && ((sees && armed && Math.hypot(c.x - me.x, c.z - me.z) < SEE_GUN_M) || heard)) { c.alert = now; call(state, bus, me.x, 'an officer'); }
+    if (!c.alert && ((sees && held && Math.hypot(c.x - me.x, c.z - me.z) < SEE_GUN_M) || heard)) { c.alert = now; call(state, bus, me.x, 'an officer'); }
   }
-  const on = cops(state).filter(c => c.alert && able(state, c)), A2 = state.$alarm, T = state.$takedown;
+  const on = copsHere(state).filter(c => c.alert && able(state, c)), A2 = state.$alarm, T = state.$takedown;
   if (on.length && A2) {
     const shouter = on.find(c => seesActor(state, c, me));
     if (now - (A2.ordered ?? 0) >= ORDER_EVERY_S * 1000 && shouter && T?.stage !== 'pin') {
       // (said by one of them who has you in sight: where from, if you can't see them; and heard, the fog lifted round them: sim/sense.js heardFrom())
       // (a gun in your hand: drop it; your hands empty: stand still, show them)
       A2.ordered = now; if (armed) A2.since ??= now;
-      const K = policeOf(state.map), order = armed ? K.order ?? '"Police! Drop it!"' : K.halt ?? '"Police! Stand still! Hands where we can see them!"', unseen = !inView(state, shouter.id);
+      const K = policeOf(state.map), order = held ? K.order ?? '"Police! Drop it!"' : K.halt ?? '"Police! Stand still! Hands where we can see them!"', unseen = !inView(state, shouter.id);
       say(state, bus, { kind: 'note', text: unseen ? `${cap(whereFrom(me, shouter))}, ${Math.round(Math.hypot(shouter.x - me.x, shouter.z - me.z))} m off, a shout: ${order}` : order });
       heardFrom(state, shouter, 'Police');
     }
@@ -145,14 +175,15 @@ export function second(state, bus, me) {
       }
       const c = T?.stage === 'closing' && state.actors.find(a => a.id === T.cop);
       if (c?.ai) {                                                   // (each second, to where you are now)
-        c.ai.closing = now; if (c.ai.gunner) c.ai.gunner = null; c.ai.wait = 0; c.ai.pace = CLOSE_PACE;
-        try { setRoute(state, c, routeFrom(townOf(state.map), { row: state.map.row ?? 0, x: c.x, z: c.z }, { row: state.map.row ?? 0, x: me.x + Math.sign(c.x - me.x || 1) * 0.9, z: me.z })); } catch { c.ai.route = null; }
+        c.ai.closing = now; if (c.ai.gunner) { c.ai.gunner = null; delete c.$aim; } c.ai.wait = 0; c.ai.pace = CLOSE_PACE;
+        closeIn(state, c, me.x + Math.sign(c.x - me.x || 1) * 0.9, me.z);
       }
     }
     else { delete A2.empty; if (T?.stage === 'closing') state.$takedown = null; }   // (a gun back in your hand: it's the order again)
     // (still armed past the order, or firing: they engage; the unarmed back off)
     const defiant = armed && A2.since && now - A2.since >= COMPLY_S * 1000;
     for (const c of on) {
+      if (c.ai?.closing === now) continue;                           // (the one coming to cuff you walks: not a gunner again the same second, the user's, 2026-11-04: "stuck aiming/not aiming")
       const q = state.people[c.who], gun = isGun(q?.hand) ? q.hand : (q?.items ?? []).find(isGun);
       if (gun && (defiant || shot)) c.ai.gunner ??= { gun, until: now, aimed: null };
       else if (!gun && armed) c.ai.wait = Math.max(c.ai.wait ?? 0, 200);   // (unarmed: they hold back, and radio it in)
@@ -163,6 +194,9 @@ export function second(state, bus, me) {
   const R = state.$response;
   if (R && !R.came && now >= R.at && (state.map.row ?? 0) === R.row) respond(state, bus, me, R);
   if (R?.came && cops(state).filter(c => c.unit).every(c => now - (c.$seen ?? R.came) > LOST_S * 1000)) standDown(state, bus);
+  // (nobody left on this street to chase you, and nobody coming to it: the alarm's over here; what they know of you is the
+  // hunt's now, sim/hunt.js)
+  else if (A2 && !on.length && !T && !(R && !R.came && R.row === row) && now - Math.max(A2.ms, ...cops(state).map(c => c.$seen ?? 0)) > LOST_S * 1000) { delete state.$alarm; if (R && R.row !== row) delete state.$response; }
 }
 
 /** The armed response, at the stretch's edge toward where you were: RESPONDERS officers, long guns ready, alarmed. */
@@ -196,7 +230,7 @@ function standDown(state, bus) {
  * ambassador's view of you; the paper (ARRESTED) that says it all. The street's alarm over with it: their
  * description of you closed (they've had you, and let you go on the passport), nobody left shouting.
  */
-export function arrest(state, bus, me, how = 'submitted', because = null) {
+export function arrest(state, bus, me, how = 'submitted', because = null, { found = [] } = {}) {
   const p = state.people[me.who], taken = [], now = state.time.ms;
   for (const k of [p.hand, ...(p.items ?? [])]) if (isGun(k)) taken.push(k);
   const names = taken.map(k => modelOf(k)?.short ?? 'the gun');
@@ -208,19 +242,22 @@ export function arrest(state, bus, me, how = 'submitted', because = null) {
   // (what they had you for: who your rounds hit, lately, here; the shots; the gun; a description)
   const hit = state.actors.map(a => state.people[a.who]).filter(q => q && q !== p && q.hitBy?.id === state.player && now - q.hitBy.ms < HIT_RECENT_H * HOUR);
   const dead = hit.filter(q => q.dead), copsDead = dead.filter(q => q.cls === 'cop' || q.cls === 'soldier'), copsHit = hit.filter(q => q.cls === 'cop' || q.cls === 'soldier');
-  const why = because ?? state.$takedown?.why ?? state.$alarm?.why ?? null;
-  const tier = dead.length ? 'killed' : hit.length ? 'wounded' : state.$shotBy && now - state.$shotBy.ms < HIT_RECENT_H * HOUR ? 'shots' : why === 'the description' && !taken.length && !near.length ? 'described' : 'gun';
-  const T = TIERS[tier], resisted = how !== 'submitted', st = nearestDoor(state, 'police'), station = st ? low(st.label) : 'the station';   // (the nearest's: where you're let out, released())
+  const why = because ?? state.$takedown?.why ?? state.$alarm?.why ?? null, described = ['the description', 'what they found', 'the blood on you'].includes(why);
+  const facts = dead.length ? 'killed' : hit.length ? 'wounded' : state.$shotBy && now - state.$shotBy.ms < HIT_RECENT_H * HOUR ? 'shots' : described && !taken.length && !near.length ? 'described' : 'gun';
+  const H = state.hunt && state.hunt.until > now ? state.hunt : null, ht = H && HUNT_TIER[H.why];
+  const hunted = !!ht && TIER_RANK.indexOf(ht) > TIER_RANK.indexOf(facts), tier = hunted ? ht : facts;   // (the hunt's, when it's worse than what's in front of them)
+  const T = TIERS[tier], resisted = how !== 'submitted' && how !== 'searched', st = nearestDoor(state, 'police'), station = st ? low(st.label) : 'the station';   // (the nearest's: where you're let out, released())
+  const ward = underGuard(p, now);                                  // (hurt: a hospital first, under guard; the user, 2026-11-04: in shock when they took him, let out bleeding, dead on the station's steps)
   addHeat(state, T.heat); policeHeat(state, POLICE_ARREST + (resisted ? RESIST_POLICE : 0));   // (the police's own file on you: sim/police.js)
   const P = state.campaign?.posting, cover0 = P?.cover;
   if (P) P.cover = Math.max(0, (P.cover ?? 70) - T.cover);
   // (the street's alarm over: nobody left shouting, their description of you closed; the unit gone)
   for (const c of cops(state)) { c.alert = null; if (c.ai) { c.ai.gunner = null; c.ai.closing = null; c.ai.pace = undefined; } }
   state.actors = state.actors.filter(a => !a.unit);
-  delete state.$alarm; delete state.$response; delete state.$shotBy; delete state.wanted; state.$takedown = null;
+  delete state.$alarm; delete state.$response; delete state.$shotBy; delete state.hunt; state.$takedown = null;   // (and the hunt for you: they've had you, sim/hunt.js)
   me.gait = 'idle';
   const n = (k, one, many) => `${k === 1 ? one : `${k} ${many}`}`;
-  const what = {
+  const what = hunted || (H && tier === 'described') ? `${H.what}, and you the one they were looking for.` : {
     described: 'A patrol with your description from the shooting, and you in front of them in the same clothes.',
     gun: 'A gun in your hand on a public street, and police who saw it.',
     shots: 'Shots fired in the street, and you with the gun that fired them.',
@@ -229,18 +266,33 @@ export function arrest(state, bus, me, how = 'submitted', because = null) {
   }[tier];
   const lines = [
     `What they had you for: ${what.charAt(0).toLowerCase()}${what.slice(1)}`,
-    how === 'submitted' ? 'You went down when he came for you, and kept your hands where they could see them.' : how === 'shove' ? 'You tried to shove him off. Resisting arrest is on the file too.' : 'You fought them. Resisting arrest is on the file too.',
-    names.length ? `Taken, into evidence bags: ${names.join(', ')}.` : 'They took nothing: there was nothing on you to take.',
+    how === 'submitted' ? 'You went down when he came for you, and kept your hands where they could see them.' : how === 'searched' ? `You stood for the search, hands on the wall${found.length ? `, and they found ${found.join(', ')}` : why === 'the blood on you' ? ', and they saw the blood on you' : ''}.` : how === 'shove' ? 'You tried to shove him off. Resisting arrest is on the file too.' : how === 'ran' ? 'You ran when they told you to stop. Resisting arrest is on the file too.' : 'You fought them. Resisting arrest is on the file too.',
+    [...names, ...found].length ? `Taken, into evidence bags: ${[...names, ...found].join(', ')}.` : 'They took nothing: there was nothing on you to take.',
+    ...(ward ? [ward.line] : []),
     `${T.h} hours at ${station}: a bench, a long wait; the diplomatic passport, and the calls it takes. A man from the embassy signs for you, and doesn't say a word in the car.`,
     `Heat +${T.heat}; the police's file on you +${POLICE_ARREST + (resisted ? RESIST_POLICE : 0)}${P ? `; the ambassador's view of you ${cover0} → ${P.cover}` : ''}.`,
     ...(copsDead.length ? ['A police officer dead: the Foreign Ministry will have the ambassador in by the morning.'] : tier === 'killed' ? ['A death on a diplomat\'s hands: the Foreign Ministry will hear of it, and the ambassador from them.'] : []),
   ];
-  say(state, bus, { kind: 'note', text: `The cuffs, and the car. ${names.length ? 'The gun goes into an evidence bag. ' : ''}${cap(station)}, ${T.h} hours of it; the diplomatic passport, and the calls it takes. The embassy's man signs for you, and doesn't say a word in the car.` });
+  say(state, bus, { kind: 'note', text: `The cuffs, and ${ward ? 'an ambulance, an officer in the back with you: a hospital first, under guard. Then the car' : 'the car'}. ${names.length ? 'The gun goes into an evidence bag. ' : ''}${cap(station)}, ${T.h} hours of it; the diplomatic passport, and the calls it takes. The embassy's man signs for you, and doesn't say a word in the car.` });
   state.campaign?.log?.push({ ms: now, text: `Arrested: ${what.charAt(0).toLowerCase()}${what.slice(1)} ${T.h} hours at the station; the ambassador's view of you −${T.cover}.` });
   bus?.emit('papers', [{ kind: 'arrest', title: 'ARRESTED', lines }]);
-  state.$held = T.h * HOUR;                                         // (the hours at the station: sim/game.js skips them, then released())
+  state.$held = (T.h + (ward?.h ?? 0)) * HOUR;                     // (the hours at the station, and at the hospital before it: sim/game.js skips them, then released())
   state.$released = true;
   return true;
+}
+
+/**
+ * Taken in hurt (what a doctor would do for you: sim/services.js needsOf()): a hospital first, under guard, everything seen to
+ * there (care(): the bleeding stopped, stitched, the blood put back), its hours before the station's. { h, line }, or null:
+ * nothing wrong a doctor's wanted for. Its costs are the arrest's (the police took you; nothing on the hospital's records
+ * besides). The paper's line names what was done. Taken in for questioning hurt, the same (sim/hunt.js questioned()).
+ */
+export function underGuard(p, ms) {
+  const N = needsOf(p, ms);
+  if (!N.needs.length) return null;
+  care(p, ms);
+  const what = N.needs.map(n => n.words), list = what.length > 1 ? `${what.slice(0, -1).join(', ')} and ${what.at(-1)}` : what[0];
+  return { h: N.hours, line: `Hurt as you were, they took you to a hospital first, an officer at the door: ${list}. ${hoursWords(N.hours)} of it, cuffed to the bed.` };
 }
 
 /** Out of the station, its hours over (sim/game.js, after they're skipped): on its steps, the nearest station's (sim/services.js). */
@@ -258,15 +310,15 @@ export function released(state, bus, me) {
  */
 function takedown(state, bus, me) {
   const T = state.$takedown;
-  if (!T || !me) return;
+  if (!T || !me || T.suspect) return;                               // (a suspect's stop, coming up to you to search you: sim/hunt.js)
   const c = state.actors.find(a => a.id === T.cop), now = state.time.ms, mine = state.people[me.who];
   const q = c && state.people[c.who];
   if (!c || !q || q.dead || staysDown(q) || c.hidden || (c.row ?? state.map.row ?? 0) !== (me.row ?? state.map.row ?? 0)) { state.$takedown = null; return; }   // (down for good, or gone: the next of them comes)
   if (!able(state, c)) return;                                      // (staggered by a shove, knocked flat a moment: he gets up and comes on)
   if (T.stage === 'closing') {
     if (state.$reflex || state.fight || Math.hypot(c.x - me.x, c.z - me.z) > GRAB_M) return;
-    if (isGun(mine?.hand)) { state.$takedown = null; return; }
     const down = me.gait === 'down' || !canStand(mine);
+    if (isGun(mine?.hand) && !down) { state.$takedown = null; return; }   // (on your feet with it: the order again; down with it, he comes on and takes it)
     if (!down && state.$reflexes && !T.offered) {
       T.offered = true;
       const his = state.people[c.who], name = cap(his?.name ?? 'an officer'), he = his?.sex === 'f' ? 'her' : 'him';
@@ -286,8 +338,8 @@ function takedown(state, bus, me) {
     if (now >= T.until) arrest(state, bus, me, T.how ?? 'submitted');
   }
 }
-// (taken down: face to the pavement, the knee, the cuffs; PIN_S of it)
-function pin(state, bus, me, c, how) {
+// (taken down: face to the pavement, the knee, the cuffs; PIN_S of it; a suspect who shoved and lost, too: sim/hunt.js)
+export function pin(state, bus, me, c, how) {
   // (you fall away from him, face down, your middle PIN_BODY_M on from your feet as a body lying is drawn (src/render/crowd.js
   // DOWN); he kneels at your back, a little behind you up the picture, facing you, so you're seen under his hands)
   const T = state.$takedown, side = Math.sign(c.x - me.x) || 1, mid = me.x - side * PIN_BODY_M;
@@ -353,11 +405,11 @@ function gunner(state, bus, a, me) {
     const d = Math.hypot(me.x - a.x, me.z - a.z), mine = state.people[me.who];
     if (state.$reflexes && inView(state, a.id) && check(state.rng, { skill: 'awareness', value: skill(mine, 'awareness'), body: mine, dc: GUN_SEEN_DC + Math.round(d / 5) }).ok) {
       G.read = true;
-      const held = isGun(mine.hand), who = p.name ?? 'the officer';
+      const held = isGun(mine.hand), who = p.name ?? 'the officer', floored = me.gait === 'down' || !canStand(mine);   // (on the ground: no gun up, no running: sim/shooting.js)
       if (offer(state, bus, { why: 'gun', title: `${who.charAt(0).toUpperCase() + who.slice(1)}, ${p.hand === id ? 'bringing his gun up' : 'going for his gun'}`, x: a.x, who: a.id, options: [
-        ...(held ? [{ key: 'drop', label: 'Drop it, show your hands', do: 'drop' }] : []),
-        ...(isArmed(mine) ? [{ key: 'draw', label: held ? 'Aim at him' : 'Your gun', do: 'draw' }] : []),
-        { key: 'run', label: 'Run for it', do: 'run' },
+        ...(held ? [{ key: 'drop', label: floored ? 'Let go of it, show your hands' : 'Drop it, show your hands', do: 'drop' }] : []),
+        ...(isArmed(mine) && !floored ? [{ key: 'draw', label: held ? 'Aim at him' : 'Your gun', do: 'draw' }] : []),
+        ...(!floored ? [{ key: 'run', label: 'Run for it', do: 'run' }] : []),
       ] })) return;
     }
   }
@@ -366,8 +418,9 @@ function gunner(state, bus, a, me) {
   if (M.safety === 'manual' && g.safety) return step('safety');
   if (M.safety === 'selector' && g.mode === 'safe') return step('selector');
   if (!ready(g, M)) { const fix = canDo(p, id).find(k => ['clear', 'rack', 'release', 'insertMag', 'closeCyl'].includes(k)); if (fix) return step(fix); a.ai.gunner = null; return; }
-  if (!seesActor(state, a, me)) { a.head = to; G.aimed = null; G.until = now + 250; delete a.$aim; return; }
-  if (G.hold) { a.head = to; a.$aim = { x: me.x, z: me.z, ms: now }; G.aimed = null; G.until = now + 250; return; }   // (covering you: aimed, the finger off the trigger)
+  const face = () => { a.head = to; a.face = Math.abs(Math.cos(to)) > Math.abs(Math.sin(to)) ? (Math.cos(to) > 0 ? 'right' : 'left') : (Math.sin(to) > 0 ? 'down' : 'up'); };   // (turned to you, body and all: the user, 2026-11-04, "not even looking our way")
+  if (!seesActor(state, a, me)) { face(); G.aimed = null; G.until = now + 250; delete a.$aim; return; }
+  if (G.hold) { face(); a.$aim = { x: me.x, z: me.z, ms: now }; G.aimed = null; G.until = now + 250; return; }   // (covering you: aimed, the finger off the trigger)
   a.$aim = { x: me.x, z: me.z, ms: G.aimed ?? now };                // (where the gun points, for the figure's pose: src/art)
   if (G.aimed === null || G.aimed === undefined) { G.aimed = now + aimMs(p, a, me.x, me.z, id); a.head = to; a.face = Math.abs(Math.cos(to)) > Math.abs(Math.sin(to)) ? (Math.cos(to) > 0 ? 'right' : 'left') : (Math.sin(to) > 0 ? 'down' : 'up'); G.until = G.aimed; return; }
   a.head = to;

@@ -20,6 +20,8 @@
 import { ageOf, betweenWords } from '../sim/career.js';
 import { townOf, localize, cityById, CITIES, CITY_IDS, cityWords } from '../sim/cities/index.js';
 import { LANG_NAME } from '../sim/langs.js';
+import { badges as huntBadges } from '../sim/hunt.js';
+import { KEEP_S } from '../sim/reflex.js';
 import { shopWord } from '../sim/shops.js';
 import { needsWords } from '../sim/needs.js';
 import { price, cashOf } from '../sim/money.js';
@@ -66,7 +68,7 @@ import { CHOICES as TALK_CHOICES } from '../sim/talk.js';
 import { LESSONS, FARM, lessonOf, numberOf, nextLesson } from '../sim/tutorial/index.js';
 import { READ_S, WORD_S } from '../sim/tutorial/earpiece.js';
 import { HEARSAY } from '../sim/hale.js';
-import { plaque, place, bracket } from './plaque.js';
+import { plaque, place, bracket, badge } from './plaque.js';
 import { waiting as waitingFor } from '../sim/emergency.js';
 import { options as shootOptions, targets as shootTargets, odds as shootOdds, gunsOf, aimMs } from '../sim/shooting.js';
 import { said as gunSaid, armOf, modelOf as gunModel } from '../sim/firearms.js';
@@ -123,9 +125,10 @@ export function createUI({ input, cb }) {
   const signs = el('div', { className: 'tags' });                  // the places that are yours, over their doors (a scenario's signs())
   const feltTags = el('div', { className: 'tags' });                // what's felt, not seen (sim/sense.js): over them, or at the picture's edge
   const goal = el('canvas', { className: 'plaque goal', hidden: true });   // where you're going, when it's off the picture (src/ui/plaque.js)
+  const hunted = el('div', { className: 'tags hunted', hidden: true }, ...[0, 1, 2].map(() => el('canvas', { className: 'plaque' })));   // the hunt for you: what you think they have (sim/hunt.js badges())
   const prompt = el('div', { className: 'prompt', hidden: true });
   const veil = el('div', { className: 'bloodveil' });                 // (the blood lost: the world dims and reddens at the edges)
-  const hud = el('div', { id: 'hud' }, veil, signs, tags, feltTags, marker, bubble, intent, ...states, you, pointed, speech, reach, ask, talkbox, bout, moves, gunPanel, frameA, frameT, reticle, goal, prompt, watch, toasts, earpiece, keys, banner);
+  const hud = el('div', { id: 'hud' }, veil, signs, tags, feltTags, marker, bubble, intent, ...states, you, pointed, speech, reach, ask, talkbox, bout, moves, gunPanel, frameA, frameT, reticle, goal, hunted, prompt, watch, toasts, earpiece, keys, banner);
   const menu = el('div', { className: 'overlay', hidden: true });
   const log = el('div', { className: 'overlay', hidden: true });
   const paper = el('div', { className: 'overlay', hidden: true });     // a brief, a result
@@ -328,6 +331,9 @@ export function createUI({ input, cb }) {
       const [name, far] = gl.name ? [gl.name, gl.far] : String(gl.label).split(' · ');
       place(goal, plaque({ text: name, sub: far ? shortFar(far) : null, style: gl.kind ?? 'way', icon: way, notch: false }), cx, cy, k0, cx < RES[0] / 2 ? 'left' : 'right');
     }
+    // The hunt for you (sim/hunt.js): three icons at the top of the picture, its middle: your face, your clothes, where you are;
+    // red, they have it; green, clear; grey with a question mark, you can't tell.
+    { const B = huntBadges(state); hunted.hidden = !B; if (B) B.forEach((b, i) => place(hunted.children[i], badge(b.key, b.state), RES[0] / 2 - 22 + i * 16, 10, k0, 'left')); }
     // What's felt (sim/sense.js): named over them on the picture; off it, or on another street, at its edge, the way they lie.
     while (feltTags.children.length < fl.length) feltTags.append(el('canvas', { className: 'plaque' }));
     [...feltTags.children].forEach((t, i) => {
@@ -824,11 +830,18 @@ export function createUI({ input, cb }) {
   const numbered = (list, ok = () => true) => { let k = 0; return list.map(o => [o, ok(o) ? ++k : 0]); };
 
   /** A few choices on a card ([{ key, label }]), each a button that closes it and does it (a taxi's where to). */
-  function openChoices(stamp, title, list, act) {
+  // (a reflex's card: its keep, R or a click, the answer given again for the same kind of moment for a while: sim/reflex.js KEEP_S)
+  function openChoices(stamp, title, list, act, { keep = false } = {}) {
+    let kept = false;
+    const toggle = keep ? el('button', { className: 'keep', onclick: () => flip() }) : null;
+    const flip = () => { kept = !kept; toggle.textContent = `R · keep to this answer for ${Math.round(KEEP_S / 60)} minutes: ${kept ? 'on' : 'off'}`; toggle.classList.toggle('on', kept); };
     card.replaceChildren(el('div', { className: 'mind glass choices' },
       el('div', { className: 'mind-head' }, glassHead(stamp, title, CHOICE_ICON[stamp] ?? 'pin')),
-      el('div', { className: 'glass-list' }, ...list.map((o, i) => el('button', { className: 'item', disabled: !!o.off, dataset: { n: i + 1 }, onclick: () => { closeOverlays(); act(o.key); } }, el('kbd', {}, String(i + 1)), el('span', {}, o.label), o.off ? el('small', {}, o.off) : null))),
+      el('div', { className: 'glass-list' }, ...list.map((o, i) => el('button', { className: 'item', disabled: !!o.off, dataset: { n: i + 1 }, onclick: () => { closeOverlays(); act(kept ? `${o.key}!keep` : o.key); } }, el('kbd', {}, String(i + 1)), el('span', {}, o.label), o.off ? el('small', {}, o.off) : null))),
+      toggle,
       el('p', { className: 'mind-foot' }, `${list.length > 9 ? '1–9, 0' : '1–9'} or a click. ${input.label('menu')} to close.`)));
+    if (toggle) { kept = true; flip(); }
+    card.$keep = toggle ? flip : null;
     card.hidden = false;
     card.dataset.kind = 'choices';
     menu.hidden = log.hidden = true;
@@ -905,6 +918,7 @@ export function createUI({ input, cb }) {
     else if (!talkbox.hidden) { const n = digit(e); if (n >= 1 && n <= TALK_CHOICES.length) { e.preventDefault(); cb.talk?.(TALK_CHOICES[n - 1].id); } }
     else if (!card.hidden && card.dataset.kind === 'tube') { if (card.$tubeKey?.(e)) e.preventDefault(); }   // (the Underground's map: src/ui/tubemap.js)
     else if (!card.hidden && card.dataset.kind === 'mind') { const n = digit(e); if (n ? card.$mindKey?.({ key: String(n) }) : card.$mindKey?.({ code: e.code })) e.preventDefault(); }   // (the mind's leaves, the city's window: src/ui/mind.js)
+    else if (!card.hidden && card.dataset.kind === 'choices' && card.$keep && e.code === 'KeyR') { e.preventDefault(); card.$keep(); }   // (a reflex's keep: sim/reflex.js)
     else if (!card.hidden && ['aid', 'inventory', 'choices'].includes(card.dataset.kind)) { const n = digit(e) || (/^(?:Digit|Numpad)0$/.test(e.code) ? 10 : 0); const b = n && card.querySelector(`button[data-n="${n}"]`); if (b) { e.preventDefault(); b.click(); } }   // (0: the tenth)
   });
 

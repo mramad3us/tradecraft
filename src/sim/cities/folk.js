@@ -68,7 +68,8 @@ export const cairoName = nameOf(CAIRO);
 /**
  * A look for someone on a city's street (a sprite spec), as sim/people.js streetLook() is Moscow's:
  * `climate` 'cold' (coats, a few hats: London), 'mild' (jackets and shirts: Beirut, Cairo);
- * `scarf` the share of women in a headscarf; `robe` the share of older men in a galabeya.
+ * `scarf` the share of women in a headscarf (and with it, nothing that bares the arms or the legs); `robe` the share of
+ * older men in a galabeya.
  */
 function cityLook(r, sex, age, { climate = 'cold', scarf = 0, robe = 0, shades = 0.4, hats = 1 }) {
   const bgd = backgrounds.get(r), grey = age > 55 && chance(r, 0.7);
@@ -100,6 +101,10 @@ function cityLook(r, sex, age, { climate = 'cold', scarf = 0, robe = 0, shades =
     look.hat = { kind: 'hijab', color: chance(r, 0.4) ? look.top.color : pick(r, SCARVES) };
     look.hair.style = 'short';
     if (top === 'dress' || chance(r, 0.6)) look.legs = top === 'dress' ? look.top.color : look.legs;
+    // (and nothing that shows skin with it, the user, 2026-11-04: a T-shirt's a jumper of its colour, a dress long-sleeved and to
+    // the ankle; after the dice, so nobody else's look moves)
+    if (top === 'tee') look.top = { kind: 'sweater', color: look.top.color, trim: 0x23252f };
+    if (top === 'dress') { look.top.sleeves = true; look.legs = look.top.color; }
   } else {
     const hat = weighted(r, [[null, 6], ['beanie', cold ? 2 * hats : 0.2], ['cap', 0.8 * hats], ['fedora', sex === 'm' && age > 40 ? 0.5 * hats : 0.05]]);
     if (hat) look.hat = { kind: hat, color: hat === 'beanie' ? pick(r, [...BRIGHT, ...COATS.slice(0, 6)]) : pick(r, COATS.slice(0, 8)) };

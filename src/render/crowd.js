@@ -17,8 +17,9 @@
 //
 // Frames follow the sim, not a clock: a walker's step advances with the distance they've walked
 // (STEP_M a frame), so feet never slide, and a run's longer stride shows. A sitter's card stands on
-// the seat (SEAT). A fighter's gait is its frame (guard, punch, grab, reel); someone down lies: the
-// card turned on its side, its back to where they fell from (DOWN). Each card has a blob of shadow
+// the seat (SEAT); a crouch, and someone sat on the ground against a wall (gait 'slump': sim/wounded.js), are the
+// same frame on the ground. A fighter's gait is its frame (guard, punch, grab, reel); someone down lies: the
+// card turned on its side, its back to where they fell from (DOWN); crawling, the same card, sliding, the head first. Each card has a blob of shadow
 // under it (a second instanced draw), as in the samples.
 //
 // **A gun in the hand** (the user, 2026-11-03: "when aiming, the sprites should show us aiming"): its look is
@@ -256,7 +257,7 @@ export function createCrowd(scene, renderer) {
       const f = armed && GUN.has(p.frame) ? p.frame
         : p.gait === 'walk' ? `walk${Math.floor(p.stride / STEP_M.walk) % 4}`
         : p.gait === 'run' ? `run${Math.floor(p.stride / STEP_M.run) % 4}`
-        : p.gait === 'sit' || p.gait === 'crouch' ? 'sit' : p.gait === 'phone' || p.gait === 'hail' ? p.gait : FIGHT.has(p.gait) ? p.gait : p.gait === 'down' ? 'reel' : `idle${((Math.floor((p.t ?? t) * 2 + p.phase) % 2) + 2) % 2}`;   // (game time runs negative before 2026: the Farm's 2007)
+        : p.gait === 'sit' || p.gait === 'crouch' || p.gait === 'slump' ? 'sit' : p.gait === 'phone' || p.gait === 'hail' ? p.gait : FIGHT.has(p.gait) ? p.gait : p.gait === 'down' ? 'reel' : `idle${((Math.floor((p.t ?? t) * 2 + p.phase) % 2) + 2) % 2}`;   // (game time runs negative before 2026: the Farm's 2007)
       if (!s.full && !ON_STREET.has(f) && !(armed && GUN.has(f))) { drawSheet(s.slot, p.look); s.full = true; }   // (a fight: its frames, now)
       const fk = p.flash && armed && `${p.look.hand}|${p.face}|${f}`, fl = fk && flashSlot.has(fk) && nf < MAX_FLASHES && flashOf(p.look.hand, p.face, f);
       if (fl) {
@@ -268,7 +269,7 @@ export function createCrowd(scene, renderer) {
         aSlot.setX(nf, flashSlot.get(fk));
         nf++;
       }
-      const slot = s.slot, sit = p.gait === 'sit';                  // (a crouch is the same pose, on the ground)
+      const slot = s.slot, sit = p.gait === 'sit';                  // (a crouch is the same pose, on the ground; so is someone slumped against a wall)
       if (p.gait === 'down') {                                      // (on their back, the head away from whoever they faced)
         const s = p.face === 'left' ? -1 : 1;
         m4.makeRotationZ(s * Math.PI / 2).setPosition(snap(p.x + s * DOWN.x), DOWN.y, snap(p.z));

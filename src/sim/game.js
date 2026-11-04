@@ -37,7 +37,7 @@ import { populate, recycle, think, walk, facing, isPasserby, noticeAgent } from 
 import { look, headOf, faceOf, GLASS_MAX_DEG } from './perception.js';
 import { isAgent, onMap, stepAgent, watchTarget, routeFollower, ROUTE_EVERY } from './agents.js';
 import { drift, asOfficer, uniformed } from './people.js';
-import { heal, bleeding, bloodTick, bandOf, canStand, canRun, mobility, kill, BLOOD, COME_ROUND_S } from './health.js';
+import { heal, bleeding, bloodTick, bandOf, canStand, canRun, mobility, kill, exertion, BLOOD, COME_ROUND_S } from './health.js';
 import { PRESSURE_K, treat } from './aid.js';
 import { diagnose } from './diagnosis.js';
 import { atKerb, destinations, ride, cabFor, hailedBy, board, rideTick, chaseTick, WALK_OFF_M, BOARD_M } from './taxi.js';
@@ -64,6 +64,7 @@ import * as fight from './fight.js';
 import * as shooting from './shooting.js';
 import * as armed from './armed.js';
 import * as emergency from './emergency.js';
+import * as hunt from './hunt.js';
 import * as reflex from './reflex.js';
 import { onFoot, rollWeeks } from './fitness.js';
 import { rustRoll } from './rust.js';
@@ -333,6 +334,7 @@ export function step(state, input = {}, bus) {
   fight.tick(state, bus, scenario);
   shooting.tick(state, bus);                                       // (a gun's step played out: sim/shooting.js)
   armed.tick(state, bus);                                          // (an officer's gun readied, and fired, in real time: sim/armed.js)
+  hunt.tick(state, bus);                                           // (a suspect's stop, the officer at your side: sim/hunt.js)
   scenario.tick?.(state, bus);
   if (state.tutor) tutorTick(state, bus);                          // (a lesson: Hale in your ear: sim/tutorial/earpiece.js)
   state.$offer = me && !state.fight && !scenario.holds?.(state) ? affordance(state, me) : null;   // (nothing's at hand in a fight, or while the scene has your feet)
@@ -365,7 +367,7 @@ export function step(state, input = {}, bus) {
     } else if (me) me.$atStop = 0;
     metro.stepsTick(state);                                         // (whoever rode with you, up the steps after you: sim/metro.js)
     chaseTick(state);                                               // (whoever kept your taxi in sight, out of their car behind you: sim/taxi.js)
-    if (scenario.police && !state.tutor) { police.patrolTick(state); police.eyeTick(state, bus); armed.second(state, bus, me); emergency.second(state, bus, me); }   // (and the emergency services: sim/emergency.js)   // (ordinary law: sim/police.js; a gun seen, sim/armed.js)
+    if (scenario.police && !state.tutor) { police.patrolTick(state); police.eyeTick(state, bus); armed.second(state, bus, me); emergency.second(state, bus, me); hunt.second(state, bus, me); }   // (and the emergency services: sim/emergency.js)   // (ordinary law: sim/police.js; a gun seen, sim/armed.js)
     if (state.$held) { const ms = state.$held; delete state.$held; skip(state, bus, ms); armed.released(state, bus, playerActor(state)); }
     if (state.$hospital) emergency.afterHospital(state, bus, me, skip);   // (taken to hospital: the hours there, sim/emergency.js)   // (taken in: the hours at the station, sim/armed.js arrest())
     if (state.tick % (TICKS_PER_S * 60) === 0 && state.people[state.player]) bodyNotes(state, bus, heal(state.people[state.player], 1 / 1440, state.time.ms, { blood: false }));   // (your wounds, a minute on: sim/medicine.js)
@@ -458,7 +460,9 @@ function bodyHeat(state, bus, me, minutes, skipped = false) {
  */
 function react(state, bus, me, o, R, scenario) {
   if (scenario.onReflex?.(state, bus, o, R)) return;
+  if (R?.auto) say(state, bus, { kind: 'note', text: `As you'd settled it: ${o.label.charAt(0).toLowerCase()}${o.label.slice(1)}.` });   // (an answer kept for a while: sim/reflex.js)
   if (R?.why === 'arrest' && armed.arrestChoice(state, bus, me, o, R)) return;   // (an officer at your side with the cuffs: sim/armed.js)
+  if (R?.why === 'suspect' && hunt.suspectChoice(state, bus, me, o, R)) return;   // (stopped as a suspect, to be searched: sim/hunt.js)
   const [what, arg] = String(o.do).split(':'), p = state.people[me.who], now = state.time.ms, away = Math.sign(me.x - (R?.x ?? me.x - 1)) || 1;
   const them = R?.who && state.actors.find(a => a.id === R.who);
   // (a hand reaching: stepped back from or run from, it misses; met, the fight's first edge is yours)
@@ -499,7 +503,7 @@ export function bloodBeat(state, bus, a, s) {
   const p = state.people[a.who];
   if (!p || p.dead || (p.blood === undefined && !bleeding(p, state.time.ms))) return;
   const pressed = state.actors.some(o => o.busy?.what === 'pressure' && (o.busy.on ?? o.id) === a.id);   // (their own hand, or someone's on it: sim/aid.js)
-  let band = bloodTick(p, s, state.time.ms, pressed ? PRESSURE_K : 1);
+  let band = bloodTick(p, s, state.time.ms, (pressed ? PRESSURE_K : 1) * exertion(a));   // (and faster on the move: sim/health.js exertion())
   if (band === 'collapsed' && p.collapsedAt && !bleeding(p, state.time.ms) && state.time.ms - p.collapsedAt >= COME_ROUND_S * 1000) {
     p.blood = BLOOD.collapse + 0.5; band = bandOf(p);             // (lying flat, nothing bleeding: the blood to the head again)
     if (a.ai) a.ai.downUntil = state.time.ms;

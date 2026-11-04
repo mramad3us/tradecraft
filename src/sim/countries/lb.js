@@ -8,6 +8,7 @@ export const LB = {
     ask: '"Your papers?"',
     order: '"Drop it! On the ground, now!"',                         // (the order to drop it: sim/armed.js)
     halt: '"Stop! Don\'t move! Hands up!"',     // (and to stand still, your hands empty: sim/armed.js)
+    stay: '"Stop there, please. Stay where you are."',     // (a suspect told to wait where they are, to be searched: sim/hunt.js)
     // (the ISF and the army bear arms; army checkpoints and patrols in the city; their rifles, M16s and M4s and AKs: uncertain)
     arms: { patrol: ['glock17', 'browning'], patrolLong: ['m16a4', 'm4'], response: ['m4', 'akm'], visible: 'army checkpoints with rifles' },
     // (the response is soldiers: the army's olive, a soldier each, sim/armed.js; in plate carriers)

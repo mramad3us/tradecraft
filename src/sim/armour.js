@@ -15,7 +15,13 @@
 // **Where it covers** (COVER): the torso only, and not all of it. A torso hit lands on the protected area by its
 // share: a soft vest wraps the chest, the back and the belly to the navel (0.75 of hits); a carrier's plates are the
 // box over the heart and the lungs (0.5), its soft panels a quarter more round them, the shoulders, the flanks, the
-// lower belly bare. A limb, the neck: nothing. **The head**: a helmet (p.helmet, the armed response's where its country
+// lower belly bare. That's a hit anywhere on the torso; a shot well aimed lands nearer the middle of it (the user,
+// 2026-11-04: "my soft vest didn't seem to stop the two bullets from the police officer shooting at me": a patrol's
+// centre-mass shots got past it a flat quarter of the time): a hit made by a margin m of its roll (sim/shooting.js)
+// is drawn from the middle AIM_K × min(1, m / AIM_MARGIN) more of the time (a soft vest's three in four become 0.94
+// for a hit made by 10, a carrier's plates' half two in three), a stray's and a fumble's as it comes. A round that
+// lands past the armour's edge is named for where (sim/shooting.js EDGES: the side under the arm, the shoulder, the
+// lower belly), so it reads as what it was. A limb, the neck: nothing. **The head**: a helmet (p.helmet, the armed response's where its country
 // issues them: police.armour.helmet), its dome HELMET_COVER of hits to the head (the face bare): a handgun's round turned
 // nearly always, a rifle's seldom (STOP.helmet), the blow behind it a daze (HELMET_DAZE_S) and no wound.
 // **What stops what** (STOP, of the rounds that land on it, by the calibre: sim/firearms.js CALIBRES): soft armour
@@ -125,11 +131,15 @@ export const colorOf = (p) => p?.armour?.color ?? armourOf(p)?.color ?? 0x23252f
 /** What the picture draws of it (src/art/sprites.js, src/art/doll.js): a carrier's { color, patch }, or null (none, or a vest under the top). */
 export const pictureOf = (p) => (showsArmour(p) ? { color: colorOf(p), ...(p.armour.patch ? { patch: true } : {}) } : null);
 
-/** Where a torso hit lands on what they wear: 'plate', 'soft', or null (where it doesn't cover). r: the dice. */
-export function layerHit(p, r) {
+// (a hit's place on the torso, drawn from the middle out: a well-aimed one, by its margin, nearer the middle)
+export const AIM_K = 0.2, AIM_MARGIN = 10;
+/** How much a hit made by margin m (its roll's) is pulled to the middle of the torso: 0 (a stray, a fumble) … 1. */
+export const centreOf = (m = 0) => Math.max(0, Math.min(1, (m ?? 0) / AIM_MARGIN));
+/** Where a torso hit lands on what they wear: 'plate', 'soft', or null (where it doesn't cover). r: the dice; centre: centreOf() the hit's margin. */
+export function layerHit(p, r, centre = 0) {
   const C = armourOf(p)?.cover;
   if (!C) return null;
-  const u = r ? range(r, 0, 1) : 0.5;
+  const u = (r ? range(r, 0, 1) : 0.5) * (1 - AIM_K * centre);
   if (u < (C.plate ?? 0)) return 'plate';
   if (u < (C.plate ?? 0) + (C.soft ?? 0)) return 'soft';
   return null;
@@ -144,12 +154,12 @@ export const dice = (p, ms, salt = '') => stream('armour', p?.id ?? '', ms, salt
 
 /**
  * A bullet of calibre cal (its weight, dmg: sim/firearms.js CALIBRES) into p's torso, bulletPts its points, from d
- * metres: null where it missed the armour; else { layer, stopped, k (a round through: its damage × this), blunt
+ * metres (centre: centreOf() its roll's margin): null where it missed the armour; else { layer, stopped, k (a round through: its damage × this), blunt
  * (points on the torso), crack (a rib cracked), knockS (winded, seconds), down (knocked off their feet) }. The layer's
  * hits counted (p.armour.hits).
  */
-export function bullet(p, cal, calDmg, bulletPts, d, r) {
-  const layer = layerHit(p, r);
+export function bullet(p, cal, calDmg, bulletPts, d, r, centre = 0) {
+  const layer = layerHit(p, r, centre);
   if (!layer) return null;
   const hits = p.armour.hits?.[layer] ?? 0, stopped = chance(r, stopChance(layer, cal, d, hits));
   if (!stopped) return { layer, stopped: false, k: PEN_K[layer] };

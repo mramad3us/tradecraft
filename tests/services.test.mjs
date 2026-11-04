@@ -15,7 +15,7 @@ import { ways } from '../src/sim/shops.js';
 import { HOSPITAL_HEAT } from '../src/sim/aid.js';
 import { POLICE_HOSPITAL, policeHeatOf } from '../src/sim/police.js';
 import { heat } from '../src/sim/heat.js';
-import { seenLook } from '../src/sim/emergency.js';
+import { start as startHunt } from '../src/sim/hunt.js';
 import { injure, addInjury, bloodOf, bleeding } from '../src/sim/health.js';
 import { stream } from '../src/sim/rng.js';
 import { atDoor, walkIn, walk, spotOf } from './shopwalk.mjs';
@@ -155,7 +155,7 @@ export default [
       p.injuries = [{ part: 'torso', kind: 'cut', name: 'a gunshot wound in the chest', ms, until: ms + 30 * DAY, bleed: ms + 6 * HOUR, rate: 0.8, deep: true, gunshot: true },
         { part: 'torso', kind: 'cut', name: 'bleeding inside, from the chest wound', ms, until: ms + 30 * DAY, bleed: ms + 3 * HOUR, rate: 0.6, deep: true, gunshot: true, internal: true }];
       p.body = { torso: 8 }; p.blood = 66;
-      g.wanted = { look: seenLook(p.look), ms, until: ms + 4 * DAY, city: g.map.city ?? null, hit: true };
+      startHunt(g, null, { why: 'wounded', x: me.x, who: true, wearing: true });   // (they have your face and your clothes: sim/hunt.js)
       const N = needsOf(p, ms), T = treat(w);
       const inside = p.injuries.find(i => i.internal);
       console.log(`      needs ${N.needs.map(n => `${n.key.replace(/\d+$/, '')} ${n.h} h`).join(', ')} → ${N.hours} h (${N.urgent ? 'straight through' : 'the wait first'}, reported: ${N.reported}); after ${fmt(T.h, 2)} h of the clock (the hospital's and the station's): the bleeding inside ${inside.bleed > ms ? 'NOT stopped' : 'stopped'}, blood ${Math.round(bloodOf(p))}%; heat +${T.heat}, the police's file +${T.police}\n      "${T.lines.join(' / ')}"`);

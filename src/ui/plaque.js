@@ -80,6 +80,39 @@ export function plaque({ text, sub = null, style = 'way', icon = null, notch = t
   return out;
 }
 
+// The hunt's three icons (sim/hunt.js badges()), 7 × 7: who you are (a head and shoulders), what you wear (a coat), where (a pin).
+const BADGES = {
+  face: ['..###..', '.#####.', '.#####.', '..###..', '...#...', '.#####.', '#######'],
+  clothes: ['.##.##.', '#######', '#######', '.#####.', '.#####.', '.#####.', '.#####.'],
+  place: ['.#####.', '##...##', '##...##', '.#####.', '..###..', '...#...', '...#...'],
+};
+// (red: they have it; green: they don't, or it's not you now; grey and a question mark: you can't tell)
+const BADGE_STYLE = {
+  burned: { face: 0x9e3c36, hi: 0xc4574e, lo: 0x6e2a2e, glyph: 0xf6f4ee },
+  clear: { face: 0x356f42, hi: 0x4f8a5a, lo: 0x24503a, glyph: 0xf6f4ee },
+  unknown: { face: 0x4c5262, hi: 0x6a7182, lo: 0x353947, glyph: 0x8f96a6 },
+};
+const BADGE_WORDS = { face: 'your face', clothes: 'your clothes', place: 'where you are' }, STATE_WORDS = { burned: 'they have it', clear: 'clear', unknown: 'you can\'t tell' };
+/** One of the hunt's icons, an enamel square 13 × 13 like a plaque's (place() it 'left'): { canvas, w, h, tip, words }. */
+export function badge(icon, state) {
+  const key = `badge|${icon}|${state}`;
+  if (kept.has(key)) return kept.get(key);
+  const S = BADGE_STYLE[state] ?? BADGE_STYLE.unknown, n = 13, cv = document.createElement('canvas');
+  cv.width = n + 1; cv.height = n + 1;
+  const g = cv.getContext('2d'), px = (x, y, ww = 1, hh = 1, c = INK) => { g.fillStyle = typeof c === 'string' ? c : hex(c); g.fillRect(x, y, ww, hh); };
+  px(1, 1, n, n, SHADOW); px(0, 0, n, n, INK);
+  px(1, 1, n - 2, n - 2, S.face); px(1, 1, n - 2, 1, S.hi); px(1, n - 2, n - 2, 1, S.lo);
+  for (const [x, y] of [[0, 0], [n - 1, 0], [0, n - 1], [n - 1, n - 1]]) g.clearRect(x, y, 1, 1);
+  BADGES[icon].forEach((row, j) => [...row].forEach((b, i) => { if (b === '#') px(3 + i, 3 + j, 1, 1, S.glyph); }));
+  if (state === 'unknown') {                                       // (a question mark, 3 × 5, on a pixel of ink round it, at its top right)
+    px(n - 5, 0, 5, 7, INK);
+    ['###', '..#', '.##', '...', '.#.'].forEach((row, j) => [...row].forEach((b, i) => { if (b === '#') px(n - 4 + i, 1 + j, 1, 1, 0xf8e08a); }));
+  }
+  const out = { canvas: cv, w: cv.width, h: cv.height, tip: Math.floor(n / 2), words: `${BADGE_WORDS[icon]}: ${STATE_WORDS[state]}` };
+  kept.set(key, out);
+  return out;
+}
+
 /**
  * Corner brackets round what's picked (shooting's target: src/ui/ui.js), w × h pixels, in a style's colours: four
  * corners, a pixel of ink round each so they show on snow and on night alike. Placed as a plaque is, its tip the

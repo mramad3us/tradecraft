@@ -147,6 +147,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 
 /* Faces you've marked, over them: typed slips. */
 .tags { position: absolute; inset: 0; pointer-events: none; }
+.tags[hidden] { display: none; }
 /* The plaques over the picture (src/ui/plaque.js): drawn at its pixels, scaled as it is, on its grid. */
 .plaque { position: absolute; left: 0; top: 0; image-rendering: pixelated; pointer-events: none; }
 .plaque[hidden] { display: none; }
@@ -326,6 +327,9 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 /* The glass cards (first aid, the choices: src/ui/ui.js): the mind's glass, rows not tables. */
 .overlay .mind.glass { width: min(calc(760px * var(--ui, 1)), 96%); }
 .overlay .mind.glass.choices { width: min(calc(560px * var(--ui, 1)), 94%); }
+/* a reflex's keep: its answer given again for the same kind of moment a while (sim/reflex.js KEEP_S) */
+.mind.glass.choices .keep { margin: 8px 0 0; background: none; border: 1px dashed #4c5262; color: #8f96a6; padding: 3px 10px; cursor: pointer; border-radius: 2px; font: inherit; font-size: calc(12px * var(--ui, 1)); }
+.mind.glass.choices .keep.on { border: 1px solid #e7b84a; color: #f8e08a; }
 /* Your books (src/ui/ui.js openBooks()): a row each, the read ones dimmed, the list scrolling past a dozen. */
 .overlay .mind.glass.books { width: min(calc(640px * var(--ui, 1)), 94%); }
 .books-list { max-height: calc(60vh); overflow-y: auto; }

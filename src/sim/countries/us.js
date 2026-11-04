@@ -8,6 +8,7 @@ export const US = {
     ask: '"License and ID, please."',
     order: '"Police! Drop the gun! Drop it!"',                         // (the order to drop it: sim/armed.js)
     halt: '"Police! Don\'t move! Show me your hands!"',     // (and to stand still, your hands empty: sim/armed.js)
+    stay: '"Police. Stop right there for me."',     // (a suspect told to wait where they are, to be searched: sim/hunt.js)
     arms: { patrol: ['glock17'], patrolLong: ['m4', 'rem870'], response: ['m4', 'glock17'], visible: 'patrols' },
     response: { unit: 'SWAT', minutes: [5, 15] },
     // (body armour, sim/armour.js: most patrol officers in a soft vest under the shirt, standard issue; SWAT in olive-drab carriers, POLICE across them)

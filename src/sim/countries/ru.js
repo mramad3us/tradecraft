@@ -8,6 +8,7 @@ export const RU = {
     ask: '"Документы, пожалуйста." Documents, please.',
     order: '"Полиция! Бросай оружие!" Police! Drop it!',                         // (the order to drop it: sim/armed.js)
     halt: '"Полиция! Стоять! Руки!" Police! Stand still! Hands!',     // (and to stand still, your hands empty: sim/armed.js)
+    stay: '"Полиция. Остановитесь, пожалуйста." Police. Stop there, please.',     // (a suspect told to wait where they are, to be searched: sim/hunt.js)
     // (a holstered pistol on every patrol: the Makarov still about, the PL-15K since 2021; some patrols an AKS-74U; Rosgvardia's AK-74M)
     arms: { patrol: ['pl15', 'makarov'], patrolLong: ['aks74u'], response: ['ak74m', 'pya'], visible: 'Rosgvardia at events and stations' },
     response: { unit: 'Rosgvardia', minutes: [6, 12] },

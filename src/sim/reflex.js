@@ -16,17 +16,23 @@
 // Reflexes are the played game's (state.$reflexes, set by src/main.js for every game it starts; state.$reflex,
 // the moment, is runtime too: a save never holds a stopped clock): the scripted players of the balance tests
 // don't answer a card.
+// An answer kept (the user, 2026-11-04: "the reflex window is spammed on us too, there should be a way to remember our
+// choice for a while"): chosen with the card's keep on ('<key>!keep'), the same kind of moment (its why) is answered the
+// same way for KEEP_S without the clock stopping, where that answer's still among its options (state.$reflexKeep,
+// runtime; the log says so: sim/game.js react()).
 import { opposed } from './checks.js';
 import { skill } from './skills.js';
 import { isGun } from './firearms.js';
 
-export const RUN_S = 3, BACK_M = 1.6, MISS_S = 2, REACH_M = 2.2, READ_AGAIN = 4, READS_MAX = 3;
+export const RUN_S = 3, BACK_M = 1.6, MISS_S = 2, REACH_M = 2.2, READ_AGAIN = 4, READS_MAX = 3, KEEP_S = 120;
 export const NONE = { key: 'none', label: 'Nothing: let it come', do: 'none' };
 
 /** A moment seen coming: time stops, and the choice is the player's. Returns whether it was offered. */
 export function offer(state, bus, { why, title, text = '', options, none = null, ...more }) {
   if (!state.$reflexes || state.$reflex || state.fight || state.shoot || state.talk) return false;
   state.$reflex = { why, title, text, options: [...options, none ? { ...NONE, label: none } : NONE], ms: state.time.ms, ...more };
+  const K = state.$reflexKeep?.[why];
+  if (K && K.until > state.time.ms && state.$reflex.options.some(o => o.key === K.key)) { state.$reflex.auto = K.key; return true; }   // (kept: answered at once, src/main.js)
   bus?.emit('reflex', state.$reflex);
   return true;
 }
@@ -36,6 +42,7 @@ export function chosen(state, key) {
   const R = state.$reflex;
   if (!R) return null;
   state.$reflex = null;
+  if (String(key).endsWith('!keep')) { key = key.slice(0, -5); if (key !== 'none') (state.$reflexKeep ??= {})[R.why] = { key, until: state.time.ms + KEEP_S * 1000 }; }
   return R.options.find(o => o.key === key) ?? NONE;
 }
 

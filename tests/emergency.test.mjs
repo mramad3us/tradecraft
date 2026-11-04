@@ -6,6 +6,7 @@ import { newGame, start, step, playerActor } from '../src/sim/game.js';
 import { bullet } from '../src/sim/shooting.js';
 import { MODELS } from '../src/sim/firearms.js';
 import { etaOf, waiting, seenLook, markViolent, CORDON_H } from '../src/sim/emergency.js';
+import { wearOf, faceP } from '../src/sim/hunt.js';
 import { policeOf } from '../src/sim/countries/index.js';
 import { assert, fmt } from './helpers.mjs';
 
@@ -69,22 +70,31 @@ export default [
     },
   },
   {
-    name: 'emergency: seen at it, you\'re described: an officer who sees you dressed so knows you; a change of coat, and he doesn\'t',
+    name: 'emergency: shots fired and nobody hit: a passer-by who heard them calls the police (the police alone, to where the shots were), and the hunt for the gunman begins (the user, 2026-11-04)',
+    fn() {
+      const g = newGame({ seed: 4, scenario: 'walk', city: 'moscow', hour: 12, weather: 'clear' }), log = [];
+      const bus = { emit: (k, v) => { if (k === 'log') log.push(v.text ?? ''); }, on() {} };
+      start(g, bus);
+      for (let t = 0; t < 40; t++) step(g, {}, bus);
+      const me = playerActor(g);
+      g.$shotBy = { ms: g.time.ms, x: me.x, z: me.z };
+      let n = 0;
+      for (; n < 60 && !(g.calls ?? []).length; n++) for (let t = 0; t < 20; t++) step(g, {}, bus);
+      const c = (g.calls ?? [])[0], H = g.hunt;
+      assert(c && c.shots && !c.who.length && c.ambulance.stage === 'done' && c.police.stage !== 'done' && H?.why === 'shots', `call ${JSON.stringify(c && { shots: c.shots, who: c.who, amb: c.ambulance.stage, pol: c.police.stage })}; the hunt ${H?.why}`);
+      console.log(`      called in ${n} s after the shot: the police in ${fmt((c.at.police - c.ms) / 60000, 1)} min, no ambulance; the hunt: ${H.what}, your face ${H.who.known ? 'described' : 'not'}, your clothes ${H.wearing.known ? 'described' : 'not'}`);
+    },
+  },
+  {
+    name: 'emergency: seen at it, you\'re described: the call starts the hunt for you, as bad as its casualties (here someone shot), with what the caller had (your clothes; your face by how near and how lit)',
     fn() {
       const w = scene();
       markViolent(w.g, w.me);
       while (!(w.g.calls ?? []).length) seconds(w, 1);
-      const W = w.g.wanted, p = w.g.people[w.g.player];
-      assert(W && W.look === seenLook(p.look), 'described as you are');
-      // (an officer by you, looking at you)
-      const c = w.g.calls[0]; c.at.police = w.g.time.ms + 15000; c.at.ambulance = w.g.time.ms + 1e9;
-      const v = scene(); markViolent(v.g, v.me); while (!(v.g.calls ?? []).length) seconds(v, 1);
-      v.g.people[v.g.player].look = { ...v.g.people[v.g.player].look, top: { kind: 'coat', color: 0x123456 } };   // (another coat)
-      for (let s = 0; s < 120 && !w.g.$alarm; s++) seconds(w, 1);
-      const vc = v.g.calls[0]; vc.at.police = v.g.time.ms + 15000; vc.at.ambulance = v.g.time.ms + 1e9;
-      for (let s = 0; s < 120; s++) seconds(v, 1);
-      assert(w.g.$alarm && !v.g.$alarm, `known: ${!!w.g.$alarm}; in another coat: ${!!v.g.$alarm}`);
-      console.log(`      described: ${W.look}; the officers who came knew you (${w.log.find(l => /description/.test(l)) ?? '?'}); in another coat, they didn't`);
+      const H = w.g.hunt, p = w.g.people[w.g.player], V = w.g.$violent;
+      assert(H && H.why === 'wounded' && H.where.row === (w.g.map.row ?? 0) && Math.abs(H.where.x - V.x) < 0.01 && H.wearing.known === (H.wearing.look === wearOf(p)) && H.next >= w.g.calls[0].at.police - 1, `the hunt: ${JSON.stringify(H && { why: H.why, who: H.who.known, wearing: H.wearing.known })}`);
+      const out = [0.5, 3, 7, 12, 20].map(d => `${d} m ${Math.round(faceP(d, 1) * 100)}%`).join(', '), dark = Math.round(faceP(3, 0.1) * 100);
+      console.log(`      ${H.what}: the caller ${fmt(V.d, 1)} m off; your clothes ${H.wearing.known ? 'described' : 'not'}, your face ${H.who.known ? 'described' : 'not'}; a caller's chance of your face by day: ${out}; 3 m in the dark ${dark}%`);
     },
   },
 ];
