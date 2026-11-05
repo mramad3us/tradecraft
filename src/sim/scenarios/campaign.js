@@ -765,7 +765,7 @@ function arriveWith(state, k) {
   const t = state.scenario.tail;
   if (!k) return;
   if (k.by === 'taxi') { behind(state, k.kept.map(i => join(state, t.crew[i], 0)), { plain: k.team === 'covert' }); t.teamSeenMs = now + CHASE_WAIT_S * 1000; }
-  else if (k.by === 'metro') { t.arrival = { x: me.x, z: me.z }; k.kept.forEach((i, n) => t.pending.push({ crew: i, at: now + Math.round(range(r, ...RIDER_S) * 1000) + n * 900, bus: true, metro: true })); t.teamSeenMs = now; }
+  else if (k.by === 'metro') { t.arrival = { x: me.x, z: me.z, ms: now }; k.kept.forEach((i, n) => t.pending.push({ crew: i, at: now + Math.round(range(r, ...RIDER_S) * 1000) + n * 900, bus: true, metro: true })); t.teamSeenMs = now; }
   else { for (const i of k.kept) join(state, t.crew[i], -range(r, 14, 22)); t.teamSeenMs = now; }
   fix(state);                                                       // (they came with you: they know where you got out)
 }

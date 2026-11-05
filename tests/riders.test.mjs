@@ -80,7 +80,8 @@ export default [
     heavy: true,
     fn() {
       const T = { plain: { n: 0, down: 0, kept: 0, up: 0 }, doors: { n: 0, down: 0, kept: 0, up: 0, noted: 0 } };
-      for (let seed = 1; seed <= 80; seed++) {
+      // (240 evenings: at 80 only 14 reached a station, and the doors' keeping fewer could come out the other way by chance; 0.2.0-rc1's did)
+      for (let seed = 1; seed <= 240; seed++) {
         const g = newGame({ seed, scenario: 'sdr', weather: 'clear' }), how = seed % 2 ? 'plain' : 'doors';
         start(g, null);
         const sc = g.scenario, me = playerActor(g), row = g.map.row ?? 0;
