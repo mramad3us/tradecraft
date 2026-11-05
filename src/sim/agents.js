@@ -132,7 +132,10 @@ export const PLANNERS = {
 };
 
 /** An agent's route: its own (ai.route), or the one its plan makes (runtime: ai.$route). */
-export const routeOf = (state, a) => a.ai.route ?? a.ai.$route ?? (a.ai.plan ? (a.ai.$route = PLANNERS[a.ai.plan.kind](state, a.ai.plan)) : null);
+// (a plan the planner can't make from where they stand (knocked up a lane's dead end in a fight: city.js "stranded at"): no
+// route, the plan dropped, and they stand there till the crowd lets them go; a tick that threw would cost the scene)
+export const routeOf = (state, a) => a.ai.route ?? a.ai.$route ?? (a.ai.plan ? (a.ai.$route = planned(state, a)) : null);
+function planned(state, a) { try { return PLANNERS[a.ai.plan.kind](state, a.ai.plan); } catch { a.ai.plan = null; return null; } }
 
 // (the legs by the speed: past RUN_GAIT_MS a run, its stride and its frames, src/render/crowd.js; someone fleeing a shot
 // runs, not a very fast walk: the user, 2026-11-03)

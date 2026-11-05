@@ -279,7 +279,7 @@ export function foldMission(c, a, sc, endMs, lines) {
     for (const x of p.assets) x.trust = Math.min(5, x.trust + 1);
     if (linked) p.heat = Math.min(100, p.heat + LINKED_HEAT);
     lines.push(`${who} is out: over the border by morning, and debriefed for a week in a house with a garden. Intelligence +${intel}; the ${p.level === 'illegal' ? 'Center' : 'station'}'s thanks, support +${OUT_AS}.`,
-      s ? `The network's one short, and the rest of it a little braver for knowing we take care of our own: trust up.` : `A colleague home, alive. Nobody will ever say so in writing.`,
+      !s ? 'A colleague home, alive. Nobody will ever say so in writing.' : p.assets.length ? 'The network\'s one short, and the rest of it a little braver for knowing we take care of our own: trust up.' : 'The network was one man, and he\'s gone home: the next will have to be found.',
       linked ? `They saw you with ${her}. Your face is in a file now beside ${who}'s: heat up, a lot.` : 'Nobody saw your face beside theirs, as far as you know.');
   } else if (o === 'taken') {
     (c.after ??= []).push(...taken(c, a, endMs, linked, `${who} was taken in the street, with you there.`));
@@ -315,7 +315,7 @@ export function debugMission({ seed = 7, city = 'moscow', level = 'undercover', 
   c.now = day0 * DAY + 20 * HOUR;
   for (const k of c.calls ?? []) k.done = c.now;
   c.briefed = true;
-  c.assignments = c.assignments.filter(x => dayOf(x.from) < day0);  // (the evening's own business set aside)
+  c.assignments = []; c.plannedTo = day0 + 2;                       // (the week's own business cleared: nothing missed before it, nothing that evening)
   const s = who === 'asset' ? (p.assets[0] ? Object.assign(p.assets[0], { burned: true }) : null) : null;
   const a = task(c, 'extract', s, c.now);
   if (!a) return { campaign: c, a: null };
