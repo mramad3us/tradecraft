@@ -314,7 +314,7 @@ export function createUI({ input, cb }) {
       const s = sgs[i], sx = s && RES[0] / 2 + (s.x - cam0.x) * 16, sy = s && RES[1] / 2 + (s.z - cam0.z) * 16 - (s.lift ?? 3.0) * 16;
       t.hidden = !s || sx < -40 || sx > RES[0] + 40 || sy < 0 || sy > RES[1];
       if (t.hidden) return;
-      place(t, plaque({ text: s.label, style: s.kind ?? 'way', icon: s.icon ?? PLACE_ICON[s.kind] ?? 'pin' }), sx, sy, k0);
+      place(t, plaque({ text: s.label, sub: s.sub ?? null, style: s.kind ?? 'way', icon: s.icon ?? PLACE_ICON[s.kind] ?? 'pin' }), sx, sy, k0);   // (a second, quieter part: how far, how they are: a scene's own, sim/scenarios/extraction.js)
     });
     // Where you're going (a scenario's goal(): { row, x, z, label }), at the picture's edge when it's off it.
     const gl = !sc.outcome && SCENARIOS[sc.kind]?.goal?.(state);
@@ -605,7 +605,7 @@ export function createUI({ input, cb }) {
   function placeBalloons(view, now, W) {
     if (!balloons.size) return;                                    // (nobody talking: no layout read, so no reflow forced every frame)
     const k = W / RES[0], cam = view?.camera;
-    const o = speech.getBoundingClientRect(), tagBoxes = [intent, reach, bubble, ...states].filter(e => !e.hidden && e.isConnected)
+    const o = speech.getBoundingClientRect(), tagBoxes = [intent, reach, bubble, ...states, ...signs.children].filter(e => !e.hidden && e.isConnected)   // (and a scene's plaques: whoever you're bringing out, sim/scenarios/extraction.js signs())
       .map(e => { const r = e.getBoundingClientRect(); return { left: r.left - o.left, right: r.right - o.left, top: r.top - o.top, bottom: r.bottom - o.top }; })
       .sort((a, b) => b.top - a.top);
     for (const [id, b] of balloons) {

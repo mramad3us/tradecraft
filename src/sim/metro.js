@@ -88,7 +88,7 @@ export function riders(state, me, to, doors = false) {
   const out = [];
   for (const a of state.actors) {
     const f = a.ai?.follow;
-    if (f?.id !== me.id || f.lost) continue;
+    if (f?.id !== me.id || f.lost || f.heel) continue;              // (someone at your heel: the scene's, sim/scenarios/extraction.js)
     const them = state.people[a.who], d = Math.hypot(a.x - me.x, a.z - me.z);
     if (d <= BOARD_M && seesActor(state, a, me) && !!them && stays(state, them, to, d, doors)) out.push(a); else f.lost = true;
   }

@@ -60,6 +60,9 @@
 // handler's (posting(): sim/legends.js deepPosting()), its heat's floor nothing (heatFloor()), blown not expelled (blow()), the job
 // lost the posting lost (pass()), the week's review left at a drop, an illegal's taskings one after another (nextTasking()); the
 // career's offers and the next posting are sim/postings.js's.
+// **The kinetic missions** (0.2's: DESIGN.md, The kinetic missions): a deep posting's (KINDS.extract, and the others to come), tasked
+// by the station's word at a drop when an asset's compromised (fold(): sim/kinetic.js onBurned()) or as the station's own business
+// (pass(): daily()); their scenes' context and their folding back are sim/kinetic.js's (contextOf(), foldMission()).
 import { kindOf, regen } from './support.js';
 import { stream, int, pick, chance, range, weighted, hash } from './rng.js';
 import { sheet, streetLook } from './people.js';
@@ -78,6 +81,7 @@ import { LANG_NAME } from './langs.js';
 import { POLICE_COOL_DAY } from './police.js';
 import { LESSON_BOOK, lessonBook, sceneOf } from './lessons.js';
 import { deepPosting, backstory, isDeep, DEEP_LEVELS, GOAL_DEEP, DEEP_CITIES } from './legends.js';   // (0.2's deep postings: DESIGN.md, Career: The deep postings)
+import { onBurned, daily, contextOf, foldMission, isKinetic, callOf, MISSIONS } from './kinetic.js';   // (the kinetic missions of a deep posting: DESIGN.md, The kinetic missions)
 export { LESSON_BOOK, lessonBook, sceneOf };
 export const LESSON_GAP_H = 2, LESSON_XP_K = 0.4;
 
@@ -86,6 +90,7 @@ export const KINDS = {
   tail: { name: 'A tail', scenario: 'tail', about: 'Follow the target from his door to whoever he meets, and don\'t be seen.' },
   watch: { name: 'A photograph', scenario: 'watch', about: 'Photograph the target at his meeting, and don\'t let his minder see you do it.' },
   lesson: { name: 'Hale\'s exercise', scenario: null, about: 'One of Hale\'s exercises, on the posting\'s own streets: him in your ear, the station\'s people playing the parts.' },   // (its scene the lesson's: sim/tutorial/)
+  extract: { name: MISSIONS.extract.name, scenario: MISSIONS.extract.scenario, about: MISSIONS.extract.about },   // (a kinetic mission's, a deep posting's: sim/kinetic.js)
 };
 /**
  * Hale's exercises, booked (the user, 2026-11-04: "unless we accept tutorials from Hale, which instead of teleporting us
@@ -512,13 +517,14 @@ export function agenda(c, ms) {
 function miss(c, a) {
   a.status = 'missed';
   const p = c.posting;
+  if (isKinetic(a)) { a.ended = a.to; foldMission(c, a, { outcome: 'missed' }, a.to, []); c.log.push({ ms: a.to, text: `Missed: ${callOf(a.mission)} waited on the bench, and nobody came.` }); c.done.push(a); return; }   // (whoever was to be brought out, left to them: sim/kinetic.js)
   if (a.kind === 'sdr' && !a.trip) { const s = p.assets.find(x => x.id === a.who); if (s) s.trust = Math.max(-5, s.trust - 1); }
   if (a.trip) { p.cover = Math.max(0, p.cover - COVER_MISSED); c.log.push({ ms: a.to, text: `Missed: the ${cityById(a.trip).name} trip. The station there noticed, and so did yours.` }); c.done.push(a); return; }
   c.log.push({ ms: a.to, text: a.kind === 'lesson' ? `Missed: Hale's exercise, ${(lessonBook(a.lesson)?.title ?? 'the street').toLowerCase()}. He waited, and went home; ring him for another evening.` : a.kind === 'sdr' ? `Missed: ${who(c, a)} waited on the bench for nothing. Trust down.` : `Missed: ${who(c, a)}'s evening, unwatched.` });
   c.done.push(a);
 }
 /** Whom an assignment was about (an asset's codename, a target's name), or null (an asset arrested since: gone from the network). */
-const nameOf = (c, a) => { if (a.kind === 'lesson') return 'Hale'; const T = a.trip && c.posting.trips?.find(t => t.id === a.who); return (T ? T.asset?.codename ?? T.target?.name : a.kind === 'sdr' ? c.posting.assets.find(x => x.id === a.who)?.codename : c.posting.targets.find(x => x.id === a.who)?.name) ?? null; };
+const nameOf = (c, a) => { if (a.kind === 'lesson') return 'Hale'; if (a.mission) return callOf(a.mission); const T = a.trip && c.posting.trips?.find(t => t.id === a.who); return (T ? T.asset?.codename ?? T.target?.name : a.kind === 'sdr' ? c.posting.assets.find(x => x.id === a.who)?.codename : c.posting.targets.find(x => x.id === a.who)?.name) ?? null; };
 const who = (c, a) => nameOf(c, a) ?? 'someone';
 
 /**
@@ -541,6 +547,7 @@ export function pass(c, from, to) {
     if (p.heat > 1) p.heatEver = true;
     p.heat = Math.max(heatFloor(p), p.heat - 1);
     regen(c);                                                       // (the agency's support, its day's worth back: sim/support.js)
+    if (isDeep(p) && !c.over && !c.blown) daily(c, d);              // (the station's own business, a kinetic mission's word: sim/kinetic.js)
     if (p.police) p.police = Math.max(0, p.police - POLICE_COOL_DAY);   // (and the police's: sim/police.js)
     // (a safe house they saw you go into: the station hears by morning)
     for (const s of p.safehouses.filter(x => x.seen && !x.burned && x.seen < dayMs + DAY)) {
@@ -550,7 +557,7 @@ export function pass(c, from, to) {
     }
     // (a compromised asset may be taken; heat at the top, and you're out)
     const ar = stream('arrest', c.seed, d);
-    for (const s of p.assets.filter(x => x.burned && !x.arrested)) if (chance(ar, ARREST_PER_DAY)) {
+    for (const s of p.assets.filter(x => x.burned && !x.arrested && !x.rescue)) if (chance(ar, ARREST_PER_DAY)) {   // (one the station's bringing out lies low till then: sim/kinetic.js)
       s.arrested = dayMs; p.heat = Math.min(100, p.heat + 10);
       papers.push({ kind: 'news', title: `${s.codename}: ARRESTED`, lines: [`The evening news: ${s.role} detained on suspicion of espionage.`, `${s.codename} won't make the next signal, or any. Whoever followed you to the bench made sure of that.`, 'Heat up. The station will want to know how.'] });
       c.log.push({ ms: dayMs + 20 * HOUR, text: `${s.codename} arrested.` });
@@ -725,6 +732,9 @@ export function context(c, a) {
     if (L?.scene === 'sdr') Object.assign(ctx, { team: teams ? weighted(rr, teams) : 'none', asset: { codename: 'SOLOVEY', role: 'Petrov of the station, playing an asset' } });
     if (a.lesson === 'tailing') ctx.target = { name: 'Piotr Lisowski', what: 'of the station\'s political section, playing the man you follow tonight' };
     if (a.lesson === 'blown') ctx.heat = 90;
+  } else if (isKinetic(a)) {
+    contextOf(c, a, ctx);                                            // (the mission, the safe houses, the faces made for them: sim/kinetic.js)
+    ctx.heat = heat;
   } else if (a.kind === 'tail' || a.kind === 'watch') {
     const t = fileOf(c, T ? T.target : p.targets.find(x => x.id === a.who), city);
     // (his file: his look, his craft (how careful: Pathfinding, Awareness, his way, his checks), the man he meets)
@@ -797,7 +807,7 @@ export function fold(c, a, sc, player, endMs, heatNow) {
       lines.push(`${s.codename} handed it over, and nobody saw: intelligence +${s.yield}. Trust up.`);
       if (s.trust >= TRUSTED && s.yield < 2) { s.yield = 2; lines.push(`${s.codename} trusts you now: from here on, more of what matters.`); }
     }
-    else if (sc.outcome === 'burned') { a.intel = s.yield; p.intelligence += s.yield; s.trust = Math.max(-5, s.trust - 2); p.heat = Math.min(100, p.heat + 10); s.burned = true; lines.push(`You met ${s.codename} with a tail on you. The intelligence is yours (+${s.yield}); ${s.codename}'s face is theirs. Heat up; the asset is at risk.`); }
+    else if (sc.outcome === 'burned') { a.intel = s.yield; p.intelligence += s.yield; s.trust = Math.max(-5, s.trust - 2); p.heat = Math.min(100, p.heat + 10); s.burned = true; lines.push(`You met ${s.codename} with a tail on you. The intelligence is yours (+${s.yield}); ${s.codename}'s face is theirs. Heat up; the asset is at risk.`); onBurned(c, s, endMs); }   // (under a legend, maybe the word to bring him out: sim/kinetic.js)
     else if (sc.outcome === 'right') lines.push(`You called it off, and you were right: they were on you. ${s.codename} is safe, and will wait for the next signal.`);
     else if (sc.outcome === 'needless') { s.trust = Math.max(-5, s.trust - 1); lines.push(`You called it off, and nobody was on you. ${s.codename} waited, and wonders why. Trust down.`); }
     else { s.trust = Math.max(-5, s.trust - 1); lines.push(`${s.codename} waited for nothing. Trust down.`); }
@@ -819,6 +829,11 @@ export function fold(c, a, sc, player, endMs, heatNow) {
     // (the tail's endings, sim/scenarios/tail.js: seen, lost, made, blown)
     else if (sc.outcome === 'made' || sc.outcome === 'blown') { t.wary = true; p.heat = Math.min(100, p.heat + (sc.outcome === 'blown' ? 12 : 6)); lines.push(`${t.name} made you. He'll be careful now, and someone will hear of it.`); }
     else lines.push(`${t.name} got away from you.`);
+  } else if (isKinetic(a)) {
+    const T = foldMission(c, a, sc, endMs, lines);                   // (its outcome into the posting: sim/kinetic.js)
+    goalMet(c, endMs, lines);
+    plan(c, endMs);
+    return { title: `${T.title}: ${outcomeWord(a.kind, a.known).toUpperCase()}`, lines };
   } else if (a.kind === 'watch') {
     const t = p.targets.find(x => x.id === a.who);
     // (the photograph's endings, sim/scenarios/watch.js: photo, soft, seen, missed, blown)

@@ -75,7 +75,7 @@ export function patrolTick(state) {
   const row = state.map.row ?? 0, hour = Math.floor(state.time.ms / HOUR), K = P(state);
   for (const a of cops(state)) {
     const done = !a.ai.route || a.ai.s >= a.ai.route.length - 0.05;
-    if (a.alert || a.unit || a.ems || a.hunt) continue;             // (an alarm's up, they're on a call, or a hunt's: they stay: sim/armed.js, sim/emergency.js, sim/hunt.js)
+    if (a.alert || a.unit || a.ems || a.hunt || a.scene) continue;  // (an alarm's up, they're on a call, or a hunt's, or a scene's business: they stay: sim/armed.js, sim/emergency.js, sim/hunt.js, sim/scenarios/extraction.js)
     if ((a.row ?? row) !== row || Math.abs(a.x - me.x) > GONE_M || (done && !a.stopping)) { state.actors.splice(state.actors.indexOf(a), 1); delete state.people[a.who]; }
   }
   if (cops(state).length) return;
@@ -120,7 +120,7 @@ export function eyeTick(state, bus) {
   const odds = stopChance(state), row = state.map.row ?? 0;
   for (const a of cops(state)) {
     if ((a.row ?? row) !== row) continue;                           // (one at a tape on the street you left, still in the world: not here, sim/armed.js copsHere)
-    if (a.done || a.hunt || (a.weighed ?? -1) >= odds || Math.hypot(a.x - me.x, a.z - me.z) > EYE_M || !seesActor(state, a, me)) continue;   // (a hunt's pair looks for a face, not papers: sim/hunt.js)
+    if (a.done || a.hunt || a.scene || (a.weighed ?? -1) >= odds || Math.hypot(a.x - me.x, a.z - me.z) > EYE_M || !seesActor(state, a, me)) continue;   // (a hunt's pair looks for a face, not papers: sim/hunt.js)
     a.weighed = odds;
     if (chance(stream('stop', state.map.seed, a.id, Math.floor(state.time.ms / 1000)), odds)) { state.$stop = { lead: a.id }; return; }
   }

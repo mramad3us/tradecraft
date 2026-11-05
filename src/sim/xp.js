@@ -22,12 +22,13 @@ import { practise, ROLL_SESSION } from './rust.js';
 
 export const COST0 = 8, COST_FROM = 20, COST_K = Math.pow(6.25, 1 / 20);   // (a point: 8 XP at 20, 50 at 40, 312 at 60, some 7,000 at 95)
 export const ROLL_XP = 0.1;
-export const MISSION_XP = { sdr: 12, tail: 10, watch: 10, range: 6 };   // (a range: an evening of the hands, less of the craft; Hale's lesson there, sim/tutorial/range.js)
+export const MISSION_XP = { sdr: 12, tail: 10, watch: 10, range: 6, extract: 30 };   // (a range: an evening of the hands, less of the craft; Hale's lesson there, sim/tutorial/range.js; an extraction, all of it at once: sim/kinetic.js)
 export const OUTCOME_K = {
   sdr: { clean: 1, burned: 0.5, right: 0.8, needless: 0.25, missed: 0.2, incident: 0.1 },
   tail: { seen: 1, lost: 0.4, made: 0.3, spooked: 0.3, missed: 0.3, blown: 0.1 },
   watch: { photo: 1, soft: 0.7, seen: 0.5, missed: 0.2, blown: 0.2 },
   range: { done: 1, early: 0.6, stopped: 0.3, left: 0.2 },
+  extract: { out: 1, taken: 0.4, killed: 0.3, captured: 0.3, bolted: 0.35, lost: 0.3, stranded: 0.45, missed: 0.05, unread: 0 },
 };
 export const CRAFT_K = { careless: 0.85, trained: 1.15, sharp: 1.35, jumpy: 1.25 };
 export const TEAM_K = { none: 1, overt: 1.2, covert: 1.5 };

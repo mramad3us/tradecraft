@@ -80,7 +80,7 @@ export const TIERS = {
 };
 export const HIT_RECENT_H = 2;                                       // (who your rounds hit counts against you this long: p.hitBy, sim/shooting.js)
 // (a hunt's kind as what they had you for, when it's the worse: arrested hours after a killing, for the killing: sim/hunt.js)
-export const HUNT_TIER = { fight: 'described', gun: 'gun', shots: 'shots', wounded: 'wounded', killed: 'killed', blown: 'gun' };   // (blown: a spy's, sim/prison.js, whatever the tier)
+export const HUNT_TIER = { fight: 'described', gun: 'gun', exfil: 'gun', shots: 'shots', wounded: 'wounded', killed: 'killed', blown: 'gun' };   // (blown: a spy's, sim/prison.js, whatever the tier; exfil: seen with someone they wanted, the same)
 const TIER_RANK = ['described', 'gun', 'shots', 'wounded', 'killed'];
 
 const playerOf = (state) => state.actors.find(a => a.who === state.player);

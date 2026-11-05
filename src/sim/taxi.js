@@ -125,7 +125,7 @@ export function ride(state, bus, to, { scenario, skip, loadRow, cab = false, see
 }
 
 /** Whoever's following you that sees you get in, now (within CHASE_SEE_M, you in sight): their ids. */
-export const watching = (state, me) => state.actors.filter(a => a.ai?.follow?.id === me.id && !a.ai.follow.lost && !a.hidden && Math.hypot(a.x - me.x, a.z - me.z) <= CHASE_SEE_M && seesActor(state, a, me)).map(a => a.id);
+export const watching = (state, me) => state.actors.filter(a => a.ai?.follow?.id === me.id && !a.ai.follow.lost && !a.ai.follow.heel && !a.hidden && Math.hypot(a.x - me.x, a.z - me.z) <= CHASE_SEE_M && seesActor(state, a, me)).map(a => a.id);
 
 /**
  * Whether a car behind keeps yours in sight to the end of the ride (from row → to.row): their Tracking
@@ -146,7 +146,7 @@ export function chase(state, me, to, from, seen) {
   const out = [];
   for (const a of state.actors) {
     const f = a.ai?.follow, them = state.people[a.who];
-    if (f?.id !== me.id || f.lost) continue;
+    if (f?.id !== me.id || f.lost || f.heel) continue;              // (someone at your heel isn't a tail: the scene's, sim/scenarios/extraction.js)
     if (them && seen.includes(a.id) && chance(state.rng, freeShare(state.time.ms) * CAB_FLAG) && keeps(state, them, to, from)) out.push(a);
     else f.lost = true;
   }

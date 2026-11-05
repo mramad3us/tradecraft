@@ -2,7 +2,8 @@
 // immunity"; Cover, heat and the hunt: "An arrest is survivable unless it also blows the cover, which will be under scrutiny.
 // Captured alone costs time: deadlines pass, and posting objectives can fail badly. Captured and burned is game over").
 // sim/armed.js arrest() hands a deep posting's arrest here (jailed()), with what they had you for; so do sim/hunt.js
-// questioned() (taken in for questioning, the papers read) and sim/police.js's search (a weapon found on a legend).
+// questioned() (taken in for questioning, the papers read) and sim/police.js's search (a weapon found on a legend). Caught in
+// the act of a kinetic mission (caught(): sim/scenarios/extraction.js), there's nothing to look into: their prison.
 //
 // **The legend under their eyes** (scrutiny()): who you are is looked into, harder the graver the charge (GRAVITY) and the
 // better the country's counter-intelligence (its ci): your Deception against SCRUTINY.base + ci × SCRUTINY.ci + the charge's
@@ -67,6 +68,8 @@ export function jailed(state, bus, me, { tier = 'gun', how = 'submitted', what =
   const charge = how === 'trap' ? 'trap' : tier, ill = P.level === 'illegal', lines = [`What they had you for: ${what.charAt(0).toLowerCase()}${what.slice(1)}`];
   if (taken.length) lines.push(`Taken, into evidence bags: ${taken.join(', ')}.`);
   if (ward) lines.push(ward.line);
+  // (taken on an extraction with your face beside theirs: no legend to look into, sim/scenarios/extraction.js)
+  if (state.scenario?.kind === 'extraction' && state.scenario.linked) return taken_(state, bus, me, [...lines, 'They\'d seen you with the one they were looking for. There\'s no legend for that.'], null);
   const roll = c.blown ? null : scrutiny(state, p, charge);
   if (roll) say(state, bus, { kind: 'roll', roll, text: roll.ok ? `${P.alias}: the papers, the employer rung at night, the flat looked over. It holds.` : `${P.alias}: the papers, the employer, the flat; and then a man from ${K.station.opposition.the} who asks about the years before it, and keeps asking.` });
   if (!roll || !roll.ok) return taken_(state, bus, me, lines, roll);
@@ -111,6 +114,16 @@ function taken_(state, bus, me, lines, roll) {
   state.$held = 6 * HOUR;
   state.$released = true;
   return true;
+}
+
+/**
+ * Caught in the act of a kinetic mission (sim/scenarios/extraction.js: walking someone they were hunting to a car): there's no
+ * legend to look into, whatever the papers say. The opposition's prison, as for one blown; lines: what they had you for.
+ */
+export function caught(state, bus, me, lines) {
+  if (!noImmunity(state)) return false;
+  say(state, bus, { kind: 'note', text: 'They don\'t ask for your papers. They know what you were doing, and with whom.' });
+  return taken_(state, bus, me, lines, null);
 }
 
 /** Blown, and home all the same: they were waiting on the stairs. */

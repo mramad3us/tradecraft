@@ -4,6 +4,14 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+- **Extractions, the first of the kinetic missions.** Undercover or as an illegal, the station's word (the Center's) at a drop may ask you to bring someone out: an asset they're about to arrest (most often after a meeting with a tail on you), or a colleague whose legend broke. Read it, and it's on Ahead: a bench, an hour, a way out. Never under official cover; rarer undercover, commoner as an illegal.
+- **The evening.** They come to the bench at the hour and wait 25 minutes; T beside them, and they follow at your heel at their own pace, through lanes, shops and taxis. A safe house on the way gives them other clothes, your disguise kit, or a face the disguise officer made for them (rung for from the phone leaf). The car waits at its kerb from a quarter of an hour after the bench till two and a half hours after; T at it with them beside you, and they're gone.
+- **Who's looking.** The service's plain-clothes men with their photograph, round where they were last known; every police patrol with a copy; sometimes a man watching the bench, and one by the car. Your Awareness may tell you who's theirs (a WATCHER plaque over him). One who knows them follows, calls the others, and takes hold of them: 20 seconds to go in at him, or walk on.
+- **Frightened.** A word (T) steadies them, walking beside them calms them; a man coming at them, or you out of their sight, frightens them, and past bearing they run. How they are shows over their head: steady, nervous, scared, panicking.
+- **Your face beside theirs.** Seen with them by one of theirs, your description goes out to the police at once and the heat rises sharply after. Arrested then, no legend holds.
+- **Walk it first.** Pass the bench and the way out the day before: your Awareness may show you the man they've posted there.
+- **Debug start.** `?mission=extraction` starts one at once (`city`, `level`, `who`, `at=hub`, `seed`, `kit`, `face`); so does `__tradecraft.mission('extraction', {…})`.
+
 ## v0.2.0-rc1 (2026-11-05)
 
 - **Undercover and illegal postings.** A posting done well now offers three branches, listed on the result paper with how long each takes and why any is closed:

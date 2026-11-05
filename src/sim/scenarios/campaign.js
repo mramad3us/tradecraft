@@ -39,7 +39,9 @@
 // (by how many streets away it is), the pointer leads there from LEAD_H before, and at it (MISSION_AT_M)
 // in its hour (windowOf()) T begins it (begin()): the scene is played there, from where you stand, and
 // whoever's on you then is a meeting's team, or nobody (the walk there was the run). A tail: you wait
-// across from his door till he comes out. Missed its hour, it's missed (sim/campaign.js agenda()).
+// across from his door till he comes out. Missed its hour, it's missed (sim/campaign.js agenda()). A kinetic
+// mission's places walked past before its day are its reconnaissance (sim/kinetic.js recce()), and the papers
+// it leaves behind (an arrest's news) come after its debrief (c.after).
 import { TICK_MS, DAY, HOUR, MIN, calendar, clockText } from '../clock.js';
 import { heatKey, addHeat } from '../heat.js';
 import { say } from '../log.js';
@@ -49,6 +51,7 @@ import { skip, newMap } from '../game.js';
 import { eat, soothe } from '../needs.js';
 import { agenda, pass, work, rest, lieLow, expected, heatWord, places, trip, fatigue, watched, heatFloor, goalOf, KINDS, WORK, TRAVEL, EXCUSES, EXCUSES_DEEP, EXCUSE_LINES } from '../campaign.js';
 import { isDeep } from '../legends.js';
+import { recce, callOf } from '../kinetic.js';
 import { takenAtHome } from '../prison.js';
 import { wearAdvanced, remove, LOOKS, ADV_ON_MIN, ADV_OFF_MIN } from '../disguise.js';
 const qualityWord = (q) => (q >= 0.85 ? 'a stranger' : q >= 0.7 ? 'good, unless they look hard' : 'from across a street');
@@ -216,7 +219,7 @@ export const campaignHub = {
         say(state, bus, { kind: 'note', text: 'The face off, slowly, at the basin, and back into the suitcase under the bed: you again, as they described you.' });
         return skip(state, bus, ADV_OFF_MIN * MIN);
       }
-      const d = key.startsWith('wear:') && h.disguises?.find(x => x.id === key.slice(5));
+      const d = key.startsWith('wear:') && h.disguises?.find(x => x.id === key.slice(5) && !x.for);   // (not one made for someone you're bringing out: sim/kinetic.js)
       const line = d && wearAdvanced(p, d, h.id);
       if (!line) return;
       h.disguises = h.disguises.filter(x => x !== d);
@@ -292,6 +295,8 @@ export const campaignHub = {
     // (past the arch, into the corridor: through the metal detector, once a visit: sim/screening.js)
     if (state.map.place === 'embassy' && me && !state.scenario.screened && me.z < N_M + HALL_M) { state.scenario.screened = true; screen(state, bus, state.people[me.who], c); }
     lapse(state, bus);                                               // (an envelope never left, goods never collected: sim/market.js)
+    if (me) recce(state, bus, me);                                   // (a kinetic mission's places, walked past before its day: sim/kinetic.js)
+    if (c.after?.length) bus?.emit('papers', c.after.splice(0));     // (what a mission left behind: the news of an arrest, sim/kinetic.js)
     // (a spot walked to: what you went there for)
     if (state.scenario.using && me && !me.busy) { const u = state.scenario.using; state.scenario.using = null; if (spotNear(state, me)?.kind === u.spot) use(state, bus, u.act, true); }
     // (a call: the telephone rings in the flat, when it's due and you're there)
@@ -489,7 +494,7 @@ function use(state, bus, act, here = false) {
   if (act === 'unwindow') return backFromWindow(state, bus);
   if (act === 'embassy') return c.posting.embassy.door ? campaignHub.act(state, bus, 'desk:work') : enterEmbassy(state, bus);   // (a legend's workplace: no rooms of its own, the day's work at its door)
   if (String(act).startsWith('dial:collect:')) { const d = dropAt(state, me); if (d && `dial:collect:${d.id}` === act) say(state, bus, { kind: 'note', text: collect(state, bus, d) }); return; }   // (the agency's bench: sim/dial.js)
-  if (act === 'safe:face') { const h = safeHere(state); if (h?.disguises?.length) bus?.emit('safehouse', h.disguises.map(d => ({ key: `wear:${d.id}`, label: `${LOOKS[d.look].name}: ${qualityWord(d.q)}` }))); return; }   // (the suitcase under the bed: sim/disguise.js)
+  if (act === 'safe:face') { const h = safeHere(state), mine = h?.disguises?.filter(d => !d.for) ?? []; if (mine.length) bus?.emit('safehouse', mine.map(d => ({ key: `wear:${d.id}`, label: `${LOOKS[d.look].name}: ${qualityWord(d.q)}` }))); return; }   // (the suitcase under the bed: sim/disguise.js; yours, not a face made for someone you're bringing out)
   if (act === 'safe:off') return campaignHub.act(state, bus, 'desk:safe:off');
   if (act === 'clinic') {                                          // (the clandestine clinic's door: seen to, no names, nothing reported; out where you went in)
     const h = safeHere(state);
@@ -609,9 +614,9 @@ function passTo(state, bus, to, text) {
 
 /** When an assignment's place takes T: a tail from a little before he's out till just after; a meeting till near the bench's end; a photograph a while into his window. */
 export const SPARE_MIN = 10;                                        // (out of the embassy this much before you'd need to leave for an assignment: sim/campaign.js work())
-export const windowOf = (a) => { const k = sceneOf(a); return [a.from - BEGIN_EARLY_MIN * MIN, k === 'sdr' ? a.to - 3 * MIN : a.from + (k === 'tail' ? 2 : k === 'range' ? RANGE_LATE_MIN : 5) * MIN]; };   // (a lesson's as its scene's: sim/lessons.js; a range's booking keeps a little)
+export const windowOf = (a) => { const k = sceneOf(a); return [a.from - BEGIN_EARLY_MIN * MIN, k === 'sdr' || k === 'extract' ? a.to - 3 * MIN : a.from + (k === 'tail' ? 2 : k === 'range' ? RANGE_LATE_MIN : 5) * MIN]; };   // (an extraction's bench as a meeting's: they wait on it, sim/kinetic.js)   // (a lesson's as its scene's: sim/lessons.js; a range's booking keeps a little)
 export const BEGIN_EARLY_MIN = 15, LEAD_H = 3, RANGE_LATE_MIN = 10;
-export const MISSION_AT_M = { tail: 30, sdr: 40, watch: 40, range: 12 };
+export const MISSION_AT_M = { tail: 30, sdr: 40, watch: 40, range: 12, extract: 40 };
 /** Whether you're at an assignment's place (on its street, within MISSION_AT_M of it). */
 function atMission(state, me, a, at) {
   return !!at && !!me && state.map.kind === 'street' && !state.scenario.window && state.map.seed === state.campaign.posting.mapSeed && (state.map.row ?? 0) === at.row && Math.abs(me.x - at.x) <= MISSION_AT_M[sceneOf(a)];
@@ -818,7 +823,8 @@ function instinct(state, c, now) {
   // (a change of face kept here, or the one you have on put back: sim/disguise.js)
   const adv = state.people.me.disguise?.adv;
   if (house && adv?.house === house.id) return L('safe-off', 'note', `${cap(house.label)}. {instinct}: the face off, and kept here for next time.`, 'safe:off');
-  if (house && house.disguises?.length && !state.people.me.disguise) return L('safe-face', 'note', `${cap(house.label)}: ${house.disguises.length} face${house.disguises.length > 1 ? 's' : ''} kept here. {instinct}: a change of face (half an hour).`, 'safe:face');
+  const mine = house?.disguises?.filter(d => !d.for) ?? [];
+  if (house && mine.length && !state.people.me.disguise) return L('safe-face', 'note', `${cap(house.label)}: ${mine.length} face${mine.length > 1 ? 's' : ''} kept here. {instinct}: a change of face (half an hour).`, 'safe:face');
   const ad = dropAt(state, me);
   if (ad) return L('agency-drop', 'warn', now >= ad.from ? 'The bench. {instinct}: what the agency left behind it.' : `The bench. Nothing yet: from ${clockText(ad.from)}.`, now >= ad.from ? `dial:collect:${ad.id}` : null);
   // (at one of the black market's benches: the envelope, or what's behind it; sim/market.js)
@@ -833,7 +839,7 @@ function instinct(state, c, now) {
   const k = calendar(now), today = Math.floor(now / DAY), worked = c.worked[today];
   if (next) {
     const a = next.a, T = a.trip && c.posting.trips?.find(t => t.id === a.who);
-    const name = T ? T.asset?.codename ?? T.target?.name : a.kind === 'lesson' ? lessonBook(a.lesson)?.title : a.kind === 'sdr' ? c.posting.assets.find(s => s.id === a.who)?.codename : c.posting.targets.find(t => t.id === a.who)?.name;
+    const name = T ? T.asset?.codename ?? T.target?.name : a.mission ? callOf(a.mission) : a.kind === 'lesson' ? lessonBook(a.lesson)?.title : a.kind === 'sdr' ? c.posting.assets.find(s => s.id === a.who)?.codename : c.posting.targets.find(t => t.id === a.who)?.name;
     if (T) {                                                          // (a trip abroad: flown out, from the mind)
       if (next.when === 'now') return L(`now-${a.id}`, 'warn', `${cityById(T.city).name}: ${name}, now. {mindmap}, and go.`);
       if (a.start - now < LEAD_H * HOUR) return withSpot(L(`soon-${a.id}`, 'note', `${cityById(T.city).name}, ${name} at ${clockText(a.from)}: {mindmap} by ${clockText(a.start)}, and go.`));
@@ -866,12 +872,13 @@ function instinct(state, c, now) {
   return next ? L(`later-${next.a.id}`, 'calm', `Next: ${KINDS[next.a.kind].name.toLowerCase()}, ${dayWord(next.a.from, now)} at ${clockText(next.a.from)}.`) : null;   // (how hot you are is the officer's guess, the mind's: sim/belief.js)
 }
 const BEGIN_LINE = {
+  extract: (name, a) => `${name}'s bench, from ${clockText(a.from)}: ${a.mission?.companion?.knows ? 'waiting for you' : 'waiting for the parole'}. {instinct}: begin.`,
   lesson: (name, a) => `${lessonBook(a.lesson)?.title ?? 'The exercise'}: Hale's place, at ${clockText(a.from)}. {instinct}: ${lessonBook(a.lesson)?.begin ?? 'the earpiece in'}, and begin.`,
   tail: (name) => `Across the street from ${name}'s door. {instinct}: wait for him to come out, and follow.`,
   sdr: (name, a) => `${name}'s bench, from ${clockText(a.from)}. Only if you're clean. {instinct}: the meeting.`,
   watch: (name, a) => `The café: ${name}, due between ${clockText(a.from)} and ${clockText(a.to)}. {instinct}: somewhere to watch it from.`,
 };
-const LATE_LINE = { lesson: 'Hale waited, and went home. Ring him for another evening.', tail: 'He\'s out of his door and away.', sdr: 'The bench is as good as empty.', watch: 'Whatever passed outside the café, you weren\'t there for it.' };
+const LATE_LINE = { extract: 'The bench is empty: they waited, and went home.', lesson: 'Hale waited, and went home. Ring him for another evening.', tail: 'He\'s out of his door and away.', sdr: 'The bench is as good as empty.', watch: 'Whatever passed outside the café, you weren\'t there for it.' };
 // (a deep posting's end that isn't its goal: the paper, sim/prison.js, sim/dial.js, sim/campaign.js pass())
 function deepResult(c, days) {
   const p = c.posting, o = c.over, K = cityById(p.city), met = c.done.filter(a => a.kind === 'sdr' && ['clean', 'burned'].includes(a.outcome)).length;

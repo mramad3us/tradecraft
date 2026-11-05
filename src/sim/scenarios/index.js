@@ -26,5 +26,6 @@ import { campaignHub } from './campaign.js';
 import { hunted } from './hunted.js';
 import { watchTest } from './watch.js';
 import { rangeScenario } from './range.js';
+import { extraction } from './extraction.js';
 
-export const SCENARIOS = { walk, dojo: dojoScenario, tail, sdr, watch: watchTest, hunted, brush: brushTest, drop: dropTest, umbrella: umbrellaTest, range: rangeScenario, campaign: campaignHub };
+export const SCENARIOS = { walk, dojo: dojoScenario, tail, sdr, watch: watchTest, hunted, brush: brushTest, drop: dropTest, umbrella: umbrellaTest, range: rangeScenario, extraction, campaign: campaignHub };

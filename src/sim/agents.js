@@ -31,6 +31,8 @@
 // their way (SEARCH_S), and not finding them on the street, watches the shopfronts nearby from the
 // pavement (DOOR_WAIT_S). Then it's lost them. Its eyes stay on them while they're anywhere it can
 // turn its head to; stood at a shop window, on their reflection in it (gazeInto()).
+// At your heel (follow(…, { heel: true }): someone you're taking somewhere, sim/scenarios/extraction.js), the same footsteps,
+// without a tail's manners: never on ahead of you when you turn back, eyes on you, and no tail's to the taxis and trains.
 import { townOf } from './cities/index.js';
 import { unitAt } from './interiors/use.js';
 import { wayAcross } from './interiors/path.js';
@@ -338,10 +340,10 @@ function faceFor(ux, uz, was) {
  * Make agent a follow actor `id`, keeping `keep` metres of trail behind. The trail starts with a
  * planned way from the follower to where the target is now (they know where to pick them up).
  */
-export function follow(state, a, target, keep) {
+export function follow(state, a, target, keep, { heel = false } = {}) {
   // (a chase begins with eyes on him: for START_CONTACT_S the follower has him as if seen, whatever the
   // dark, as a team that had the door does; without it, at night from 25 m he was lost leaving his door)
-  a.ai.follow = { id: target.id, keep, trail: [], seenMs: state.time.ms, lost: false, search: 0, contactUntil: state.time.ms + START_CONTACT_S * 1000 };
+  a.ai.follow = { id: target.id, keep, trail: [], seenMs: state.time.ms, lost: false, search: 0, contactUntil: state.time.ms + START_CONTACT_S * 1000, ...(heel ? { heel: true } : {}) };
   const way = routeFrom(townOf(state.map), { row: rowOf(state, a), x: a.x, z: a.z }, { row: rowOf(state, target), x: target.x, z: target.z });
   a.ai.follow.trail = way.pts.map(p => ({ row: p.row, x: p.x, z: p.z, jump: p.jump }));
 }
@@ -358,7 +360,7 @@ export function watchTarget(state, a) {
   const contact = !sees && state.time.ms < (fo.contactUntil ?? 0) && rowOf(state, a) === rowOf(state, t) && !t.hidden;
   // Stopped to check (stop.check: a look back, a glance from a kerb, the glass of a window) where they
   // can see us: eyes elsewhere, as anyone's would be. (We know where they're standing.)
-  const toUs = both && !t.hidden && t.ai?.waiting?.check && state.time.ms - fo.seenMs < 2000 && seesActor(state, t, a);
+  const toUs = !fo.heel && both && !t.hidden && t.ai?.waiting?.check && state.time.ms - fo.seenMs < 2000 && seesActor(state, t, a);
   if (toUs) {
     a.ai.eyesOn = true; a.ai.averted = true; fo.seenMs = state.time.ms;
     a.head = a.glass ? -Math.PI / 2 : Math.atan2(t.z - a.z, t.x - a.x) + Math.PI / 2;   // (off to the side: walking behind them, ahead is them; at a window, the goods)
@@ -465,7 +467,7 @@ export function routeFollower(state, a) {
   }
   // Coming our way, close (a double-back, a turn): walk on ahead of them, the way they're going,
   // and let them by. Never close on a face.
-  if (t && rowOf(state, t) === row && !t.hidden && unseen < 1) {
+  if (!fo.heel && t && rowOf(state, t) === row && !t.hidden && unseen < 1) {   // (not someone at your heel: they stand, and let you come)
     const dx = a.x - t.x, dz = a.z - t.z, d = Math.hypot(dx, dz) || 1, coming = (t.vx * dx + t.vz * dz) / d;
     if (d < Math.max(8, keepNow * 0.7) && coming > 0.4) {
       if (!fo.ahead || !walking()) {

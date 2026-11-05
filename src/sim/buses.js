@@ -57,7 +57,7 @@ export function riders(state, me, doors = false) {
   const k = calendar(state.time.ms), h = k.hour + k.minute / 60, rush = k.weekday < 5 && RUSH_H.some(([a, b]) => h >= a && h < b), you = state.people[state.player], out = [];
   for (const a of state.actors) {
     const f = a.ai?.follow, them = state.people[a.who];
-    if (f?.id !== me.id || f.lost) continue;
+    if (f?.id !== me.id || f.lost || f.heel) continue;              // (someone at your heel: the scene's, sim/scenarios/extraction.js)
     const d = Math.hypot(a.x - me.x, a.z - me.z);
     let on = !!them && !a.hidden && d <= BOARD_M && seesActor(state, a, me);
     if (on && doors) on = !opposed(state.rng, { skill: 'deception', value: skill(you, 'deception'), body: you, mods: [{ why: 'off as the doors close', v: DOORS_MOD }, rush && { why: 'the rush hour\'s crush', v: RUSH_MOD }].filter(Boolean) },

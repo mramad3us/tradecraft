@@ -9,7 +9,9 @@
 // mission without using the fast travel shortcut in TAB"): an assignment in the posting's own city has a
 // place on its streets (a.at: { row, x, z, kind, label }), chosen once from the campaign's seed and kept
 // with it: a tail at the target's office door (officeOf(): the same door every time he's followed), an
-// asset meeting at a bench (in a park, where the street has one), a photograph at the café he meets at.
+// asset meeting at a bench (in a park, where the street has one), a photograph at the café he meets at, an extraction's
+// pickup at a bench too (sim/kinetic.js: whoever's to be brought out waits on it), NEAR_ROWS from the safe house the station
+// means you to use.
 // A street within MISSION_ROWS of the flat, never the flat's own or the embassy's. You get there
 // yourself; at it in its hour, T begins it (sim/scenarios/campaign.js), and the scene is played there.
 // Hale's evening at the range (sim/lessons.js place 'range') is at a range's door (a shop of that kind, sim/shops.js):
@@ -91,13 +93,13 @@ export function missionPlace(c, a) {
     return (a.at = { row: 0, x: d.x, z: Z.front + 0.8, kind: 'door', label: `${L.place === 'entrance0' ? 'A block\'s door' : 'A door'} on ${streetName(town, 0)}` });
   }
   if (L?.place === 'range') { const d = rangeDoor(c); return (a.at = d ? { ...d } : null); }   // (the posting's club, the same every time: its own copy)
-  const kind = L ? (L.place === 'bench' ? 'sdr' : 'door') : a.kind;
+  const kind = L ? (L.place === 'bench' ? 'sdr' : 'door') : a.kind === 'extract' ? 'sdr' : a.kind;   // (an extraction's pickup: a bench, as a meeting's: sim/kinetic.js)
   // (never a place another assignment has had, two weeks either side: the same bench twice, or the same
   // park, is how a network's found; with none fresh to be had, any)
   const near = [...new Set([...c.assignments, ...c.done])].filter(x => x !== a && x.at && Math.abs(x.from - a.from) < 14 * DAY);
   const used = new Set(near.map(x => x.at.label)), r = stream('mission-place', c.seed, a.id);
   for (const strict of [true, false]) for (let k = 0; k < 12; k++) {
-    const row = rowFor(c, r), i0 = int(r, 8) - 3;
+    const row = rowFor(c, r, a), i0 = int(r, 8) - 3;
     for (const i of [i0, i0 + 1, i0 - 1, i0 + 2]) {
       const S = sectionOf(town, row, i);
       if (kind === 'sdr') {
@@ -155,8 +157,11 @@ export function officeOf(c, t) {
 }
 
 // (a street for it: within MISSION_ROWS of the flat, not the flat's, not the embassy's)
-function rowFor(c, r) {
-  const p = c.posting, rows = [];
+function rowFor(c, r, a = null) {
+  const p = c.posting, rows = [], near = a?.mission?.near;
+  // (an extraction's bench: the station picks one within NEAR_ROWS of the safe house it means you to use, sim/kinetic.js)
+  if (near !== undefined) { for (let d = -NEAR_ROWS; d <= NEAR_ROWS; d++) { const row = near + d; if (row !== p.home.row && row !== p.embassy.row) rows.push(row); } if (rows.length) return rows[int(r, rows.length)]; }
   for (let d = -MISSION_ROWS; d <= MISSION_ROWS; d++) { const row = p.home.row + d; if (row !== p.home.row && row !== p.embassy.row) rows.push(row); }
   return rows[int(r, rows.length)];
 }
+export const NEAR_ROWS = 2;

@@ -21,12 +21,16 @@
 // him, his craft and the rule, the place and the hour with its light and weather, the opposition at this
 // heat, a word to end on), each pool several ways of saying it and each saying full of the file's facts;
 // the city's name and its opposition's (serviceOf()) are its profile's.
+// **An extraction's brief** (extractBrief(): a kinetic mission's, sim/kinetic.js): who's to be brought out and why now, the
+// bench and its hour, how to know them, the parole if they don't know you, who's looking, the way out and its hours, what a
+// safe house and the station can do first, what the recce saw, a rule; dealt from pools as the others are.
 // **His lookalikes** (twinsOf(): the tail's men who could be him from a few paces) come from his look,
 // each with the one thing that gives it away up close.
 import { stream, int, pick, chance, weighted } from './rng.js';
 import { CITIES, cityById, townOf, serviceOf } from './cities/index.js';
 import { streetLook, describe, colourName, topWord } from './people.js';
-import { clockText } from './clock.js';
+import { placeName } from './map/street.js';
+import { clockText, calendar, WEEKDAYS } from './clock.js';
 import { weather } from './weather.js';
 import { sun } from './light.js';
 import { missionPlace } from './places.js';
@@ -171,8 +175,48 @@ function deal(c, a, key, list) {
   return list[order[n % list.length]];
 }
 
+/**
+ * An extraction's brief (sim/kinetic.js; DESIGN.md, The kinetic missions: Extraction): who's to be brought out and why now, the
+ * bench and its hour, how to know them, whether they know you (a colleague's parole), the opposition looking for them, the
+ * way out and its hours, what a safe house and the station can do for them first, the posts the recce saw, and a rule to end
+ * on. Its word at the drop is this (sim/kinetic.js wordPaper()), and so is the scene's opening paper.
+ */
+function extractBrief(c, a) {
+  const p = c.posting, m = a.mission, C = m.companion, K = CITIES[p.city], at = missionPlace(c, a), d = (key, list) => deal(c, a, key, list);
+  const service = K ? serviceOf(K) : 'They', she = C.sex === 'f' ? 'she' : 'he', her = C.sex === 'f' ? 'her' : 'him', hers = C.sex === 'f' ? 'her' : 'his', who = C.codename ?? C.name;
+  const when = clockText(a.from), until = clockText(a.to), light = lightOf(c, p.city, p.mapSeed, a.from), ill = p.level === 'illegal', we = ill ? 'the Center' : 'the station';
+  const bench = at ? low(at.label) : 'a bench', sig = sigOf(C.look, C.sex), line = sig.line.charAt(0).toLowerCase() + sig.line.slice(1);
+  const why = C.kind === 'asset' ? d('why', [
+    `${who}, ${C.role}, is finished here. ${service} has been asking about him at his work since the evening you met him with a tail on you, and the file's open: it's days, not weeks.`,
+    `${who} is blown. Someone saw him on the bench with you, and since then a car's been outside his building at night and a new man's been asking his colleagues about his holidays.`,
+    `${service} is about to take ${who}, ${C.role}: a friendly service heard his name in the wrong room. The only question is whether he's here when they come.`])
+    : d('why', [`${C.name}, ${C.role}, is blown: ${hers} legend broke on a document check three days ago, and ${she}'s been in stairwells and cinemas since. ${cap(she)}'s out of places to sleep.`,
+      `One of ours: ${C.name}, ${C.role}. ${service} has ${hers} photograph since Monday, and ${she}'s been moving every night. ${we === 'the Center' ? 'The Center' : 'The station'} can't get to ${her}; you can.`,
+      `${C.name} (${C.role}) walked out of a police station on bail with ${service} a day behind ${her}. ${cap(she)} hasn't been home, and mustn't go.`]);
+  const meet = C.knows ? d('meet', [`${cap(she)}'ll be on ${bench} from ${when}, until ${until} at the latest, waiting for you. To know ${her} by: ${line} ${cap(she)} knows your face; ${she} doesn't know the plan, and mustn't till ${she}'s with you.`,
+    `${when} to ${until}: ${bench}. ${sig.line} ${cap(she)} knows you. Sit down, say nothing much, and get up together.`])
+    : `${when} to ${until}: ${bench}. To know ${her} by: ${line} ${cap(she)} doesn't know your face. The parole: "${C.parole[0]}" ${cap(hers)} answer: "${C.parole[1]}" Anything else, and ${she} walks away.`;
+  const opp = d('opp', [`They're looking for ${her}: men of ${service} with ${hers} photograph, round ${hers} flat and ${hers} work first, then wider, talking to each other; and every patrol in ${K?.name ?? 'the city'} has the photograph from the shift change.`,
+    `${service} has ${hers} face, ${hers} coat, ${hers} walk: plain-clothes men on the streets round where ${she} was last seen, and the uniformed patrols with a copy of the photograph each.`,
+    `Assume every face that looks twice at ${her} is theirs. Some will be: ${service}'s men, walking the streets with ${hers} photograph, and the police with the same photograph on their clipboards.`]);
+  const out = `The way out: ${m.out.words}, by ${placeName(townOf({ seed: p.mapSeed, city: p.city }), m.out.row, m.out.x, 0)}, from ${clockText(m.outFrom)} till ${clockText(m.outUntil)}. ${ill ? 'The Center\'s driver' : 'A driver of the station\'s'} at its back door, who knows the word. ${cap(she)} gets in; you walk away.`;
+  const houses = p.safehouses.filter(h => !h.burned), faces = houses.some(h => (h.disguises ?? []).some(x => x.for === a.id));
+  const prep = houses.length ? d('prep', [`On the way, a safe house (${houses.map(h => h.label).join('; ')}): another coat for ${her}, a minute out of sight, and ${faces ? `the face the disguise officer made for ${her}, waiting there` : `a face of the disguise officer's, if you ring for one in time (The phone, Tab)`}.`,
+    `Take ${her} by a safe house first (${houses.map(h => h.label).join('; ')}): other clothes, ${faces ? `the face that's waiting there for ${her}` : `a kit's rinse and glasses, or a proper face if the disguise officer has been`}, and a minute for ${her} to stop shaking.`])
+    : `No safe house left to take ${her} to: whatever you change of ${her}, change on the way.`;
+  const R = m.recce ?? {}, seen = [R.pickup?.post && `a man of theirs by the bench, watching for ${her}`, R.out?.post && 'a man of theirs on the corner by the way out, reading faces'].filter(Boolean);
+  const soon = a.from - (c.now ?? a.from) < 3 * 3600000;            // (no time to walk past it first: the debug start, or a word read late)
+  const recce = seen.length ? `You walked past it: ${seen.join('; and ')}.` : (R.pickup || R.out) ? 'You walked past it beforehand, and saw nobody there for it.' : soon ? 'No time to walk past it first: whoever they\'ve put there, you\'ll meet when you get there.' : `Walk past the bench and the way out before ${dateWordOf(a.from)} if you can: whoever they've put there, better seen before than after.`;
+  const rule = d('rule', [`Don't run. A frightened ${C.sex === 'f' ? 'woman' : 'man'} walks badly; walk for ${her}, slowly, and ${she}'ll follow. If they take ${her}, walk away: you can't help ${her} from the next cell.`,
+    `${cap(she)}'ll want to run. Don't let ${her}. Keep ${her} close, keep to people and the dark, and keep your own face out of it.`,
+    `Slowly. People look at a hurry. If it goes wrong, it goes wrong for one of you, not both.`]);
+  return { title: `BRING ${C.sex === 'f' ? 'HER' : 'HIM'} OUT: ${who.toUpperCase()}`, body: [why, `${meet} ${light}`, opp, out, prep, recce, rule] };
+}
+const dateWordOf = (ms) => WEEKDAYS[calendar(ms).weekday];
+
 /** An assignment's brief: { title, body: [paragraphs] } (the scene puts its footer and keys to it). */
 export function briefOf(c, a) {
+  if (a.kind === 'extract') return extractBrief(c, a);             // (a kinetic mission's: sim/kinetic.js)
   if (a.kind === 'lesson') {                                       // (Hale's exercise, for the mind's Ahead; the scene's own brief is the lesson's: sim/tutorial/ briefFor())
     const L = lessonBook(a.lesson), at = missionPlace(c, a);
     return { title: `HALE'S EXERCISE: ${(L?.title ?? 'the street').toUpperCase()}`, body: [at ? `${at.label}, at ${clockText(a.from)}.` : `At ${clockText(a.from)}.`,

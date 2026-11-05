@@ -6,6 +6,7 @@ export const OUTCOME_WORDS = {
   sdr: { clean: 'met', burned: 'met', right: 'called off', needless: 'called off', missed: 'missed him', incident: 'an incident' },
   tail: { seen: 'meeting observed', made: 'you were made', spooked: 'he was spooked', lost: 'lost him', missed: 'meeting missed', blown: 'cover blown' },
   watch: { photo: 'photographed', soft: 'a soft print', seen: 'seen, not photographed', missed: 'meeting missed', blown: 'you were made' },
+  extract: { out: 'brought out', taken: 'taken', killed: 'killed', captured: 'you were taken', dead: 'you died', bolted: 'lost: they ran', lost: 'lost in the streets', stranded: 'the car gone', missed: 'never met', unread: 'the word never read' },
 };
 /** How a scene of this kind ended, in words ('meeting observed'), or the outcome as it is. */
 export const outcomeWord = (kind, outcome) => OUTCOME_WORDS[kind]?.[outcome] ?? String(outcome ?? 'over');

@@ -46,7 +46,8 @@
 // **Disguises**: a kit's changes the hair, the glasses, a moustache, so the who marker with them, and its quality is on your side
 // (MOD.disguise); an advanced one (0.2's, sim/disguise.js LOOKS) changes the age, the build and the face (whoOf()), ADV_MOD of its
 // quality on your side, unless the officer's eye reads through it first (checked(): sim/disguise.js readThrough()). The blown hunt
-// (0.2's, HUNTS.blown): a foreign spy under a legend, the whole city, for days (sim/campaign.js blow()).
+// (0.2's, HUNTS.blown): a foreign spy under a legend, the whole city, for days (sim/campaign.js blow()). The exfil hunt (0.2's
+// kinetic missions, HUNTS.exfil): seen beside someone they wanted on an extraction, four streets, an evening (sim/scenarios/extraction.js).
 // Queued (docs/DESIGN.md): the investigation behind a hard crime (the scene's evidence, CCTV where a city has it, detectives with
 // the witnesses, a knock at the door).
 import { stream, range, chance, pick } from './rng.js';
@@ -77,7 +78,7 @@ import { disguiseOf, advancedOf, readThrough, ADV_MOD, ADV_SEEN } from './disgui
 import { SCREEN_HALF_M } from './crowd.js';
 import { noImmunity, questionedDeep } from './prison.js';
 
-export const ORDER = ['fight', 'gun', 'shots', 'wounded', 'killed', 'blown'];
+export const ORDER = ['fight', 'gun', 'exfil', 'shots', 'wounded', 'killed', 'blown'];
 const CITY = Infinity;
 // (posts: officers stood at the street's corners, the lanes' mouths, on every street in it; most: units walking or driving
 // it at once; armed: the armed response's (soldiers where it's the army), long guns, at a jog. The user, 2026-11-04: "For
@@ -92,6 +93,9 @@ export const HUNTS = {
   // (blown under a legend, 0.2's: the counter-intelligence's and the police's hunt for a foreign spy, the whole city, days of it;
   // your face from their own file: sim/campaign.js pass(), DESIGN.md, Cover, heat and the hunt: Under a legend)
   blown: { rows: CITY, searchH: 72, keepD: 14, every: [2, 4], cars: 0.4, eye: -2, posts: 2, most: 2, armed: true, what: 'a foreign spy' },
+  // (seen beside someone they were looking for, on an extraction (0.2's kinetic missions, sim/scenarios/extraction.js): the
+  // service's description of you out to the police, the streets round it, an evening's search, a week's memory)
+  exfil: { rows: 4, searchH: 2, keepD: 7, every: [8, 14], cars: 0.4, eye: 0, posts: 0, most: 1, armed: false, what: 'the one seen with a man they wanted' },
 };
 export const JOG_PACE = 1.6, POST_NEAR_M = 70;                     // (an armed pair's pace; how far along a post stands from you, at most)
 // (the perimeter: round where they last had you, growing as they reckon you'd walk; units outside it this much more seldom)
@@ -105,7 +109,7 @@ export const READ_DC = { who: 14, wearing: 10, where: 12 };
 // (the check's mods, yours: they have your face, or it's not the one they have, or nobody saw it; the same for your clothes)
 export const MOD = { disguise: 5, face: -3, faceOther: 2, faceNone: 4, wear: -4, wearOther: 4, wearNone: 1, deep: -3, inside: -1, outside: 2, far: 5, over: 2, blood: -4, held: -3 };
 // (taken in for questioning: the hours, heat, the ambassador's view of you, by the hunt's kind; the police's file)
-export const QUESTION = { fight: { h: 1.5, heat: 4, cover: 5 }, gun: { h: 2, heat: 8, cover: 10 }, shots: { h: 3, heat: 12, cover: 15 }, wounded: { h: 4, heat: 15, cover: 20 }, killed: { h: 6, heat: 20, cover: 25 }, blown: { h: 6, heat: 20, cover: 25 } };
+export const QUESTION = { fight: { h: 1.5, heat: 4, cover: 5 }, gun: { h: 2, heat: 8, cover: 10 }, exfil: { h: 6, heat: 20, cover: 25 }, shots: { h: 3, heat: 12, cover: 15 }, wounded: { h: 4, heat: 15, cover: 20 }, killed: { h: 6, heat: 20, cover: 25 }, blown: { h: 6, heat: 20, cover: 25 } };
 export const POLICE_QUESTION = 10, HUNT_HEAT = 10, DEPLOY_MIN = 4;
 
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
