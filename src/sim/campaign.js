@@ -547,7 +547,7 @@ export function pass(c, from, to) {
     if (p.heat > 1) p.heatEver = true;
     p.heat = Math.max(heatFloor(p), p.heat - 1);
     regen(c);                                                       // (the agency's support, its day's worth back: sim/support.js)
-    if (isDeep(p) && !c.over && !c.blown) daily(c, d);              // (the station's own business, a kinetic mission's word: sim/kinetic.js)
+    if (isDeep(p) && !c.over && !c.blown) daily(c, d, to);          // (the station's own business, a kinetic mission's word, if there's time left to act on it: sim/kinetic.js)
     if (p.police) p.police = Math.max(0, p.police - POLICE_COOL_DAY);   // (and the police's: sim/police.js)
     // (a safe house they saw you go into: the station hears by morning)
     for (const s of p.safehouses.filter(x => x.seen && !x.burned && x.seen < dayMs + DAY)) {

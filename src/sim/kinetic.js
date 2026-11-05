@@ -16,32 +16,35 @@
 //     station's word to bring him out, RESCUE_P by the rung, before the arrest's dice get to him: onBurned()); and the
 //     station's own business, STATION_P a day by the rung (a colleague blown, to come: the other kinds), daily(). Rarer
 //     undercover, commoner as an illegal (the user's words). One at a time, never in a posting's first FIRST_DAYS, GAP_DAYS
-//     after the last.
+//     after the last; never one whose hour's gone before the pass of days that tasks it ends (PREP_MIN_H). The evening's other
+//     business is set aside for it, and the log says so.
 //   - **The preparation** (PREP_DAYS between the word and its hour: a day and a half): the means through Agency Support or
 //     the black market (sim/dial.js: a clean gun, a disguise kit; a face for whoever you're bringing out, faceFor(): the
-//     disguise officer's, made from their photograph and left at a safe house); and the reconnaissance (recce(), in your own
+//     disguise officer's, made from their photograph, FACE_Q by the rung, and left at the safe house the mission routes past:
+//     guestFaces(), viaHouse()); and the reconnaissance (recce(), in your own
 //     hours): walked past its places before its day, within RECCE_M, your Awareness against RECCE_DC reads whoever the
 //     opposition has posted there (m.posts): seen, the brief and the instinct know him, and the scene marks him.
 //   - **The scene** (sim/scenarios/<kind>.js): at its place in its hour, T, as any assignment (sim/scenarios/campaign.js
 //     begin()), with the engine's police, emergency services and hunt in it (scenario.police) and the posting's safe houses.
-//   - **Its window**: the hour it begins in (the pickup's PICKUP_WAIT_MIN), and its way out's (OUT_FROM_MIN to
-//     OUT_UNTIL_MIN after it).
+//   - **Its window**: the hour it begins in (the pickup's PICKUP_WAIT_MIN), and its way out's (OUT_WINDOW, by the rung).
 //   - **Folded back** (foldMission()): the intelligence (whoever's brought out, debriefed), the station's thanks (support),
-//     the network (the others' trust), heat (seen with them: LINKED_HEAT; the arrest's), the hunt (the engine's, outliving
-//     the scene), being taken (sim/prison.js caught(): no legend holds when you're caught walking a traitor to a car) or killed.
+//     the network (the others' trust), heat (seen with them: LINKED_HEAT; the arrest's), the hunt (the engine's, as the scene
+//     made it: it ends with the scene, as any assignment's does; the heat is what carries), being taken (sim/prison.js caught():
+//     no legend holds when you're caught walking a traitor to a car) or killed.
 // **Extraction** (the first built; its scene is sim/scenarios/extraction.js): an asset of the network about to be arrested,
-// or a colleague of the station's under a legend of their own, blown and hiding: met at a bench (sim/places.js), taken by a
-// safe house for another face, walked across the city with the opposition looking for them, handed over at a car OUT_ROWS
-// streets off. Their file (companionOf()): a name, a look (an asset's own), their Deception (an asset's an amateur's, a
-// colleague's a trained officer's), their fitness and age (their pace), whether they know your face (an asset does; a
-// colleague has a parole).
+// or a colleague of the station's (the Center's) under a legend of their own, blown and hiding: met at a bench (sim/places.js:
+// the station's near the safe house it means you to use; the Center's wherever, and the nearest of an illegal's rooms is the
+// one), taken by a safe house for another face, walked across the city with the opposition looking for them, handed over at a
+// car OUT_ROWS streets off (OUT_WINDOW; a diplomatic car's watched more often, POST_P.out). Their file (companionOf()): a
+// name, a look (an asset's own), their Deception (an asset's an amateur's, a colleague's a trained officer's), their fitness
+// and age (their pace), whether they know your face (an asset does; a colleague has a parole).
 // **A debug start** (debugMission()): a deep campaign made up on the spot with an extraction about to begin, for the browser's
-// ?mission=extraction and window.__tradecraft.mission() (src/main.js), so a reviewer needn't play a career to reach one.
+// ?mission=extraction and window.__tradecraft.mission() (src/main.js), so a reviewer needn't play a career to reach one:
+// kit (uses in your pocket), face (the disguise officer's, at the house on the way), team (on you as it begins).
 import { stream, int, pick, chance, range, hash } from './rng.js';
 import { DAY, HOUR, MIN, calendar, clockText } from './clock.js';
-import { townOf, cityById, serviceOf } from './cities/index.js';
-import { sectionOf, LINE } from './city.js';
-import { Z, SECTION_M, streetName, placeName } from './map/street.js';
+import { townOf, cityById } from './cities/index.js';
+import { Z, streetName, placeName } from './map/street.js';
 import { missionPlace, settle } from './places.js';
 import { ciOf } from './incubation.js';
 import { isDeep, NATIONS } from './legends.js';
@@ -66,13 +69,19 @@ export const isKinetic = (a) => KINETIC.has(a?.kind);
 // How often: the station's own taskings a day, by the rung; an asset compromised, the word to bring him out (else the arrest's dice).
 export const STATION_P = { undercover: 1 / 50, illegal: 1 / 20 };
 export const RESCUE_P = { undercover: 0.45, illegal: 0.65 };
-export const FIRST_DAYS = 5, GAP_DAYS = 10;
+export const FIRST_DAYS = 5, GAP_DAYS = 10, PREP_MIN_H = 6;
 // The timing: the word the morning after, the hour the evening after that (PREP_DAYS), the drop's hours (sim/dial.js DROP_FOR_H).
 export const PREP_DAYS = 1, WORD_H = 7, PICKUP_H = [19, 21.5], PICKUP_WAIT_MIN = 25;
-// The way out: OUT_ROWS streets from the pickup, open OUT_FROM_MIN to OUT_UNTIL_MIN after its hour.
-export const OUT_ROWS = [4, 6], OUT_FROM_MIN = 15, OUT_UNTIL_MIN = 150;
-// The opposition's posts at its places (by the country's counter-intelligence: × ci), and the recce's look at them.
-export const POST_P = { pickup: 0.35, out: 0.45 }, RECCE_M = 45, RECCE_DC = 13;
+// The way out: OUT_ROWS streets from the pickup (by the rung: the station's car comes into the city; the Center's van keeps to
+// its edge), open OUT_WINDOW (minutes after its hour): the station's diplomatic car an hour, the Center's van ten minutes, too
+// soon for a face (the user: "very hard as an undercover and almost impossible as an illegal").
+export const OUT_ROWS = { undercover: [4, 6], illegal: [7, 9] }, OUT_WINDOW = { undercover: [20, 80], illegal: [25, 35] };
+// The opposition's posts at its places (by the country's counter-intelligence: × ci): the asset watched at the bench; the way
+// out by the rung (an embassy's car is a watched car; a baker's van isn't), and the recce's look at them.
+export const POST_P = { pickup: 0.35, out: { undercover: 0.5, illegal: 0.2 } }, RECCE_M = 45, RECCE_DC = 13;
+// The disguise officer's face for whoever's brought out: a professional's work from the photograph (FACE_Q by the rung: the
+// Center's man works from less).
+export const FACE_Q = { undercover: 0.9, illegal: 0.7 };
 // Folded back: the debrief's intelligence, the station's thanks, the heat of a face seen beside theirs, of an arrest.
 export const OUT_INTEL = { asset: 3, colleague: 2 }, OUT_AS = 10, LINKED_HEAT = 30, TAKEN_HEAT = 12, LOST_HEAT = 6;
 
@@ -105,8 +114,8 @@ export function companionOf(c, s, r) {
   }
   const sex = chance(r, 0.4) ? 'f' : 'm', age = 30 + int(r, 18), N = pick(r, NATIONS), look = streetLook(r, sex, age);
   delete look.carry;
-  return { kind: 'colleague', id: `colleague${hash(c.seed, p.startMs, 'colleague') % 1e5}`, name: `${pick(r, N[sex])} ${pick(r, N.family)}`, codename: null, role: `one of the station's, under a legend of ${sex === 'f' ? 'her' : 'his'} own as ${pick(r, COLLEAGUE_JOBS)}`,
-    sex, age, look, deception: 12 + int(r, 5), awareness: 11 + int(r, 4), fitness: 9 + int(r, 5), knows: false, parole: pick(r, PAROLES), nation: N.word };
+  return { kind: 'colleague', id: `colleague${hash(c.seed, p.startMs, 'colleague') % 1e5}`, name: `${pick(r, N[sex])} ${pick(r, N.family)}`, codename: null, role: `one of the ${p.level === 'illegal' ? 'Center' : 'station'}'s, under a legend of ${sex === 'f' ? 'her' : 'his'} own as ${pick(r, COLLEAGUE_JOBS)}`,
+    sex, age, look, deception: 9 + int(r, 4), awareness: 11 + int(r, 4), fitness: 9 + int(r, 5), knows: false, parole: pick(r, PAROLES), nation: N.word };
 }
 /** What to call them on the street: an asset by codename, a colleague by the name on their papers. */
 export const callOf = (m) => m.companion.codename ?? m.companion.name.split(' ')[0];
@@ -118,18 +127,16 @@ const OUT_CARS = {
   beirut: { undercover: ['a white Land Cruiser with diplomatic plates', 'a grey Peugeot with CD plates, the engine ticking'], illegal: ['a produce truck for the Bekaa, its crates half empty', 'a fishmonger\'s van, smelling of it'] },
   cairo: { undercover: ['a black Mercedes with CD plates', 'a white Toyota with diplomatic plates and tinted glass'], illegal: ['a tour company\'s spare minibus', 'a bread van on its night round'] },
 };
-/** The hand-over: { row, x, z, car: { x, z } | null, label, words } OUT_ROWS streets from the pickup (at), past the nearest safe house's street, by a parked car where there's one. */
+/** The hand-over: { row, x, z, label, words } OUT_ROWS streets from the pickup (at), past the safe house the station chose, on the pavement by the south kerb. */
 export function outPlace(c, at, r, via = null) {
   const p = c.posting, town = townOf({ seed: p.mapSeed, city: p.city }), rung = rungOf(c) ?? 'undercover';
   // (the station picks it with the safe house on the way: from the bench toward it, OUT_ROWS on)
   const H = via ?? p.safehouses.filter(h => !h.burned).sort((x, y) => Math.abs(x.row - at.row) - Math.abs(y.row - at.row))[0];
-  const dir = Math.sign((H?.row ?? at.row) - at.row) || (chance(r, 0.5) ? 1 : -1), row = at.row + dir * (OUT_ROWS[0] + int(r, OUT_ROWS[1] - OUT_ROWS[0] + 1));
-  const ex = at.x + (chance(r, 0.5) ? 1 : -1) * range(r, 40, 140), cars = [];
-  for (let i = Math.floor((ex - 40) / SECTION_M); i <= Math.floor((ex + 40) / SECTION_M); i++) for (const q of sectionOf(town, row, i).props) if (q.kind === 'car' && q.z < Z.fence) cars.push(q);
-  const car = cars.sort((a, b) => Math.abs(a.x - ex) - Math.abs(b.x - ex))[0];
+  const R = OUT_ROWS[rung] ?? OUT_ROWS.undercover, dir = Math.sign((H?.row ?? at.row) - at.row) || (chance(r, 0.5) ? 1 : -1), row = at.row + dir * (R[0] + int(r, R[1] - R[0] + 1));
+  // (the car comes to wait at the south kerb, sim/traffic.js waitingCar(); you meet it on the pavement beside it)
+  const x = Math.round((at.x + (chance(r, 0.5) ? 1 : -1) * range(r, 40, 140)) * 10) / 10;
   const words = pick(r, (OUT_CARS[p.city] ?? OUT_CARS.moscow)[rung] ?? OUT_CARS.moscow.undercover);
-  const x = car ? Math.round((car.x - 1.2) * 10) / 10 : Math.round(ex * 10) / 10;
-  return { row, x, z: car ? Z.kerbN - 0.75 : LINE.N, car: car ? { x: car.x, z: car.z } : null, words, label: `${cap(words.split(',')[0])}, by ${placeName(town, row, x, 0)}`, street: streetName(town, row) };
+  return { row, x, z: Z.kerbS + 1, car: null, words, label: `${cap(words.split(',')[0])}, by ${placeName(town, row, x, 0)}`, street: streetName(town, row) };
 }
 
 // ---------- tasked ----------
@@ -139,7 +146,7 @@ export function outPlace(c, at, r, via = null) {
  * colleague), the word at a bench the morning after `ms`, its hour the evening after that. The assignment (status 'word')
  * and the signal (c.signals: sim/dial.js signals()). Returns the assignment, or null (not now: one's pending, too soon).
  */
-export function task(c, kind, s, ms) {
+export function task(c, kind, s, ms, after = ms) {
   const p = c.posting;
   if (!rungOf(c) || c.over || c.blown || pendingOf(c) || !MISSIONS[kind]?.built) return null;
   settle(c);                                                        // (its places on the streets as they're marked: sim/places.js)
@@ -147,9 +154,11 @@ export function task(c, kind, s, ms) {
   if (d - dayOf(p.startMs) < FIRST_DAYS || (last && d - dayOf(last.ended ?? last.to) < GAP_DAYS)) return null;
   const r = stream('kinetic', c.seed, kind, d, s?.id ?? 'station'), word = (d + 1) * DAY + WORD_H * HOUR, pd = d + 1 + PREP_DAYS;
   const from = pd * DAY + Math.round(range(r, ...PICKUP_H) * 60) * MIN;
+  if (from < after + PREP_MIN_H * HOUR) return null;               // (a day long gone by, in a pass of days: nothing you could have done)
   const companion = companionOf(c, s, r);
-  // (the station means you to use a safe house: the bench near it, the way out past it)
-  const houses = p.safehouses.filter(h => !h.burned), via = houses.length ? pick(r, houses) : null;
+  // (the station means you to use a safe house: the bench near it, the way out past it; the Center picks a bench with none of
+  // an illegal's rooms in mind, and the nearest of them is the one to use, wherever it is)
+  const ill = p.level === 'illegal', houses = p.safehouses.filter(h => !h.burned), via = houses.length && !ill ? pick(r, houses) : null;
   const a = { id: `k${hash(c.seed, kind, from) % 1e7}`, kind, who: companion.id, from, to: from + PICKUP_WAIT_MIN * MIN, start: from - 10 * MIN, status: 'word', word: { from: word, until: from },
     mission: { kind, companion, tasked: ms, ci: ciOf(p.city), searchers: null, posts: null, recce: {}, ...(via ? { near: via.row, via: via.id } : {}) } };
   c.assignments.push(a);
@@ -157,14 +166,16 @@ export function task(c, kind, s, ms) {
   const at = missionPlace(c, a);                                    // (a bench, chosen once: sim/places.js)
   if (!at) { c.assignments = c.assignments.filter(x => x !== a); return null; }
   // (the evening's other business set aside: the station says nothing else that day)
-  for (const x of c.assignments) if (x.status === 'open' && !isKinetic(x) && dayOf(x.from) === pd) x.status = 'unplanned';
+  for (const x of c.assignments) if (x.status === 'open' && !isKinetic(x) && dayOf(x.from) === pd) { x.status = 'unplanned'; c.log?.push({ ms, text: `Set aside for ${ill ? 'the Center' : 'the station'}'s word: ${x.kind === 'sdr' ? 'a meeting' : x.kind === 'tail' ? 'a tail' : 'an evening\'s work'}, ${dateWord(x.from)}.` }); }
   c.assignments = c.assignments.filter(x => x.status !== 'unplanned');
   const m = a.mission, ci = m.ci;
-  m.out = outPlace(c, at, r, via);
-  m.outFrom = from + OUT_FROM_MIN * MIN; m.outUntil = from + OUT_UNTIL_MIN * MIN;
+  if (ill && houses.length) m.via = houses.slice().sort((x, y) => Math.abs(x.row - at.row) - Math.abs(y.row - at.row) || Math.abs(x.x - at.x) - Math.abs(y.x - at.x))[0].id;
+  m.out = outPlace(c, at, r, houses.find(h => h.id === m.via) ?? null);
+  const W = OUT_WINDOW[rungOf(c)] ?? OUT_WINDOW.undercover;
+  m.outFrom = from + W[0] * MIN; m.outUntil = from + W[1] * MIN;
   // (whom they've posted where: at the pickup, a man who's been watching him and waits to see who comes; at the way out, a
   // post that reads every face that passes; the searchers, by the service and the heat)
-  m.posts = { pickup: companion.kind === 'asset' && chance(r, POST_P.pickup * ci), out: chance(r, POST_P.out * ci) };
+  m.posts = { pickup: companion.kind === 'asset' && chance(r, POST_P.pickup * ci), out: chance(r, (POST_P.out[rungOf(c)] ?? POST_P.out.undercover) * ci) };
   m.searchers = 2 + Math.round(ci * 2 + range(r, -0.4, 0.6)) + (p.heat >= 50 ? 1 : 0);
   if (s) s.rescue = a.id;                                            // (told to lie low till then: the arrest's dice wait, sim/campaign.js pass())
   (c.signals ??= []).push({ from: word, mission: a.id, paper: wordPaper(c, a) });   // (the chalk mark says where, when you pass it: sim/dial.js)
@@ -185,11 +196,11 @@ export function onBurned(c, s, ms) {
   return task(c, 'extract', s, ms);
 }
 
-/** A day of the posting (sim/campaign.js pass()): the station's own business, STATION_P by the rung. */
-export function daily(c, d) {
+/** A day of the posting (sim/campaign.js pass(), from…to): the station's own business, STATION_P by the rung; never one whose hour's gone by before `to`. */
+export function daily(c, d, to = d * DAY) {
   const rung = rungOf(c);
   if (!rung || !chance(stream('kinetic-day', c.seed, d), STATION_P[rung])) return null;
-  return task(c, 'extract', null, d * DAY + 20 * HOUR);
+  return task(c, 'extract', null, d * DAY + 20 * HOUR, to);
 }
 
 /** The word read (at its bench: sim/dial.js collect()): on the schedule now. */
@@ -241,12 +252,20 @@ export function contextOf(c, a, ctx) {
   settle(c);                                                        // (its places on the streets, if nothing's put them there yet: sim/places.js)
   const p = c.posting, m = a.mission;
   const houses = p.safehouses.filter(h => !h.burned).map(h => ({ id: h.id, row: h.row, x: h.x ?? 12, label: h.label, faces: (h.disguises ?? []).filter(d => d.for === a.id) }));
-  Object.assign(ctx, { mission: structuredClone(m), houses, level: p.level, alias: p.alias ?? null, papers: p.papers ?? null, job: p.job, meetFrom: a.from, meetTo: a.to });
+  Object.assign(ctx, { mission: structuredClone(m), houses, level: p.level, alias: p.alias ?? null, papers: p.papers ?? null, job: p.job, meetFrom: a.from, meetTo: a.to, team: a.tailedBy ?? 'none' });   // (whoever was on you when you began it: sim/scenarios/campaign.js begin())
   return ctx;
 }
 
 /** A face for whoever's brought out (the disguise officer's, sim/dial.js): the open extraction's, or null. */
 export const faceFor = (c) => c.assignments.find(a => a.kind === 'extract' && a.status === 'open') ?? null;
+/** The safe house a mission routes past (m.via), if it isn't blown; else the first that isn't. */
+export const viaHouse = (c, a) => c.posting.safehouses.find(h => h.id === a?.mission?.via && !h.burned) ?? c.posting.safehouses.find(h => !h.burned) ?? null;
+/** The disguise officer's face for whoever's brought out: [{ id, look, q, for }], made at time ms (FACE_Q by the rung). */
+export function guestFaces(c, a, ms) {
+  const C = a.mission.companion, k = C.sex === 'm' ? 'other' : C.age < 45 ? 'older' : 'heavier';   // (a man a beard and another nose; a woman older, or heavier)
+  const q = FACE_Q[c.posting.level] ?? FACE_Q.undercover;
+  return [{ id: `guest${a.id}${ms % 1e5}`, look: k, q: Math.round(q * 100) / 100, for: a.id }];
+}
 
 // ---------- folded back ----------
 
@@ -257,8 +276,8 @@ function taken(c, a, ms, linked, why) {
   p.heat = Math.min(100, p.heat + (linked ? LINKED_HEAT : 0) + (s ? LOST_HEAT : 0));
   for (const o of p.assets) if (o !== s) o.trust = Math.max(-5, o.trust - 1);   // (the network hears: frightened)
   c.log.push({ ms, text: `${C.codename ?? C.name} arrested.` });
-  return [{ kind: 'news', title: `${(C.codename ?? C.name).toUpperCase()}: ARRESTED`, lines: [why, s ? `The evening news: ${s.role} detained on suspicion of espionage.` : `A foreigner detained, the radio says: ${C.nation ?? 'a European'}, a name nobody at the station will say aloud.`,
-    linked ? 'And they have your face beside theirs.' : 'Heat up. The others in the network will have heard by the weekend.'] }];
+  return [{ kind: 'news', title: `${(C.codename ?? C.name).toUpperCase()}: ARRESTED`, lines: [why, s ? `The evening news: ${s.role} detained on suspicion of espionage.` : `A foreigner detained, the radio says: ${C.nation ?? 'a European'}, a name nobody at ${p.level === 'illegal' ? 'the Center' : 'the station'} will say aloud.`,
+    linked ? `And they have your face beside theirs: heat +${LINKED_HEAT + (s ? LOST_HEAT : 0)}.` : s ? `Heat +${LOST_HEAT}. The others in the network will have heard by the weekend.` : `${p.level === 'illegal' ? 'The Center' : 'The station'} will want to know how.`] }];
 }
 
 /**
@@ -309,7 +328,7 @@ export function foldMission(c, a, sc, endMs, lines) {
  * kit uses in your pocket; face: the disguise officer's face for them waiting at the first safe house. Returns { campaign, a }.
  * make: the campaign's own maker (sim/campaign.js candidates + newCampaign), passed in so this module needn't import it.
  */
-export function debugMission({ seed = 7, city = 'moscow', level = 'undercover', who = 'asset', at: when = 'scene', kit = 0, face = false } = {}, make) {
+export function debugMission({ seed = 7, city = 'moscow', level = 'undercover', who = 'asset', at: when = 'scene', kit = 0, face = false, team = 'none' } = {}, make) {
   const c = make(seed, city, level), p = c.posting;
   const day0 = dayOf(p.startMs) + FIRST_DAYS + 1;                  // (the week after it started: past the first days)
   c.now = day0 * DAY + 20 * HOUR;
@@ -322,7 +341,8 @@ export function debugMission({ seed = 7, city = 'moscow', level = 'undercover', 
   opened(c, a.id, a.word.from);
   c.signals = (c.signals ?? []).filter(x => x.mission !== a.id);
   if (kit) c.character.equip = { ...(c.character.equip ?? {}), disguise: kit };
-  if (face) { const h = p.safehouses.find(x => !x.burned); if (h) h.disguises = [...(h.disguises ?? []), { id: `guest${a.id}`, look: a.mission.companion.sex === 'm' ? 'other' : 'older', q: 0.62, for: a.id }]; }
+  if (face) { const h = viaHouse(c, a); if (h) h.disguises = [...(h.disguises ?? []), ...guestFaces(c, a, a.word.from)]; }   // (as the disguise officer would have left it, rung for in good time)
+  if (team !== 'none') a.tailedBy = team;                           // (a team on you as you begin it: ?team=overt|covert)
   if (when === 'hub') { c.now = a.word.from + 2 * HOUR; c.where = null; c.awake = c.now - 3 * HOUR; return { campaign: c, a }; }
   // (at the bench's street, a block off, its hour)
   const at = missionPlace(c, a);

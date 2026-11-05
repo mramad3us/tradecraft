@@ -334,10 +334,12 @@ export function arrest(state, bus, me, how = 'submitted', because = null, { foun
   state.items && (state.items.dropped = state.items.dropped.filter(it => !near.includes(it)));
   for (const it of near) names.push(modelOf(it.kind)?.short ?? 'the gun at your feet');
   // (what they had you for: who your rounds hit, lately, here; the shots; the gun; a description)
-  const hit = state.actors.map(a => state.people[a.who]).filter(q => q && q !== p && q.hitBy?.id === state.player && now - q.hitBy.ms < HIT_RECENT_H * HOUR);
-  const dead = hit.filter(q => q.dead), copsDead = dead.filter(q => q.cls === 'cop' || q.cls === 'soldier'), copsHit = hit.filter(q => q.cls === 'cop' || q.cls === 'soldier');
+  // (whom you hurt, lately, here: your rounds, or your hands (a fight's blows, sim/fight.js), told apart: a brawl isn't a shooting)
+  const hurt = state.actors.map(a => state.people[a.who]).filter(q => q && q !== p && q.hitBy?.id === state.player && now - q.hitBy.ms < HIT_RECENT_H * HOUR);
+  const hit = hurt.filter(q => q.hitBy.by !== 'blow'), blows = hurt.filter(q => q.hitBy.by === 'blow');
+  const dead = hurt.filter(q => q.dead), byHand = dead.length > 0 && dead.every(q => q.hitBy.by === 'blow'), copsDead = dead.filter(q => q.cls === 'cop' || q.cls === 'soldier'), copsHit = hit.filter(q => q.cls === 'cop' || q.cls === 'soldier');
   const why = because ?? state.$takedown?.why ?? state.$alarm?.why ?? null, described = ['the description', 'what they found', 'the blood on you'].includes(why);
-  const facts = dead.length ? 'killed' : hit.length ? 'wounded' : state.$shotBy && now - state.$shotBy.ms < HIT_RECENT_H * HOUR ? 'shots' : described && !taken.length && !near.length ? 'described' : 'gun';
+  const facts = dead.length ? 'killed' : hit.length ? 'wounded' : state.$shotBy && now - state.$shotBy.ms < HIT_RECENT_H * HOUR ? 'shots' : (described || blows.length) && !taken.length && !near.length ? 'described' : 'gun';
   const H = state.hunt && state.hunt.until > now ? state.hunt : null, ht = H && HUNT_TIER[H.why];
   const hunted = !!ht && TIER_RANK.indexOf(ht) > TIER_RANK.indexOf(facts), tier = hunted ? ht : facts;   // (the hunt's, when it's worse than what's in front of them)
   const T = TIERS[tier], resisted = how !== 'submitted' && how !== 'searched' && how !== 'trap', st = nearestDoor(state, 'police'), station = st ? low(st.label) : 'the station';   // (the nearest's: where you're let out, released())
@@ -353,11 +355,11 @@ export function arrest(state, bus, me, how = 'submitted', because = null, { foun
   me.gait = 'idle';
   const n = (k, one, many) => `${k === 1 ? one : `${k} ${many}`}`;
   const what = hunted || (H && tier === 'described') ? `${H.what}, and you the one they were looking for.` : {
-    described: 'A patrol with your description from the shooting, and you in front of them in the same clothes.',
+    described: blows.length && !hit.length && why !== 'the description' ? `${cap(n(blows.length, 'someone', 'people'))} hurt by your hands in a fight in the street.` : 'A patrol with your description from the shooting, and you in front of them in the same clothes.',
     gun: 'A gun in your hand on a public street, and police who saw it.',
     shots: 'Shots fired in the street, and you with the gun that fired them.',
     wounded: `${cap(n(hit.length, 'someone', 'people'))} hit by your rounds${copsHit.length ? `, ${copsHit.length === hit.length ? (copsHit.length === 1 ? 'a police officer' : 'all of them police') : `${n(copsHit.length, 'one of them', 'of them')} police`}` : ''}.`,
-    killed: `${cap(n(dead.length, 'someone', 'people'))} dead by your rounds${copsDead.length ? `, ${copsDead.length === dead.length ? (copsDead.length === 1 ? 'a police officer' : 'all of them police') : `${n(copsDead.length, 'one of them', 'of them')} police`}` : ''}.`,
+    killed: `${cap(n(dead.length, 'someone', 'people'))} dead ${byHand ? 'at your hands' : 'by your rounds'}${copsDead.length ? `, ${copsDead.length === dead.length ? (copsDead.length === 1 ? 'a police officer' : 'all of them police') : `${n(copsDead.length, 'one of them', 'of them')} police`}` : ''}.`,
   }[tier];
   // (no diplomatic passport to show, under a legend: the legend looked into, and a cell, a sentence, or their prison: sim/prison.js)
   if (noImmunity(state)) return jailed(state, bus, me, { tier, how, what, taken: [...names, ...found], ward, station });

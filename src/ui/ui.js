@@ -81,7 +81,8 @@ const CITY_LIST = ((n) => (n.length > 1 ? `${n.slice(0, -1).join(', ')} or ${n.a
 
 // (a place's glyph on its plaque; how far, in the plaque's few letters: "2 streets north" → "2 ST N")
 const PLACE_ICON = { embassy: 'star', home: 'house', safe: 'key' };
-const shortFar = (far) => String(far).replace(/^a street/, '1 street').replace(/streets?/, 'st').replace(/north/, 'n').replace(/south/, 's').replace(/on this street/, 'here');
+// (how far, the way it lies the plaque's arrow's: "6 streets", "1 street", "40 m", "here")
+const shortFar = (far) => String(far).replace(/^a street/, '1 street').replace(/ (north|south)$/, '').replace(/on this street/, 'here');
 
 const el = (tag, { dataset, ...props } = {}, ...kids) => {
   const e = Object.assign(document.createElement(tag), props);
@@ -310,11 +311,22 @@ export function createUI({ input, cb }) {
     // The places that are yours on this street (a scenario's signs(): [{ x, z, label }]), over their doors.
     const sgs = (!sc.outcome && cam0 && SCENARIOS[sc.kind]?.signs?.(state)) || [];
     while (signs.children.length < sgs.length) signs.append(el('canvas', { className: 'plaque' }));
+    // (none on another, none clipped at the top or sat on the instinct's line: the later lifted clear of the earlier, a scene's
+    // people first, sim/scenarios/extraction.js signs())
+    const taken = [], nearMe = !sc.outcome && !state.fight && atHand(state), np = nearMe && view?.posOf(nearMe.id);
+    if (np && cam0) { const fx = RES[0] / 2 + (np[0] - cam0.x) * 16, fy = RES[1] / 2 + (np[1] - cam0.z) * 16 - 2.2 * 16; taken.push({ L: fx - 7, R: fx + 7, top: fy - 14, bottom: fy + 2 }); }   // (F's key over whoever's within reach: a plaque goes over it, never on it)
     [...signs.children].forEach((t, i) => {
-      const s = sgs[i], sx = s && RES[0] / 2 + (s.x - cam0.x) * 16, sy = s && RES[1] / 2 + (s.z - cam0.z) * 16 - (s.lift ?? 3.0) * 16;
+      const s = sgs[i], sx = s && RES[0] / 2 + (s.x - cam0.x) * 16;
+      let sy = s && RES[1] / 2 + (s.z - cam0.z) * 16 - (s.lift ?? 3.0) * 16;
       t.hidden = !s || sx < -40 || sx > RES[0] + 40 || sy < 0 || sy > RES[1];
       if (t.hidden) return;
-      place(t, plaque({ text: s.label, sub: s.sub ?? null, style: s.kind ?? 'way', icon: s.icon ?? PLACE_ICON[s.kind] ?? 'pin' }), sx, sy, k0);   // (a second, quieter part: how far, how they are: a scene's own, sim/scenarios/extraction.js)
+      const P = plaque({ text: s.label, sub: s.sub ?? null, style: s.kind ?? 'way', icon: s.icon ?? PLACE_ICON[s.kind] ?? 'pin' });   // (a second, quieter part: how far, how they are)
+      const L = sx - P.tip, R = L + P.w;
+      sy = Math.min(RES[1] - 46, Math.max(P.h + 2, sy));
+      for (let k = 0; k < 6; k++) { const hit = taken.find(r => r.L < R + 1 && r.R > L - 1 && r.top < sy + 1 && r.bottom > sy - P.h - 1); if (!hit) break; sy = hit.top - 1; }
+      sy = Math.max(P.h + 2, sy);
+      taken.push({ L, R, top: sy - P.h, bottom: sy });
+      place(t, P, sx, sy, k0);
     });
     // Where you're going (a scenario's goal(): { row, x, z, label }), at the picture's edge when it's off it.
     const gl = !sc.outcome && SCENARIOS[sc.kind]?.goal?.(state);
@@ -608,6 +620,7 @@ export function createUI({ input, cb }) {
     const o = speech.getBoundingClientRect(), tagBoxes = [intent, reach, bubble, ...states, ...signs.children].filter(e => !e.hidden && e.isConnected)   // (and a scene's plaques: whoever you're bringing out, sim/scenarios/extraction.js signs())
       .map(e => { const r = e.getBoundingClientRect(); return { left: r.left - o.left, right: r.right - o.left, top: r.top - o.top, bottom: r.bottom - o.top }; })
       .sort((a, b) => b.top - a.top);
+    const placed = [];                                             // (two people talking side by side: the later balloon over the earlier, never on it)
     for (const [id, b] of balloons) {
       for (const p of [...b.children]) {
         if (now - p.born > TOAST_S * 1000 && !p.classList.contains('gone')) p.classList.add('gone');
@@ -622,7 +635,9 @@ export function createUI({ input, cb }) {
       let y = (RES[1] / 2 + (at[1] - cam.z) * 16 - 2.6 * 16) * k;
       // (over the tags it would cover, a fighter's next move, a key, a ? or a !: lifted clear of each, its tail too)
       for (const r of tagBoxes) if (r.left < x + w && r.right > x && r.top < y + 9 && r.bottom > y - h) y = r.top - 9;
+      for (const r of placed) if (r.left < x + w && r.right > x && r.top < y + 9 && r.bottom > y - h) y = r.top - 9;
       y = Math.max(h + 8, y);
+      placed.push({ left: x, right: x + w, top: y - h, bottom: y });
       b.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
       b.style.setProperty('--tail', `${Math.round(Math.max(10, Math.min(w - 10, cx - x)))}px`);   // (the tail points at them, wherever the balloon's pushed)
     }
@@ -1029,7 +1044,8 @@ export function createUI({ input, cb }) {
       el('button', { className: 'item go', onclick: close }, go)));
     paper.hidden = false;
     paper.dataset.kind = 'brief';
-    paper.querySelector('.go').focus();
+    paper.querySelector('.go').focus({ preventScroll: true });   // (the key's there; the paper opens at its top, its title first)
+    paper.scrollTop = 0;
   }
 
   /** At a station's door: the network's map (src/ui/tubemap.js); ride(id) a destination's. */
@@ -1057,7 +1073,8 @@ export function createUI({ input, cb }) {
     ));
     paper.hidden = false;
     paper.dataset.kind = 'brief';
-    paper.querySelector('.go').focus();
+    paper.querySelector('.go').focus({ preventScroll: true });   // (the key's there; the paper opens at its top, its title first)
+    paper.scrollTop = 0;
   }
   // What happened that the character never saw: his checks behind their back, revealed after.
   function unseenOf(state) {

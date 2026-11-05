@@ -68,12 +68,12 @@ const OPENING_WORDS = { hit: 'Hit', sucker: 'Sucker punch', push: 'Push', grab: 
 
 const playerOf = (state) => state.actors.find(a => a.who === state.player);
 
-/** Whoever's within reach: in front of you first, then the nearest. */
+/** Whoever's within reach: in front of you first, then the nearest (never one a scene keeps out of it, ai.noReach: whoever you're bringing out, sim/scenarios/extraction.js). */
 export function atHand(state) {
   const me = playerOf(state);
   if (!me || state.fight || me.hidden) return null;                // (out of everyone's reach: indoors, in a cab, behind the flat's curtain)
   const h = me.head ?? 0;
-  const cands = state.actors.filter(a => a !== me && !a.hidden && (a.row ?? state.map.row) === (me.row ?? state.map.row) && Math.hypot(a.x - me.x, a.z - me.z) <= REACH_M);
+  const cands = state.actors.filter(a => a !== me && !a.hidden && !a.ai?.noReach && (a.row ?? state.map.row) === (me.row ?? state.map.row) && Math.hypot(a.x - me.x, a.z - me.z) <= REACH_M);
   const score = (a) => Math.hypot(a.x - me.x, a.z - me.z) - 1.2 * Math.cos(Math.atan2(a.z - me.z, a.x - me.x) - h);
   return cands.sort((p, q) => score(p) - score(q))[0] ?? null;
 }

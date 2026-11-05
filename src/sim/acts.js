@@ -87,7 +87,7 @@ export const SEAT_Z = 12.96;
  */
 export function seatTaken(state, x, who = null, row = state.map.row) {
   if (state.actors.some(o => o !== who && o.gait === 'sit' && (o.row ?? state.map.row) === row && Math.abs(o.x - x) < 0.6 && Math.abs(o.z - SEAT_Z) < 0.6)) return true;
-  return !!state.scenario.seats?.some(s => s.row === row && Math.abs(s.x - x) < 0.3);
+  return !!state.scenario.seats?.some(s => s.row === row && Math.abs(s.x - x) < 0.8);   // (a seat's width: nobody squeezes in beside it)
 }
 
 /** The nearest free bench seat within reach of the actor on the path, or null. */

@@ -557,7 +557,7 @@ function flag(state, bus, me, H, c) {
 }
 // (a car pulled over by you: once it's stopped, its crew out, and on with it)
 function pulled(state, bus, me, H, now) {
-  const P = H.pull, car = (state.traffic?.cars ?? []).find(c => c.id === P.car);
+  const P = H.pull, car = (state.traffic?.cars ?? []).find(c => c.id === P.car && c.ems);   // (its car: another street's traffic numbers its cars from one again)
   if (!car || now - P.ms > 30000) { delete H.pull; if (car) { car.ems.hold = false; car.taxi.hail = null; } return; }
   if (!car.taxi?.stopped) return;
   delete H.pull;

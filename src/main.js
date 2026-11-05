@@ -293,14 +293,15 @@ function result() {
 /**
  * A kinetic mission's debug start (sim/kinetic.js debugMission()), for reviewers and smoke tests: a deep campaign made up on
  * the spot with the mission about to begin. ?mission=extraction[&city=moscow|beirut|cairo][&level=undercover|illegal]
- * [&who=asset|colleague][&at=scene|hub][&seed=n][&kit=n][&face=1]; or window.__tradecraft.mission('extraction', { … }).
+ * [&who=asset|colleague][&at=scene|hub][&seed=n][&kit=n][&face=1][&team=overt|covert]; or window.__tradecraft.mission('extraction', { … }).
+ * face: the disguise officer's face for them, left at the safe house the mission routes past; team: a surveillance team on you.
  * at 'scene' (the default): at the bench's street, its hour; at 'hub': the posting's hub the morning the word's read, a day
  * and a half to prepare (The phone, Tab; the safe houses; the bench and the way out to walk past).
  */
-function missionStart(kind = 'extraction', { seed = 7, city = 'moscow', level = 'undercover', who = 'asset', at = 'scene', kit = 0, face = false } = {}) {
+function missionStart(kind = 'extraction', { seed = 7, city = 'moscow', level = 'undercover', who = 'asset', at = 'scene', kit = 0, face = false, team = 'none' } = {}) {
   if (kind !== 'extraction') return console.warn(`No debug start for ${kind} yet.`);
   home = null;
-  const { campaign: c, a } = debugMission({ seed: Number(seed), city, level, who, at, kit: Number(kit), face: !!face && face !== '0' }, (s, ci, l) => newCampaign(s, candidates(s, ci, l)[0], ci, l));
+  const { campaign: c, a } = debugMission({ seed: Number(seed), city, level, who, at, kit: Number(kit), face: !!face && face !== '0', team }, (s, ci, l) => newCampaign(s, candidates(s, ci, l)[0], ci, l));
   if (!a) return console.warn('No extraction could be tasked from that seed.');
   if (at === 'hub') return launch(newGame({ seed: Number(seed), scenario: 'campaign', version: VERSION, campaign: c, weather: WEATHER }));
   launch(newGame({ seed: Number(seed), scenario: 'extraction', version: VERSION, campaign: c, context: context(c, a), weather: WEATHER }));
@@ -522,7 +523,7 @@ if (q.has('play') && SCENARIOS[q.get('play')]) {
   const autoplay = q.has('autoplay') ? { keep: Number(q.get('autoplay')) || 20 } : null;
   launch(newGame({ seed: Number(q.get('seed') ?? 1), scenario: q.get('play'), version: VERSION, autoplay, chapter: q.get('chapter'), city: q.get('city'), weather: WEATHER }), { hour: q.has('hour') ? Number(q.get('hour')) : null });
 }
-else if (q.has('mission')) missionStart(q.get('mission'), Object.fromEntries(['seed', 'city', 'level', 'who', 'at', 'kit', 'face'].filter(k => q.has(k)).map(k => [k, q.get(k)])));   // (a kinetic mission's debug start)
+else if (q.has('mission')) missionStart(q.get('mission'), Object.fromEntries(['seed', 'city', 'level', 'who', 'at', 'kit', 'face', 'team'].filter(k => q.has(k)).map(k => [k, q.get(k)])));   // (a kinetic mission's debug start)
 else if (q.has('lesson') && lessonOf(q.get('lesson'))) launch(newGame({ seed: Number(q.get('seed') ?? 1), lesson: q.get('lesson'), version: VERSION, city: q.get('city'), weather: WEATHER }));   // (a lesson of the tutorial, for shots and tests)
 else showTitle();
 requestAnimationFrame(frame);

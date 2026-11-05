@@ -16,7 +16,8 @@
 // picture should lean toward while they're in sight (the tail: him). `campaign`: the campaign's hub
 // (sim/scenarios/campaign.js), listed apart on the title. setup(state, { chapter, campaign }): campaign
 // is an assignment's context when it's run from a campaign (sim/campaign.js context()): the character,
-// the city, the time, its people; state.campaign is the campaign itself, riding along. A scene played in a room of its
+// the city, the time, its people; state.campaign is the campaign itself, riding along. onBoard?(state, bus, to, how): you're in
+// a taxi that stopped for you, the moment you get in (before it drives off: who's beside you gets in too). A scene played in a room of its
 // own off the street (a range: sim/scenarios/range.js) says where on the street you're let out after (state.scenario.out).
 import { walk } from './walk.js';
 import { tail, umbrellaTest } from './tail.js';

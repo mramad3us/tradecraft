@@ -129,12 +129,14 @@ export const colourName = (c) => COLOUR_NAMES[c] ?? 'dark';
 /** A top's word ("coat", "jumper"). */
 export const topWord = (kind) => TOPS[kind] ?? 'coat';
 
+// (a hat's word where its kind isn't one: a uniform's peaked cap, the army's)
+const HAT_WORDS = { peaked: 'peaked cap', helmet: 'helmet', cap: 'cap' };
 /** How you'd remember someone by their look: "the man in the beige coat", "the woman in the red beanie". */
 export function describe(look, sex = 'm') {
   const who = sex === 'f' ? 'woman' : 'man';
   const top = look?.top ? `${COLOUR_NAMES[look.top.color] ?? 'dark'} ${TOPS[look.top.kind] ?? 'coat'}` : 'coat';
   if (look?.hat && look.hat.kind !== 'fedora' && (look.hat.kind === 'beanie' ? (COLOUR_NAMES[look.hat.color] ?? '') !== (COLOUR_NAMES[look.top?.color] ?? '') : true)) {
-    return `the ${who} in the ${COLOUR_NAMES[look.hat.color] ?? 'dark'} ${look.hat.kind}`;
+    return `the ${who} in the ${COLOUR_NAMES[look.hat.color] ?? 'dark'} ${HAT_WORDS[look.hat.kind] ?? look.hat.kind}`;
   }
   return `the ${who} in the ${top}`;
 }

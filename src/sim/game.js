@@ -206,7 +206,7 @@ export function step(state, input = {}, bus) {
     if (String(act).startsWith('taxi:')) {                         // (a taxi, where to chosen: sim/taxi.js)
       const [id, how] = act.slice(5).split(':'), dest = destinations(state, scenario).find(d => d.id === id), cab = me && cabFor(state, me);
       const to = dest && { ...dest, lose: how === 'lose' };          // (the long way round, losing anyone behind: sim/taxi.js keeps())
-      if (to && me && !state.fight && cab) { board(state, bus, me, cab, to); continue; }   // (the taxi stopped for you: in, and off: rideTick())
+      if (to && me && !state.fight && cab) { board(state, bus, me, cab, to); scenario.onBoard?.(state, bus, to, 'taxi'); continue; }   // (the taxi stopped for you: in, and off: rideTick(); the scene hears who got in with you, then: sim/scenarios/extraction.js)
       if (to && me && !state.fight && atKerb(state, me)) {
         say(state, bus, { kind: 'note', text: `A taxi pulls in. ${cap(to.label)}, you tell him, and he grunts.` });
         const m = ride(state, bus, to, { scenario, skip, loadRow });

@@ -26,7 +26,8 @@
 // door by whoever hailed it (c.taxi.stopped), and waits there (TAXI_WAIT_S) until they get in or go;
 // a taken one drives by. A car after yours (sim/taxi.js chase(): a cab taken by whoever followed you, or
 // a team's own car) is sent along the lane like any other (sendFare()), stops behind where you got out,
-// lets them out, and goes.
+// lets them out, and goes. A car a scene sends to wait (waitingCar(): an extraction's way out) comes along the lane the
+// same way, pulls in at the south kerb and stays held there till it's let go (letGo()), then drives off along its lane.
 import { Z } from './map/street.js';
 import { townOf, cityOf } from './cities/index.js';
 import { TICK_MS, hourOfDay, SEC } from './clock.js';
@@ -170,6 +171,27 @@ export function pullOver(state, c, x) {
   if (!c?.taxi) return;
   c.taxi.hail = { x, by: null }; c.ems.hold = true;
 }
+
+/**
+ * A car sent to wait at the south kerb by x (a scene's: the way out of an extraction, sim/scenarios/extraction.js): a plain
+ * car, held there (c.taxi.held) till it's let go (letGo()), then on its way. arrive: in from the upstream edge, as a fare's
+ * would (the street in play, and room at the edge); else there already, pulled in. The car, or null.
+ */
+export function waitingCar(state, x, { arrive = false } = {}) {
+  const t = T(state);
+  if (!t || state.map.kind !== 'street' || !state.$world || t.row !== (state.map.row ?? 0)) return null;
+  const P = cityOf(townOf(state.map)), dir = laneOf(state, 1) === LANE_Z.south ? 1 : -1, [x0, x1] = state.$world.bx, from = dir > 0 ? x0 + 2 : x1 - 2;
+  const kind = weighted(stream('waiting-car', state.map.seed, Math.round(x)), P.LOOKS.car.filter(([k]) => k !== P.taxi && k !== 'van'));
+  if (arrive && !t.cars.some(c => c.dir === dir && Math.abs(c.x - from) < 14)) return spawn(state, dir, from, { bus: false, kind, extra: { waiting: true, taxi: { free: false, plain: true, held: true, hail: { x, by: null } } } });
+  t.cars = t.cars.filter(o => !(o.dir === dir && Math.abs(o.x - x) < 7));   // (room for it at the kerb)
+  const c = spawn(state, dir, x + dir * (2.1 - 0.9), { bus: false, kind, extra: { waiting: true, taxi: { free: false, plain: true, held: true, hail: { x, by: null }, stopped: state.time.ms } } });
+  Object.assign(c, { v: 0, z: LANE_Z.south + TAXI_KERB_M, pz: LANE_Z.south + TAXI_KERB_M });
+  return c;
+}
+/** A waiting car (waitingCar()) by its id, or null: a car's id is the street's, and another street's traffic counts again from one. */
+export const waitingOf = (state, id) => (id && T(state)?.cars.find(c => c.id === id && c.waiting)) || null;
+/** A held car let go (waitingCar()): off along its lane, and out of the street at its edge. */
+export function letGo(state, id) { const c = waitingOf(state, id); if (c?.taxi) { c.taxi.held = false; c.taxi.hail = null; c.taxi.stopped = 0; c.vmax = VMAX_MS[0]; } }
 
 /** The taxi you've just got out of, stopped at the south kerb by x, its light dark; it goes in a moment, free again. */
 export function dropTaxi(state, x) {
@@ -324,7 +346,7 @@ export function trafficTick(state, bus) {
 function taxiStop(state, c, ahead, stopAt) {
   const h = c.taxi.hail, now = state.time.ms, d = ahead(h.x + c.dir * (c.len / 2 - 0.9));
   if (c.taxi.stopped) {
-    if (now - c.taxi.stopped < TAXI_WAIT_S * SEC || c.ems?.hold) return stopAt(-1);   // (an ambulance or a police car on its call: there till it's done)
+    if (now - c.taxi.stopped < TAXI_WAIT_S * SEC || c.ems?.hold || c.taxi.held) return stopAt(-1);   // (an ambulance or a police car on its call, a car sent to wait: there till it's done)
     c.taxi.hail = null; c.taxi.stopped = 0; return;
   }
   if (d < -0.5 || (d < c.v * c.v / (2 * HARD_MS2) && c.v > 2)) { c.taxi.hail = null; return; }   // (too late to stop: on it goes)

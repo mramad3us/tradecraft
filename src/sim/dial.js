@@ -31,7 +31,8 @@
 // centre, open EXFIL_WAIT_H, an illegal's only once the Center answers, EXFIL_SIGNAL_H); the station's word, its week's review,
 // left at a bench (signals()); and, from a handler's posting on, the agency's disguise officer (sim/disguise.js LOOKS). A kinetic
 // mission's word rides the same signals (its drop's paper, read: on the schedule; never read: lapsed, sim/kinetic.js), and with
-// an extraction open the disguise officer makes a face for whoever's brought out too ('adv:for', left at a safe house: madeForGuest()).
+// an extraction open the disguise officer makes a face for whoever's brought out too ('adv:for': sim/kinetic.js guestFaces(), left at
+// the safe house the mission routes past).
 import { stream, chance, range, int, pick } from './rng.js';
 import { MIN, HOUR, DAY, clockText } from './clock.js';
 import { say } from './log.js';
@@ -52,9 +53,9 @@ import { sectionOf, LINE } from './city.js';
 import { placeName, streetName } from './map/street.js';
 import { newGun, newMag, MODELS } from './firearms.js';
 import { huntOf } from './hunt.js';
-import { EQUIPMENT, ADV_AS, ADV_H, madeFor, LOOKS, ADV_Q } from './disguise.js';
+import { EQUIPMENT, ADV_AS, ADV_H, madeFor, LOOKS } from './disguise.js';
 import { isDeep } from './legends.js';
-import { opened, lapsed, faceFor, callOf } from './kinetic.js';
+import { opened, lapsed, faceFor, callOf, viaHouse, guestFaces } from './kinetic.js';
 
 export const PHONES = { burner: 'From a burner', own: 'From your own phone', home: 'From the flat\'s phone' };
 export const FOOD_USD = 18, FOOD_MIN = [30, 45], TAXI_MIN = [3, 6], TAXI_HEAT = 2, TRACKED_P = 0.5, OWN_HEAT = 4;
@@ -106,7 +107,7 @@ export function services(state) {
     // (a change of face, the agency's disguise officer at a safe house: from a handler's posting on, one with a network to run; sim/disguise.js)
     ...(S.kind !== 'firstTour' ? [{ key: 'adv', label: 'A change of face, at a safe house', ok: !!c.posting.assets.length && S.now >= ADV_AS && !!houseFor(c) && !R.adv, why: R.adv ? `the disguise officer's on the way to ${low(c.posting.safehouses.find(h => h.id === R.adv.house)?.label ?? 'the safe house')}` : !c.posting.assets.length ? 'a network to run first' : !houseFor(c) ? 'no safe house to keep them at' : `${support(ADV_AS)}: the agency's disguise officer, ${Object.keys(LOOKS).length} faces made for you and kept at a safe house`, phones: phones(true) }] : []),
     // (a face for whoever you're bringing out, from their photograph: an open extraction's, sim/kinetic.js faceFor())
-    ...(faceFor(c) && S.kind !== 'firstTour' ? [((F) => ({ key: 'adv:for', label: `A face for ${callOf(F.mission)}, at a safe house`, ok: S.now >= ADV_AS && !!houseFor(c) && !R.advFor, why: R.advFor ? `the disguise officer's on the way to ${low(c.posting.safehouses.find(h => h.id === R.advFor.house)?.label ?? 'the safe house')}` : !houseFor(c) ? 'no safe house to keep it at' : `${support(ADV_AS)}: the disguise officer, from ${callOf(F.mission)}'s photograph, left at a safe house`, phones: phones(true) }))(faceFor(c))] : []),
+    ...(faceFor(c) && S.kind !== 'firstTour' ? [((F) => ({ key: 'adv:for', label: `A face for ${callOf(F.mission)}`, ok: S.now >= ADV_AS && !!viaHouse(c, F) && !R.advFor, why: R.advFor ? `the disguise officer's on the way to ${low(c.posting.safehouses.find(h => h.id === R.advFor.house)?.label ?? 'the safe house')}` : !viaHouse(c, F) ? 'no safe house to keep it at' : `${support(ADV_AS)}: the disguise officer, from ${callOf(F.mission)}'s photograph, left at ${low(viaHouse(c, F).label)} on the way`, phones: phones(true) }))(faceFor(c))] : []),
     { key: 'clinic', label: 'A clandestine clinic, in a safe house', ok: S.now >= COST.clinic && !!houseFor(c) && !(R.clinic && R.clinic.until > now), why: R.clinic && R.clinic.until > now ? `set up in ${c.posting.safehouses.find(h => h.id === R.clinic.house)?.label ?? 'a safe house'}` : !houseFor(c) ? 'no safe house left to make one of' : `${support(COST.clinic)}: a doctor of the agency's there from a few hours on, for ${CLINIC_DAYS} days`, phones: phones(true) },
     ...(CLEANUP_KINDS.includes(S.kind) ? [{ key: 'cleanup', label: 'A clean-up crew, here', ok: S.now >= COST.cleanup && bodies.length > 0 && !R.cleanup, why: R.cleanup ? 'on its way' : !bodies.length ? 'nothing here for one: nobody dead that hasn\'t been called in' : `${support(COST.cleanup)}: ${bodies.length === 1 ? 'the body' : `${bodies.length} bodies`} gone in a few minutes`, phones: phones(true) }] : []),
     // (under a legend, no car of the agency's: the way out is your own, far from the centre; an illegal's only once the Center answers: exfilWays())
@@ -162,7 +163,7 @@ export function ring(state, bus, key, phone) {
     R.adv = { house: h.id, at: now + Math.round(range(r, ...ADV_H) * 60) * MIN };
     lines.push(`"The decorator can see to ${low(h.label)} ${when(R.adv.at, now)}." A woman with a make-up case and a photographer's eye: ${Object.keys(LOOKS).length} faces, kept there for you. (Support ${ADV_AS}: ${supportOf(c).now} left.)`);
   } else if (key === 'adv:for') {
-    const F = faceFor(c), h = houseFor(c);
+    const F = faceFor(c), h = viaHouse(c, F);                      // (at the house the mission routes past: sim/kinetic.js)
     spend(c, ADV_AS);
     R.advFor = { house: h.id, at: now + Math.round(range(r, ...ADV_H) * 60) * MIN, for: F.id };
     lines.push(`"The decorator can see to ${low(h.label)} ${when(R.advFor.at, now)}, for your guest." A woman with a make-up case and ${callOf(F.mission)}'s photograph: a face for ${F.mission.companion.sex === 'f' ? 'her' : 'him'}, waiting there. (Support ${ADV_AS}: ${supportOf(c).now} left.)`);
@@ -208,13 +209,6 @@ export function ring(state, bus, key, phone) {
 // (the call's code, for flavour: an agency's dead drop as a dry cleaner's, a florist's, a garage's)
 const CODES = ['A dry cleaner\'s number: "My grey suit, is it ready?" "Ready', '"Is that the florist? The white lilies, for my aunt." "They\'ll be in', 'A garage: "The Peugeot, the brakes." "Done, sir. Collect it'];
 const when = (ms, now) => { const d = Math.floor(ms / DAY) - Math.floor(now / DAY); return `${d === 0 ? 'from' : d === 1 ? 'tomorrow, from' : 'from'} ${clockText(ms)}`; };
-
-/** The faces made for a guest (an extraction's: its companion's file): one of LOOKS by the photograph, its quality their wearing of it (their Deception). */
-function madeForGuest(F, now) {
-  const C = F.mission.companion, k = C.sex === 'm' ? 'other' : C.age < 45 ? 'older' : 'heavier';   // (a man a beard and another nose; a woman older, or heavier)
-  const q = Math.round(Math.min(ADV_Q.max, ADV_Q.base + (C.deception ?? 6) * ADV_Q.perDeception + (C.kind === 'colleague' ? 0.1 : 0)) * 100) / 100;
-  return [{ id: `guest${F.id}${now % 1e5}`, look: k, q, for: F.id }];
-}
 
 /** A safe house to make a clinic of: the first not blown. */
 const houseFor = (c) => c.posting.safehouses.find(h => !h.burned) ?? null;
@@ -302,7 +296,7 @@ export function second(state, bus, me, { extracted = null } = {}) {
   }
   if (R.advFor && now >= R.advFor.at) {                             // (the face for your guest, left at the safe house: sim/kinetic.js, sim/scenarios/extraction.js)
     const h = c.posting.safehouses.find(x => x.id === R.advFor.house), F = c.assignments.find(a => a.id === R.advFor.for);
-    if (h && !h.burned && F?.mission) { h.disguises = [...(h.disguises ?? []), ...madeForGuest(F, now)]; say(state, bus, { kind: 'note', text: `${cap(h.label)}: the disguise officer's been, and left a face for ${callOf(F.mission)} in the suitcase under the bed.` }); }
+    if (h && !h.burned && F?.mission) { h.disguises = [...(h.disguises ?? []), ...guestFaces(c, F, now)]; say(state, bus, { kind: 'note', text: `${cap(h.label)}: the disguise officer's been, and left a face for ${callOf(F.mission)} in the suitcase under the bed.` }); }
     delete R.advFor;
   }
   exfilSecond(state, bus, me, c, now);                              // (and the way out, if you're making for it)

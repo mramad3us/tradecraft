@@ -195,7 +195,7 @@ function end(state, bus, scene) {
     if (a.ai) { a.ai.fighting = false; if (out) a.ai.downUntil = p.dead ? Infinity : state.time.ms + OUT_S * 1000; }
   }
   // (yours, the one you fought: what the emergency services' call knows is your doing, seen or not, sim/emergency.js yours())
-  if (f.a === state.player && state.people[f.b]) state.people[f.b].hitBy = { id: state.player, ms: state.time.ms };
+  if (f.a === state.player && state.people[f.b]) state.people[f.b].hitBy = { id: state.player, ms: state.time.ms, by: 'blow' };   // (a blow, not a round: sim/armed.js arrest() words them apart)
   hooksOf(f, scene)?.onFightEnd?.(state, bus, f);
   bus?.emit('fight-end', f);
   if (state.people[f.a]?.dead && !state.scenario.outcome) {        // (the player dead: the scene's over, the engine's way)

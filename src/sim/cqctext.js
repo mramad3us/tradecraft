@@ -86,7 +86,7 @@ const FEELS = {
   arm: { light: ['Your forearm stings.', 'A knock on the elbow.'], solid: ['Your arm goes dead to the fingers.', 'Pins and needles from elbow to wrist.'], heavy: ['The arm won\'t lift properly.', 'Your hand won\'t close.'], brutal: ['Your arm gives with a sound you\'ll remember.', 'The arm hangs, and the pain arrives late and all at once.'] },
   leg: { light: ['Your thigh stings.', 'A dead patch on the leg.'], solid: ['Your thigh goes to water.', 'The leg nearly folds.'], heavy: ['You can\'t put weight on it.', 'The leg buckles; you stay up by luck.'], brutal: ['The leg goes, and you with it.', 'Your knee folds under you.'] },
 };
-const THROWN = [['{n} goes over your hip and onto {mat}', 'and {n} hits {mat} flat on {his} back', 'and {n}\'s feet go up and {his} back comes down'],
+const THROWN = [['{n} goes over your hip and onto {mat}', '{n} hits {mat} flat on {his} back', '{n}\'s feet go up and {his} back comes down'],   // (joined after ", and": none of its own)
   ['{mat} comes up to meet you', 'you go over and land flat, and the air leaves', '{floor} hits you along the whole of your back']];
 const SHOVED = [['{n} staggers back, off balance', '{n} stumbles a step', '{n} rocks back on {his} heels'], ['you stagger back, off balance', 'you stumble a step', 'you rock back on your heels']];
 const LOCKED = [['{n}\'s arm goes up behind {him}, and {n} slaps {mat}', 'you wind {his} arm up until {n} taps', '{n} taps before the elbow does something worse'],

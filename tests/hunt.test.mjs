@@ -217,6 +217,24 @@ export default [
     },
   },
   {
+    name: 'armed: a fist fight is no shooting: whom your hands hurt is charged as a fight in the street, whom your rounds hit as rounds (sim/fight.js and sim/shooting.js mark which)',
+    fn() {
+      const charge = (by) => {
+        const w = scene(), now = w.g.time.ms;
+        for (const [k, dx] of [['punchedA', 3], ['punchedB', -4]]) {
+          w.g.people[k] = sheet({ id: k, name: 'a man', look: { skin: 'light', top: { kind: 'coat', color: 0x23252f } } });
+          makeAgent(w.g, { who: k, row: w.g.map.row ?? 0, x: w.me.x + dx, z: w.me.z, speed: 1.2 });
+          w.g.people[k].hitBy = { id: w.g.player, ms: now, by };
+        }
+        arrest(w.g, w.bus, w.me, 'submitted');
+        return w.papers.find(x => x.kind === 'arrest')?.lines[0] ?? '';
+      };
+      const fists = charge('blow'), rounds = charge('round');
+      console.log(`      after a fist fight: "${fists}"; after a shooting: "${rounds}"`);
+      assert(/hands/.test(fists) && !/rounds/.test(fists) && /rounds/.test(rounds), JSON.stringify({ fists, rounds }));
+    },
+  },
+  {
     name: 'armed: three rounds in the chest and taken in: the hospital keeps you till you can walk, and out of the station on your feet, dosed, painkillers on you (the user, 2026-11-04)',
     fn() {
       const w = scene('london'), p = w.p;
