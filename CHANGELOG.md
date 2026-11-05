@@ -12,6 +12,11 @@ One entry per release, newest first: what changed for the player, and the number
 - **Walk it first.** Pass the bench and the way out the day before: your Awareness may show you the man they've posted there.
 - **Debug start.** `?mission=extraction` starts one at once (`city`, `level`, `who`, `at=hub`, `seed`, `kit`, `face`); so does `__tradecraft.mission('extraction', {…})`.
 
+## v0.2.0-rc2 (2026-11-05)
+
+- **The team that tails you no longer loses a man who walks straight there.** Since rc56 they go by what they've seen, and they lost an officer who never once tried to lose them 8 evenings in 21: a watcher stuck on a tree or an alley's bin, a zebra taken 25 m back the other way with his back to you, a fresh sighting forgotten for the top of the lane they'd come up, a handover to a back-up who'd lost you (or, off the street, to nobody: three became one), and at night a distance past their eyes' reach. Now they keep no further back than they can see you between the lamps (10 m at night, 24 at dusk), cross by the gap on your way, step round what's in theirs, hand over only to a back-up who has you, and if one of them sees you take a lane the rest follow. Walking straight there: lost 0 times in 21 (was 8), burned 15 (was 8). Checking your back still pays: burned 7. Out of their sight and moved on, a master is still lost every time.
+- Tests: walking straight there burns him again (failing since rc56); the team riding the metro with you over 240 evenings, not 80, too few to tell the doors from a plain ride (rc1 failed it by chance).
+
 ## v0.2.0-rc1 (2026-11-05)
 
 - **Undercover and illegal postings.** A posting done well now offers three branches, listed on the result paper with how long each takes and why any is closed:
