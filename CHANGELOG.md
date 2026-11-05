@@ -4,6 +4,14 @@ One entry per release, newest first: what changed for the player, and the number
 
 ## Unreleased
 
+## v0.2.0-rc3 (2026-11-05)
+
+- **An arrested asset's meetings go with him.** His benches already on the schedule stayed there: the hub offered "undefined's bench", and beginning it stopped the game with an error, every time an asset was taken. Now they're struck off the morning he's arrested, and none is planned with him after.
+- **The mind's day button is shorter:** "Call in sick" on a working day, "Lie low a day" otherwise; what it does is in its tooltip.
+- Tests: what heat costs checks the taken asset's benches are struck off and every open assignment still begins.
+- Tests: the campaign from the title reads the day's button as it's been since 0.1.26 (it failed on the sick day's longer label).
+- Tests: blown, across the city: running when one has you is no worse within one evening in twelve (rc2's routes made it 1 out against 0 by chance).
+
 ## v0.2.0-rc2 (2026-11-05)
 
 - **The team that tails you no longer loses a man who walks straight there.** Since rc56 they go by what they've seen, and they lost an officer who never once tried to lose them 8 evenings in 21: a watcher stuck on a tree or an alley's bin, a zebra taken 25 m back the other way with his back to you, a fresh sighting forgotten for the top of the lane they'd come up, a handover to a back-up who'd lost you (or, off the street, to nobody: three became one), and at night a distance past their eyes' reach. Now they keep no further back than they can see you between the lamps (10 m at night, 24 at dusk), cross by the gap on your way, step round what's in theirs, hand over only to a back-up who has you, and if one of them sees you take a lane the rest follow. Walking straight there: lost 0 times in 21 (was 8), burned 15 (was 8). Checking your back still pays: burned 7. Out of their sight and moved on, a master is still lost every time.

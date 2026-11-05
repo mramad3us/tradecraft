@@ -89,7 +89,7 @@ function aheadLeaf(state, { el, act }, show) {
       el('span', { className: 'when' }, O.done(c) ? 'done' : 'optional'), el('span', { className: 'what' }, O.name, el('span', { className: 'where' }, O.about))))),
     el('h3', {}, 'The day'),
     el('div', { className: 'mind-acts' },
-      el('button', { onclick: () => act('low') }, expected(c, now) ? 'Call in sick, and lie low for a day' : 'Lie low for a day'),   // (a working day you're expected: a sick day, sim/campaign.js lieLow())
+      el('button', { onclick: () => act('low'), title: expected(c, now) ? 'A sick day: a day lying low, the heat down; work will notice' : 'A day lying low: the heat down' }, expected(c, now) ? 'Call in sick' : 'Lie low a day'),   // (a working day you're expected: a sick day, sim/campaign.js lieLow())
       el('button', { onclick: () => act(null) }, 'Walk on')),
   ];
 }

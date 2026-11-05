@@ -152,7 +152,7 @@ export default [
         console.log(`      start as: ${rungs.join(', ')}; ${names} officers, a ${level}; day one in the ${flat === 'home' ? 'flat' : flat}; ${ahead} assignments ahead in the mind; the day's choices: ${day.join(', ')}`);
         assert(rungs[0] === 'A first tour*' && /locked/.test(rungs[1]) && rungs[1].endsWith('!'), 'a first tour, the posting of your own locked');
         assert(names === 3 && level === 'junior' && flat === 'home' && ahead >= 2, 'picked, in the flat, the call, assignments ahead in the mind');
-        assert(day.join('|') === 'Lie low for a day|Walk on', 'the day: lying low, no work or bed from the mind');
+        assert(/^(Call in sick|Lie low a day)\|Walk on$/.test(day.join('|')), 'the day: lying low (a sick day, on a working day), no work or bed from the mind');
         assert(errors.length === 0, errors.join('\n'));
       });
     },

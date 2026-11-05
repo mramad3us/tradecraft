@@ -152,14 +152,22 @@ export default [
     name: 'campaign: what heat costs: an asset met with a tail on you is taken in the days after; heat at the top, and you\'re expelled; lying low cools it, faster at a safe house',
     fn() {
       const c = newCampaign(9, candidates(9)[0]), p = c.posting;
-      p.assets[0].burned = true;
+      pass(c, p.startMs, p.startMs + DAY);                          // (the week planned: one of them has a meeting booked)
+      const gone = p.assets.find(s => c.assignments.some(a => a.status === 'open' && a.kind === 'sdr' && a.who === s.id && a.from > p.startMs + 2 * DAY));
+      gone.burned = true;
+      const booked = c.assignments.filter(a => a.status === 'open' && a.kind === 'sdr' && a.who === gone.id).length;
       let papers = [];
-      for (let d = 0; d < 20 && p.assets.some(s => s.burned); d++) papers.push(...pass(c, p.startMs + d * DAY, p.startMs + (d + 1) * DAY));
+      for (let d = 1; d < 20 && p.assets.some(s => s.burned); d++) papers.push(...pass(c, p.startMs + d * DAY, p.startMs + (d + 1) * DAY));
       const taken = papers.find(x => x.kind === 'news');
+      // (his meetings, the morning he's taken: gone with him; a bench nobody's coming to, begun, threw in context() till rc2)
+      const left = c.assignments.filter(a => a.status === 'open' && a.kind === 'sdr' && a.who === gone.id), opens = c.assignments.filter(a => a.status === 'open' && a.kind !== 'lesson');
+      let threw = null; for (const a of opens) try { context(c, a); } catch (e) { threw = e.message; }
       p.heat = 60; const h0 = p.heat; lieLow(c, p.startMs); const h1 = p.heat; lieLow(c, p.startMs, true); const h2 = p.heat;
       p.heat = 96; const end = pass(c, p.startMs + 30 * DAY, p.startMs + 31 * DAY);
       console.log(`      ${taken?.title} (after ${papers.indexOf(taken) + 1} papers); lying low: heat ${h0} → ${h1}, at a safe house → ${h2}; at 96: ${end.map(x => x.title).join(', ')}`);
       assert(taken && !p.assets.some(s => s.codename === taken.title.split(':')[0]), 'taken, and gone from the network');
+      console.log(`      ${gone.codename}'s meetings: ${booked} booked, ${left.length} left open once taken; the open assignments' contexts: ${opens.length}, ${threw ? `threw: ${threw}` : 'none throws'}`);
+      assert(!left.length && !threw, 'an arrested asset\'s meetings go with him');
       assert(h0 - h1 >= 6 && h1 - h2 > h0 - h1 - 1 && c.over?.why === 'expelled' && end.some(x => x.kind === 'over'), 'lying low cools; at the top, expelled');
     },
   },

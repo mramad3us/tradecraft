@@ -405,6 +405,7 @@ export function plan(c, ms) {
     const evening = isWorkday(dayMs) ? [18.5, 20.5] : [14, 19];
     const taken = () => c.assignments.some(a => dayOf(a.from) === d);   // (one a day: two meetings in an evening is how networks get rolled up)
     for (const s of p.assets) {
+      if (s.arrested) continue;                                     // (taken: no more meetings; pass() drops him from the network)
       const due = (s.nextDay ??= dayOf(p.startMs) + 1 + int(r, 2));
       if (d < due) continue;
       if (taken()) { s.nextDay = d + 1; continue; }
@@ -573,6 +574,8 @@ export function pass(c, from, to) {
   plan(c, to);
   agenda(c, to);
   c.posting.assets = p.assets.filter(s => !s.arrested);
+  // (an asset gone from the network takes his meetings with him: a bench nobody's coming to isn't on the schedule)
+  c.assignments = c.assignments.filter(a => !(a.status === 'open' && a.kind === 'sdr' && !a.trip && !c.posting.assets.some(s => s.id === a.who)));
   return papers;
 }
 
